@@ -8,6 +8,7 @@ import { tvRoutes } from "@/lib/tv/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
+import { ThemeMusicMuteButton } from "@/components/theme-music-settings";
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -112,6 +113,9 @@ export function TvMediaClient() {
 
   const page = (
     <div>
+      {media.hasThemeMusic && (
+        <ThemeMusicMuteButton className="fixed top-6 right-6 z-50" />
+      )}
       <section className="relative overflow-hidden border-b border-border/70">
         {backdropUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -121,10 +125,10 @@ export function TvMediaClient() {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/30" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/75 to-transparent" />
         {media.hasThemeMusic && (
-          <ThemeMusicWaveform className="absolute inset-x-0 bottom-0 z-[1] h-40 w-full [mask-image:linear-gradient(to_top,black_20%,transparent)]" />
+          <ThemeMusicWaveform className="absolute inset-x-0 bottom-0 h-40 w-full [mask-image:linear-gradient(to_top,black_20%,transparent)]" />
         )}
 
-        <div className="relative px-8 pb-10 pt-8">
+        <div className="relative z-10 px-8 pb-10 pt-8">
           <TvFocusLink
             href={tvRoutes.home()}
             className="mb-8 inline-flex h-14 items-center gap-2 rounded-xl bg-background/60 px-5 text-base font-medium backdrop-blur"

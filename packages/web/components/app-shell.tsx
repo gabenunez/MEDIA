@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { AuthProvider } from "@/components/auth-gate";
 import { AudioUnlock } from "@/components/audio-unlock";
+import { ThemeMusicSettingsProvider } from "@/components/theme-music-settings";
 import { ScanStatusProvider } from "@/components/scan-status-provider";
 import { UpdateStatusProvider } from "@/components/update-status-provider";
 import { UpdateModal } from "@/components/update-modal";
@@ -16,15 +17,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (isTv) {
     return (
       <AuthProvider>
-        <AudioUnlock />
-        {children}
+        <ThemeMusicSettingsProvider>
+          <AudioUnlock />
+          {children}
+        </ThemeMusicSettingsProvider>
       </AuthProvider>
     );
   }
 
   return (
     <AuthProvider>
-      <AudioUnlock />
+      <ThemeMusicSettingsProvider>
+        <AudioUnlock />
       <ScanStatusProvider>
         <UpdateStatusProvider>
           <Navbar />
@@ -33,6 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main>{children}</main>
         </UpdateStatusProvider>
       </ScanStatusProvider>
+      </ThemeMusicSettingsProvider>
     </AuthProvider>
   );
 }

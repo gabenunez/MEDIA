@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MediaRow } from "@/components/media-row";
 import { FavoriteButton } from "@/components/favorite-button";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
+import { ThemeMusicMuteButton } from "@/components/theme-music-settings";
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -123,6 +124,9 @@ export function MediaClient() {
 
   const page = (
     <div>
+      {media.hasThemeMusic && (
+        <ThemeMusicMuteButton className="fixed top-20 right-4 z-50 sm:right-6" />
+      )}
       <section className="relative overflow-hidden border-b border-border/70">
         {backdropUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -136,10 +140,10 @@ export function MediaClient() {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/20" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-background/10" />
         {media.hasThemeMusic && (
-          <ThemeMusicWaveform className="absolute inset-x-0 bottom-0 z-[1] h-40 w-full [mask-image:linear-gradient(to_top,black_20%,transparent)]" />
+          <ThemeMusicWaveform className="absolute inset-x-0 bottom-0 h-40 w-full [mask-image:linear-gradient(to_top,black_20%,transparent)]" />
         )}
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-10 pt-20 sm:px-6 sm:pt-28">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 pb-10 pt-20 sm:px-6 sm:pt-28">
           <Button variant="ghost" size="sm" asChild className="mb-8">
             <Link href="/">
               <ChevronLeft className="h-4 w-4" /> Back

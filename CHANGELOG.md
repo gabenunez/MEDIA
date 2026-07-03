@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.36 — 2026-07-03
+
+### Theme music
+- **Global mute** — speaker icon on detail pages stops the current theme and disables autoplay on all future detail pages until unmuted
+- **Waveform layering** — banner waveform renders behind poster, title, and buttons
+
 ## 0.1.35 — 2026-07-03
 
 ### Theme music

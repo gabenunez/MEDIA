@@ -10,17 +10,15 @@ import {
 } from "react";
 import { api } from "@/lib/api";
 import { ensureAudioUnlocked, getSharedAudioContext } from "@/lib/audio-unlock";
+import {
+  isThemeMusicEnabled,
+  useThemeMusicSettings,
+} from "@/components/theme-music-settings";
 
-const THEME_MUSIC_ENABLED_KEY = "reel-theme-music-enabled";
 const TARGET_VOLUME = 0.38;
 const FADE_MS = 1800;
 const MAX_PLAY_MS = 42_000;
-
-function isThemeMusicEnabled(): boolean {
-  if (typeof window === "undefined") return true;
-  const stored = localStorage.getItem(THEME_MUSIC_ENABLED_KEY);
-  return stored !== "0";
-}
+const THEME_MUSIC_CHANGED_EVENT = "reel-theme-music-changed";
 
 function fadeVolume(
   audio: HTMLAudioElement,
@@ -71,14 +69,22 @@ export function ThemeMusicProvider({
   enabled = true,
   children,
 }: ThemeMusicProviderProps) {
+  const { enabled: themeMusicEnabled } = useThemeMusicSettings();
   const [isPlaying, setIsPlaying] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopFadeRef = useRef<(() => void) | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!enabled || !mediaId || !isThemeMusicEnabled()) return;
+    if (!themeMusicEnabled) {
+      cleanupRef.current?.();
+    }
+  }, [themeMusicEnabled]);
+
+  useEffect(() => {
+    if (!enabled || !mediaId || !themeMusicEnabled || !isThemeMusicEnabled()) return;
 
     let objectUrl: string | null = null;
     let cancelled = false;
@@ -106,6 +112,8 @@ export function ThemeMusicProvider({
       setAnalyser(null);
       audioRef.current = null;
     };
+
+    cleanupRef.current = cleanup;
 
     const removeRetryListeners = (handler: () => void) => {
       document.removeEventListener("pointerdown", handler, true);
@@ -209,8 +217,19 @@ export function ThemeMusicProvider({
       })
       .catch(() => cleanup());
 
-    return cleanup;
-  }, [mediaId, enabled]);
+    return () => {
+      cleanup();
+      cleanupRef.current = null;
+    };
+  }, [mediaId, enabled, themeMusicEnabled]);
+
+  useEffect(() => {
+    const onSettingsChange = () => {
+      if (!isThemeMusicEnabled()) cleanupRef.current?.();
+    };
+    window.addEventListener(THEME_MUSIC_CHANGED_EVENT, onSettingsChange);
+    return () => window.removeEventListener(THEME_MUSIC_CHANGED_EVENT, onSettingsChange);
+  }, []);
 
   return (
     <ThemeMusicContext.Provider value={{ isPlaying, analyser }}>
