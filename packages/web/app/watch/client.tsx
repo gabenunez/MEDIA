@@ -12,6 +12,9 @@ import {
   Play,
   Subtitles,
   Settings2,
+  Volume1,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { api, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -48,6 +51,16 @@ function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): str
   return quality.toUpperCase();
 }
 
+const VOLUME_STORAGE_KEY = "reel:volume";
+
+function loadStoredVolume(): number {
+  if (typeof window === "undefined") return 1;
+  const stored = localStorage.getItem(VOLUME_STORAGE_KEY);
+  if (stored === null) return 1;
+  const parsed = parseFloat(stored);
+  return Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 1;
+}
+
 export function WatchClient() {
   const searchParams = useSearchParams();
   const type = (searchParams.get("type") ?? "movie") as "movie" | "episode";
@@ -60,6 +73,7 @@ export function WatchClient() {
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resumeTimeRef = useRef(0);
+  const volumeBeforeMuteRef = useRef(1);
 
   const [quality, setQuality] = useState<StreamQuality>("original");
   const [hlsStartOffset, setHlsStartOffset] = useState(0);
@@ -88,6 +102,9 @@ export function WatchClient() {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [posterPath, setPosterPath] = useState<string | null>(null);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [volumeMenuOpen, setVolumeMenuOpen] = useState(false);
 
   const revealControls = useCallback((autoHide = true) => {
     setShowControls(true);
@@ -100,9 +117,33 @@ export function WatchClient() {
         setShowControls(false);
         setSubtitleMenuOpen(false);
         setQualityMenuOpen(false);
+        setVolumeMenuOpen(false);
       }, 3000);
     }
   }, []);
+
+  const setVolumeLevel = useCallback((level: number) => {
+    const clamped = Math.min(1, Math.max(0, level));
+    setVolume(clamped);
+    setMuted(clamped === 0);
+    localStorage.setItem(VOLUME_STORAGE_KEY, String(clamped));
+    if (clamped > 0) {
+      volumeBeforeMuteRef.current = clamped;
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    if (muted || volume === 0) {
+      const restore = volumeBeforeMuteRef.current || loadStoredVolume() || 1;
+      setVolume(restore);
+      setMuted(false);
+      localStorage.setItem(VOLUME_STORAGE_KEY, String(restore));
+      return;
+    }
+
+    volumeBeforeMuteRef.current = volume;
+    setMuted(true);
+  }, [muted, volume]);
 
   const saveProgress = useCallback(() => {
     const video = videoRef.current;
@@ -135,6 +176,17 @@ export function WatchClient() {
       })
       .catch(console.error);
   }, [fileId, type]);
+
+  useEffect(() => {
+    setVolume(loadStoredVolume());
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.volume = muted ? 0 : volume;
+    video.muted = muted;
+  }, [volume, muted]);
 
   const refreshSubtitles = useCallback(async () => {
     if (!fileId || Number.isNaN(fileId)) return;
@@ -526,6 +578,91 @@ export function WatchClient() {
                   {formatDuration(absoluteCurrentTime * 1000)} /{" "}
                   {formatDuration(absoluteDurationMs)}
                 </span>
+
+                <div
+                  className="relative hidden items-center sm:flex"
+                  onMouseEnter={() => setVolumeMenuOpen(true)}
+                  onMouseLeave={() => setVolumeMenuOpen(false)}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/10"
+                    onClick={toggleMute}
+                    aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
+                  >
+                    {muted || volume === 0 ? (
+                      <VolumeX className="h-5 w-5" />
+                    ) : volume < 0.5 ? (
+                      <Volume1 className="h-5 w-5" />
+                    ) : (
+                      <Volume2 className="h-5 w-5" />
+                    )}
+                  </Button>
+                  <div
+                    className={cn(
+                      "flex items-center overflow-hidden transition-all duration-200",
+                      volumeMenuOpen ? "ml-1 w-24 opacity-100" : "w-0 opacity-0",
+                    )}
+                  >
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={muted ? 0 : Math.round(volume * 100)}
+                      onChange={(e) =>
+                        setVolumeLevel(parseFloat(e.target.value) / 100)
+                      }
+                      aria-label="Volume"
+                      className="range-signal h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/20 accent-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="relative sm:hidden">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/10"
+                    onClick={() => setVolumeMenuOpen((open) => !open)}
+                    aria-label={muted || volume === 0 ? "Unmute" : "Volume"}
+                  >
+                    {muted || volume === 0 ? (
+                      <VolumeX className="h-5 w-5" />
+                    ) : volume < 0.5 ? (
+                      <Volume1 className="h-5 w-5" />
+                    ) : (
+                      <Volume2 className="h-5 w-5" />
+                    )}
+                  </Button>
+                  {volumeMenuOpen && (
+                    <div className="absolute bottom-full left-0 mb-2 rounded-md border border-border bg-card p-3 shadow-xl">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={muted ? 0 : Math.round(volume * 100)}
+                        onChange={(e) =>
+                          setVolumeLevel(parseFloat(e.target.value) / 100)
+                        }
+                        aria-label="Volume"
+                        className="range-signal h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-white/20 accent-primary"
+                      />
+                      <button
+                        type="button"
+                        className="mt-2 block w-full rounded px-2 py-1 text-left text-xs text-muted-foreground hover:bg-muted"
+                        onClick={() => {
+                          toggleMute();
+                          setVolumeMenuOpen(false);
+                        }}
+                      >
+                        {muted || volume === 0 ? "Unmute" : "Mute"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
@@ -540,6 +677,7 @@ export function WatchClient() {
                     onClick={() => {
                       setSubtitleMenuOpen((open) => !open);
                       setQualityMenuOpen(false);
+                      setVolumeMenuOpen(false);
                     }}
                   >
                     <Subtitles className="h-4 w-4" />
@@ -613,6 +751,7 @@ export function WatchClient() {
                     onClick={() => {
                       setQualityMenuOpen((open) => !open);
                       setSubtitleMenuOpen(false);
+                      setVolumeMenuOpen(false);
                     }}
                     disabled={!transcodingEnabled && quality === "original"}
                   >

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 — 2026-07-03
+
+### Video player
+- **Volume control** in the player — mute/unmute button with a slider (hover on desktop, popover on mobile)
+- Volume level persists across sessions
+
 ## 0.1.2 — 2026-07-03
 
 ### Library scanning
