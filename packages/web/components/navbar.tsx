@@ -3,9 +3,42 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Clapperboard, Film, Home, Settings, Tv } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { SearchPopover } from "@/components/search-popover";
 import { cn } from "@/lib/utils";
+
+function NavTab({
+  href,
+  icon: Icon,
+  label,
+  active,
+  compact = false,
+}: {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      title={label}
+      className={cn(
+        "relative flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all",
+        compact ? "h-9 w-9" : "h-9 px-3.5 sm:px-4",
+        active
+          ? "bg-background text-primary shadow-sm ring-1 ring-border/80"
+          : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {!compact && <span className="hidden sm:inline">{label}</span>}
+    </Link>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -14,58 +47,59 @@ export function Navbar() {
     return null;
   }
 
+  const homeActive = pathname === "/";
+  const settingsActive = pathname === "/settings";
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border/80 glass">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="group flex items-center gap-3">
-          <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-primary/40 bg-background shadow-[0_0_28px_hsl(var(--primary)/0.18)]">
-            <div className="absolute inset-y-0 left-0 w-1 bg-primary" />
-            <Clapperboard className="h-5 w-5 text-primary transition-transform group-hover:-rotate-6" />
+    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/75 backdrop-blur-xl">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+      />
+
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6">
+        <Link
+          href="/"
+          className="group flex shrink-0 items-center gap-2.5 rounded-lg outline-none ring-primary/40 focus-visible:ring-2"
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/25 transition-all group-hover:bg-primary/15 group-hover:ring-primary/40">
+            <Clapperboard className="h-4 w-4 text-primary transition-transform group-hover:-rotate-6" />
           </div>
           <div className="leading-none">
-            <span className="block text-lg font-bold">Reel</span>
-            <span className="hidden font-mono text-[0.62rem] uppercase text-muted-foreground sm:block">
+            <span className="block text-base font-semibold tracking-tight">Reel</span>
+            <span className="hidden font-mono text-[0.58rem] uppercase tracking-[0.18em] text-muted-foreground lg:block">
               Local signal
             </span>
           </div>
         </Link>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <nav className="flex items-center gap-1">
-            <Link
-              href="/"
-              className={cn(
-                "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
-                pathname === "/"
-                  ? "bg-primary/[0.12] text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline">Home</span>
-              {pathname === "/" && (
-                <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
-              )}
-            </Link>
-            <SearchPopover />
-            <Link
+        <div className="hidden min-w-0 flex-1 md:block md:max-w-md lg:max-w-xl">
+          <SearchPopover variant="bar" />
+        </div>
+
+        <div className="ml-auto flex items-center gap-2 sm:gap-2.5">
+          <SearchPopover variant="icon" className="hidden sm:block md:hidden" />
+
+          <nav
+            aria-label="Main"
+            className="flex items-center gap-0.5 rounded-lg border border-border/70 bg-muted/25 p-0.5"
+          >
+            <NavTab href="/" icon={Home} label="Home" active={homeActive} compact />
+            <NavTab
               href="/settings"
-              className={cn(
-                "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
-                pathname === "/settings"
-                  ? "bg-primary/[0.12] text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Settings</span>
-              {pathname === "/settings" && (
-                <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
-              )}
-            </Link>
+              icon={Settings}
+              label="Settings"
+              active={settingsActive}
+              compact
+            />
           </nav>
+
           <UpdateAvailableButton />
         </div>
+      </div>
+
+      <div className="border-t border-border/40 px-4 pb-3 pt-2 sm:hidden">
+        <SearchPopover variant="bar" />
       </div>
     </header>
   );

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9 — 2026-07-03
+
+### UI
+- **Header redesign** — centered search bar on desktop, segmented Home/Settings nav, compact update chip
+- **Search** opens with **⌘K / Ctrl+K**; full-width search row on mobile
+- **Update button** restyled to match the new header
+
 ## 0.1.8 — 2026-07-03
 
 ### UI
