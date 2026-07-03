@@ -6,6 +6,7 @@ import Link from "next/link";
 import Hls from "hls.js";
 import {
   ArrowLeft,
+  Info,
   Maximize,
   Minimize,
   Pause,
@@ -16,12 +17,13 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { api, type StreamQuality } from "@/lib/api";
+import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
+import { FileDetailsDialog } from "@/components/file-details-dialog";
 
 interface SubtitleTrack {
   id: number;
@@ -159,6 +161,8 @@ export function WatchClient() {
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [volumeMenuOpen, setVolumeMenuOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
 
   const revealControls = useCallback((autoHide = true) => {
     setShowControls(true);
@@ -172,6 +176,7 @@ export function WatchClient() {
         setSubtitleMenuOpen(false);
         setQualityMenuOpen(false);
         setVolumeMenuOpen(false);
+        setDetailsOpen(false);
       }, 3000);
     }
   }, []);
@@ -220,6 +225,7 @@ export function WatchClient() {
     api
       .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
       .then((info) => {
+        setStreamInfo(info);
         setAvailableQualities(info.availableQualities);
         setSourceHeight(info.height ?? null);
         setSourceDurationMs(info.durationMs ?? 0);
@@ -808,6 +814,21 @@ export function WatchClient() {
                   )}
                 </div>
 
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/10"
+                  onClick={() => {
+                    setDetailsOpen(true);
+                    setSubtitleMenuOpen(false);
+                    setQualityMenuOpen(false);
+                    setVolumeMenuOpen(false);
+                  }}
+                >
+                  <Info className="h-4 w-4" />
+                  <span className="hidden sm:inline">Details</span>
+                </Button>
+
                 <div className="relative">
                   <Button
                     variant="ghost"
@@ -869,6 +890,19 @@ export function WatchClient() {
           </div>
         </div>
       </div>
+
+      <FileDetailsDialog
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        streamInfo={streamInfo}
+        title={title}
+        mediaId={
+          mediaId && !Number.isNaN(parseInt(mediaId, 10))
+            ? parseInt(mediaId, 10)
+            : null
+        }
+        playbackQuality={quality}
+      />
 
       <SubtitleSearchDialog
         open={subtitleSearchOpen}

@@ -67,9 +67,6 @@ export function Navbar() {
           </div>
           <div className="leading-none">
             <span className="block text-base font-semibold tracking-tight">Reel</span>
-            <span className="hidden font-mono text-[0.58rem] uppercase tracking-[0.18em] text-muted-foreground lg:block">
-              Local signal
-            </span>
           </div>
         </Link>
 

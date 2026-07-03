@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.11 — 2026-07-03
+
+### UI
+- **Home hero** — "Play recent" starts playback directly; poster art in the featured panel; fewer layout flashes on refresh
+- **Plain language** — removed "signal online", "local signal", and other jargon from Home and Settings
+- **Search** — navbar bar is the only input; results drop down below as you type
+- **Watch page** — new **Details** button shows file name, path, size, codecs, resolution, and playback mode
+- Symlinked files show a note and resolved target path in Details
+
+### API
+- `/api/home` includes `tmdbConfigured`, library counts, and `recentPlay` watch target
+- `/api/stream/:id/info` includes file path, codecs, bitrate, and symlink metadata
+
 ## 0.1.10 — 2026-07-03
 
 ### UI

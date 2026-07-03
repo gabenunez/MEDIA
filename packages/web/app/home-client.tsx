@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -8,7 +8,7 @@ import {
   HardDrive,
   Layers,
   Play,
-  RadioTower,
+  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -20,12 +20,14 @@ import { PosterRowSkeleton } from "@/components/poster-row-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { LibraryIcon } from "@/components/navbar";
+import { cn } from "@/lib/utils";
 
 export function HomeClient() {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getHome>> | null>(
     null,
   );
   const [loaded, setLoaded] = useState(false);
+  const [featuredImageReady, setFeaturedImageReady] = useState(false);
   const { status, activeScan, isScanning } = useScanStatus();
   const wasScanningRef = useRef(false);
 
@@ -62,7 +64,15 @@ export function HomeClient() {
   const recentlyAdded = data?.recentlyAdded ?? [];
   const continueWatching = data?.continueWatching ?? [];
   const featured = recentlyAdded[0];
-  const featuredImage = api.imageUrl(featured?.backdropPath ?? featured?.posterPath);
+  const recentPlay = data?.recentPlay ?? null;
+  const featuredImage = api.imageUrl(featured?.posterPath ?? featured?.backdropPath);
+  const featuredPlayHref =
+    recentPlay != null
+      ? routes.watch(recentPlay.type, recentPlay.fileId, recentPlay.mediaId)
+      : featured
+        ? routes.media(featured.id)
+        : null;
+  const tmdbConfigured = data?.tmdbConfigured;
   const totalItems = libraries.reduce(
     (sum, library) => sum + (library.itemCount ?? 0),
     0,
@@ -70,35 +80,56 @@ export function HomeClient() {
   const showEmptyState =
     loaded && !isScanning && (!libraries.length || !recentlyAdded.length);
 
+  useEffect(() => {
+    setFeaturedImageReady(false);
+  }, [featuredImage]);
+
+  const handleFeaturedImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    const img = event.currentTarget;
+    if (img.complete && img.naturalWidth > 0) {
+      setFeaturedImageReady(true);
+    }
+  };
+
   return (
     <div className="pb-16">
       <section className="relative mb-12 overflow-hidden border-b border-border/70 px-4 py-10 sm:px-6 sm:py-12">
         <div className="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.7fr)] lg:items-center">
           <div>
-            <div className="mb-5 inline-flex items-center gap-2 border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[0.68rem] uppercase text-primary">
-              <RadioTower className="h-3.5 w-3.5" />
-              {isScanning ? "Scan in progress" : "Signal online"}
-            </div>
+            {isScanning && (
+              <div className="mb-5 inline-flex items-center gap-2 border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Scan in progress
+              </div>
+            )}
 
             <HomeHeroStatic />
 
-            {featured && loaded && (
-              <div className="mt-6">
+            <div className={cn("mt-6", !loaded && "min-h-11")}>
+              {!loaded ? (
+                <Skeleton className="h-11 w-[9.25rem] rounded-md" />
+              ) : featured && featuredPlayHref ? (
                 <Button size="lg" asChild>
-                  <Link href={routes.media(featured.id)}>
+                  <Link href={featuredPlayHref}>
                     <Play className="h-5 w-5 fill-current" />
-                    Open latest
+                    Play recent
                   </Link>
                 </Button>
-              </div>
-            )}
+              ) : null}
+            </div>
 
             <div className="mt-8 grid max-w-2xl grid-cols-3 divide-x divide-border/70 border-y border-border/70">
               <StatCell label="Libraries" value={loaded ? libraries.length : null} />
               <StatCell label="Titles" value={loaded ? totalItems : null} />
               <StatCell
                 label="Metadata"
-                value={loaded ? (status?.tmdbConfigured ? "On" : "Off") : null}
+                value={
+                  loaded && tmdbConfigured !== undefined
+                    ? tmdbConfigured
+                      ? "On"
+                      : "Off"
+                    : null
+                }
               />
             </div>
 
@@ -106,7 +137,7 @@ export function HomeClient() {
               <ScanProgressBanner scan={activeScan} className="mt-6 max-w-2xl" />
             )}
 
-            {loaded && !status?.tmdbConfigured && (
+            {loaded && tmdbConfigured === false && (
               <div className="mt-4 max-w-2xl rounded-md border border-amber-400/35 bg-amber-400/10 px-4 py-3">
                 <p className="text-sm text-amber-100">
                   TMDB is off. Add a key in{" "}
@@ -120,23 +151,33 @@ export function HomeClient() {
           </div>
 
           <div className="relative min-h-[320px] overflow-hidden rounded-md border border-border/80 bg-card poster-shadow">
-            {!loaded ? (
+            {(!loaded || (featuredImage && !featuredImageReady)) && (
               <Skeleton className="absolute inset-0 rounded-none" />
-            ) : featuredImage ? (
+            )}
+            {loaded && featuredImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={featuredImage}
                 alt={featured?.title ?? ""}
-                className="absolute inset-0 h-full w-full object-cover"
+                onLoad={handleFeaturedImageLoad}
+                ref={(node) => {
+                  if (node?.complete && node.naturalWidth > 0) {
+                    setFeaturedImageReady(true);
+                  }
+                }}
+                className={cn(
+                  "absolute inset-0 h-full w-full object-cover transition-opacity duration-200",
+                  featuredImageReady ? "opacity-100" : "opacity-0",
+                )}
               />
-            ) : (
+            ) : loaded ? (
               <div className="signal-grid absolute inset-0" />
-            )}
+            ) : null}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
             <div className="absolute left-0 top-0 h-full w-1 bg-primary" />
             <div className="absolute bottom-0 left-0 right-0 p-5">
-              <p className="mb-2 font-mono text-[0.68rem] uppercase text-primary">
-                Latest ingest
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">
+                Recently added
               </p>
               {!loaded ? (
                 <div className="space-y-3">
@@ -148,9 +189,9 @@ export function HomeClient() {
                   <h2 className="line-clamp-2 text-2xl font-bold">{featured.title}</h2>
                   <div className="mt-4 flex items-center gap-3">
                     <Button size="sm" asChild>
-                      <Link href={routes.media(featured.id)}>
+                      <Link href={featuredPlayHref ?? routes.media(featured.id)}>
                         <Play className="h-4 w-4 fill-current" />
-                        Play
+                        Play recent
                       </Link>
                     </Button>
                     <span className="font-mono text-[0.68rem] uppercase text-muted-foreground">
@@ -272,7 +313,7 @@ export function HomeClient() {
           </p>
           <Button asChild>
             <Link href="/settings">
-              Open console
+              Open settings
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

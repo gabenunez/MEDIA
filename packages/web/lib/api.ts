@@ -133,6 +133,12 @@ export interface SubtitleSearchResult {
   uploader?: string;
 }
 
+export interface HomePlayTarget {
+  type: "movie" | "episode";
+  fileId: number;
+  mediaId: number;
+}
+
 export interface ContinueWatchingItem {
   id: number;
   itemType: "movie" | "episode";
@@ -171,9 +177,15 @@ export interface StreamInfo {
   mimeType: string;
   fileSize: number;
   fileName: string;
+  filePath: string;
+  isSymlink: boolean;
+  symlinkTarget?: string | null;
   width?: number | null;
   height?: number | null;
   durationMs?: number | null;
+  videoCodec?: string | null;
+  audioCodec?: string | null;
+  bitrate?: number | null;
   availableQualities: StreamQuality[];
   transcodingEnabled: boolean;
 }
@@ -227,6 +239,8 @@ export const api = {
       recentlyAdded: MediaItem[];
       libraries: Library[];
       decks: LibraryDeck[];
+      tmdbConfigured: boolean;
+      recentPlay: HomePlayTarget | null;
     }>("/api/home"),
   getDecks: () => fetchApi<LibraryDeck[]>("/api/decks"),
   getDeck: (id: number) => fetchApi<LibraryDeck>(`/api/decks/${id}`),
