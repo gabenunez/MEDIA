@@ -73,9 +73,9 @@ sync_release_from_github() {
   local ref="${REEL_RELEASE_TAG:-$REEL_BRANCH}"
 
   reel_warn "Git fetch failed — syncing from GitHub over HTTPS"
-  local tmp
+  local tmp=""
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
+  trap '[[ -n "${tmp:-}" ]] && rm -rf "$tmp"' RETURN
 
   GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "$ref" "$REEL_REPO" "$tmp/reel"
 
@@ -115,6 +115,8 @@ pull_latest() {
         git fetch origin 'refs/tags/${REEL_RELEASE_TAG}:refs/tags/${REEL_RELEASE_TAG}' --depth=1 2>/dev/null \
           || git fetch origin tag '${REEL_RELEASE_TAG}' --depth=1 2>/dev/null \
           || git fetch origin tag '${REEL_RELEASE_TAG}'
+        git reset --hard
+        git clean -fd --exclude=config.yaml --exclude=data --exclude=node_modules
         git checkout '${REEL_RELEASE_TAG}'
       "; then
         sync_release_from_github "$dir"
@@ -137,9 +139,9 @@ pull_latest() {
   fi
 
   reel_warn "No git history found — syncing from GitHub (config and data are preserved)"
-  local tmp
+  local tmp=""
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
+  trap '[[ -n "${tmp:-}" ]] && rm -rf "$tmp"' RETURN
 
   git clone --depth 1 --branch "${REEL_RELEASE_TAG:-$REEL_BRANCH}" "$REEL_REPO" "$tmp/reel"
 
