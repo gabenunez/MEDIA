@@ -54,11 +54,37 @@ export default function SettingsPage() {
     setKeyMessage(null);
     try {
       const result = await api.updateMetadata(tmdbKey);
-      setKeyMessage(result.tmdbConfigured ? "API key saved" : "Key saved — verify it works after scanning");
+      if (result.metadataRefresh?.updated) {
+        setKeyMessage(
+          `API key saved — updated metadata for ${result.metadataRefresh.updated} title${result.metadataRefresh.updated === 1 ? "" : "s"}`,
+        );
+      } else if (result.tmdbConfigured) {
+        setKeyMessage("API key saved — run Scan on your libraries to fetch metadata");
+      } else {
+        setKeyMessage("Key saved — verify it works after scanning");
+      }
       setTmdbKey("");
       loadSettings();
     } catch (err) {
       setKeyMessage(err instanceof Error ? err.message : "Failed to save key");
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
+  const handleRefreshMetadata = async () => {
+    setSavingKey(true);
+    setKeyMessage(null);
+    try {
+      const result = await api.refreshMetadata();
+      setKeyMessage(
+        result.updated > 0
+          ? `Updated metadata for ${result.updated} title${result.updated === 1 ? "" : "s"}`
+          : "No unmatched titles found to update",
+      );
+      loadSettings();
+    } catch (err) {
+      setKeyMessage(err instanceof Error ? err.message : "Failed to refresh metadata");
     } finally {
       setSavingKey(false);
     }
@@ -138,6 +164,21 @@ export default function SettingsPage() {
             </div>
             {keyMessage && (
               <p className="mt-2 text-sm text-muted-foreground">{keyMessage}</p>
+            )}
+
+            {settings?.metadata.tmdbConfigured && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={handleRefreshMetadata}
+                disabled={savingKey}
+              >
+                {savingKey ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Refresh metadata
+              </Button>
             )}
           </CardContent>
         </Card>

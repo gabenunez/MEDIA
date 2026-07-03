@@ -173,9 +173,18 @@ export const api = {
       method: "DELETE",
     }),
   updateMetadata: (tmdb_api_key: string) =>
-    fetchApi<{ success: boolean; tmdbConfigured: boolean }>(
-      "/api/settings/metadata",
-      { method: "PUT", body: JSON.stringify({ tmdb_api_key }) },
+    fetchApi<{
+      success: boolean;
+      tmdbConfigured: boolean;
+      metadataRefresh?: { updated: number; skipped: number };
+    }>("/api/settings/metadata", {
+      method: "PUT",
+      body: JSON.stringify({ tmdb_api_key }),
+    }),
+  refreshMetadata: () =>
+    fetchApi<{ success: boolean; updated: number; skipped: number }>(
+      "/api/metadata/refresh",
+      { method: "POST" },
     ),
   saveProgress: (data: {
     itemType: "movie" | "episode";

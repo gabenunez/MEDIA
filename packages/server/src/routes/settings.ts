@@ -159,10 +159,25 @@ export async function settingsRoutes(
       }
 
       metadata.setApiKey(apiKey);
+
+      const refresh = metadata.isConfigured()
+        ? await scanner.refreshMetadata()
+        : { updated: 0, skipped: 0 };
+
       return {
         success: true,
         tmdbConfigured: metadata.isConfigured(),
+        metadataRefresh: refresh,
       };
     },
   );
+
+  app.post("/api/metadata/refresh", async (_request, reply) => {
+    if (!metadata.isConfigured()) {
+      return reply.status(400).send({ error: "TMDB API key is not configured" });
+    }
+
+    const result = await scanner.refreshMetadata();
+    return { success: true, ...result };
+  });
 }

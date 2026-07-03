@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, isNull } from "drizzle-orm";
 import chokidar, { type FSWatcher } from "chokidar";
 import {
   parseMovieFilename,
@@ -153,6 +153,10 @@ export class ScannerService {
           completedAt: new Date(),
         })
         .where(eq(scanJobs.id, job.id));
+
+      if (this.metadata.isConfigured()) {
+        await this.refreshMetadata(libraryId);
+      }
     } catch (err) {
       await this.db
         .update(scanJobs)
@@ -170,6 +174,195 @@ export class ScannerService {
 
   getActiveScan() {
     return this.activeScan;
+  }
+
+  async refreshMetadata(
+    libraryId?: number,
+  ): Promise<{ updated: number; skipped: number }> {
+    if (!this.metadata.isConfigured()) {
+      return { updated: 0, skipped: 0 };
+    }
+
+    const conditions = [
+      or(isNull(mediaItems.tmdbId), eq(mediaItems.needsMatch, true)),
+    ];
+    if (libraryId !== undefined) {
+      conditions.push(eq(mediaItems.libraryId, libraryId));
+    }
+
+    const items = await this.db.query.mediaItems.findMany({
+      where: and(...conditions),
+    });
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const item of items) {
+      const success =
+        item.type === "movie"
+          ? await this.refreshMovieItem(item)
+          : await this.refreshTvItem(item);
+      if (success) updated++;
+      else skipped++;
+    }
+
+    return { updated, skipped };
+  }
+
+  private async refreshMovieItem(
+    item: typeof mediaItems.$inferSelect,
+  ): Promise<boolean> {
+    const file = await this.db.query.movieFiles.findFirst({
+      where: eq(movieFiles.mediaItemId, item.id),
+    });
+
+    const parsed = file
+      ? parseMovieFilename(path.basename(file.filePath))
+      : { title: item.title, year: item.year ?? undefined, rawFilename: "" };
+
+    const { match, confidence } = await this.metadata.searchMovie(
+      parsed.title,
+      parsed.year ?? item.year ?? undefined,
+    );
+
+    if (!match) return false;
+
+    const posterPath = await this.metadata.cachePoster(match.poster_path);
+    const backdropPath = await this.metadata.cacheBackdrop(match.backdrop_path);
+
+    await this.db
+      .update(mediaItems)
+      .set({
+        tmdbId: match.id,
+        title: match.title,
+        originalTitle: match.original_title ?? null,
+        overview: match.overview ?? null,
+        year: match.release_date
+          ? parseInt(match.release_date.slice(0, 4), 10)
+          : parsed.year ?? item.year ?? null,
+        posterPath,
+        backdropPath,
+        genres: match.genres?.map((g) => g.name).join(", ") ?? null,
+        rating: match.vote_average ?? null,
+        matchConfidence: confidence,
+        needsMatch: confidence < 0.6,
+        updatedAt: new Date(),
+      })
+      .where(eq(mediaItems.id, item.id));
+
+    return true;
+  }
+
+  private async refreshTvItem(
+    item: typeof mediaItems.$inferSelect,
+  ): Promise<boolean> {
+    let showName = item.title;
+    const lib = await this.db.query.libraries.findFirst({
+      where: eq(libraries.id, item.libraryId),
+    });
+
+    if (lib) {
+      const episodes = await this.db.query.tvSeasons.findMany({
+        where: eq(tvSeasons.mediaItemId, item.id),
+      });
+      for (const season of episodes) {
+        const eps = await this.db.query.tvEpisodes.findMany({
+          where: eq(tvEpisodes.seasonId, season.id),
+        });
+        if (eps[0]) {
+          const parsed = parseEpisodeFromPath(eps[0].filePath, lib.path);
+          if (parsed?.showName) {
+            showName = parsed.showName;
+            break;
+          }
+        }
+      }
+    }
+
+    const { match, confidence } = await this.metadata.searchTv(showName);
+    if (!match) return false;
+
+    const posterPath = await this.metadata.cachePoster(match.poster_path);
+    const backdropPath = await this.metadata.cacheBackdrop(match.backdrop_path);
+
+    await this.db
+      .update(mediaItems)
+      .set({
+        tmdbId: match.id,
+        title: match.name,
+        originalTitle: match.original_name ?? null,
+        overview: match.overview ?? null,
+        year: match.first_air_date
+          ? parseInt(match.first_air_date.slice(0, 4), 10)
+          : item.year ?? null,
+        posterPath,
+        backdropPath,
+        genres: match.genres?.map((g) => g.name).join(", ") ?? null,
+        rating: match.vote_average ?? null,
+        matchConfidence: confidence,
+        needsMatch: confidence < 0.6,
+        updatedAt: new Date(),
+      })
+      .where(eq(mediaItems.id, item.id));
+
+    await this.refreshTvEpisodes(item.id, match.id);
+    return true;
+  }
+
+  private async refreshTvEpisodes(
+    mediaItemId: number,
+    tmdbId: number,
+  ): Promise<void> {
+    const seasons = await this.db.query.tvSeasons.findMany({
+      where: eq(tvSeasons.mediaItemId, mediaItemId),
+    });
+
+    for (const season of seasons) {
+      const seasonMeta = await this.metadata.getTvSeason(
+        tmdbId,
+        season.seasonNumber,
+      );
+
+      if (seasonMeta) {
+        const seasonPoster = await this.metadata.cachePoster(
+          seasonMeta.poster_path,
+        );
+        await this.db
+          .update(tvSeasons)
+          .set({
+            name: seasonMeta.name ?? season.name,
+            overview: seasonMeta.overview ?? season.overview,
+            posterPath: seasonPoster ?? season.posterPath,
+            airDate: seasonMeta.air_date ?? season.airDate,
+          })
+          .where(eq(tvSeasons.id, season.id));
+      }
+
+      const episodes = await this.db.query.tvEpisodes.findMany({
+        where: eq(tvEpisodes.seasonId, season.id),
+      });
+
+      for (const ep of episodes) {
+        const epMeta = seasonMeta?.episodes?.find(
+          (e) => e.episode_number === ep.episodeNumber,
+        );
+        if (!epMeta) continue;
+
+        const stillPath = epMeta.still_path
+          ? await this.metadata.cachePoster(epMeta.still_path)
+          : ep.stillPath;
+
+        await this.db
+          .update(tvEpisodes)
+          .set({
+            title: epMeta.name ?? ep.title,
+            overview: epMeta.overview ?? ep.overview,
+            stillPath,
+            airDate: epMeta.air_date ?? ep.airDate,
+          })
+          .where(eq(tvEpisodes.id, ep.id));
+      }
+    }
   }
 
   stopWatcher(libraryId: number): void {
