@@ -333,22 +333,33 @@ function WatchDesktopClient() {
     video.muted = muted;
   }, [volume, muted]);
 
-  const refreshSubtitles = useCallback(async () => {
-    if (!fileId || Number.isNaN(fileId)) return;
-    try {
-      const data = await api.listSubtitles(
-        fileId,
-        type === "movie" ? "movie" : "episode",
-      );
-      setSubtitles(data.tracks);
-      setActiveSubtitle((current) =>
-        current && data.tracks.some((track) => track.id === current) ? current : null,
-      );
-      setOpensubtitlesConfigured(data.opensubtitlesConfigured);
-    } catch (err) {
-      console.warn("Failed to load subtitles", err);
-    }
-  }, [fileId, type]);
+  const refreshSubtitles = useCallback(
+    async (ensureTrack?: SubtitleTrack) => {
+      if (!fileId || Number.isNaN(fileId)) return;
+      try {
+        const data = await api.listSubtitles(
+          fileId,
+          type === "movie" ? "movie" : "episode",
+        );
+        const tracks =
+          ensureTrack && !data.tracks.some((track) => track.id === ensureTrack.id)
+            ? [...data.tracks, ensureTrack]
+            : data.tracks;
+        setSubtitles(tracks);
+        setActiveSubtitle((current) => {
+          const keepId = current ?? ensureTrack?.id ?? null;
+          if (keepId && tracks.some((track) => track.id === keepId)) {
+            return keepId;
+          }
+          return null;
+        });
+        setOpensubtitlesConfigured(data.opensubtitlesConfigured);
+      } catch (err) {
+        console.warn("Failed to load subtitles", err);
+      }
+    },
+    [fileId, type],
+  );
 
   useEffect(() => {
     refreshSubtitles();
@@ -579,21 +590,56 @@ function WatchDesktopClient() {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
-
-    const existingTracks = video.querySelectorAll("track");
-    existingTracks.forEach((t) => t.remove());
-
-    if (activeSubtitle !== null) {
-      const track = document.createElement("track");
-      track.kind = "subtitles";
-      track.src = api.subtitleUrl(activeSubtitle);
-      track.default = true;
-      track.label = subtitles.find((s) => s.id === activeSubtitle)?.language ?? "Subtitles";
-      video.appendChild(track);
-      track.track.mode = "showing";
+    if (!video || activeSubtitle === null) {
+      video?.querySelectorAll("track").forEach((track) => track.remove());
+      return;
     }
-  }, [activeSubtitle, subtitles]);
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    const activeTrack = subtitles.find((sub) => sub.id === activeSubtitle);
+
+    const clearTracks = () => {
+      video.querySelectorAll("track").forEach((track) => track.remove());
+    };
+
+    clearTracks();
+
+    void (async () => {
+      try {
+        const res = await fetch(api.subtitleUrl(activeSubtitle), {
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+
+        const vtt = await res.text();
+        if (cancelled || !vtt.trim()) return;
+
+        objectUrl = URL.createObjectURL(new Blob([vtt], { type: "text/vtt" }));
+        if (cancelled) return;
+
+        const track = document.createElement("track");
+        track.kind = "subtitles";
+        track.src = objectUrl;
+        track.default = true;
+        track.label = activeTrack?.language ?? "Subtitles";
+        track.srclang = activeTrack?.language?.slice(0, 2) ?? "en";
+        track.addEventListener("load", () => {
+          if (track.track) track.track.mode = "showing";
+        });
+        video.appendChild(track);
+        if (track.track) track.track.mode = "showing";
+      } catch (err) {
+        console.warn("Failed to load subtitle track", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      clearTracks();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [activeSubtitle, subtitles, streamGeneration]);
 
   const handleCast = useCallback(async () => {
     const video = videoRef.current;
@@ -1272,7 +1318,8 @@ function WatchDesktopClient() {
             return exists ? current : [...current, track];
           });
           setActiveSubtitle(track.id);
-          refreshSubtitles();
+          setSubtitleMenuOpen(false);
+          void refreshSubtitles(track);
         }}
       />
     </div>

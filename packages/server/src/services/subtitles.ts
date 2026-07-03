@@ -139,7 +139,7 @@ export class SubtitleService {
     for (const row of rows) {
       if (await this.rowHasContent(row)) {
         tracks.push(subtitleToTrack(row));
-      } else {
+      } else if (row.source !== "opensubtitles") {
         await this.deleteSubtitle(row.id);
       }
     }
@@ -171,16 +171,6 @@ export class SubtitleService {
       `os_${params.movieFileId ?? params.episodeId}_${params.opensubtitlesFileId}.vtt`,
     );
 
-    const vtt = params.rawContent.trimStart().startsWith("WEBVTT")
-      ? params.rawContent
-      : this.convertSrtToVtt(params.rawContent);
-
-    if (!subtitleHasContent(vtt)) {
-      throw new Error("Subtitle file has no dialogue");
-    }
-
-    fs.writeFileSync(cachePath, vtt, "utf-8");
-
     const existing = await this.db.query.subtitles.findFirst({
       where: and(
         params.movieFileId
@@ -191,21 +181,64 @@ export class SubtitleService {
       ),
     });
 
-    if (existing) return subtitleToTrack(existing);
+    if (existing && fs.existsSync(existing.pathOrIndex)) {
+      return subtitleToTrack(existing);
+    }
 
-    const [row] = await this.db
-      .insert(subtitles)
-      .values({
-        movieFileId: params.movieFileId ?? null,
-        episodeId: params.episodeId ?? null,
-        language: displayLanguage(params.language),
-        label: params.release,
-        source: "opensubtitles",
-        pathOrIndex: cachePath,
-      })
-      .returning();
+    const vtt = params.rawContent.trimStart().startsWith("WEBVTT")
+      ? params.rawContent
+      : this.convertSrtToVtt(params.rawContent);
 
-    return subtitleToTrack(row);
+    if (!subtitleHasContent(vtt)) {
+      throw new Error("Subtitle file has no dialogue");
+    }
+
+    fs.writeFileSync(cachePath, vtt, "utf-8");
+
+    let persistedContent: string;
+    try {
+      persistedContent = fs.readFileSync(cachePath, "utf-8");
+    } catch {
+      this.removeCacheFile(cachePath);
+      throw new Error("Failed to persist subtitle file");
+    }
+
+    if (!subtitleHasContent(persistedContent)) {
+      this.removeCacheFile(cachePath);
+      throw new Error("Subtitle file has no dialogue");
+    }
+
+    if (existing) {
+      return subtitleToTrack(existing);
+    }
+
+    try {
+      const [row] = await this.db
+        .insert(subtitles)
+        .values({
+          movieFileId: params.movieFileId ?? null,
+          episodeId: params.episodeId ?? null,
+          language: displayLanguage(params.language),
+          label: params.release,
+          source: "opensubtitles",
+          pathOrIndex: cachePath,
+        })
+        .returning();
+
+      return subtitleToTrack(row);
+    } catch (err) {
+      this.removeCacheFile(cachePath);
+      throw err;
+    }
+  }
+
+  private removeCacheFile(cachePath: string): void {
+    if (!fs.existsSync(cachePath)) return;
+    try {
+      fs.unlinkSync(cachePath);
+    } catch {
+      // ignore cleanup errors
+    }
   }
 
   async deleteSubtitle(id: number): Promise<void> {
