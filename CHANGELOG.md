@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.23 — 2026-07-03
+
+### TV
+- **`/tv` web UI** — remote-friendly browse and playback for TV browsers (Android TV, Fire TV, etc.)
+- D-pad navigation, larger posters, simplified player with seek/play shortcuts
+- Home, library, media detail, search, and watch routes under `/tv/`
+
 ## 0.1.22 — 2026-07-03
 
 ### UI
