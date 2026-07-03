@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.21 — 2026-07-03
+
+### Docs
+- README trimmed to install and setup essentials
+
+### Privacy
+- All pages set to **noindex, nofollow**; `robots.txt` disallows crawlers
+
 ## 0.1.20 — 2026-07-03
 
 ### UI
