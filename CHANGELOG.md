@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 — 2026-07-03
+
+### Video player
+- **TV episode titles** in the top bar now show the series name, episode name, and season/episode number (e.g. `Show — Pilot (Season 1 Episode 1)`)
+
 ## 0.1.4 — 2026-07-03
 
 ### In-app updates

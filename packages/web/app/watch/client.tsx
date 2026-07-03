@@ -53,6 +53,60 @@ function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): str
 
 const VOLUME_STORAGE_KEY = "reel:volume";
 
+interface TvEpisodeSummary {
+  id: number;
+  title?: string | null;
+  episodeNumber: number;
+  stillPath?: string | null;
+}
+
+interface TvSeasonSummary {
+  seasonNumber: number;
+  episodes: TvEpisodeSummary[];
+}
+
+interface MediaDetail {
+  title: string;
+  posterPath?: string | null;
+  seasons?: TvSeasonSummary[];
+}
+
+function buildPlaybackTitle(
+  type: "movie" | "episode",
+  media: MediaDetail,
+  fileId: number,
+): string {
+  if (type !== "episode") {
+    return media.title;
+  }
+
+  for (const season of media.seasons ?? []) {
+    for (const episode of season.episodes ?? []) {
+      if (episode.id !== fileId) continue;
+
+      const episodeName =
+        episode.title?.trim() || `Episode ${episode.episodeNumber}`;
+      return `${media.title} — ${episodeName} (Season ${season.seasonNumber} Episode ${episode.episodeNumber})`;
+    }
+  }
+
+  return media.title;
+}
+
+function findEpisode(
+  media: MediaDetail,
+  fileId: number,
+): TvEpisodeSummary | null {
+  for (const season of media.seasons ?? []) {
+    for (const episode of season.episodes ?? []) {
+      if (episode.id === fileId) {
+        return episode;
+      }
+    }
+  }
+  return null;
+}
+
 function loadStoredVolume(): number {
   if (typeof window === "undefined") return 1;
   const stored = localStorage.getItem(VOLUME_STORAGE_KEY);
@@ -207,12 +261,23 @@ export function WatchClient() {
   }, [refreshSubtitles]);
 
   useEffect(() => {
-    if (!mediaId || !fileId || Number.isNaN(fileId)) return;
+    if (!fileId || Number.isNaN(fileId) || !mediaId) return;
 
-    api.getMedia(parseInt(mediaId, 10)).then((data) => {
-      setTitle((data as { title: string }).title);
-      setPosterPath((data as { posterPath?: string | null }).posterPath ?? null);
-    }).catch(console.error);
+    api
+      .getMedia(parseInt(mediaId, 10))
+      .then((data) => {
+        const media = data as MediaDetail;
+        setTitle(buildPlaybackTitle(type, media, fileId));
+
+        if (type === "episode") {
+          const episode = findEpisode(media, fileId);
+          setPosterPath(episode?.stillPath ?? media.posterPath ?? null);
+          return;
+        }
+
+        setPosterPath(media.posterPath ?? null);
+      })
+      .catch(console.error);
   }, [mediaId, fileId, type]);
 
   useEffect(() => {
