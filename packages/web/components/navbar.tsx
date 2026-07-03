@@ -6,6 +6,7 @@ import { Clapperboard, Film, Home, Settings, Tv } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { SearchPopover } from "@/components/search-popover";
+import { isNavActive } from "@/lib/nav-utils";
 import { cn } from "@/lib/utils";
 
 function NavTab({
@@ -30,7 +31,7 @@ function NavTab({
         "relative flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all",
         compact ? "h-9 w-9" : "h-9 px-3.5 sm:px-4",
         active
-          ? "bg-background text-primary shadow-sm ring-1 ring-border/80"
+          ? "bg-background text-primary shadow-sm ring-1 ring-primary/35"
           : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
       )}
     >
@@ -47,8 +48,8 @@ export function Navbar() {
     return null;
   }
 
-  const homeActive = pathname === "/";
-  const settingsActive = pathname === "/settings";
+  const homeActive = isNavActive(pathname, "/");
+  const settingsActive = isNavActive(pathname, "/settings");
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/75 backdrop-blur-xl">
@@ -82,13 +83,7 @@ export function Navbar() {
             className="flex items-center gap-0.5 rounded-lg border border-border/70 bg-muted/25 p-0.5"
           >
             <NavTab href="/" icon={Home} label="Home" active={homeActive} compact />
-            <NavTab
-              href="/settings"
-              icon={Settings}
-              label="Settings"
-              active={settingsActive}
-              compact
-            />
+            <NavTab href="/settings/" icon={Settings} label="Settings" active={settingsActive} compact />
           </nav>
 
           <div className="min-h-9">

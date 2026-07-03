@@ -49,19 +49,19 @@ export function UpdateManager() {
 
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="mb-4 flex items-center gap-2">
-          <ArrowUpCircle className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Updates</h2>
+      <CardContent className="p-4 sm:p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <ArrowUpCircle className="h-4 w-4 text-primary" />
+          <h2 className="text-base font-semibold">Updates</h2>
         </div>
 
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Checking for updates...
+            Checking...
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="font-medium">
