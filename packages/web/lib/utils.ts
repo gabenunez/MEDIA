@@ -17,6 +17,30 @@ export function formatDuration(ms?: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+const RESUME_MIN_PERCENT = 0.02;
+const RESUME_MAX_PERCENT = 0.95;
+
+export function canResumePlayback(
+  positionMs?: number | null,
+  durationMs?: number | null,
+): boolean {
+  if (!positionMs || positionMs <= 0 || !durationMs || durationMs <= 0) {
+    return false;
+  }
+  const percent = positionMs / durationMs;
+  return percent > RESUME_MIN_PERCENT && percent < RESUME_MAX_PERCENT;
+}
+
+export function getPlaybackButtonLabel(
+  positionMs?: number | null,
+  durationMs?: number | null,
+): string {
+  if (canResumePlayback(positionMs, durationMs)) {
+    return `Resume at ${formatDuration(positionMs)}`;
+  }
+  return "Play";
+}
+
 export function formatPercent(percent: number): string {
   return `${Math.round(percent)}%`;
 }

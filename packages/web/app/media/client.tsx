@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaRow } from "@/components/media-row";
 import { FavoriteButton } from "@/components/favorite-button";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
 interface MovieFile {
@@ -26,7 +26,7 @@ interface Episode {
   overview?: string | null;
   durationMs?: number | null;
   stillPath?: string | null;
-  watchProgress?: { positionMs: number } | null;
+  watchProgress?: { positionMs: number; durationMs?: number | null } | null;
 }
 
 interface Season {
@@ -47,6 +47,7 @@ interface MediaDetail {
   genres?: string | null;
   rating?: number | null;
   isFavorite?: boolean;
+  watchProgress?: { positionMs: number; durationMs?: number | null } | null;
   files?: MovieFile[];
   seasons?: Season[];
 }
@@ -110,6 +111,13 @@ export function MediaClient() {
 
   const backdropUrl = api.imageUrl(media.backdropPath ?? media.posterPath);
   const posterUrl = api.imageUrl(media.posterPath);
+  const movieFile = media.files?.[0];
+  const moviePlaybackLabel = movieFile
+    ? getPlaybackButtonLabel(
+        media.watchProgress?.positionMs,
+        media.watchProgress?.durationMs ?? movieFile.durationMs,
+      )
+    : "Play";
 
   return (
     <div>
@@ -188,11 +196,11 @@ export function MediaClient() {
                 </p>
               )}
 
-              {media.type === "movie" && media.files?.[0] && (
+              {media.type === "movie" && movieFile && (
                 <div className="flex flex-wrap items-center gap-3">
                   <Button size="lg" asChild>
-                    <Link href={routes.watch("movie", media.files[0].id, media.id)}>
-                      <Play className="h-5 w-5 fill-current" /> Play
+                    <Link href={routes.watch("movie", movieFile.id, media.id)}>
+                      <Play className="h-5 w-5 fill-current" /> {moviePlaybackLabel}
                     </Link>
                   </Button>
                   <FavoriteButton
@@ -231,7 +239,13 @@ export function MediaClient() {
           </div>
 
           <div className="space-y-3">
-            {media.seasons[selectedSeason]?.episodes.map((ep) => (
+            {media.seasons[selectedSeason]?.episodes.map((ep) => {
+              const episodeActionLabel = getPlaybackButtonLabel(
+                ep.watchProgress?.positionMs,
+                ep.watchProgress?.durationMs ?? ep.durationMs,
+              );
+
+              return (
               <Link
                 key={ep.id}
                 href={routes.watch("episode", ep.id, media.id)}
@@ -278,13 +292,14 @@ export function MediaClient() {
                     </p>
                   )}
                 </div>
-                {ep.durationMs && (
-                  <span className="hidden shrink-0 font-mono text-xs text-muted-foreground sm:inline">
-                    {formatDuration(ep.durationMs)}
-                  </span>
-                )}
+                <span className="hidden shrink-0 font-mono text-xs text-muted-foreground sm:inline">
+                  {episodeActionLabel === "Play" && ep.durationMs
+                    ? formatDuration(ep.durationMs)
+                    : episodeActionLabel}
+                </span>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

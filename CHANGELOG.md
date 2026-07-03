@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.29 — 2026-07-03
+
+### UI
+- **Resume labels** — media detail Play button shows “Resume at 12:34” when watch progress exists; TV episode rows show the same
+- **Continue button** — homepage hero button shows the movie or series title (e.g. “Continue Breaking Bad”)
+
 ## 0.1.28 — 2026-07-03
 
 ### Playback

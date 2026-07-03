@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { tvRoutes } from "@/lib/tv/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
 interface Episode {
@@ -17,7 +17,7 @@ interface Episode {
   overview?: string | null;
   durationMs?: number | null;
   stillPath?: string | null;
-  watchProgress?: { positionMs: number } | null;
+  watchProgress?: { positionMs: number; durationMs?: number | null } | null;
 }
 
 interface Season {
@@ -36,6 +36,7 @@ interface MediaDetail {
   backdropPath?: string | null;
   type: "movie" | "tv";
   isFavorite?: boolean;
+  watchProgress?: { positionMs: number; durationMs?: number | null } | null;
   files?: Array<{ id: number; durationMs?: number | null }>;
   seasons?: Season[];
 }
@@ -99,6 +100,13 @@ export function TvMediaClient() {
   const posterUrl = api.imageUrl(media.posterPath);
   const seasons = media.seasons ?? [];
   const episodes = seasons[selectedSeason]?.episodes ?? [];
+  const movieFile = media.files?.[0];
+  const moviePlaybackLabel = movieFile
+    ? getPlaybackButtonLabel(
+        media.watchProgress?.positionMs,
+        media.watchProgress?.durationMs ?? movieFile.durationMs,
+      )
+    : "Play";
 
   return (
     <div>
@@ -146,12 +154,12 @@ export function TvMediaClient() {
               )}
 
               <div data-tv-row="" className="flex flex-wrap items-center gap-4">
-                {media.type === "movie" && media.files?.[0] && (
+                {media.type === "movie" && movieFile && (
                   <TvFocusLink
-                    href={tvRoutes.watch("movie", media.files[0].id, media.id)}
+                    href={tvRoutes.watch("movie", movieFile.id, media.id)}
                     className="inline-flex items-center gap-3 rounded-xl bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground"
                   >
-                    <Play className="h-6 w-6 fill-current" /> Play
+                    <Play className="h-6 w-6 fill-current" /> {moviePlaybackLabel}
                   </TvFocusLink>
                 )}
                 <TvFavoriteButton mediaId={media.id} initialFavorite={media.isFavorite} />
@@ -183,7 +191,13 @@ export function TvMediaClient() {
           </div>
 
           <div className="space-y-3">
-            {episodes.map((ep) => (
+            {episodes.map((ep) => {
+              const episodeActionLabel = getPlaybackButtonLabel(
+                ep.watchProgress?.positionMs,
+                ep.watchProgress?.durationMs ?? ep.durationMs,
+              );
+
+              return (
               <div key={ep.id} data-tv-row="" className="flex">
                 <TvFocusLink
                   href={tvRoutes.watch("episode", ep.id, media.id)}
@@ -226,14 +240,15 @@ export function TvMediaClient() {
                       </p>
                     )}
                   </div>
-                  {ep.durationMs && (
-                    <span className="shrink-0 font-mono text-sm text-muted-foreground">
-                      {formatDuration(ep.durationMs)}
-                    </span>
-                  )}
+                  <span className="shrink-0 font-mono text-sm text-muted-foreground">
+                    {episodeActionLabel === "Play" && ep.durationMs
+                      ? formatDuration(ep.durationMs)
+                      : episodeActionLabel}
+                  </span>
                 </TvFocusLink>
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

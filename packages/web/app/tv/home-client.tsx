@@ -77,7 +77,7 @@ export function TvHomeClient() {
               className="inline-flex items-center gap-3 rounded-xl bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground"
             >
               <Play className="h-6 w-6 fill-current" />
-              {continueTarget.title}
+              Continue {continueTarget.title}
             </TvFocusLink>
           </div>
         </section>

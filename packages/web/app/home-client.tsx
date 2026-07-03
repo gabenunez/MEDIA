@@ -109,12 +109,12 @@ export function HomeClient() {
 
             <div className={cn("mt-6", !loaded && "min-h-11")}>
               {!loaded ? (
-                <Skeleton className="h-11 w-[9.25rem] rounded-md" />
+                <Skeleton className="h-11 w-52 max-w-full rounded-md" />
               ) : continueTarget && continueHref ? (
                 <Button size="lg" asChild>
                   <Link href={continueHref}>
                     <Play className="h-5 w-5 fill-current" />
-                    Continue
+                    Continue {continueTarget.title}
                   </Link>
                 </Button>
               ) : null}
