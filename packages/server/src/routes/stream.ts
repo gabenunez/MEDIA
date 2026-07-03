@@ -15,11 +15,11 @@ import {
   isTranscodeInProgress,
   waitForFirstSegment,
   getHlsSession,
-  stopTranscodeSessionsForMedia,
+  stopTranscodeSessionsForFile,
   waitForPlaylist,
   probeFile,
 } from "../utils/ffmpeg.js";
-import { createStreamSessionId, createStreamSessionPrefix } from "../utils/stream-session.js";
+import { createStreamSessionId } from "../utils/stream-session.js";
 import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
 
 interface StreamParams {
@@ -228,11 +228,11 @@ export async function streamRoutes(
       const startSeconds = parseStartSeconds(request.query.start);
       const sessionId = createStreamSessionId(type, fileId, quality, startSeconds);
       const outputDir = path.join(config.transcoding.cache_dir, sessionId);
-      const sessionPrefix = createStreamSessionPrefix(type, fileId, quality);
 
-      stopTranscodeSessionsForMedia(
+      stopTranscodeSessionsForFile(
         config.transcoding.cache_dir,
-        sessionPrefix,
+        type,
+        fileId,
         sessionId,
       );
 

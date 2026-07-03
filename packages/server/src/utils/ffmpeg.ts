@@ -1,4 +1,4 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { execFile, execSync, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
@@ -7,8 +7,12 @@ import {
   TRANSCODE_PRESETS,
   effectiveTranscodeHeight,
 } from "@reel/shared";
+import { createStreamFilePrefix } from "./stream-session.js";
 
 const execFileAsync = promisify(execFile);
+const MAX_CONCURRENT_TRANSCODES = 2;
+const IDLE_SESSION_MS = 2 * 60 * 1000;
+const PRUNE_CACHE_MS = 60 * 60 * 1000;
 
 export interface ProbeResult {
   durationMs: number;
@@ -160,6 +164,11 @@ export function clearTranscodeOutput(outputDir: string): void {
   }
 }
 
+export function removeTranscodeDir(outputDir: string): void {
+  if (!fs.existsSync(outputDir)) return;
+  fs.rmSync(outputDir, { recursive: true, force: true });
+}
+
 export function startHlsTranscode(
   sessionId: string,
   filePath: string,
@@ -169,6 +178,7 @@ export function startHlsTranscode(
   sourceHeight?: number | null,
   startSeconds = 0,
 ): HlsSession {
+  enforceTranscodeCapacity(sessionId);
   stopHlsSession(sessionId);
   fs.mkdirSync(outputDir, { recursive: true });
   const playlistPath = `${outputDir}/master.m3u8`;
@@ -353,10 +363,10 @@ export function getHlsSession(sessionId: string): HlsSession | undefined {
 
 export function stopHlsSession(sessionId: string): void {
   const session = activeSessions.get(sessionId);
-  if (session?.process) {
-    session.process.kill("SIGTERM");
-    activeSessions.delete(sessionId);
-  }
+  if (!session) return;
+  session.process?.kill("SIGTERM");
+  activeSessions.delete(sessionId);
+  removeTranscodeDir(session.outputDir);
 }
 
 export function stopTranscodeSessionsForMedia(
@@ -370,18 +380,111 @@ export function stopTranscodeSessionsForMedia(
     if (!entry.startsWith(sessionPrefix)) continue;
     if (entry === keepSessionId) continue;
     stopHlsSession(entry);
-    clearTranscodeOutput(path.join(cacheDir, entry));
+    removeTranscodeDir(path.join(cacheDir, entry));
   }
 }
 
-export function cleanupIdleSessions(maxIdleMs = 5 * 60 * 1000): void {
+export function stopTranscodeSessionsForFile(
+  cacheDir: string,
+  type: "movie" | "episode",
+  fileId: number,
+  keepSessionId?: string,
+): void {
+  stopTranscodeSessionsForMedia(
+    cacheDir,
+    createStreamFilePrefix(type, fileId),
+    keepSessionId,
+  );
+}
+
+export function enforceTranscodeCapacity(keepSessionId?: string): void {
+  if (activeSessions.size < MAX_CONCURRENT_TRANSCODES) return;
+
+  const sessions = [...activeSessions.entries()]
+    .filter(([id]) => id !== keepSessionId)
+    .sort(([, a], [, b]) => a.lastAccess - b.lastAccess);
+
+  for (const [id] of sessions) {
+    stopHlsSession(id);
+    if (activeSessions.size < MAX_CONCURRENT_TRANSCODES) break;
+  }
+}
+
+export function killOrphanFfmpegInCache(cacheDir: string): number {
+  if (!fs.existsSync(cacheDir)) return 0;
+
+  const trackedDirs = new Set(
+    [...activeSessions.values()].map((session) => session.outputDir),
+  );
+  let killed = 0;
+
+  try {
+    const stdout = execSync("pgrep -af ffmpeg || true", { encoding: "utf8" });
+    for (const line of stdout.split("\n")) {
+      if (!line.includes(cacheDir)) continue;
+      const pid = parseInt(line.trim().split(/\s+/)[0] ?? "", 10);
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+
+      const dirMatch = line.match(
+        new RegExp(`${cacheDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/([^/\\s]+)`),
+      );
+      const sessionDir = dirMatch
+        ? path.join(cacheDir, dirMatch[1])
+        : null;
+      if (sessionDir && trackedDirs.has(sessionDir)) continue;
+
+      try {
+        process.kill(pid, "SIGTERM");
+        killed++;
+      } catch {
+        // process already exited
+      }
+    }
+  } catch {
+    // pgrep unavailable
+  }
+
+  return killed;
+}
+
+export function cleanupIdleSessions(maxIdleMs = IDLE_SESSION_MS): void {
   const now = Date.now();
   for (const [id, session] of activeSessions) {
     if (now - session.lastAccess > maxIdleMs) {
-      session.process?.kill("SIGTERM");
-      activeSessions.delete(id);
+      stopHlsSession(id);
     }
   }
+}
+
+export function pruneStaleTranscodeCache(
+  cacheDir: string,
+  maxAgeMs = 6 * 60 * 60 * 1000,
+): number {
+  if (!fs.existsSync(cacheDir)) return 0;
+
+  const activeDirs = new Set(
+    [...activeSessions.values()].map((session) => session.outputDir),
+  );
+  const cutoff = Date.now() - maxAgeMs;
+  let removed = 0;
+
+  for (const entry of fs.readdirSync(cacheDir)) {
+    const outputDir = path.join(cacheDir, entry);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(outputDir);
+    } catch {
+      continue;
+    }
+    if (!stat.isDirectory()) continue;
+    if (activeDirs.has(outputDir)) continue;
+    if (stat.mtimeMs > cutoff) continue;
+
+    removeTranscodeDir(outputDir);
+    removed++;
+  }
+
+  return removed;
 }
 
 setInterval(() => cleanupIdleSessions(), 60_000);

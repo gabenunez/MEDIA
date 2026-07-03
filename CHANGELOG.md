@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.24 — 2026-07-03
+
+### Server
+- **Transcode resource limits** — cap concurrent FFmpeg jobs at 2, stop stale sessions for the same file, and kill orphan transcoders on startup
+- Idle transcode sessions expire after 2 minutes; stale cache dirs are pruned automatically
+- Add `scripts/cleanup-cache.sh` for manual transcode/build cache cleanup
+
+### Scripts
+- Add `scripts/symlink-media-duplicates.py` to replace duplicate library files with symlinks to torrent copies
+
 ## 0.1.23 — 2026-07-03
 
 ### TV

@@ -14,9 +14,9 @@ import {
   checkFfmpegAvailable,
   probeFile,
   canDirectCast,
-  stopTranscodeSessionsForMedia,
+  stopTranscodeSessionsForFile,
 } from "../utils/ffmpeg.js";
-import { createStreamSessionId, createStreamSessionPrefix } from "../utils/stream-session.js";
+import { createStreamSessionId } from "../utils/stream-session.js";
 import { appendQueryParam, getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
 import type { AuthService } from "../services/auth.js";
 
@@ -100,12 +100,12 @@ export async function castRoutes(
       const castQuality = "720p" as const;
       const sessionId = createStreamSessionId(type, fileId, castQuality, startSeconds);
       const outputDir = path.join(config.transcoding.cache_dir, sessionId);
-      const sessionPrefix = createStreamSessionPrefix(type, fileId, castQuality);
       const sourceHeight = probe?.height ?? null;
 
-      stopTranscodeSessionsForMedia(
+      stopTranscodeSessionsForFile(
         config.transcoding.cache_dir,
-        sessionPrefix,
+        type,
+        fileId,
         sessionId,
       );
 

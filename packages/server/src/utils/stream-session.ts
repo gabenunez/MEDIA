@@ -17,3 +17,10 @@ export function createStreamSessionPrefix(
 ): string {
   return `${type}-${fileId}-${quality}-`;
 }
+
+export function createStreamFilePrefix(
+  type: "movie" | "episode",
+  fileId: number,
+): string {
+  return `${type}-${fileId}-`;
+}

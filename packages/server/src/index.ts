@@ -17,6 +17,7 @@ import { castRoutes } from "./routes/cast.js";
 import { AuthService, isCastMediaPath, isPublicPath } from "./services/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { updateRoutes } from "./routes/updates.js";
+import { pruneStaleTranscodeCache, killOrphanFfmpegInCache } from "./utils/ffmpeg.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -143,6 +144,22 @@ async function main() {
   scanner.initializeLibraries().catch((err) => {
     app.log.error(err, "Failed to initialize libraries");
   });
+
+  const killed = killOrphanFfmpegInCache(config.transcoding.cache_dir);
+  if (killed > 0) {
+    app.log.info({ killed }, "Killed orphan FFmpeg transcode processes");
+  }
+
+  const removed = pruneStaleTranscodeCache(config.transcoding.cache_dir, 30 * 60 * 1000);
+  if (removed > 0) {
+    app.log.info({ removed }, "Pruned stale transcode cache directories");
+  }
+  setInterval(() => {
+    const count = pruneStaleTranscodeCache(config.transcoding.cache_dir, 60 * 60 * 1000);
+    if (count > 0) {
+      app.log.info({ removed: count }, "Pruned stale transcode cache directories");
+    }
+  }, 60 * 60 * 1000);
 
   const { port, host } = config.server;
   await app.listen({ port, host });
