@@ -8,7 +8,12 @@ import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-export function SearchPopover() {
+interface SearchPopoverProps {
+  variant?: "bar" | "icon";
+  className?: string;
+}
+
+export function SearchPopover({ variant = "bar", className }: SearchPopoverProps) {
   const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -23,9 +28,25 @@ export function SearchPopover() {
     setResults([]);
   }, []);
 
+  const openSearch = useCallback(() => {
+    setOpen(true);
+  }, []);
+
   useEffect(() => {
     close();
   }, [pathname, close]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openSearch();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [openSearch]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,29 +95,55 @@ export function SearchPopover() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  return (
-    <div ref={containerRef} className="relative">
+  const trigger =
+    variant === "icon" ? (
       <button
         type="button"
         className={cn(
-          "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
+          "flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+          open && "bg-primary/10 text-primary",
+        )}
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label="Search"
+      >
+        <Search className="h-4 w-4" />
+      </button>
+    ) : (
+      <button
+        type="button"
+        className={cn(
+          "flex h-10 w-full items-center gap-3 rounded-lg border px-3 text-left text-sm transition-all",
           open
-            ? "bg-primary/[0.12] text-primary"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            ? "border-primary/40 bg-background/80 text-foreground ring-1 ring-primary/20"
+            : "border-border/70 bg-background/35 text-muted-foreground hover:border-primary/25 hover:bg-background/55 hover:text-foreground",
         )}
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
-        <Search className="h-4 w-4" />
-        <span className="hidden sm:inline">Search</span>
-        {open && (
-          <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
-        )}
+        <Search className="h-4 w-4 shrink-0 text-primary/80" />
+        <span className="truncate">Search your library...</span>
+        <kbd className="ml-auto hidden shrink-0 rounded border border-border/80 bg-muted/50 px-1.5 py-0.5 font-mono text-[0.62rem] uppercase tracking-wide text-muted-foreground lg:inline">
+          ⌘K
+        </kbd>
       </button>
+    );
+
+  return (
+    <div ref={containerRef} className={cn("relative", className)}>
+      {trigger}
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(100vw-2rem,28rem)] overflow-hidden rounded-md border border-border bg-card shadow-2xl">
+        <div
+          className={cn(
+            "absolute z-50 overflow-hidden rounded-lg border border-border bg-card shadow-2xl",
+            variant === "bar"
+              ? "left-0 right-0 top-[calc(100%+0.5rem)]"
+              : "right-0 top-[calc(100%+0.5rem)] w-[min(100vw-2rem,28rem)]",
+          )}
+        >
           <div className="border-b border-border p-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />

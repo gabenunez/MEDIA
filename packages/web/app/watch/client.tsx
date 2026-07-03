@@ -266,7 +266,7 @@ export function WatchClient() {
     api
       .getMedia(parseInt(mediaId, 10))
       .then((data) => {
-        const media = data as MediaDetail;
+        const media = data as unknown as MediaDetail;
         setTitle(buildPlaybackTitle(type, media, fileId));
 
         if (type === "episode") {
