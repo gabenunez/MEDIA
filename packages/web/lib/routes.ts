@@ -1,5 +1,6 @@
 export const routes = {
   library: (id: number) => `/library/?id=${id}`,
+  deck: (id: number) => `/library/?deck=${id}`,
   media: (id: number) => `/media/?id=${id}`,
   watch: (type: "movie" | "episode", fileId: number, mediaId?: number) => {
     const params = new URLSearchParams({

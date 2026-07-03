@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { AppConfig } from "@reel/shared";
 import type { DatabaseInstance } from "../db/index.js";
@@ -14,6 +13,7 @@ import {
   probeFile,
   canDirectCast,
 } from "../utils/ffmpeg.js";
+import { createStreamSessionId } from "../utils/stream-session.js";
 import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
 
 export async function castRoutes(
@@ -85,10 +85,9 @@ export async function castRoutes(
         });
       }
 
-      const sessionId = crypto
-        .createHash("md5")
-        .update(`${type}:${fileId}`)
-        .digest("hex");
+      const castQuality = "720p" as const;
+      const sessionId = createStreamSessionId(type, fileId, castQuality);
+      const sourceHeight = probe?.height ?? null;
 
       let session = getHlsSession(sessionId);
       if (!session) {
@@ -98,6 +97,8 @@ export async function castRoutes(
           filePath,
           outputDir,
           config.transcoding.hls_segment_duration,
+          castQuality,
+          sourceHeight,
         );
       }
 
@@ -110,7 +111,7 @@ export async function castRoutes(
 
       contentUrl = toAbsoluteUrl(
         castBase,
-        `/api/stream/${fileId}/hls/master.m3u8?type=${type}&cast=1&base=${encodeURIComponent(castBase)}`,
+        `/api/stream/${fileId}/hls/master.m3u8?type=${type}&quality=${castQuality}&cast=1&base=${encodeURIComponent(castBase)}`,
       );
       contentType = "application/vnd.apple.mpegurl";
     }

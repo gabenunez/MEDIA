@@ -12,14 +12,50 @@ import { ChevronLeft, ChevronRight, LibraryBig } from "lucide-react";
 export function LibraryClient() {
   const searchParams = useSearchParams();
   const libraryId = parseInt(searchParams.get("id") ?? "", 10);
+  const deckId = parseInt(searchParams.get("deck") ?? "", 10);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState("Browse Titles");
+  const [subtitle, setSubtitle] = useState("Library deck");
+
+  const isDeck = !Number.isNaN(deckId) && deckId > 0;
+  const isLibrary = !Number.isNaN(libraryId) && libraryId > 0;
 
   useEffect(() => {
-    if (!libraryId || Number.isNaN(libraryId)) return;
+    setPage(1);
+  }, [libraryId, deckId]);
+
+  useEffect(() => {
+    if (!isDeck && !isLibrary) return;
+
     setLoading(true);
+
+    if (isDeck) {
+      api
+        .getDeck(deckId)
+        .then((deck) => {
+          setTitle(deck.name);
+          setSubtitle(
+            `${deck.paths.length} folder${deck.paths.length === 1 ? "" : "s"} / ${deck.libraryNames.join(", ") || "Custom deck"}`,
+          );
+        })
+        .catch(console.warn);
+
+      api
+        .getDeckItems(deckId, page)
+        .then((data) => {
+          setItems(data.items);
+          setTotalPages(data.totalPages);
+        })
+        .catch((err) => console.warn("Failed to load deck items", err))
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    setTitle("Browse Titles");
+    setSubtitle("Full library");
     api
       .getLibraryItems(libraryId, page)
       .then((data) => {
@@ -28,12 +64,12 @@ export function LibraryClient() {
       })
       .catch((err) => console.warn("Failed to load library items", err))
       .finally(() => setLoading(false));
-  }, [libraryId, page]);
+  }, [libraryId, deckId, page, isDeck, isLibrary]);
 
-  if (!libraryId || Number.isNaN(libraryId)) {
+  if (!isDeck && !isLibrary) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
-        <p className="mb-4 text-muted-foreground">Invalid library</p>
+        <p className="mb-4 text-muted-foreground">Invalid library or deck</p>
         <Button asChild>
           <Link href="/">Go Home</Link>
         </Button>
@@ -45,17 +81,17 @@ export function LibraryClient() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-6">
         <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/">
-            <ChevronLeft className="h-5 w-5" />
-          </Link>
-        </Button>
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/">
+              <ChevronLeft className="h-5 w-5" />
+            </Link>
+          </Button>
           <div>
             <p className="mb-1 flex items-center gap-2 font-mono text-[0.68rem] uppercase text-primary">
               <LibraryBig className="h-3.5 w-3.5" />
-              Library deck
+              {subtitle}
             </p>
-            <h1 className="text-3xl font-bold">Browse Titles</h1>
+            <h1 className="text-3xl font-bold">{title}</h1>
           </div>
         </div>
         {!loading && (
@@ -74,7 +110,9 @@ export function LibraryClient() {
       ) : items.length === 0 ? (
         <div className="border-y border-border/70 py-16 text-center">
           <LibraryBig className="mx-auto mb-4 h-12 w-12 text-primary" />
-          <p className="text-muted-foreground">No items in this library yet.</p>
+          <p className="text-muted-foreground">
+            {isDeck ? "No titles match this deck yet." : "No items in this library yet."}
+          </p>
         </div>
       ) : (
         <>

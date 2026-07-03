@@ -13,16 +13,39 @@ import {
   Subtitles,
   Settings2,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
+import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 
 interface SubtitleTrack {
   id: number;
   language: string;
   label?: string | null;
+  source?: "external" | "embedded" | "opensubtitles";
+}
+
+function formatSubtitleLabel(sub: SubtitleTrack): string {
+  const sourceLabel =
+    sub.source === "opensubtitles"
+      ? "Online"
+      : sub.source === "embedded"
+        ? "Embedded"
+        : "File";
+  const detail = sub.label ? sub.label.slice(0, 48) : sourceLabel;
+  return `${sub.language} · ${detail}`;
+}
+
+function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): string {
+  if (quality === "original") {
+    if (sourceHeight && sourceHeight >= 2160) return "Original (4K)";
+    if (sourceHeight && sourceHeight >= 1080) return "Original (1080p)";
+    if (sourceHeight && sourceHeight >= 720) return "Original (720p)";
+    return "Original";
+  }
+  return quality.toUpperCase();
 }
 
 export function WatchClient() {
@@ -36,11 +59,24 @@ export function WatchClient() {
   const hlsRef = useRef<Hls | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeTimeRef = useRef(0);
 
-  const [transcode, setTranscode] = useState(false);
+  const [quality, setQuality] = useState<StreamQuality>("original");
+  const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
+    "original",
+    "480p",
+    "720p",
+    "1080p",
+  ]);
+  const [sourceHeight, setSourceHeight] = useState<number | null>(null);
+  const [transcodingEnabled, setTranscodingEnabled] = useState(true);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<number | null>(null);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
+  const [opensubtitlesConfigured, setOpensubtitlesConfigured] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -60,6 +96,7 @@ export function WatchClient() {
       hideControlsTimer.current = setTimeout(() => {
         setShowControls(false);
         setSubtitleMenuOpen(false);
+        setQualityMenuOpen(false);
       }, 3000);
     }
   }, []);
@@ -78,26 +115,44 @@ export function WatchClient() {
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
 
-    if (mediaId) {
-      api.getMedia(parseInt(mediaId, 10)).then((data) => {
-        setTitle((data as { title: string }).title);
-        setPosterPath((data as { posterPath?: string | null }).posterPath ?? null);
-        if (type === "movie") {
-          setSubtitles(
-            ((data as { subtitles?: SubtitleTrack[] }).subtitles ?? []) as SubtitleTrack[],
-          );
-        } else {
-          const seasons = (data as { seasons?: Array<{ episodes: Array<{ id: number; subtitles?: SubtitleTrack[] }> }> }).seasons ?? [];
-          for (const season of seasons) {
-            const ep = season.episodes.find((e) => e.id === fileId);
-            if (ep) {
-              setSubtitles(ep.subtitles ?? []);
-              break;
-            }
-          }
-        }
-      }).catch(console.error);
+    api
+      .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
+      .then((info) => {
+        setAvailableQualities(info.availableQualities);
+        setSourceHeight(info.height ?? null);
+        setTranscodingEnabled(info.transcodingEnabled);
+        setQuality((current) =>
+          info.availableQualities.includes(current) ? current : "original",
+        );
+      })
+      .catch(console.error);
+  }, [fileId, type]);
+
+  const refreshSubtitles = useCallback(async () => {
+    if (!fileId || Number.isNaN(fileId)) return;
+    try {
+      const data = await api.listSubtitles(
+        fileId,
+        type === "movie" ? "movie" : "episode",
+      );
+      setSubtitles(data.tracks);
+      setOpensubtitlesConfigured(data.opensubtitlesConfigured);
+    } catch (err) {
+      console.warn("Failed to load subtitles", err);
     }
+  }, [fileId, type]);
+
+  useEffect(() => {
+    refreshSubtitles();
+  }, [refreshSubtitles]);
+
+  useEffect(() => {
+    if (!mediaId || !fileId || Number.isNaN(fileId)) return;
+
+    api.getMedia(parseInt(mediaId, 10)).then((data) => {
+      setTitle((data as { title: string }).title);
+      setPosterPath((data as { posterPath?: string | null }).posterPath ?? null);
+    }).catch(console.error);
   }, [mediaId, fileId, type]);
 
   useEffect(() => {
@@ -105,45 +160,83 @@ export function WatchClient() {
     if (!video || !fileId || Number.isNaN(fileId)) return;
 
     setError(null);
+    setBuffering(quality !== "original");
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
 
-    const url = api.streamUrl(fileId, type === "movie" ? "movie" : "episode", transcode);
+    const resumeAt = resumeTimeRef.current;
+    const url = api.streamUrl(fileId, type === "movie" ? "movie" : "episode", quality);
+    const usingHls = quality !== "original";
 
-    if (transcode) {
+    const applyResume = () => {
+      if (resumeAt > 0 && video.duration) {
+        video.currentTime = Math.min(resumeAt, video.duration);
+        resumeTimeRef.current = 0;
+      }
+    };
+
+    if (usingHls) {
       if (Hls.isSupported()) {
         const hls = new Hls();
         hls.loadSource(url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setBuffering(false);
+          applyResume();
           video.play().catch(() => {});
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) setError("Playback failed. Try toggling transcode mode.");
+          if (data.fatal) {
+            setBuffering(false);
+            setError("Playback failed. Try a lower quality or Original.");
+          }
         });
         hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = url;
+        video.onloadedmetadata = () => {
+          setBuffering(false);
+          applyResume();
+        };
         video.play().catch(() => {});
       } else {
+        setBuffering(false);
         setError("HLS not supported in this browser");
       }
     } else {
       video.src = url;
+      video.onloadedmetadata = () => {
+        setBuffering(false);
+        applyResume();
+      };
       video.play().catch(() => {});
     }
 
     progressInterval.current = setInterval(saveProgress, 10000);
 
     return () => {
+      video.onloadedmetadata = null;
       if (hlsRef.current) hlsRef.current.destroy();
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgress();
     };
-  }, [fileId, type, transcode, saveProgress]);
+  }, [fileId, type, quality, saveProgress]);
+
+  const changeQuality = useCallback(
+    (nextQuality: StreamQuality) => {
+      const video = videoRef.current;
+      if (video && video.currentTime > 0) {
+        resumeTimeRef.current = video.currentTime;
+      }
+      setQuality(nextQuality);
+      setQualityMenuOpen(false);
+      revealControls(true);
+    },
+    [revealControls],
+  );
 
   useEffect(() => {
     const video = videoRef.current;
@@ -309,13 +402,21 @@ export function WatchClient() {
         onClick={togglePlay}
       />
 
+      {buffering && !error && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40">
+          <p className="rounded-md border border-white/10 bg-background/80 px-4 py-2 text-sm text-white">
+            {quality === "original"
+              ? "Loading..."
+              : `Transcoding to ${quality.toUpperCase()}...`}
+          </p>
+        </div>
+      )}
+
       {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80">
           <div className="text-center">
             <p className="mb-4 text-red-400">{error}</p>
-            <Button onClick={() => setTranscode(!transcode)}>
-              Try {transcode ? "Direct Play" : "Transcode"}
-            </Button>
+            <Button onClick={() => changeQuality("original")}>Try Original</Button>
           </div>
         </div>
       )}
@@ -385,59 +486,119 @@ export function WatchClient() {
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
-                {subtitles.length > 0 && (
-                  <div className="relative">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/10"
-                      onClick={() => setSubtitleMenuOpen((open) => !open)}
-                    >
-                      <Subtitles className="h-4 w-4" />
-                    </Button>
-                    {subtitleMenuOpen && (
-                      <div className="absolute bottom-full right-0 mb-2 min-w-32 rounded-md border border-border bg-card p-1 shadow-xl">
-                        <button
-                          className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted"
-                          onClick={() => {
-                            setActiveSubtitle(null);
-                            setSubtitleMenuOpen(false);
-                          }}
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "text-white hover:bg-white/10",
+                      activeSubtitle !== null && "text-primary",
+                    )}
+                    onClick={() => {
+                      setSubtitleMenuOpen((open) => !open);
+                      setQualityMenuOpen(false);
+                    }}
+                  >
+                    <Subtitles className="h-4 w-4" />
+                  </Button>
+                  {subtitleMenuOpen && (
+                    <div className="absolute bottom-full right-0 mb-2 min-w-56 rounded-md border border-border bg-card p-1 shadow-xl">
+                      <button
+                        className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted"
+                        onClick={() => {
+                          setActiveSubtitle(null);
+                          setSubtitleMenuOpen(false);
+                        }}
+                      >
+                        Off
+                      </button>
+                      {subtitles.map((sub) => (
+                        <div
+                          key={sub.id}
+                          className={cn(
+                            "flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted",
+                            activeSubtitle === sub.id && "bg-primary/10",
+                          )}
                         >
-                          Off
-                        </button>
-                        {subtitles.map((sub) => (
                           <button
-                            key={sub.id}
                             className={cn(
-                              "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted",
-                              activeSubtitle === sub.id &&
-                                "bg-primary/10 text-primary",
+                              "min-w-0 flex-1 rounded px-2 py-1.5 text-left text-sm",
+                              activeSubtitle === sub.id && "text-primary",
                             )}
                             onClick={() => {
                               setActiveSubtitle(sub.id);
                               setSubtitleMenuOpen(false);
                             }}
                           >
-                            {sub.language}
+                            {formatSubtitleLabel(sub)}
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                          {sub.source === "opensubtitles" && (
+                            <button
+                              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-red-400"
+                              onClick={async () => {
+                                await api.deleteSubtitle(sub.id);
+                                if (activeSubtitle === sub.id) {
+                                  setActiveSubtitle(null);
+                                }
+                                await refreshSubtitles();
+                              }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <div className="my-1 border-t border-border" />
+                      <button
+                        className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
+                        onClick={() => {
+                          setSubtitleMenuOpen(false);
+                          setSubtitleSearchOpen(true);
+                        }}
+                      >
+                        Search online...
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:bg-white/10"
-                  onClick={() => setTranscode(!transcode)}
-                >
-                  <Settings2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">
-                    {transcode ? "Transcode" : "Direct"}
-                  </span>
-                </Button>
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/10"
+                    onClick={() => {
+                      setQualityMenuOpen((open) => !open);
+                      setSubtitleMenuOpen(false);
+                    }}
+                    disabled={!transcodingEnabled && quality === "original"}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      {qualityLabel(quality, sourceHeight)}
+                    </span>
+                  </Button>
+                  {qualityMenuOpen && (
+                    <div className="absolute bottom-full right-0 mb-2 min-w-40 rounded-md border border-border bg-card p-1 shadow-xl">
+                      {availableQualities.map((option) => (
+                        <button
+                          key={option}
+                          className={cn(
+                            "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted",
+                            quality === option && "bg-primary/10 text-primary",
+                            option !== "original" &&
+                              !transcodingEnabled &&
+                              "cursor-not-allowed opacity-50",
+                          )}
+                          disabled={option !== "original" && !transcodingEnabled}
+                          onClick={() => changeQuality(option)}
+                        >
+                          {qualityLabel(option, sourceHeight)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <CastButton
                   onCast={handleCast}
@@ -461,6 +622,22 @@ export function WatchClient() {
           </div>
         </div>
       </div>
+
+      <SubtitleSearchDialog
+        open={subtitleSearchOpen}
+        onClose={() => setSubtitleSearchOpen(false)}
+        fileId={fileId}
+        type={type === "movie" ? "movie" : "episode"}
+        opensubtitlesConfigured={opensubtitlesConfigured}
+        onDownloaded={(track) => {
+          setSubtitles((current) => {
+            const exists = current.some((entry) => entry.id === track.id);
+            return exists ? current : [...current, track];
+          });
+          setActiveSubtitle(track.id);
+          refreshSubtitles();
+        }}
+      />
     </div>
   );
 }

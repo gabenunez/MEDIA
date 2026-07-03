@@ -14,9 +14,15 @@ metadata:
   tmdb_api_key: YOUR_KEY_HERE
   language: en-US
 
+subtitles:
+  opensubtitles_api_key: YOUR_OPENSUBTITLES_KEY_HERE
+
 transcoding:
   enabled: true
   hls_segment_duration: 6
   cache_dir: ./data/transcode-cache
 
 data_dir: ./data
+
+auth:
+  password_hash: ""

@@ -3,6 +3,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
@@ -18,6 +19,10 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
       // ignore parse errors
     }
     throw new Error(message);
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
   }
 
   return res.json() as Promise<T>;
@@ -68,15 +73,64 @@ export interface BrowseShortcut {
   path: string;
 }
 
+export interface LibraryDeck {
+  id: number;
+  name: string;
+  paths: string[];
+  sortOrder: number;
+  itemCount: number;
+  libraryNames: string[];
+  types?: Array<"movies" | "tv">;
+  createdAt: string;
+}
+
 export interface AppSettings {
   ffmpegAvailable: boolean;
+  passwordConfigured: boolean;
   libraries: SettingsLibrary[];
+  decks: LibraryDeck[];
   metadata: {
     tmdbConfigured: boolean;
     tmdbApiKeyPreview: string;
     language: string;
   };
+  subtitles: {
+    opensubtitlesConfigured: boolean;
+    opensubtitlesApiKeyPreview: string;
+  };
   browseShortcuts: BrowseShortcut[];
+}
+
+export interface UpdateStatus {
+  currentVersion: string;
+  latestVersion: string | null;
+  latestReleaseName: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string | null;
+  releaseNotes: string | null;
+  publishedAt: string | null;
+  updateSupported: boolean;
+  updateInProgress: boolean;
+  installDir: string;
+}
+
+export interface SubtitleTrack {
+  id: number;
+  language: string;
+  label?: string | null;
+  source?: "external" | "embedded" | "opensubtitles";
+}
+
+export interface SubtitleSearchResult {
+  id: string;
+  fileId: number;
+  language: string;
+  release: string;
+  downloadCount: number;
+  hearingImpaired: boolean;
+  fileName: string;
+  fps?: number;
+  uploader?: string;
 }
 
 export interface ContinueWatchingItem {
@@ -109,6 +163,20 @@ export interface CastConfigResponse {
   transcodingEnabled: boolean;
 }
 
+export type StreamQuality = "original" | "480p" | "720p" | "1080p";
+
+export interface StreamInfo {
+  id: number;
+  type: "movie" | "episode";
+  mimeType: string;
+  fileSize: number;
+  fileName: string;
+  width?: number | null;
+  height?: number | null;
+  availableQualities: StreamQuality[];
+  transcodingEnabled: boolean;
+}
+
 export interface ServerStatus {
   ffmpegAvailable: boolean;
   tmdbConfigured: boolean;
@@ -122,14 +190,52 @@ export interface ServerStatus {
   } | null;
 }
 
+export interface AuthStatus {
+  required: boolean;
+  authenticated: boolean;
+}
+
 export const api = {
+  getAuthStatus: () => fetchApi<AuthStatus>("/api/auth/status"),
+  login: (password: string) =>
+    fetchApi<{ success: boolean }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+  logout: () =>
+    fetchApi<{ success: boolean }>("/api/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  updatePassword: (data: {
+    password?: string;
+    currentPassword?: string;
+    remove?: boolean;
+  }) =>
+    fetchApi<{ success: boolean; passwordConfigured: boolean }>(
+      "/api/settings/password",
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    ),
   getStatus: () => fetchApi<ServerStatus>("/api/status"),
   getHome: () =>
     fetchApi<{
       continueWatching: ContinueWatchingItem[];
       recentlyAdded: MediaItem[];
       libraries: Library[];
+      decks: LibraryDeck[];
     }>("/api/home"),
+  getDecks: () => fetchApi<LibraryDeck[]>("/api/decks"),
+  getDeck: (id: number) => fetchApi<LibraryDeck>(`/api/decks/${id}`),
+  getDeckItems: (id: number, page = 1) =>
+    fetchApi<{
+      items: MediaItem[];
+      page: number;
+      total: number;
+      totalPages: number;
+    }>(`/api/decks/${id}/items?page=${page}`),
   getLibraries: () => fetchApi<Library[]>("/api/libraries"),
   getLibraryItems: (id: number, page = 1) =>
     fetchApi<{
@@ -150,10 +256,13 @@ export const api = {
     fetchApi<BrowseResult>(
       `/api/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`,
     ),
-  validatePath: (path: string) =>
+  validatePath: (path: string, options?: { libraryId?: number; scope?: "library" | "deck" }) =>
     fetchApi<{ valid: boolean; error?: string; resolvedPath?: string }>(
       "/api/browse/validate",
-      { method: "POST", body: JSON.stringify({ path }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ path, ...options }),
+      },
     ),
   createLibrary: (data: { name: string; type: "movies" | "tv"; path: string }) =>
     fetchApi<{ success: boolean }>("/api/libraries", {
@@ -172,6 +281,23 @@ export const api = {
     fetchApi<{ success: boolean }>(`/api/libraries/${id}`, {
       method: "DELETE",
     }),
+  createDeck: (data: { name: string; paths: string[]; sortOrder?: number }) =>
+    fetchApi<{ success: boolean }>("/api/decks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateDeck: (
+    id: number,
+    data: { name?: string; paths?: string[]; sortOrder?: number },
+  ) =>
+    fetchApi<{ success: boolean }>(`/api/decks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteDeck: (id: number) =>
+    fetchApi<{ success: boolean }>(`/api/decks/${id}`, {
+      method: "DELETE",
+    }),
   updateMetadata: (tmdb_api_key: string) =>
     fetchApi<{
       success: boolean;
@@ -181,10 +307,61 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ tmdb_api_key }),
     }),
+  updateOpenSubtitlesKey: (opensubtitles_api_key: string) =>
+    fetchApi<{ success: boolean; opensubtitlesConfigured: boolean }>(
+      "/api/settings/subtitles",
+      {
+        method: "PUT",
+        body: JSON.stringify({ opensubtitles_api_key }),
+      },
+    ),
+  listSubtitles: (fileId: number, type: "movie" | "episode") =>
+    fetchApi<{
+      tracks: SubtitleTrack[];
+      opensubtitlesConfigured: boolean;
+    }>(`/api/subtitles/list?fileId=${fileId}&type=${type}`),
+  searchSubtitles: (fileId: number, type: "movie" | "episode", languages = "en") =>
+    fetchApi<{
+      results: SubtitleSearchResult[];
+      context: {
+        title: string;
+        year?: number | null;
+        type: "movie" | "episode";
+        seasonNumber?: number;
+        episodeNumber?: number;
+      };
+    }>(
+      `/api/subtitles/search?fileId=${fileId}&type=${type}&languages=${encodeURIComponent(languages)}`,
+    ),
+  downloadSubtitle: (data: {
+    fileId: number;
+    type: "movie" | "episode";
+    opensubtitlesFileId: number;
+    language: string;
+    release: string;
+  }) =>
+    fetchApi<{ success: boolean; track: SubtitleTrack }>("/api/subtitles/download", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteSubtitle: (id: number) =>
+    fetchApi<{ success: boolean }>(`/api/subtitles/${id}`, {
+      method: "DELETE",
+    }),
   refreshMetadata: () =>
     fetchApi<{ success: boolean; updated: number; skipped: number }>(
       "/api/metadata/refresh",
       { method: "POST" },
+    ),
+  checkForUpdates: (force = false) =>
+    fetchApi<UpdateStatus>(`/api/updates/check${force ? "?force=1" : ""}`),
+  applyUpdate: (releaseTag?: string) =>
+    fetchApi<{ success: boolean; message: string; releaseTag: string }>(
+      "/api/updates/apply",
+      {
+        method: "POST",
+        body: JSON.stringify(releaseTag ? { releaseTag } : {}),
+      },
     ),
   saveProgress: (data: {
     itemType: "movie" | "episode";
@@ -209,11 +386,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  streamUrl: (fileId: number, type: "movie" | "episode", transcode = false) => {
-    if (transcode) {
-      return `${API_BASE}/api/stream/${fileId}/hls/master.m3u8?type=${type}`;
+  getStreamInfo: (fileId: number, type: "movie" | "episode") =>
+    fetchApi<StreamInfo>(`/api/stream/${fileId}/info?type=${type}`),
+  streamUrl: (
+    fileId: number,
+    type: "movie" | "episode",
+    quality: StreamQuality = "original",
+  ) => {
+    if (quality === "original") {
+      return `${API_BASE}/api/stream/${fileId}?type=${type}`;
     }
-    return `${API_BASE}/api/stream/${fileId}?type=${type}`;
+    return `${API_BASE}/api/stream/${fileId}/hls/master.m3u8?type=${type}&quality=${quality}`;
   },
   subtitleUrl: (id: number) => `${API_BASE}/api/subtitles/${id}`,
   imageUrl: (path?: string | null) => {

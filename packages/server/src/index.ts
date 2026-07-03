@@ -11,8 +11,12 @@ import { SubtitleService } from "./services/subtitles.js";
 import { ScannerService } from "./services/scanner.js";
 import { apiRoutes } from "./routes/api.js";
 import { streamRoutes, subtitleRoutes } from "./routes/stream.js";
+import { subtitleSearchRoutes } from "./routes/subtitles-search.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { castRoutes } from "./routes/cast.js";
+import { AuthService, isPublicPath } from "./services/auth.js";
+import { authRoutes } from "./routes/auth.js";
+import { updateRoutes } from "./routes/updates.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,10 +31,26 @@ async function main() {
   const metadata = new MetadataService(configManager);
   const subtitles = new SubtitleService(db, config);
   const scanner = new ScannerService(db, configManager, metadata, subtitles);
+  const auth = new AuthService(configManager);
 
   const app = Fastify({ logger: true });
 
-  await app.register(cors, { origin: true });
+  await app.register(cors, { origin: true, credentials: true });
+
+  app.addHook("onRequest", async (request, reply) => {
+    const pathname = request.url.split("?")[0] ?? request.url;
+    const passwordRequired = auth.isPasswordRequired();
+
+    if (!passwordRequired || isPublicPath(pathname, passwordRequired)) {
+      return;
+    }
+
+    if (!auth.isAuthenticated(request)) {
+      if (pathname.startsWith("/api/")) {
+        return reply.status(401).send({ error: "Authentication required" });
+      }
+    }
+  });
 
   // Redirect legacy /library/2 style URLs to query-param static pages
   app.addHook("onRequest", async (request, reply) => {
@@ -59,11 +79,14 @@ async function main() {
     }
   });
 
+  await authRoutes(app, auth, configManager);
   await apiRoutes(app, db, config, scanner, metadata);
   await settingsRoutes(app, db, configManager, scanner, metadata);
+  await updateRoutes(app);
   await castRoutes(app, db, config);
   await streamRoutes(app, db, config);
   await subtitleRoutes(app, db, subtitles);
+  await subtitleSearchRoutes(app, db, configManager, subtitles);
 
   const webOut = getWebOutPath();
   if (webOut && fs.existsSync(webOut)) {

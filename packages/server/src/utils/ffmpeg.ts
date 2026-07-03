@@ -1,6 +1,11 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
+import type { TranscodeQuality } from "@reel/shared";
+import {
+  TRANSCODE_PRESETS,
+  effectiveTranscodeHeight,
+} from "@reel/shared";
 
 const execFileAsync = promisify(execFile);
 
@@ -87,6 +92,7 @@ export function extractEmbeddedSubtitle(
   filePath: string,
   streamIndex: number,
   outputPath: string,
+  timeoutMs = 120_000,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const args = [
@@ -101,11 +107,20 @@ export function extractEmbeddedSubtitle(
     ];
 
     const proc = spawn("ffmpeg", args, { stdio: "ignore" });
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error(`Subtitle extraction timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
     proc.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0 && fs.existsSync(outputPath)) resolve();
       else reject(new Error(`Failed to extract subtitle stream ${streamIndex}`));
     });
-    proc.on("error", reject);
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
 }
 
@@ -124,30 +139,40 @@ export function startHlsTranscode(
   filePath: string,
   outputDir: string,
   segmentDuration: number,
+  quality: TranscodeQuality,
+  sourceHeight?: number | null,
 ): HlsSession {
   fs.mkdirSync(outputDir, { recursive: true });
   const playlistPath = `${outputDir}/master.m3u8`;
+  const preset = TRANSCODE_PRESETS[quality];
+  const height = effectiveTranscodeHeight(quality, sourceHeight);
 
   const args = [
     "-y",
     "-i",
     filePath,
+    "-vf",
+    `scale=-2:${height}`,
     "-c:v",
     "libx264",
     "-profile:v",
     "main",
     "-level",
-    "3.1",
+    preset.h264Level,
     "-pix_fmt",
     "yuv420p",
     "-preset",
     "veryfast",
     "-crf",
-    "23",
+    String(preset.crf),
+    "-maxrate",
+    preset.maxrate,
+    "-bufsize",
+    preset.bufsize,
     "-c:a",
     "aac",
     "-b:a",
-    "128k",
+    preset.audioBitrate,
     "-ac",
     "2",
     "-f",

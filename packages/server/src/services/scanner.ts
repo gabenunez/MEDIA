@@ -83,6 +83,7 @@ export class ScannerService {
       persistent: true,
       ignoreInitial: true,
       depth: 10,
+      followSymlinks: true,
     });
 
     watcher.on("add", async (filePath) => {
@@ -143,6 +144,13 @@ export class ScannerService {
         .update(libraries)
         .set({ lastScannedAt: new Date() })
         .where(eq(libraries.id, libraryId));
+
+      if (lib.type === "tv") {
+        const merged = await this.dedupeTvShows(libraryId);
+        if (merged > 0) {
+          console.log(`Merged ${merged} duplicate TV show(s) in ${lib.name}`);
+        }
+      }
 
       await this.db
         .update(scanJobs)
@@ -495,20 +503,37 @@ export class ScannerService {
 
       for (const entry of entries) {
         const fullPath = path.join(current, entry.name);
+
         if (entry.isDirectory()) {
           walk(fullPath);
-        } else if (entry.isFile()) {
-          if (isVideoFile(entry.name)) {
-            results.push(fullPath);
-          } else {
-            try {
-              const size = fs.statSync(fullPath).size;
-              if (isUnknownVideoCandidate(entry.name, size)) {
-                probeCandidates.push({ path: fullPath, size });
-              }
-            } catch {
-              // skip unreadable files
+          continue;
+        }
+
+        if (entry.isSymbolicLink()) {
+          try {
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              walk(fullPath);
+              continue;
             }
+            if (!stat.isFile()) continue;
+          } catch {
+            continue;
+          }
+        } else if (!entry.isFile()) {
+          continue;
+        }
+
+        if (isVideoFile(entry.name)) {
+          results.push(fullPath);
+        } else {
+          try {
+            const size = fs.statSync(fullPath).size;
+            if (isUnknownVideoCandidate(entry.name, size)) {
+              probeCandidates.push({ path: fullPath, size });
+            }
+          } catch {
+            // skip unreadable files
           }
         }
       }
@@ -618,6 +643,98 @@ export class ScannerService {
     await this.subtitles.discoverForMovieFile(file.id, filePath, probe);
   }
 
+  /** Find a TV show by folder name or TMDB id (stored title may differ after metadata match). */
+  private async findTvMediaItem(
+    libraryId: number,
+    showName: string,
+    tmdbId?: number | null,
+  ) {
+    const byFolderName = await this.db.query.mediaItems.findFirst({
+      where: and(
+        eq(mediaItems.libraryId, libraryId),
+        eq(mediaItems.type, "tv"),
+        eq(mediaItems.title, showName),
+      ),
+    });
+    if (byFolderName) return byFolderName;
+
+    if (tmdbId) {
+      return this.db.query.mediaItems.findFirst({
+        where: and(
+          eq(mediaItems.libraryId, libraryId),
+          eq(mediaItems.type, "tv"),
+          eq(mediaItems.tmdbId, tmdbId),
+        ),
+      });
+    }
+
+    return undefined;
+  }
+
+  /** Merge duplicate TV show rows created when folder name != TMDB title. */
+  async dedupeTvShows(libraryId?: number): Promise<number> {
+    const conditions = [eq(mediaItems.type, "tv")];
+    if (libraryId !== undefined) {
+      conditions.push(eq(mediaItems.libraryId, libraryId));
+    }
+
+    const items = await this.db.query.mediaItems.findMany({
+      where: and(...conditions),
+    });
+
+    const groups = new Map<string, (typeof items)[number][]>();
+    for (const item of items) {
+      const key = item.tmdbId
+        ? `${item.libraryId}:tmdb:${item.tmdbId}`
+        : `${item.libraryId}:title:${item.title.toLowerCase()}`;
+      const group = groups.get(key) ?? [];
+      group.push(item);
+      groups.set(key, group);
+    }
+
+    let merged = 0;
+
+    for (const group of groups.values()) {
+      if (group.length <= 1) continue;
+
+      group.sort((a, b) => a.id - b.id);
+      const [canonical, ...dupes] = group;
+
+      for (const dupe of dupes) {
+        const dupeSeasons = await this.db.query.tvSeasons.findMany({
+          where: eq(tvSeasons.mediaItemId, dupe.id),
+        });
+
+        for (const season of dupeSeasons) {
+          const canonicalSeason = await this.db.query.tvSeasons.findFirst({
+            where: and(
+              eq(tvSeasons.mediaItemId, canonical.id),
+              eq(tvSeasons.seasonNumber, season.seasonNumber),
+            ),
+          });
+
+          if (canonicalSeason) {
+            await this.db
+              .update(tvEpisodes)
+              .set({ seasonId: canonicalSeason.id })
+              .where(eq(tvEpisodes.seasonId, season.id));
+            await this.db.delete(tvSeasons).where(eq(tvSeasons.id, season.id));
+          } else {
+            await this.db
+              .update(tvSeasons)
+              .set({ mediaItemId: canonical.id })
+              .where(eq(tvSeasons.id, season.id));
+          }
+        }
+
+        await this.db.delete(mediaItems).where(eq(mediaItems.id, dupe.id));
+        merged++;
+      }
+    }
+
+    return merged;
+  }
+
   private async processTvFile(
     lib: typeof libraries.$inferSelect,
     filePath: string,
@@ -635,16 +752,17 @@ export class ScannerService {
       return;
     }
 
-    let mediaItem = await this.db.query.mediaItems.findFirst({
-      where: and(
-        eq(mediaItems.libraryId, lib.id),
-        eq(mediaItems.title, parsed.showName),
-      ),
-    });
+    let mediaItem = await this.findTvMediaItem(lib.id, parsed.showName);
+
+    const { match, confidence } = mediaItem
+      ? { match: null, confidence: 0 }
+      : await this.metadata.searchTv(parsed.showName);
+
+    if (!mediaItem && match) {
+      mediaItem = await this.findTvMediaItem(lib.id, parsed.showName, match.id);
+    }
 
     if (!mediaItem) {
-      const { match, confidence } = await this.metadata.searchTv(parsed.showName);
-
       const posterPath = match
         ? await this.metadata.cachePoster(match.poster_path)
         : null;

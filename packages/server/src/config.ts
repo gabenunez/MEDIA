@@ -57,6 +57,12 @@ function normalizeConfig(raw: AppConfig, configDir: string): AppConfig {
   if (!config.libraries) {
     config.libraries = [];
   }
+  if (!config.auth) {
+    config.auth = {};
+  }
+  if (!config.subtitles) {
+    config.subtitles = { opensubtitles_api_key: "" };
+  }
 
   config.data_dir = path.resolve(configDir, config.data_dir);
   config.transcoding.cache_dir = path.resolve(
@@ -150,6 +156,30 @@ export class ConfigManager {
     this.save();
   }
 
+  setOpenSubtitlesApiKey(apiKey: string): void {
+    if (!this.config.subtitles) {
+      this.config.subtitles = {};
+    }
+    this.config.subtitles.opensubtitles_api_key = apiKey.trim();
+    this.save();
+  }
+
+  setPasswordHash(passwordHash: string): void {
+    if (!this.config.auth) {
+      this.config.auth = {};
+    }
+    this.config.auth.password_hash = passwordHash;
+    this.save();
+  }
+
+  clearPasswordHash(): void {
+    if (!this.config.auth) {
+      this.config.auth = {};
+    }
+    this.config.auth.password_hash = "";
+    this.save();
+  }
+
   save(): void {
     const payload = {
       server: this.config.server,
@@ -159,6 +189,10 @@ export class ConfigManager {
         path: lib.path,
       })),
       metadata: this.config.metadata,
+      subtitles: {
+        opensubtitles_api_key:
+          this.config.subtitles?.opensubtitles_api_key ?? "",
+      },
       transcoding: {
         ...this.config.transcoding,
         cache_dir: toRelative(
@@ -167,6 +201,9 @@ export class ConfigManager {
         ),
       },
       data_dir: toRelative(this.configDir, this.config.data_dir),
+      auth: {
+        password_hash: this.config.auth?.password_hash ?? "",
+      },
     };
 
     fs.writeFileSync(this.configPath, yaml.dump(payload, { lineWidth: 120 }), "utf-8");

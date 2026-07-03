@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { isSubtitleFile } from "@reel/shared";
 import type { AppConfig } from "@reel/shared";
 import type { DatabaseInstance } from "../db/index.js";
-import { subtitles } from "../db/schema.js";
+import { subtitles, movieFiles, tvEpisodes } from "../db/schema.js";
 import {
   extractEmbeddedSubtitle,
   type ProbeResult,
@@ -17,14 +17,23 @@ const LANGUAGE_MAP: Record<string, string> = {
   spa: "Spanish",
   fr: "French",
   fre: "French",
+  fra: "French",
   de: "German",
   ger: "German",
+  deu: "German",
   it: "Italian",
+  ita: "Italian",
   ja: "Japanese",
+  jpn: "Japanese",
   ko: "Korean",
+  kor: "Korean",
   pt: "Portuguese",
+  por: "Portuguese",
   ru: "Russian",
+  rus: "Russian",
   zh: "Chinese",
+  zho: "Chinese",
+  chi: "Chinese",
 };
 
 function parseSubtitleLanguage(filename: string): string {
@@ -35,6 +44,19 @@ function parseSubtitleLanguage(filename: string): string {
     return LANGUAGE_MAP[langPart] ?? langPart;
   }
   return "Unknown";
+}
+
+function displayLanguage(code: string): string {
+  return LANGUAGE_MAP[code.toLowerCase()] ?? code;
+}
+
+export function subtitleToTrack(subtitle: typeof subtitles.$inferSelect) {
+  return {
+    id: subtitle.id,
+    language: subtitle.language,
+    label: subtitle.label,
+    source: subtitle.source,
+  };
 }
 
 export class SubtitleService {
@@ -55,7 +77,15 @@ export class SubtitleService {
   ): Promise<void> {
     await this.db
       .delete(subtitles)
-      .where(eq(subtitles.movieFileId, movieFileId));
+      .where(
+        and(
+          eq(subtitles.movieFileId, movieFileId),
+          or(
+            eq(subtitles.source, "external"),
+            eq(subtitles.source, "embedded"),
+          ),
+        ),
+      );
 
     await this.discoverExternal(filePath, { movieFileId });
     if (probe) {
@@ -68,12 +98,102 @@ export class SubtitleService {
     filePath: string,
     probe: ProbeResult | null,
   ): Promise<void> {
-    await this.db.delete(subtitles).where(eq(subtitles.episodeId, episodeId));
+    await this.db
+      .delete(subtitles)
+      .where(
+        and(
+          eq(subtitles.episodeId, episodeId),
+          or(
+            eq(subtitles.source, "external"),
+            eq(subtitles.source, "embedded"),
+          ),
+        ),
+      );
 
     await this.discoverExternal(filePath, { episodeId });
     if (probe) {
       await this.discoverEmbedded(episodeId, "episode", filePath, probe);
     }
+  }
+
+  async listForMovieFile(movieFileId: number) {
+    const rows = await this.db.query.subtitles.findMany({
+      where: eq(subtitles.movieFileId, movieFileId),
+    });
+    return rows.map(subtitleToTrack);
+  }
+
+  async listForEpisode(episodeId: number) {
+    const rows = await this.db.query.subtitles.findMany({
+      where: eq(subtitles.episodeId, episodeId),
+    });
+    return rows.map(subtitleToTrack);
+  }
+
+  async attachOpenSubtitlesDownload(params: {
+    movieFileId?: number;
+    episodeId?: number;
+    opensubtitlesFileId: number;
+    language: string;
+    release: string;
+    rawContent: string;
+  }) {
+    const cachePath = path.join(
+      this.cacheDir,
+      `os_${params.movieFileId ?? params.episodeId}_${params.opensubtitlesFileId}.vtt`,
+    );
+
+    const vtt = params.rawContent.trimStart().startsWith("WEBVTT")
+      ? params.rawContent
+      : this.convertSrtToVtt(params.rawContent);
+
+    fs.writeFileSync(cachePath, vtt, "utf-8");
+
+    const existing = await this.db.query.subtitles.findFirst({
+      where: and(
+        params.movieFileId
+          ? eq(subtitles.movieFileId, params.movieFileId)
+          : eq(subtitles.episodeId, params.episodeId!),
+        eq(subtitles.source, "opensubtitles"),
+        eq(subtitles.pathOrIndex, cachePath),
+      ),
+    });
+
+    if (existing) return subtitleToTrack(existing);
+
+    const [row] = await this.db
+      .insert(subtitles)
+      .values({
+        movieFileId: params.movieFileId ?? null,
+        episodeId: params.episodeId ?? null,
+        language: displayLanguage(params.language),
+        label: params.release,
+        source: "opensubtitles",
+        pathOrIndex: cachePath,
+      })
+      .returning();
+
+    return subtitleToTrack(row);
+  }
+
+  async deleteSubtitle(id: number): Promise<void> {
+    const subtitle = await this.db.query.subtitles.findFirst({
+      where: eq(subtitles.id, id),
+    });
+    if (!subtitle) return;
+
+    if (
+      subtitle.source === "opensubtitles" &&
+      fs.existsSync(subtitle.pathOrIndex)
+    ) {
+      try {
+        fs.unlinkSync(subtitle.pathOrIndex);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+
+    await this.db.delete(subtitles).where(eq(subtitles.id, id));
   }
 
   private async discoverExternal(
@@ -125,10 +245,6 @@ export class SubtitleService {
       );
 
       try {
-        if (!fs.existsSync(cachePath)) {
-          await extractEmbeddedSubtitle(filePath, stream.index, cachePath);
-        }
-
         await this.db.insert(subtitles).values({
           movieFileId: type === "movie" ? fileId : null,
           episodeId: type === "episode" ? fileId : null,
@@ -140,9 +256,45 @@ export class SubtitleService {
           pathOrIndex: cachePath,
         });
       } catch {
-        // Skip failed extractions
+        // Skip failed registrations
       }
     }
+  }
+
+  private parseEmbeddedStreamIndex(cachePath: string): number | null {
+    const match = cachePath.match(/_sub_(\d+)\.vtt$/);
+    return match ? parseInt(match[1], 10) : null;
+  }
+
+  private async ensureEmbeddedExtracted(
+    subtitle: typeof subtitles.$inferSelect,
+  ): Promise<void> {
+    const cachePath = subtitle.pathOrIndex;
+    if (fs.existsSync(cachePath)) return;
+
+    const streamIndex = this.parseEmbeddedStreamIndex(cachePath);
+    if (streamIndex === null) {
+      throw new Error("Invalid embedded subtitle cache path");
+    }
+
+    let videoPath: string | undefined;
+    if (subtitle.movieFileId) {
+      const file = await this.db.query.movieFiles.findFirst({
+        where: eq(movieFiles.id, subtitle.movieFileId),
+      });
+      videoPath = file?.filePath;
+    } else if (subtitle.episodeId) {
+      const episode = await this.db.query.tvEpisodes.findFirst({
+        where: eq(tvEpisodes.id, subtitle.episodeId),
+      });
+      videoPath = episode?.filePath;
+    }
+
+    if (!videoPath) {
+      throw new Error("Video file not found for embedded subtitle");
+    }
+
+    await extractEmbeddedSubtitle(videoPath, streamIndex, cachePath);
   }
 
   convertSrtToVtt(srtContent: string): string {
@@ -172,7 +324,12 @@ export class SubtitleService {
   async getSubtitleContent(subtitle: typeof subtitles.$inferSelect): Promise<string> {
     const filePath = subtitle.pathOrIndex;
 
-    if (subtitle.source === "embedded" || filePath.endsWith(".vtt")) {
+    if (subtitle.source === "embedded") {
+      await this.ensureEmbeddedExtracted(subtitle);
+      return fs.readFileSync(filePath, "utf-8");
+    }
+
+    if (filePath.endsWith(".vtt")) {
       return fs.readFileSync(filePath, "utf-8");
     }
 

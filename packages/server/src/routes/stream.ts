@@ -2,10 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import mime from "mime-types";
-import crypto from "node:crypto";
 import type { AppConfig } from "@reel/shared";
+import { getAvailableQualities, parseTranscodeQuality } from "@reel/shared";
 import type { DatabaseInstance } from "../db/index.js";
-import type { ScannerService } from "../services/scanner.js";
 import type { SubtitleService } from "../services/subtitles.js";
 import { movieFiles, tvEpisodes, subtitles } from "../db/schema.js";
 import { eq } from "drizzle-orm";
@@ -13,7 +12,9 @@ import {
   startHlsTranscode,
   getHlsSession,
   waitForPlaylist,
+  probeFile,
 } from "../utils/ffmpeg.js";
+import { createStreamSessionId } from "../utils/stream-session.js";
 import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
 
 interface StreamParams {
@@ -23,6 +24,7 @@ interface StreamParams {
 interface StreamQuery {
   type?: "movie" | "episode";
   transcode?: string;
+  quality?: string;
   cast?: string;
   base?: string;
 }
@@ -35,18 +37,38 @@ export async function streamRoutes(
   async function resolveFile(
     fileId: number,
     type: "movie" | "episode",
-  ): Promise<{ filePath: string; id: number } | null> {
+  ): Promise<{
+    filePath: string;
+    id: number;
+    width?: number | null;
+    height?: number | null;
+  } | null> {
     if (type === "movie") {
       const file = await db.query.movieFiles.findFirst({
         where: eq(movieFiles.id, fileId),
       });
-      return file ? { filePath: file.filePath, id: file.id } : null;
+      return file
+        ? {
+            filePath: file.filePath,
+            id: file.id,
+            width: file.width,
+            height: file.height,
+          }
+        : null;
     }
 
     const episode = await db.query.tvEpisodes.findFirst({
       where: eq(tvEpisodes.id, fileId),
     });
     return episode ? { filePath: episode.filePath, id: episode.id } : null;
+  }
+
+  async function resolveSourceHeight(
+    file: { filePath: string; width?: number | null; height?: number | null },
+  ): Promise<number | null> {
+    if (file.height) return file.height;
+    const probe = await probeFile(file.filePath);
+    return probe?.height ?? null;
   }
 
   app.get<{ Params: StreamParams; Querystring: StreamQuery }>(
@@ -63,6 +85,8 @@ export async function streamRoutes(
       const stats = fs.statSync(file.filePath);
       const ext = path.extname(file.filePath);
       const mimeType = mime.lookup(ext) || "application/octet-stream";
+      const sourceHeight = await resolveSourceHeight(file);
+      const sourceWidth = file.width ?? null;
 
       return {
         id: file.id,
@@ -70,6 +94,10 @@ export async function streamRoutes(
         mimeType,
         fileSize: stats.size,
         fileName: path.basename(file.filePath),
+        width: sourceWidth,
+        height: sourceHeight,
+        availableQualities: getAvailableQualities(sourceHeight),
+        transcodingEnabled: config.transcoding.enabled,
       };
     },
   );
@@ -126,16 +154,24 @@ export async function streamRoutes(
 
       const fileId = parseInt(request.params.fileId, 10);
       const type = request.query.type ?? "movie";
+      const quality = parseTranscodeQuality(request.query.quality) ?? "720p";
       const file = await resolveFile(fileId, type);
 
       if (!file || !fs.existsSync(file.filePath)) {
         return reply.status(404).send({ error: "File not found" });
       }
 
-      const sessionId = crypto
-        .createHash("md5")
-        .update(`${type}:${fileId}`)
-        .digest("hex");
+      const sourceHeight = await resolveSourceHeight(file);
+      const available = getAvailableQualities(sourceHeight).filter(
+        (q) => q !== "original",
+      );
+      if (!available.includes(quality)) {
+        return reply.status(400).send({
+          error: `${quality} is not available for this video`,
+        });
+      }
+
+      const sessionId = createStreamSessionId(type, fileId, quality);
 
       let session = getHlsSession(sessionId);
 
@@ -149,6 +185,8 @@ export async function streamRoutes(
           file.filePath,
           outputDir,
           config.transcoding.hls_segment_duration,
+          quality,
+          sourceHeight,
         );
 
         const ready = await waitForPlaylist(session.playlistPath);
@@ -168,7 +206,7 @@ export async function streamRoutes(
       const rewritten = playlist.replace(
         /segment_\d+\.ts/g,
         (match) => {
-          const segmentPath = `/api/stream/${fileId}/hls/${match}?type=${type}`;
+          const segmentPath = `/api/stream/${fileId}/hls/${match}?type=${type}&quality=${quality}`;
           return useAbsolute ? toAbsoluteUrl(baseUrl, segmentPath) : segmentPath;
         },
       );
@@ -184,10 +222,8 @@ export async function streamRoutes(
     async (request, reply) => {
       const fileId = parseInt(request.params.fileId, 10);
       const type = request.query.type ?? "movie";
-      const sessionId = crypto
-        .createHash("md5")
-        .update(`${type}:${fileId}`)
-        .digest("hex");
+      const quality = parseTranscodeQuality(request.query.quality) ?? "720p";
+      const sessionId = createStreamSessionId(type, fileId, quality);
 
       const session = getHlsSession(sessionId);
       if (!session) {

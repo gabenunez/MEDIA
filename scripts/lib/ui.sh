@@ -48,8 +48,16 @@ reel_need_sudo() {
 
 reel_version_label() {
   local dir="$1"
+  if [[ -f "$dir/package.json" ]]; then
+    local version
+    version="$(node -e "const p=require(process.argv[1]); if(p.version) process.stdout.write('v'+p.version)" "$dir/package.json" 2>/dev/null || true)"
+    if [[ -n "$version" ]]; then
+      printf '%s' "$version"
+      return 0
+    fi
+  fi
   if [[ -d "$dir/.git" ]]; then
-    git -C "$dir" log -1 --format='%h %s (%cr)' 2>/dev/null || echo "unknown"
+    git -C "$dir" describe --tags --always 2>/dev/null || git -C "$dir" log -1 --format='%h %s (%cr)' 2>/dev/null || echo "unknown"
   else
     echo "legacy install (no git)"
   fi

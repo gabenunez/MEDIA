@@ -11,9 +11,20 @@ interface FolderPickerProps {
   value: string;
   onChange: (path: string) => void;
   onSelect?: (path: string) => void;
+  /** Restrict browsing to this folder and its subfolders. */
+  rootPath?: string;
+  validateScope?: "library" | "deck";
+  libraryId?: number;
 }
 
-export function FolderPicker({ value, onChange, onSelect }: FolderPickerProps) {
+export function FolderPicker({
+  value,
+  onChange,
+  onSelect,
+  rootPath,
+  validateScope = "library",
+  libraryId,
+}: FolderPickerProps) {
   const [open, setOpen] = useState(false);
   const [browse, setBrowse] = useState<BrowseResult | null>(null);
   const [shortcuts, setShortcuts] = useState<BrowseShortcut[]>([]);
@@ -41,20 +52,45 @@ export function FolderPicker({ value, onChange, onSelect }: FolderPickerProps) {
   useEffect(() => {
     if (!value) return;
     const timer = setTimeout(async () => {
-      const result = await api.validatePath(value).catch(() => null);
+      const result = await api
+        .validatePath(value, {
+          scope: validateScope,
+          libraryId,
+        })
+        .catch(() => null);
       setValidation(result?.valid ? null : result?.error ?? null);
     }, 400);
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, validateScope, libraryId]);
+
+  const normalizedRoot = rootPath?.replace(/[/\\]+$/, "");
+
+  const isWithinRoot = (target: string, root: string) => {
+    const normalized = target.replace(/[/\\]+$/, "");
+    return (
+      normalized === root ||
+      normalized.startsWith(`${root}/`) ||
+      normalized.startsWith(`${root}\\`)
+    );
+  };
+
+  const canGoUp =
+    browse?.parent &&
+    (!normalizedRoot || isWithinRoot(browse.parent, normalizedRoot));
 
   const openPicker = async () => {
     setOpen(true);
-    await loadBrowse(value || undefined);
+    await loadBrowse(value || rootPath || undefined);
   };
 
-  const navigate = async (path: string) => {
-    onChange(path);
-    await loadBrowse(path);
+  const navigate = async (nextPath: string) => {
+    onChange(nextPath);
+    await loadBrowse(nextPath);
+  };
+
+  const goUp = async () => {
+    if (!browse?.parent || !canGoUp) return;
+    await navigate(browse.parent);
   };
 
   const selectCurrent = () => {
@@ -141,8 +177,8 @@ export function FolderPicker({ value, onChange, onSelect }: FolderPickerProps) {
               <Button
                 type="button"
                 variant="ghost"
-                disabled={!browse?.parent}
-                onClick={() => browse?.parent && navigate(browse.parent)}
+                disabled={!canGoUp}
+                onClick={goUp}
               >
                 Up
               </Button>

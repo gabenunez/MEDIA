@@ -67,6 +67,19 @@ pull_latest() {
   local user="$2"
 
   if [[ -d "$dir/.git" ]]; then
+    if [[ -n "${REEL_RELEASE_TAG:-}" ]]; then
+      reel_ok "Checking out release ${REEL_RELEASE_TAG}..."
+      run_as_install_user "$user" "
+        set -euo pipefail
+        cd '$dir'
+        git fetch origin 'refs/tags/${REEL_RELEASE_TAG}:refs/tags/${REEL_RELEASE_TAG}' --depth=1 2>/dev/null \
+          || git fetch origin tag '${REEL_RELEASE_TAG}' --depth=1 2>/dev/null \
+          || git fetch origin tag '${REEL_RELEASE_TAG}'
+        git checkout '${REEL_RELEASE_TAG}'
+      "
+      return 0
+    fi
+
     reel_ok "Pulling latest from $REEL_BRANCH..."
     run_as_install_user "$user" "
       set -euo pipefail
@@ -83,7 +96,7 @@ pull_latest() {
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
 
-  git clone --depth 1 --branch "$REEL_BRANCH" "$REEL_REPO" "$tmp/reel"
+  git clone --depth 1 --branch "${REEL_RELEASE_TAG:-$REEL_BRANCH}" "$REEL_REPO" "$tmp/reel"
 
   if command -v rsync >/dev/null 2>&1; then
     rsync -a --delete \
@@ -133,12 +146,36 @@ restart_service() {
     else
       systemctl restart reel.service
     fi
+  elif [[ -x "${HOME}/.startup/reel" ]]; then
+    reel_ok "Restarting via ~/.startup/reel..."
+    "${HOME}/.startup/reel"
+  elif [[ -f "${HOME}/.config/reel/reel.pid" ]]; then
+    reel_ok "Restarting Reel process..."
+    local pid
+    pid="$(cat "${HOME}/.config/reel/reel.pid" 2>/dev/null || true)"
+    if [[ -n "$pid" ]]; then
+      kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+    fi
+    sleep 2
+    rm -f "${HOME}/.config/reel/reel.pid"
+    local install_dir
+    install_dir="$(detect_install_dir)"
+    export PATH="${HOME}/node/bin:${PATH:-}"
+    cd "$install_dir"
+    nohup node packages/server/dist/index.js >> "${HOME}/.config/reel/reel.log" 2>&1 &
+    echo $! > "${HOME}/.config/reel/reel.pid"
+    reel_ok "Reel restarted (pid $(cat "${HOME}/.config/reel/reel.pid"))"
   else
     reel_warn "No systemd service found — restart manually with: pnpm start"
   fi
 }
 
 main() {
+  cleanup_update_lock() {
+    rm -f "${HOME}/.config/reel/updating.lock" 2>/dev/null || true
+  }
+  trap cleanup_update_lock EXIT
+
   echo ""
   echo -e "${REEL_BOLD}  Reel — Update${REEL_RESET}"
   echo -e "${REEL_DIM}  Pull latest, rebuild, and restart${REEL_RESET}"

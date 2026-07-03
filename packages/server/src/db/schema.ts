@@ -98,7 +98,9 @@ export const subtitles = sqliteTable("subtitles", {
   }),
   language: text("language").notNull().default("und"),
   label: text("label"),
-  source: text("source", { enum: ["external", "embedded"] }).notNull(),
+  source: text("source", {
+    enum: ["external", "embedded", "opensubtitles"],
+  }).notNull(),
   pathOrIndex: text("path_or_index").notNull(),
   isDefault: integer("is_default", { mode: "boolean" }).default(false),
 });
@@ -110,6 +112,16 @@ export const watchProgress = sqliteTable("watch_progress", {
   positionMs: integer("position_ms").notNull().default(0),
   durationMs: integer("duration_ms"),
   updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const libraryDecks = sqliteTable("library_decks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  paths: text("paths").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -138,3 +150,4 @@ export type MovieFile = typeof movieFiles.$inferSelect;
 export type Subtitle = typeof subtitles.$inferSelect;
 export type WatchProgress = typeof watchProgress.$inferSelect;
 export type ScanJob = typeof scanJobs.$inferSelect;
+export type LibraryDeck = typeof libraryDecks.$inferSelect;

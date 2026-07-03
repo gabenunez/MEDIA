@@ -94,3 +94,31 @@ export function validateLibraryPath(folderPath: string): {
     return { valid: false, error: "Folder does not exist or is not readable" };
   }
 }
+
+export function isPathUnderRoot(rootPath: string, targetPath: string): boolean {
+  const root = path.resolve(rootPath);
+  const target = path.resolve(targetPath);
+  if (target === root) return true;
+  return target.startsWith(root + path.sep);
+}
+
+export function validateDeckPath(
+  folderPath: string,
+  libraryRoots: string[],
+): { valid: boolean; error?: string; resolvedPath?: string } {
+  const base = validateLibraryPath(folderPath);
+  if (!base.valid || !base.resolvedPath) return base;
+
+  const underLibrary = libraryRoots.some((root) =>
+    isPathUnderRoot(root, base.resolvedPath!),
+  );
+
+  if (!underLibrary) {
+    return {
+      valid: false,
+      error: "Path must be inside one of your configured libraries",
+    };
+  }
+
+  return base;
+}

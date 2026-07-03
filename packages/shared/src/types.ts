@@ -1,6 +1,6 @@
 export type LibraryType = "movies" | "tv";
 export type MediaType = "movie" | "tv";
-export type SubtitleSource = "external" | "embedded";
+export type SubtitleSource = "external" | "embedded" | "opensubtitles";
 export type ScanJobStatus = "pending" | "running" | "completed" | "failed";
 export type WatchItemType = "movie" | "episode";
 
@@ -26,12 +26,22 @@ export interface TranscodingConfig {
   cache_dir: string;
 }
 
+export interface AuthConfig {
+  password_hash?: string;
+}
+
+export interface SubtitlesConfig {
+  opensubtitles_api_key?: string;
+}
+
 export interface AppConfig {
   server: ServerConfig;
   libraries: LibraryConfig[];
   metadata: MetadataConfig;
   transcoding: TranscodingConfig;
   data_dir: string;
+  auth?: AuthConfig;
+  subtitles?: SubtitlesConfig;
 }
 
 export interface ParsedMovie {

@@ -6,6 +6,13 @@ import type { AppConfig } from "@reel/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import type { ScannerService } from "../services/scanner.js";
 import type { MetadataService } from "../services/metadata.js";
+import {
+  listDecksWithCounts,
+  getDeckItems,
+  parseDeckPaths,
+  inferDeckTypes,
+  countDeckItems,
+} from "../services/decks.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
 import {
   libraries,
@@ -16,6 +23,7 @@ import {
   watchProgress,
   scanJobs,
   subtitles,
+  libraryDecks,
 } from "../db/schema.js";
 
 export async function apiRoutes(
@@ -71,6 +79,49 @@ export async function apiRoutes(
       tmdbConfigured: metadata.isConfigured(),
       libraries: libraryStats,
       activeScan: scanInfo,
+    };
+  });
+
+  app.get("/api/decks", async () => {
+    return listDecksWithCounts(db);
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { page?: string; limit?: string } }>(
+    "/api/decks/:id/items",
+    async (request, reply) => {
+      const deckId = parseInt(request.params.id, 10);
+      const page = parseInt(request.query.page ?? "1", 10);
+      const limit = parseInt(request.query.limit ?? "48", 10);
+
+      const deck = await db.query.libraryDecks.findFirst({
+        where: eq(libraryDecks.id, deckId),
+      });
+      if (!deck) return reply.status(404).send({ error: "Deck not found" });
+
+      const paths = parseDeckPaths(deck.paths);
+      return getDeckItems(db, paths, page, limit);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>("/api/decks/:id", async (request, reply) => {
+    const deckId = parseInt(request.params.id, 10);
+    const deck = await db.query.libraryDecks.findFirst({
+      where: eq(libraryDecks.id, deckId),
+    });
+    if (!deck) return reply.status(404).send({ error: "Deck not found" });
+
+    const paths = parseDeckPaths(deck.paths);
+    const allLibraries = await db.query.libraries.findMany();
+    const itemCount = await countDeckItems(db, paths);
+
+    return {
+      id: deck.id,
+      name: deck.name,
+      paths,
+      sortOrder: deck.sortOrder,
+      itemCount,
+      types: inferDeckTypes(paths, allLibraries),
+      createdAt: deck.createdAt.toISOString(),
     };
   });
 
@@ -264,11 +315,13 @@ export async function apiRoutes(
     );
 
     const librariesList = await db.query.libraries.findMany();
+    const decks = await listDecksWithCounts(db);
 
     return {
       continueWatching: continueWatching.filter(Boolean),
       recentlyAdded: recent,
       libraries: librariesList,
+      decks,
     };
   });
 

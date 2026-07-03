@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
   Clapperboard,
   HardDrive,
-  Loader2,
+  Layers,
   Play,
   RadioTower,
   Settings,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
+import { useScanStatus } from "@/components/scan-status-provider";
 import { ContinueWatchingRow, MediaRow } from "@/components/media-row";
+import { ScanProgressBanner } from "@/components/scan-progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { LibraryIcon } from "@/components/navbar";
@@ -22,20 +24,34 @@ export default function HomePage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getHome>> | null>(
     null,
   );
-  const [status, setStatus] = useState<Awaited<
-    ReturnType<typeof api.getStatus>
-  > | null>(null);
   const [loading, setLoading] = useState(true);
+  const { status, activeScan, isScanning } = useScanStatus();
+  const wasScanningRef = useRef(false);
 
   useEffect(() => {
-    Promise.all([api.getHome(), api.getStatus()])
-      .then(([home, stat]) => {
-        setData(home);
-        setStatus(stat);
-      })
+    api
+      .getHome()
+      .then(setData)
       .catch((err) => console.warn("Failed to load home data", err))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!isScanning) {
+      if (wasScanningRef.current) {
+        api.getHome().then(setData).catch(console.error);
+      }
+      wasScanningRef.current = false;
+      return;
+    }
+
+    wasScanningRef.current = true;
+    const interval = setInterval(() => {
+      api.getHome().then(setData).catch(console.error);
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [isScanning]);
 
   if (loading) {
     return (
@@ -50,8 +66,11 @@ export default function HomePage() {
     );
   }
 
-  const isScanning = status?.activeScan?.status === "running";
-  const libraries = data?.libraries ?? [];
+  const libraries = (data?.libraries ?? []).map((lib) => {
+    const live = status?.libraries.find((entry) => entry.id === lib.id);
+    return live ? { ...lib, itemCount: live.itemCount } : lib;
+  });
+  const decks = data?.decks ?? [];
   const recentlyAdded = data?.recentlyAdded ?? [];
   const continueWatching = data?.continueWatching ?? [];
   const featured = recentlyAdded[0];
@@ -117,18 +136,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            {isScanning && (
-              <div className="mt-6 flex max-w-2xl items-center gap-3 rounded-md border border-primary/35 bg-primary/10 px-4 py-3">
-                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" />
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    Scanning {status?.activeScan?.libraryName}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {status?.activeScan?.message} ({status?.activeScan?.progress}%)
-                  </p>
-                </div>
-              </div>
+            {activeScan && (
+              <ScanProgressBanner scan={activeScan} className="mt-6 max-w-2xl" />
             )}
 
             {!status?.tmdbConfigured && (
@@ -202,16 +211,45 @@ export default function HomePage() {
 
       <MediaRow title="Recently Added" items={recentlyAdded} />
 
-      {libraries.length > 0 && (
+      {(decks.length > 0 || libraries.length > 0) && (
         <section className="mx-auto mb-10 max-w-7xl px-4 sm:px-6">
           <div className="mb-4 flex items-center gap-3">
             <span className="h-px w-8 bg-primary" />
             <h2 className="text-lg font-semibold sm:text-xl">Library Decks</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {decks.map((deck) => (
+              <Link
+                key={`deck-${deck.id}`}
+                href={routes.deck(deck.id)}
+                className="group relative overflow-hidden rounded-md border border-border/80 bg-card/85 p-5 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card"
+              >
+                <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
+                    <Layers className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate font-semibold group-hover:text-primary">
+                      {deck.name}
+                    </h3>
+                    <p className="font-mono text-[0.68rem] uppercase text-muted-foreground">
+                      Custom / {deck.itemCount ?? 0} titles
+                    </p>
+                    {deck.libraryNames.length > 0 && (
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {deck.libraryNames.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+                </div>
+              </Link>
+            ))}
+
             {libraries.map((lib) => (
               <Link
-                key={lib.id}
+                key={`library-${lib.id}`}
                 href={routes.library(lib.id)}
                 className="group relative overflow-hidden rounded-md border border-border/80 bg-card/85 p-5 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card"
               >
@@ -225,7 +263,7 @@ export default function HomePage() {
                       {lib.name}
                     </h3>
                     <p className="font-mono text-[0.68rem] uppercase text-muted-foreground">
-                      {lib.type === "movies" ? "Films" : "Series"} /{" "}
+                      {lib.type === "movies" ? "Full library" : "Full series"} /{" "}
                       {lib.itemCount ?? 0} titles
                     </p>
                   </div>
