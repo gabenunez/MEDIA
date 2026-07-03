@@ -146,21 +146,18 @@ prepare_install_dir() {
 sync_source() {
   step "Installing Reel"
 
+  REEL_REPO="${REEL_REPO:-https://github.com/gabenunez/reel.git}"
+  REEL_BRANCH="${REEL_BRANCH:-main}"
   local source_dir="${REEL_SOURCE_DIR:-}"
-  if [[ -z "$source_dir" ]] || [[ ! -f "$source_dir/package.json" ]]; then
-    fail "Source directory not found. Run via ./install.sh or set REEL_SOURCE_DIR."
-  fi
 
-  if [[ "$(cd "$source_dir" && pwd)" != "$(cd "$REEL_INSTALL_DIR" && pwd)" ]]; then
-    ok "Copying source to $REEL_INSTALL_DIR"
-    $SUDO rsync -a --delete \
-      --exclude node_modules \
-      --exclude .git \
-      --exclude data \
-      --exclude packages/web/.next \
-      "$source_dir/" "$REEL_INSTALL_DIR/"
-  else
+  if [[ -n "$source_dir" ]] && [[ "$(cd "$source_dir" && pwd)" == "$(cd "$REEL_INSTALL_DIR" && pwd)" ]]; then
     ok "Using existing source at $REEL_INSTALL_DIR"
+  elif [[ -d "$REEL_INSTALL_DIR/.git" ]]; then
+    ok "Using existing git clone at $REEL_INSTALL_DIR"
+  else
+    ok "Cloning Reel to $REEL_INSTALL_DIR"
+    $SUDO rm -rf "$REEL_INSTALL_DIR"
+    $SUDO git clone --depth 1 --branch "$REEL_BRANCH" "$REEL_REPO" "$REEL_INSTALL_DIR"
   fi
 
   $SUDO chown -R "$REEL_USER:$REEL_USER" "$REEL_INSTALL_DIR"
@@ -168,6 +165,11 @@ sync_source() {
 
 write_config() {
   step "Creating config"
+
+  if [[ -f "$REEL_INSTALL_DIR/config.yaml" ]]; then
+    ok "Keeping existing config.yaml"
+    return 0
+  fi
 
   local movies_path tv_path
   prompt movies_path "Movies folder (type 'skip' to configure later)" "${REEL_MOVIES_PATH:-/srv/reel/movies}"
@@ -308,6 +310,7 @@ print_success() {
   echo -e "    3. Upload movies/TV and trigger a library scan"
   echo ""
   echo -e "  ${BOLD}Useful commands:${RESET}"
+  echo -e "    ${DIM}curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/update.sh | bash${RESET}  — update Reel"
   echo -e "    ${DIM}sudo systemctl status reel${RESET}   — check status"
   echo -e "    ${DIM}sudo systemctl restart reel${RESET}  — restart after config changes"
   echo -e "    ${DIM}sudo journalctl -u reel -f${RESET}  — live logs"
