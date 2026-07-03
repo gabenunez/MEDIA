@@ -1,7 +1,7 @@
 "use client";
 
 import { api, type MediaItem } from "@/lib/api";
-import { tvRoutes } from "@/lib/tv/routes";
+import { routes } from "@/lib/routes";
 import { TvFocusLink } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
 import { Clapperboard, Play, Tv } from "lucide-react";
@@ -24,7 +24,7 @@ export function TvPoster({
   subtitle,
 }: TvPosterProps) {
   const imageUrl = api.imageUrl(item.posterPath);
-  const linkHref = href ?? tvRoutes.media(item.id);
+  const linkHref = href ?? routes.media(item.id);
 
   return (
     <div className={cn("shrink-0", className)}>

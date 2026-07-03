@@ -9,8 +9,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, LibraryBig } from "lucide-react";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvLibraryView } from "@/components/tv/views/library-view";
 
 export function LibraryClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvLibraryView />;
+  return <LibraryDesktopClient />;
+}
+
+function LibraryDesktopClient() {
   const searchParams = useSearchParams();
   const libraryId = parseInt(searchParams.get("id") ?? "", 10);
   const deckId = parseInt(searchParams.get("deck") ?? "", 10);

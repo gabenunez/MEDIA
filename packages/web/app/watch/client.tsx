@@ -30,6 +30,8 @@ import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { SubtitleAppearanceSettingsLink } from "@/components/subtitle-style-settings";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvWatchView } from "@/components/tv/views/watch-view";
 
 interface SubtitleTrack {
   id: number;
@@ -126,6 +128,12 @@ function loadStoredVolume(): number {
 }
 
 export function WatchClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvWatchView />;
+  return <WatchDesktopClient />;
+}
+
+function WatchDesktopClient() {
   const searchParams = useSearchParams();
   const type = (searchParams.get("type") ?? "movie") as "movie" | "episode";
   const fileId = parseInt(searchParams.get("id") ?? "", 10);

@@ -23,8 +23,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { LibraryIcon } from "@/components/navbar";
 import { cn } from "@/lib/utils";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvHomeView } from "@/components/tv/views/home-view";
 
 export function HomeClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvHomeView />;
+  return <HomeDesktopClient />;
+}
+
+function HomeDesktopClient() {
   useDocumentTitle("Home");
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getHome>> | null>(
     null,

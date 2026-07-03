@@ -8,8 +8,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvRecentView } from "@/components/tv/views/recent-view";
 
 export function RecentClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvRecentView />;
+  return <RecentDesktopClient />;
+}
+
+function RecentDesktopClient() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);

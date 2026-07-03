@@ -9,8 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LibraryIcon } from "@/components/navbar";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvBrowseView } from "@/components/tv/views/browse-view";
 
 export function BrowseClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvBrowseView />;
+  return <BrowseDesktopClient />;
+}
+
+function BrowseDesktopClient() {
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [decks, setDecks] = useState<LibraryDeck[]>([]);
   const [favoritesCount, setFavoritesCount] = useState(0);
