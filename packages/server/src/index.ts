@@ -99,8 +99,8 @@ async function main() {
   await updateRoutes(app);
   await castRoutes(app, db, config, auth);
   await streamRoutes(app, db, config);
-  await subtitleRoutes(app, db, subtitles);
   await subtitleSearchRoutes(app, db, configManager, subtitles);
+  await subtitleRoutes(app, db, subtitles);
 
   const webOut = getWebOutPath();
   if (webOut && fs.existsSync(webOut)) {

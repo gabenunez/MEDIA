@@ -168,9 +168,14 @@ export async function subtitleSearchRoutes(
       return reply.status(404).send({ error: "File not found" });
     }
 
-    const { content } = await openSubtitles.downloadSubtitleFile(
-      opensubtitlesFileId,
-    );
+    let content: string;
+    try {
+      ({ content } = await openSubtitles.downloadSubtitleFile(opensubtitlesFileId));
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to download subtitle file";
+      return reply.status(400).send({ error: message });
+    }
 
     try {
       const track = await subtitleService.attachOpenSubtitlesDownload({
@@ -185,8 +190,8 @@ export async function subtitleSearchRoutes(
       return { success: true, track };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save subtitle";
-      if (message.includes("no dialogue")) {
-        return reply.status(400).send({ error: "Downloaded subtitle has no dialogue" });
+      if (message.includes("no dialogue") || message.includes("persist")) {
+        return reply.status(400).send({ error: message });
       }
       throw err;
     }

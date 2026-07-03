@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ConfigManager } from "../config.js";
+import { subtitleHasContent } from "../utils/subtitle-content.js";
 
 const API_BASE = "https://api.opensubtitles.com/api/v1";
 const USER_AGENT = "Reel/0.1.0";
@@ -146,6 +147,7 @@ export class OpenSubtitlesService {
       });
     }
 
+    results.sort((a, b) => b.downloadCount - a.downloadCount);
     return results;
   }
 
@@ -172,7 +174,17 @@ export class OpenSubtitlesService {
     }
 
     const buffer = Buffer.from(await fileRes.arrayBuffer());
+    if (buffer.length === 0) {
+      throw new Error("Downloaded subtitle file is empty");
+    }
+
     const text = this.extractSubtitleText(buffer, data.file_name ?? "subtitle.srt");
+    if (!text.trim()) {
+      throw new Error("Downloaded subtitle file has no text content");
+    }
+    if (!subtitleHasContent(text)) {
+      throw new Error("Downloaded subtitle file has no dialogue");
+    }
 
     return { content: text, fileName: data.file_name ?? "subtitle.srt" };
   }

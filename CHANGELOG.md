@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.40 — 2026-07-03
+
+### Subtitles
+- **OpenSubtitles search** — results sorted by download count (highest first)
+- **OpenSubtitles downloads** — validate file content before saving; write cache file and verify on disk before inserting DB rows; keep downloads when list filtering runs
+- **Playback** — load subtitle tracks via authenticated fetch (fixes dev cross-origin and auth); re-attach after stream reloads; preserve newly downloaded tracks when refreshing the menu
+
+### Dev
+- **`dev.sh`** — set `NEXT_PUBLIC_API_URL` so the web dev server talks to the API on `:8096`
+
 ## 0.1.39 — 2026-07-03
 
 ### Stability

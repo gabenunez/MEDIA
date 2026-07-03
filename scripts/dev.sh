@@ -18,7 +18,7 @@ SHARED_PID=$!
 pnpm --filter @reel/server dev &
 SERVER_PID=$!
 
-pnpm --filter @reel/web dev &
+NEXT_PUBLIC_API_URL=http://localhost:8096 pnpm --filter @reel/web dev &
 WEB_PID=$!
 
 trap "kill $SHARED_PID $SERVER_PID $WEB_PID 2>/dev/null" EXIT
