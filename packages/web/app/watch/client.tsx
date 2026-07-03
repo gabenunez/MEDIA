@@ -132,6 +132,7 @@ export function WatchClient() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,6 +167,10 @@ export function WatchClient() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [scrubPreview, setScrubPreview] = useState<number | null>(null);
+  const [optimisticAbsoluteSeconds, setOptimisticAbsoluteSeconds] = useState<number | null>(
+    null,
+  );
+  const [timelineHoverPercent, setTimelineHoverPercent] = useState<number | null>(null);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -492,6 +497,14 @@ export function WatchClient() {
     const onCanPlay = () => {
       updateBufferedPosition();
     };
+    const onSeeked = () => {
+      if (optimisticAbsoluteSeconds === null) return;
+      const actual =
+        quality !== "original" ? hlsStartOffset + video.currentTime : video.currentTime;
+      if (Math.abs(actual - optimisticAbsoluteSeconds) < 1.5) {
+        setOptimisticAbsoluteSeconds(null);
+      }
+    };
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -502,6 +515,7 @@ export function WatchClient() {
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("playing", onPlaying);
     video.addEventListener("canplay", onCanPlay);
+    video.addEventListener("seeked", onSeeked);
 
     return () => {
       video.removeEventListener("play", onPlay);
@@ -513,8 +527,9 @@ export function WatchClient() {
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("canplay", onCanPlay);
+      video.removeEventListener("seeked", onSeeked);
     };
-  }, [revealControls, saveProgress, updateBufferedPosition]);
+  }, [revealControls, saveProgress, updateBufferedPosition, optimisticAbsoluteSeconds, quality, hlsStartOffset]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -585,11 +600,24 @@ export function WatchClient() {
     absoluteDurationMs > 0 ? absoluteDurationMs / 1000 : 0;
   const progress =
     absoluteDurationMs > 0 ? (absoluteCurrentTime * 1000) / absoluteDurationMs * 100 : 0;
-  const displayedProgress = scrubPreview ?? progress;
+  const optimisticProgressPercent =
+    optimisticAbsoluteSeconds !== null && absoluteDurationMs > 0
+      ? ((optimisticAbsoluteSeconds * 1000) / absoluteDurationMs) * 100
+      : null;
+  const isOptimisticScrub = scrubPreview !== null || optimisticAbsoluteSeconds !== null;
+  const displayedProgress = scrubPreview ?? optimisticProgressPercent ?? progress;
   const displayedAbsoluteTime =
     scrubPreview !== null && absoluteDurationMs > 0
       ? (scrubPreview / 100) * totalDurationSeconds
-      : absoluteCurrentTime;
+      : optimisticAbsoluteSeconds !== null
+        ? optimisticAbsoluteSeconds
+        : absoluteCurrentTime;
+  const timelinePreviewPercent =
+    scrubPreview ?? optimisticProgressPercent ?? timelineHoverPercent;
+  const timelinePreviewMs =
+    timelinePreviewPercent !== null && absoluteDurationMs > 0
+      ? (timelinePreviewPercent / 100) * absoluteDurationMs
+      : null;
   const bufferedPercent =
     absoluteDurationMs > 0
       ? Math.min(100, (bufferedSeconds * 1000) / absoluteDurationMs * 100)
@@ -601,10 +629,10 @@ export function WatchClient() {
       if (!video || !totalDurationSeconds) return;
 
       const clamped = Math.max(0, Math.min(targetSeconds, totalDurationSeconds));
+      setOptimisticAbsoluteSeconds(clamped);
 
       if (quality === "original") {
         video.currentTime = clamped;
-        setScrubPreview(null);
         revealControls(true);
         return;
       }
@@ -612,7 +640,6 @@ export function WatchClient() {
       const relativeTarget = clamped - hlsStartOffset;
 
       if (relativeTarget < 0) {
-        setScrubPreview(null);
         setStreamStartSeconds(clamped);
         setStreamGeneration((current) => current + 1);
         setBuffering(true);
@@ -624,12 +651,10 @@ export function WatchClient() {
       if (relativeTarget <= seekableEnd + 0.25 && video.readyState >= 1) {
         video.currentTime = relativeTarget;
         setCurrentTime(relativeTarget);
-        setScrubPreview(null);
         revealControls(true);
         return;
       }
 
-      setScrubPreview(null);
       setStreamStartSeconds(clamped);
       setStreamGeneration((current) => current + 1);
       setBuffering(true);
@@ -660,7 +685,10 @@ export function WatchClient() {
     [absoluteCurrentTime, seekToAbsolute],
   );
   const isPreparing = initialResumeSeconds === null;
-  const showLoadingOverlay = (isPreparing || buffering) && !error;
+  const showLoadingOverlay =
+    (isPreparing || buffering) &&
+    !error &&
+    !(quality === "original" && optimisticAbsoluteSeconds !== null);
   const loadingMessage = isPreparing
     ? "Preparing playback..."
     : bufferingMidPlayback
@@ -679,6 +707,13 @@ export function WatchClient() {
     }
     revealControls(!video.paused);
   }, [revealControls]);
+
+  useEffect(() => {
+    if (optimisticAbsoluteSeconds === null) return;
+    if (Math.abs(absoluteCurrentTime - optimisticAbsoluteSeconds) < 1.5) {
+      setOptimisticAbsoluteSeconds(null);
+    }
+  }, [absoluteCurrentTime, optimisticAbsoluteSeconds]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -700,19 +735,23 @@ export function WatchClient() {
 
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        seekToAbsoluteRef.current(absoluteCurrentTime + 10);
+        seekToAbsoluteRef.current(
+          (optimisticAbsoluteSeconds ?? absoluteCurrentTime) + 10,
+        );
         return;
       }
 
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        seekToAbsoluteRef.current(Math.max(0, absoluteCurrentTime - 10));
+        seekToAbsoluteRef.current(
+          Math.max(0, (optimisticAbsoluteSeconds ?? absoluteCurrentTime) - 10),
+        );
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay, absoluteCurrentTime]);
+  }, [togglePlay, absoluteCurrentTime, optimisticAbsoluteSeconds]);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -724,11 +763,28 @@ export function WatchClient() {
   };
 
   const handleScrubChange = (value: number) => {
+    setOptimisticAbsoluteSeconds(null);
     setScrubPreview(value);
     revealControls(true);
   };
 
+  const updateTimelineHover = useCallback(
+    (clientX: number) => {
+      const track = timelineRef.current;
+      if (!track || !totalDurationSeconds) return;
+
+      const rect = track.getBoundingClientRect();
+      if (rect.width <= 0) return;
+
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      setTimelineHoverPercent(ratio * 100);
+    },
+    [totalDurationSeconds],
+  );
+
   const handleScrubCommit = (value: number) => {
+    setScrubPreview(null);
+    setTimelineHoverPercent(null);
     seekToPercent(value);
   };
 
@@ -825,14 +881,30 @@ export function WatchClient() {
         <div className="pointer-events-auto bg-gradient-to-t from-background/95 via-background/45 to-transparent px-3 pb-3 pt-10 sm:px-4 sm:pb-4">
           <div className="mx-auto max-w-7xl rounded-md border border-white/10 bg-background/75 p-3 backdrop-blur">
             <div className="mb-3 flex items-center gap-3">
-              <div className="relative flex h-4 flex-1 items-center">
+              <div
+                ref={timelineRef}
+                className="relative flex h-4 flex-1 items-center"
+                onPointerMove={(e) => updateTimelineHover(e.clientX)}
+                onPointerLeave={() => setTimelineHoverPercent(null)}
+              >
+                {timelinePreviewPercent !== null && timelinePreviewMs !== null && (
+                  <div
+                    className="pointer-events-none absolute bottom-full z-20 mb-2 -translate-x-1/2 rounded border border-white/20 bg-background/95 px-2 py-1 font-mono text-xs tabular-nums text-white shadow-lg"
+                    style={{ left: `${timelinePreviewPercent}%` }}
+                  >
+                    {formatDuration(timelinePreviewMs)}
+                  </div>
+                )}
                 <div className="pointer-events-none absolute inset-x-0 h-1.5 overflow-hidden rounded-full bg-white/20">
                   <div
                     className="absolute inset-y-0 left-0 rounded-full bg-white/45 transition-[width] duration-150"
                     style={{ width: `${bufferedPercent}%` }}
                   />
                   <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-primary/70"
+                    className={cn(
+                      "absolute inset-y-0 left-0 rounded-full bg-primary/70",
+                      !isOptimisticScrub && "transition-[width] duration-150",
+                    )}
                     style={{ width: `${displayedProgress}%` }}
                   />
                 </div>

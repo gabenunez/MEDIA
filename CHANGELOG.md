@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.27 — 2026-07-03
+
+### Playback
+- **Timeline hover preview** — show a timestamp tooltip when hovering or scrubbing the progress bar
+- **Optimistic scrubbing** — progress bar and clock jump to the target immediately on seek; UI holds position until playback catches up
+
 ## 0.1.26 — 2026-07-03
 
 ### Features
