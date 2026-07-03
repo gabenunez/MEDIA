@@ -7,11 +7,6 @@ import { UpdateAvailableButton } from "@/components/update-available-button";
 import { SearchPopover } from "@/components/search-popover";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-
 export function Navbar() {
   const pathname = usePathname();
 
@@ -36,28 +31,40 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <UpdateAvailableButton />
-          <SearchPopover />
           <nav className="flex items-center gap-1">
-            {navItems.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
-                  pathname === href
-                    ? "bg-primary/[0.12] text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
-                {pathname === href && (
-                  <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
-                )}
-              </Link>
-            ))}
+            <Link
+              href="/"
+              className={cn(
+                "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
+                pathname === "/"
+                  ? "bg-primary/[0.12] text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Home</span>
+              {pathname === "/" && (
+                <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
+              )}
+            </Link>
+            <SearchPopover />
+            <Link
+              href="/settings"
+              className={cn(
+                "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
+                pathname === "/settings"
+                  ? "bg-primary/[0.12] text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Settings</span>
+              {pathname === "/settings" && (
+                <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
+              )}
+            </Link>
           </nav>
+          <UpdateAvailableButton />
         </div>
       </div>
     </header>

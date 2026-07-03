@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6 — 2026-07-03
+
+### UI
+- **Navbar order** — Home, Search, Settings, then Update available on the far right
+
 ## 0.1.5 — 2026-07-03
 
 ### Video player
