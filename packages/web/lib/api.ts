@@ -361,6 +361,20 @@ export const api = {
     }>(
       `/api/favorites?page=${page}${type ? `&type=${type}` : ""}`,
     ),
+  getContinueWatching: (page = 1) =>
+    fetchApi<{
+      items: ContinueWatchingItem[];
+      page: number;
+      total: number;
+      totalPages: number;
+    }>(`/api/continue-watching?page=${page}`),
+  getRecentlyAdded: (page = 1) =>
+    fetchApi<{
+      items: MediaItem[];
+      page: number;
+      total: number;
+      totalPages: number;
+    }>(`/api/recent?page=${page}`),
   addFavorite: (mediaItemId: number) =>
     fetchApi<{ success: boolean }>("/api/favorites", {
       method: "POST",

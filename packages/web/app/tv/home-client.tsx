@@ -84,7 +84,7 @@ export function TvHomeClient() {
       )}
 
       {continueWatching.length > 0 && (
-        <TvRow title="Continue Watching">
+        <TvRow title="Continue Watching" href={tvRoutes.continueWatching()}>
           {continueWatching.map((item) => (
             <TvPoster
               key={item.id}
@@ -108,7 +108,7 @@ export function TvHomeClient() {
       )}
 
       {favorites.length > 0 && (
-        <TvRow title="Favorites">
+        <TvRow title="Favorites" href={tvRoutes.favorites()}>
           {favorites.map((item) => (
             <TvPoster key={item.id} item={item} />
           ))}
@@ -116,7 +116,7 @@ export function TvHomeClient() {
       )}
 
       {recentlyAdded.length > 0 && (
-        <TvRow title="Recently Added">
+        <TvRow title="Recently Added" href={tvRoutes.recentlyAdded()}>
           {recentlyAdded.map((item) => (
             <TvPoster key={item.id} item={item} />
           ))}
@@ -125,7 +125,15 @@ export function TvHomeClient() {
 
       {(decks.length > 0 || libraries.length > 0) && (
         <section className="mb-10">
-          <h2 className="mb-4 px-8 text-2xl font-bold tracking-tight">Browse</h2>
+          <div className="mb-4 flex items-center justify-between gap-4 px-8">
+            <h2 className="text-2xl font-bold tracking-tight">Browse</h2>
+            <a
+              href={tvRoutes.browse()}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              View all
+            </a>
+          </div>
           <div
             data-tv-row=""
             className="scrollbar-hide flex snap-x gap-4 overflow-x-auto px-8 pb-2"

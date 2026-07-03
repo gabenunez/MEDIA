@@ -7,12 +7,20 @@ interface TvRowProps {
   title: string;
   children: ReactNode;
   className?: string;
+  href?: string;
 }
 
-export function TvRow({ title, children, className }: TvRowProps) {
+export function TvRow({ title, children, className, href }: TvRowProps) {
   return (
     <section className={cn("mb-10", className)}>
-      <h2 className="mb-4 px-8 text-2xl font-bold tracking-tight">{title}</h2>
+      <div className="mb-4 flex items-center justify-between gap-4 px-8">
+        <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
+        {href ? (
+          <a href={href} className="text-sm font-medium text-primary hover:underline">
+            View all
+          </a>
+        ) : null}
+      </div>
       <div
         data-tv-row=""
         className="scrollbar-hide flex snap-x snap-mandatory gap-5 overflow-x-auto px-8 pb-2"

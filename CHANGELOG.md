@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.31 — 2026-07-03
+
+### UI
+- **View all links** — Continue Watching, Recently Added, and Library Decks rows on home now link to full browse pages (web and TV), matching Favorites
+
 ## 0.1.30 — 2026-07-03
 
 ### Updates

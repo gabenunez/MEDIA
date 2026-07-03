@@ -6,6 +6,9 @@ export const tvRoutes = {
   media: (id: number) => `/tv/media/?id=${id}`,
   favorites: (type?: "movie" | "tv") =>
     type ? `/tv/favorites/?type=${type}` : "/tv/favorites/",
+  continueWatching: () => "/tv/continue/",
+  recentlyAdded: () => "/tv/recent/",
+  browse: () => "/tv/browse/",
   watch: (type: "movie" | "episode", fileId: number, mediaId?: number) => {
     const params = new URLSearchParams({
       type,

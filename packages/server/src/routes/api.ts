@@ -20,6 +20,10 @@ import {
   listRecentFavorites,
   removeFavorite,
 } from "../services/favorites.js";
+import {
+  listContinueWatching,
+  listRecentlyAdded,
+} from "../services/home-rows.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
 import {
   libraries,
@@ -357,70 +361,29 @@ export async function apiRoutes(
     return { results };
   });
 
+  app.get<{ Querystring: { page?: string; limit?: string } }>(
+    "/api/continue-watching",
+    async (request) => {
+      const page = parseInt(request.query.page ?? "1", 10);
+      const limit = parseInt(request.query.limit ?? "48", 10);
+      return listContinueWatching(db, { page, limit });
+    },
+  );
+
+  app.get<{ Querystring: { page?: string; limit?: string } }>(
+    "/api/recent",
+    async (request) => {
+      const page = parseInt(request.query.page ?? "1", 10);
+      const limit = parseInt(request.query.limit ?? "48", 10);
+      return listRecentlyAdded(db, { page, limit });
+    },
+  );
+
   app.get("/api/home", async () => {
-    const recent = await db.query.mediaItems.findMany({
-      orderBy: [desc(mediaItems.createdAt)],
-      limit: 12,
-    });
-
-    const progressItems = await db.query.watchProgress.findMany({
-      orderBy: [desc(watchProgress.updatedAt)],
-      limit: 12,
-    });
-
-    const continueWatching = await Promise.all(
-      progressItems.map(async (p) => {
-        if (p.itemType === "movie") {
-          const file = await db.query.movieFiles.findFirst({
-            where: eq(movieFiles.id, p.itemId),
-          });
-          if (!file) return null;
-          const media = await db.query.mediaItems.findFirst({
-            where: eq(mediaItems.id, file.mediaItemId),
-          });
-          if (!media) return null;
-          const duration = p.durationMs ?? file.durationMs ?? 1;
-          return {
-            id: p.id,
-            itemType: "movie" as const,
-            itemId: file.id,
-            mediaId: media.id,
-            title: media.title,
-            posterPath: media.posterPath,
-            positionMs: p.positionMs,
-            durationMs: duration,
-            percent: Math.min(100, (p.positionMs / duration) * 100),
-          };
-        }
-
-        const episode = await db.query.tvEpisodes.findFirst({
-          where: eq(tvEpisodes.id, p.itemId),
-        });
-        if (!episode) return null;
-        const season = await db.query.tvSeasons.findFirst({
-          where: eq(tvSeasons.id, episode.seasonId),
-        });
-        if (!season) return null;
-        const media = await db.query.mediaItems.findFirst({
-          where: eq(mediaItems.id, season.mediaItemId),
-        });
-        if (!media) return null;
-        const duration = p.durationMs ?? episode.durationMs ?? 1;
-
-        return {
-          id: p.id,
-          itemType: "episode" as const,
-          itemId: episode.id,
-          mediaId: media.id,
-          title: media.title,
-          subtitle: `S${season.seasonNumber}E${episode.episodeNumber} · ${episode.title}`,
-          posterPath: episode.stillPath ?? media.posterPath,
-          positionMs: p.positionMs,
-          durationMs: duration,
-          percent: Math.min(100, (p.positionMs / duration) * 100),
-        };
-      }),
-    );
+    const [{ items: continueItems }, { items: recent }] = await Promise.all([
+      listContinueWatching(db, { page: 1, limit: 12 }),
+      listRecentlyAdded(db, { page: 1, limit: 12 }),
+    ]);
 
     const librariesList = await db.query.libraries.findMany();
     const librariesWithCounts = await Promise.all(
@@ -441,9 +404,6 @@ export async function apiRoutes(
     );
     const decks = await listDecksWithCounts(db);
     const favoritesList = await listRecentFavorites(db, 12);
-    const continueItems = continueWatching.filter(
-      (item): item is NonNullable<(typeof continueWatching)[number]> => item != null,
-    );
     const latestContinue = continueItems[0] ?? null;
     const recentPlay = latestContinue
       ? {

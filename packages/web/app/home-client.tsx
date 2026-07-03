@@ -222,7 +222,11 @@ export function HomeClient() {
       </section>
 
       <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
-        <HomeSectionHeading title="Continue Watching" accent="accent" />
+        <HomeSectionHeading
+          title="Continue Watching"
+          accent="accent"
+          href={continueWatching.length > 0 ? routes.continueWatching() : undefined}
+        />
         {!loaded ? (
           <PosterRowSkeleton wide />
         ) : (
@@ -232,18 +236,7 @@ export function HomeClient() {
 
       {favorites.length > 0 && (
         <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
-          <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-            <div className="flex items-center gap-3">
-              <span className="h-px w-8 bg-primary" />
-              <h2 className="text-lg font-semibold sm:text-xl">Favorites</h2>
-            </div>
-            <Link
-              href={routes.favorites()}
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              View all
-            </Link>
-          </div>
+          <HomeSectionHeading title="Favorites" href={routes.favorites()} />
           {!loaded ? (
             <PosterRowSkeleton />
           ) : (
@@ -253,7 +246,10 @@ export function HomeClient() {
       )}
 
       <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
-        <HomeSectionHeading title="Recently Added" />
+        <HomeSectionHeading
+          title="Recently Added"
+          href={recentlyAdded.length > 0 ? routes.recentlyAdded() : undefined}
+        />
         {!loaded ? (
           <PosterRowSkeleton />
         ) : (
@@ -262,7 +258,12 @@ export function HomeClient() {
       </section>
 
       <section className="mx-auto mb-10 min-h-[5.5rem] max-w-7xl px-4 sm:px-6">
-        <HomeSectionHeading title="Library Decks" />
+        <HomeSectionHeading
+          title="Library Decks"
+          href={
+            decks.length > 0 || libraries.length > 0 ? routes.browse() : undefined
+          }
+        />
         {!loaded ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 2 }).map((_, index) => (
