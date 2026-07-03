@@ -14,6 +14,8 @@ import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music
 import { ThemeMusicMuteButton } from "@/components/theme-music-settings";
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvMediaView } from "@/components/tv/views/media-view";
 
 interface MovieFile {
   id: number;
@@ -56,6 +58,12 @@ interface MediaDetail {
 }
 
 export function MediaClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvMediaView />;
+  return <MediaDesktopClient />;
+}
+
+function MediaDesktopClient() {
   const searchParams = useSearchParams();
   const mediaId = parseInt(searchParams.get("id") ?? "", 10);
   const [media, setMedia] = useState<MediaDetail | null>(null);

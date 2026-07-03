@@ -10,7 +10,9 @@
     "db:generate": "pnpm --filter @reel/server db:generate",
     "db:migrate": "pnpm --filter @reel/server db:migrate",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "android:build": "cd packages/android-tv && ./gradlew assembleDebug",
+    "android:build:release": "cd packages/android-tv && ./gradlew assembleRelease"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

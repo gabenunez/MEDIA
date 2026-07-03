@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Home, Heart, Search } from "lucide-react";
 import { ReelIcon } from "@/components/reel-icon";
 import { TvSpatialNav } from "@/components/tv/tv-spatial-nav";
-import { tvRoutes } from "@/lib/tv/routes";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 function TvNavButton({
@@ -40,10 +40,10 @@ function TvNavButton({
 
 export function TvShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hideHeader = pathname.startsWith("/tv/watch");
-  const homeActive = pathname === "/tv" || pathname === "/tv/";
-  const favoritesActive = pathname.startsWith("/tv/favorites");
-  const searchActive = pathname.startsWith("/tv/search");
+  const hideHeader = pathname.startsWith("/watch");
+  const homeActive = pathname === "/";
+  const favoritesActive = pathname.startsWith("/favorites");
+  const searchActive = pathname.startsWith("/search");
 
   return (
     <TvSpatialNav>
@@ -55,7 +55,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               className="mx-auto flex h-20 max-w-[1600px] items-center gap-6 px-8"
             >
               <Link
-                href={tvRoutes.home()}
+                href={routes.home()}
                 data-tv-item=""
                 className="mr-2 flex shrink-0 items-center gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
@@ -64,21 +64,17 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               </Link>
 
               <div className="ml-auto flex items-center gap-3">
-                <TvNavButton href={tvRoutes.home()} label="Home" active={homeActive}>
+                <TvNavButton href={routes.home()} label="Home" active={homeActive}>
                   <Home className="h-6 w-6" />
                 </TvNavButton>
                 <TvNavButton
-                  href={tvRoutes.favorites()}
+                  href={routes.favorites()}
                   label="Favorites"
                   active={favoritesActive}
                 >
                   <Heart className="h-6 w-6" />
                 </TvNavButton>
-                <TvNavButton
-                  href={tvRoutes.search()}
-                  label="Search"
-                  active={searchActive}
-                >
+                <TvNavButton href={routes.search()} label="Search" active={searchActive}>
                   <Search className="h-6 w-6" />
                 </TvNavButton>
               </div>

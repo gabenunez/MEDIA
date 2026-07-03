@@ -91,27 +91,6 @@ async function main() {
       return reply.redirect(`${url.pathname}?${url.searchParams.toString()}`);
     }
 
-    const tvLibraryMatch = url.pathname.match(/^\/tv\/library\/(\d+)\/?$/);
-    if (tvLibraryMatch) {
-      url.pathname = "/tv/library/";
-      url.searchParams.set("id", tvLibraryMatch[1]);
-      return reply.redirect(`${url.pathname}?${url.searchParams.toString()}`);
-    }
-
-    const tvMediaMatch = url.pathname.match(/^\/tv\/media\/(\d+)\/?$/);
-    if (tvMediaMatch) {
-      url.pathname = "/tv/media/";
-      url.searchParams.set("id", tvMediaMatch[1]);
-      return reply.redirect(`${url.pathname}?${url.searchParams.toString()}`);
-    }
-
-    const tvWatchMatch = url.pathname.match(/^\/tv\/watch\/(movie|episode)\/(\d+)\/?$/);
-    if (tvWatchMatch) {
-      url.pathname = "/tv/watch/";
-      url.searchParams.set("type", tvWatchMatch[1]);
-      url.searchParams.set("id", tvWatchMatch[2]);
-      return reply.redirect(`${url.pathname}?${url.searchParams.toString()}`);
-    }
   });
 
   await authRoutes(app, auth, configManager);
@@ -134,10 +113,6 @@ async function main() {
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith("/api/")) {
         return reply.status(404).send({ error: "Not found" });
-      }
-      const pathname = request.url.split("?")[0] ?? "/";
-      if (pathname.startsWith("/tv")) {
-        return reply.sendFile("tv/index.html");
       }
       return reply.sendFile("index.html");
     });

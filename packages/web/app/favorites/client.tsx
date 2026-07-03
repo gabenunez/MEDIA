@@ -10,10 +10,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Heart } from "lucide-react";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvFavoritesView } from "@/components/tv/views/favorites-view";
 
 type FavoriteFilter = "all" | "movie" | "tv";
 
 export function FavoritesClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvFavoritesView />;
+  return <FavoritesDesktopClient />;
+}
+
+function FavoritesDesktopClient() {
   const searchParams = useSearchParams();
   const filterParam = searchParams.get("type");
   const filter: FavoriteFilter =

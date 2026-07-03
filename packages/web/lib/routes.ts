@@ -1,4 +1,6 @@
 export const routes = {
+  home: () => "/",
+  search: () => "/search/",
   library: (id: number) => `/library/?id=${id}`,
   deck: (id: number) => `/library/?deck=${id}`,
   media: (id: number) => `/media/?id=${id}`,

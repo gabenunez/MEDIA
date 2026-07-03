@@ -9,8 +9,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useTvMode } from "@/lib/tv-mode";
+import { TvContinueView } from "@/components/tv/views/continue-view";
 
 export function ContinueWatchingClient() {
+  const isTvMode = useTvMode();
+  if (isTvMode) return <TvContinueView />;
+  return <ContinueWatchingDesktopClient />;
+}
+
+function ContinueWatchingDesktopClient() {
   const [items, setItems] = useState<ContinueWatchingItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
