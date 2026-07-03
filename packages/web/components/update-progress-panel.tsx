@@ -1,9 +1,25 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 import type { UpdateProgress } from "@/lib/api";
 import { formatElapsed } from "@/lib/update-utils";
 import { cn } from "@/lib/utils";
+
+function useLiveElapsed(startedAt: string | null, fallbackMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [startedAt]);
+
+  if (!startedAt) return fallbackMs;
+  const startedMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedMs)) return fallbackMs;
+  return Math.max(0, now - startedMs);
+}
 
 interface UpdateProgressPanelProps {
   progress: UpdateProgress;
@@ -12,6 +28,7 @@ interface UpdateProgressPanelProps {
 
 export function UpdateProgressPanel({ progress, className }: UpdateProgressPanelProps) {
   const failed = progress.phase === "failed";
+  const elapsedMs = useLiveElapsed(progress.startedAt, progress.elapsedMs);
 
   return (
     <div
@@ -44,7 +61,7 @@ export function UpdateProgressPanel({ progress, className }: UpdateProgressPanel
           {progress.releaseTag ? (
             <p className="mt-1 text-xs text-muted-foreground">
               Installing {progress.releaseTag}
-              {progress.startedAt ? ` · running for ${formatElapsed(progress.elapsedMs)}` : ""}
+              {progress.startedAt ? ` · running for ${formatElapsed(elapsedMs)}` : ""}
             </p>
           ) : null}
         </div>

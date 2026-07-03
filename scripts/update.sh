@@ -107,7 +107,7 @@ pull_latest() {
     normalize_git_origin "$dir"
 
     if [[ -n "${REEL_RELEASE_TAG:-}" ]]; then
-      reel_ok "Checking out release ${REEL_RELEASE_TAG}..."
+      reel_ok "Fetching ${REEL_RELEASE_TAG} from GitHub..."
       if ! run_as_install_user "$user" "
         set -euo pipefail
         export GIT_TERMINAL_PROMPT=0
