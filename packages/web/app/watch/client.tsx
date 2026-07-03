@@ -62,6 +62,9 @@ export function WatchClient() {
   const resumeTimeRef = useRef(0);
 
   const [quality, setQuality] = useState<StreamQuality>("original");
+  const [hlsStartOffset, setHlsStartOffset] = useState(0);
+  const [sourceDurationMs, setSourceDurationMs] = useState(0);
+  const [streamGeneration, setStreamGeneration] = useState(0);
   const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
     "original",
     "480p",
@@ -104,13 +107,17 @@ export function WatchClient() {
   const saveProgress = useCallback(() => {
     const video = videoRef.current;
     if (!video || !video.duration || !fileId) return;
+    const positionSeconds =
+      quality !== "original"
+        ? hlsStartOffset + video.currentTime
+        : video.currentTime;
     api.saveProgress({
       itemType: type === "movie" ? "movie" : "episode",
       itemId: fileId,
-      positionMs: Math.floor(video.currentTime * 1000),
-      durationMs: Math.floor(video.duration * 1000),
+      positionMs: Math.floor(positionSeconds * 1000),
+      durationMs: Math.floor((sourceDurationMs || video.duration * 1000)),
     }).catch(() => {});
-  }, [fileId, type]);
+  }, [fileId, type, quality, hlsStartOffset, sourceDurationMs]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
@@ -120,6 +127,7 @@ export function WatchClient() {
       .then((info) => {
         setAvailableQualities(info.availableQualities);
         setSourceHeight(info.height ?? null);
+        setSourceDurationMs(info.durationMs ?? 0);
         setTranscodingEnabled(info.transcodingEnabled);
         setQuality((current) =>
           info.availableQualities.includes(current) ? current : "original",
@@ -167,25 +175,39 @@ export function WatchClient() {
       hlsRef.current = null;
     }
 
-    const resumeAt = resumeTimeRef.current;
-    const url = api.streamUrl(fileId, type === "movie" ? "movie" : "episode", quality);
+    const startAt = resumeTimeRef.current;
+    resumeTimeRef.current = 0;
     const usingHls = quality !== "original";
 
+    if (usingHls) {
+      setHlsStartOffset(startAt);
+    } else {
+      setHlsStartOffset(0);
+    }
+
+    const url = api.streamUrl(
+      fileId,
+      type === "movie" ? "movie" : "episode",
+      quality,
+      usingHls ? startAt : undefined,
+    );
+
     const applyResume = () => {
-      if (resumeAt > 0 && video.duration) {
-        video.currentTime = Math.min(resumeAt, video.duration);
-        resumeTimeRef.current = 0;
+      if (startAt > 0 && video.duration) {
+        video.currentTime = Math.min(startAt, video.duration);
       }
     };
 
     if (usingHls) {
       if (Hls.isSupported()) {
-        const hls = new Hls();
+        const hls = new Hls({
+          backBufferLength: 90,
+        });
         hls.loadSource(url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setBuffering(false);
-          applyResume();
+          hls.startLoad(0);
           video.play().catch(() => {});
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
@@ -199,7 +221,6 @@ export function WatchClient() {
         video.src = url;
         video.onloadedmetadata = () => {
           setBuffering(false);
-          applyResume();
         };
         video.play().catch(() => {});
       } else {
@@ -223,19 +244,23 @@ export function WatchClient() {
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgress();
     };
-  }, [fileId, type, quality, saveProgress]);
+  }, [fileId, type, quality, streamGeneration, saveProgress]);
 
   const changeQuality = useCallback(
     (nextQuality: StreamQuality) => {
       const video = videoRef.current;
       if (video && video.currentTime > 0) {
-        resumeTimeRef.current = video.currentTime;
+        const absoluteTime =
+          quality !== "original"
+            ? hlsStartOffset + video.currentTime
+            : video.currentTime;
+        resumeTimeRef.current = absoluteTime;
       }
       setQuality(nextQuality);
       setQualityMenuOpen(false);
       revealControls(true);
     },
-    [revealControls],
+    [revealControls, quality, hlsStartOffset],
   );
 
   useEffect(() => {
@@ -309,7 +334,13 @@ export function WatchClient() {
       subtitleId: activeSubtitle ?? undefined,
       title: title || undefined,
       posterPath,
-      startTimeMs: video ? Math.floor(video.currentTime * 1000) : 0,
+      startTimeMs: video
+        ? Math.floor(
+            (quality !== "original"
+              ? hlsStartOffset + video.currentTime
+              : video.currentTime) * 1000,
+          )
+        : 0,
     });
 
     if (video) video.pause();
@@ -323,7 +354,13 @@ export function WatchClient() {
       subtitleLanguage: subtitles.find((s) => s.id === activeSubtitle)?.language,
       startTime: prepared.startTime,
     };
-  }, [fileId, type, activeSubtitle, title, posterPath, subtitles]);
+  }, [fileId, type, activeSubtitle, title, posterPath, subtitles, quality, hlsStartOffset]);
+
+  const absoluteCurrentTime =
+    quality !== "original" ? hlsStartOffset + currentTime : currentTime;
+  const absoluteDurationMs = sourceDurationMs || duration * 1000;
+  const progress =
+    absoluteDurationMs > 0 ? (absoluteCurrentTime * 1000) / absoluteDurationMs * 100 : 0;
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -367,12 +404,18 @@ export function WatchClient() {
 
   const seek = (value: number) => {
     const video = videoRef.current;
-    if (!video || !duration) return;
-    video.currentTime = (value / 100) * duration;
+    if (!video || !absoluteDurationMs) return;
+
+    const targetSeconds = (value / 100) * (absoluteDurationMs / 1000);
+
+    if (quality !== "original") {
+      resumeTimeRef.current = targetSeconds;
+      setStreamGeneration((current) => current + 1);
+    } else {
+      video.currentTime = targetSeconds;
+    }
     revealControls(true);
   };
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (!fileId || Number.isNaN(fileId)) {
     return (
@@ -480,8 +523,8 @@ export function WatchClient() {
                 </Button>
 
                 <span className="hidden min-w-[5.5rem] text-sm tabular-nums text-white/80 sm:inline">
-                  {formatDuration(currentTime * 1000)} /{" "}
-                  {formatDuration(duration * 1000)}
+                  {formatDuration(absoluteCurrentTime * 1000)} /{" "}
+                  {formatDuration(absoluteDurationMs)}
                 </span>
               </div>
 

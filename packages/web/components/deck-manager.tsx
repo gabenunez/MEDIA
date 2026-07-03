@@ -26,27 +26,22 @@ export function DeckManager({ libraries, decks, onChange }: DeckManagerProps) {
   const [editing, setEditing] = useState<LibraryDeck | null>(null);
   const [name, setName] = useState("");
   const [paths, setPaths] = useState<string[]>([]);
-  const [libraryId, setLibraryId] = useState<number | null>(null);
   const [draftPath, setDraftPath] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
-
-  const selectedLibrary = libraries.find((lib) => lib.id === libraryId) ?? null;
 
   const resetForm = () => {
     setShowForm(false);
     setEditing(null);
     setName("");
     setPaths([]);
-    setLibraryId(libraries[0]?.id ?? null);
     setDraftPath("");
     setError(null);
   };
 
   const openCreate = () => {
     resetForm();
-    setLibraryId(libraries[0]?.id ?? null);
     setShowForm(true);
   };
 
@@ -55,7 +50,6 @@ export function DeckManager({ libraries, decks, onChange }: DeckManagerProps) {
     setShowForm(true);
     setName(deck.name);
     setPaths(deck.paths);
-    setLibraryId(libraries[0]?.id ?? null);
     setDraftPath("");
     setError(null);
   };
@@ -68,7 +62,7 @@ export function DeckManager({ libraries, decks, onChange }: DeckManagerProps) {
       return;
     }
     setPaths((current) => [...current, trimmed]);
-    setDraftPath(selectedLibrary?.path ?? "");
+    setDraftPath("");
     setError(null);
   };
 
@@ -114,7 +108,8 @@ export function DeckManager({ libraries, decks, onChange }: DeckManagerProps) {
         <Layers className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
         <p className="mb-1 font-medium">Add a library first</p>
         <p className="text-sm text-muted-foreground">
-          Decks are built from folders inside your media libraries.
+          Decks are built from folders anywhere on your server. Titles must already
+          be scanned from a library whose files live under the folder you pick.
         </p>
       </div>
     );
@@ -156,8 +151,8 @@ export function DeckManager({ libraries, decks, onChange }: DeckManagerProps) {
             <div>
               <label className="mb-1.5 block text-sm font-medium">Folders</label>
               <p className="mb-3 text-xs text-muted-foreground">
-                Pick one or more folders from your libraries. Titles with files
-                inside these folders appear in the deck.
+                Pick one or more folders anywhere on the server. Titles with files
+                inside these paths appear in the deck.
               </p>
 
               {paths.length > 0 && (
@@ -182,37 +177,32 @@ export function DeckManager({ libraries, decks, onChange }: DeckManagerProps) {
               )}
 
               <div className="space-y-3 rounded-md border border-border/80 bg-background/35 p-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase text-muted-foreground">
-                    Source library
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {libraries.map((lib) => (
-                      <Button
-                        key={lib.id}
-                        type="button"
-                        variant={libraryId === lib.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setLibraryId(lib.id);
-                          setDraftPath(lib.path);
-                        }}
-                      >
-                        {lib.name}
-                      </Button>
-                    ))}
+                {libraries.length > 0 && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium uppercase text-muted-foreground">
+                      Quick jump
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {libraries.map((lib) => (
+                        <Button
+                          key={lib.id}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDraftPath(lib.path)}
+                        >
+                          {lib.name}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-
-                {selectedLibrary && (
-                  <FolderPicker
-                    value={draftPath}
-                    onChange={setDraftPath}
-                    rootPath={selectedLibrary.path}
-                    validateScope="deck"
-                    libraryId={selectedLibrary.id}
-                  />
                 )}
+
+                <FolderPicker
+                  value={draftPath}
+                  onChange={setDraftPath}
+                  validateScope="deck"
+                />
 
                 <Button
                   type="button"

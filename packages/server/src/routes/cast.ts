@@ -7,8 +7,10 @@ import { eq } from "drizzle-orm";
 import { movieFiles, tvEpisodes } from "../db/schema.js";
 import {
   startHlsTranscode,
-  getHlsSession,
-  waitForPlaylist,
+  resolveHlsSession,
+  generateHlsPlaylist,
+  isTranscodeInProgress,
+  waitForFirstSegment,
   checkFfmpegAvailable,
   probeFile,
   canDirectCast,
@@ -87,11 +89,11 @@ export async function castRoutes(
 
       const castQuality = "720p" as const;
       const sessionId = createStreamSessionId(type, fileId, castQuality);
+      const outputDir = path.join(config.transcoding.cache_dir, sessionId);
       const sourceHeight = probe?.height ?? null;
 
-      let session = getHlsSession(sessionId);
+      let session = resolveHlsSession(sessionId, outputDir);
       if (!session) {
-        const outputDir = path.join(config.transcoding.cache_dir, sessionId);
         session = startHlsTranscode(
           sessionId,
           filePath,
@@ -102,8 +104,20 @@ export async function castRoutes(
         );
       }
 
-      const ready = await waitForPlaylist(session.playlistPath);
+      const ready = await waitForFirstSegment(outputDir);
       if (!ready) {
+        return reply.status(500).send({
+          error: "Transcoding failed to start — try casting again in a moment",
+        });
+      }
+
+      const inProgress = isTranscodeInProgress(sessionId);
+      const playlist = generateHlsPlaylist(
+        outputDir,
+        config.transcoding.hls_segment_duration,
+        inProgress,
+      );
+      if (!playlist) {
         return reply.status(500).send({
           error: "Transcoding failed to start — try casting again in a moment",
         });

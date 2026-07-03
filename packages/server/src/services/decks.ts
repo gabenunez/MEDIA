@@ -9,7 +9,7 @@ import {
   tvSeasons,
   tvEpisodes,
 } from "../db/schema.js";
-import { validateDeckPath } from "../utils/paths.js";
+import { validateLibraryPath } from "../utils/paths.js";
 
 export function parseDeckPaths(raw: string): string[] {
   try {
@@ -51,12 +51,10 @@ export async function resolveDeckPaths(
     return { valid: false, error: "At least one folder path is required" };
   }
 
-  const allLibraries = await db.query.libraries.findMany();
-  const libraryRoots = allLibraries.map((lib) => lib.path);
   const resolvedPaths: string[] = [];
 
   for (const folderPath of paths) {
-    const validation = validateDeckPath(folderPath, libraryRoots);
+    const validation = validateLibraryPath(folderPath);
     if (!validation.valid || !validation.resolvedPath) {
       return { valid: false, error: validation.error ?? "Invalid path" };
     }

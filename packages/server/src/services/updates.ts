@@ -35,21 +35,52 @@ interface GitHubRelease {
 
 let cachedCheck: { at: number; status: UpdateStatus } | null = null;
 
+function findInstallDirFrom(startDir: string): string | null {
+  let dir = startDir;
+
+  for (let i = 0; i < 8; i++) {
+    const updateScript = path.join(dir, "scripts/update.sh");
+    const pkgPath = path.join(dir, "package.json");
+
+    if (fs.existsSync(updateScript)) {
+      return dir;
+    }
+
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { name?: string };
+        if (pkg.name === "reel" && fs.existsSync(updateScript)) {
+          return dir;
+        }
+      } catch {
+        // keep walking
+      }
+    }
+
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return null;
+}
+
 export function detectInstallDir(): string {
   if (process.env.REEL_INSTALL_DIR?.trim()) {
     return process.env.REEL_INSTALL_DIR.trim();
   }
 
-  const rootFromDist = path.resolve(__dirname, "../../..");
-  if (fs.existsSync(path.join(rootFromDist, "package.json"))) {
-    return rootFromDist;
-  }
+  const fromCwd = findInstallDirFrom(process.cwd());
+  if (fromCwd) return fromCwd;
 
-  if (fs.existsSync("/opt/reel/package.json")) {
+  const fromModule = findInstallDirFrom(__dirname);
+  if (fromModule) return fromModule;
+
+  if (fs.existsSync("/opt/reel/scripts/update.sh")) {
     return "/opt/reel";
   }
 
-  return rootFromDist;
+  return process.cwd();
 }
 
 export function getCurrentVersion(installDir = detectInstallDir()): string {

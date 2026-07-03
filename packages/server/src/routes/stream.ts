@@ -10,7 +10,13 @@ import { movieFiles, tvEpisodes, subtitles } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import {
   startHlsTranscode,
-  getHlsSession,
+  resolveHlsSession,
+  generateHlsPlaylist,
+  isTranscodeInProgress,
+  waitForFirstSegment,
+  readStartOffset,
+  clearTranscodeOutput,
+  stopHlsSession,
   waitForPlaylist,
   probeFile,
 } from "../utils/ffmpeg.js";
@@ -27,6 +33,14 @@ interface StreamQuery {
   quality?: string;
   cast?: string;
   base?: string;
+  start?: string;
+}
+
+function parseStartSeconds(value?: string): number {
+  if (!value) return 0;
+  const parsed = parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return parsed;
 }
 
 export async function streamRoutes(
@@ -87,6 +101,7 @@ export async function streamRoutes(
       const mimeType = mime.lookup(ext) || "application/octet-stream";
       const sourceHeight = await resolveSourceHeight(file);
       const sourceWidth = file.width ?? null;
+      const probe = await probeFile(file.filePath);
 
       return {
         id: file.id,
@@ -96,6 +111,7 @@ export async function streamRoutes(
         fileName: path.basename(file.filePath),
         width: sourceWidth,
         height: sourceHeight,
+        durationMs: probe?.durationMs ?? null,
         availableQualities: getAvailableQualities(sourceHeight),
         transcodingEnabled: config.transcoding.enabled,
       };
@@ -172,14 +188,21 @@ export async function streamRoutes(
       }
 
       const sessionId = createStreamSessionId(type, fileId, quality);
+      const outputDir = path.join(config.transcoding.cache_dir, sessionId);
+      const startSeconds = parseStartSeconds(request.query.start);
 
-      let session = getHlsSession(sessionId);
+      let session = resolveHlsSession(sessionId, outputDir, startSeconds);
+
+      if (
+        !session &&
+        fs.existsSync(outputDir) &&
+        Math.abs(readStartOffset(outputDir) - startSeconds) > 5
+      ) {
+        stopHlsSession(sessionId);
+        clearTranscodeOutput(outputDir);
+      }
 
       if (!session) {
-        const outputDir = path.join(
-          config.transcoding.cache_dir,
-          sessionId,
-        );
         session = startHlsTranscode(
           sessionId,
           file.filePath,
@@ -187,15 +210,31 @@ export async function streamRoutes(
           config.transcoding.hls_segment_duration,
           quality,
           sourceHeight,
+          startSeconds,
         );
 
-        const ready = await waitForPlaylist(session.playlistPath);
+        const ready = await waitForFirstSegment(outputDir);
         if (!ready) {
+          const logPath = path.join(outputDir, "ffmpeg.log");
+          const logTail = fs.existsSync(logPath)
+            ? fs.readFileSync(logPath, "utf-8").slice(-2000)
+            : "";
+          request.log.error({ sessionId, logTail }, "Transcoding failed to start");
           return reply.status(500).send({ error: "Transcoding failed to start" });
         }
       }
 
-      const playlist = fs.readFileSync(session.playlistPath, "utf-8");
+      const inProgress = isTranscodeInProgress(sessionId);
+      const playlist = generateHlsPlaylist(
+        outputDir,
+        config.transcoding.hls_segment_duration,
+        inProgress,
+      );
+
+      if (!playlist) {
+        return reply.status(500).send({ error: "Transcoding failed to start" });
+      }
+
       const useAbsolute = request.query.cast === "1";
       const baseUrl = useAbsolute
         ? (request.query.base
@@ -213,6 +252,9 @@ export async function streamRoutes(
 
       reply.header("Content-Type", "application/vnd.apple.mpegurl");
       reply.header("Access-Control-Allow-Origin", "*");
+      if (inProgress) {
+        reply.header("Cache-Control", "no-store");
+      }
       return rewritten;
     },
   );
@@ -224,8 +266,10 @@ export async function streamRoutes(
       const type = request.query.type ?? "movie";
       const quality = parseTranscodeQuality(request.query.quality) ?? "720p";
       const sessionId = createStreamSessionId(type, fileId, quality);
+      const outputDir = path.join(config.transcoding.cache_dir, sessionId);
+      const startSeconds = parseStartSeconds(request.query.start);
 
-      const session = getHlsSession(sessionId);
+      const session = resolveHlsSession(sessionId, outputDir, startSeconds);
       if (!session) {
         return reply.status(404).send({ error: "HLS session not found" });
       }

@@ -173,6 +173,7 @@ export interface StreamInfo {
   fileName: string;
   width?: number | null;
   height?: number | null;
+  durationMs?: number | null;
   availableQualities: StreamQuality[];
   transcodingEnabled: boolean;
 }
@@ -392,11 +393,16 @@ export const api = {
     fileId: number,
     type: "movie" | "episode",
     quality: StreamQuality = "original",
+    startSeconds?: number,
   ) => {
     if (quality === "original") {
       return `${API_BASE}/api/stream/${fileId}?type=${type}`;
     }
-    return `${API_BASE}/api/stream/${fileId}/hls/master.m3u8?type=${type}&quality=${quality}`;
+    const params = new URLSearchParams({ type, quality });
+    if (startSeconds && startSeconds > 0) {
+      params.set("start", String(Math.floor(startSeconds)));
+    }
+    return `${API_BASE}/api/stream/${fileId}/hls/master.m3u8?${params.toString()}`;
   },
   subtitleUrl: (id: number) => `${API_BASE}/api/subtitles/${id}`,
   imageUrl: (path?: string | null) => {

@@ -4,7 +4,7 @@ import type { ConfigManager } from "../config.js";
 import type { ScannerService } from "../services/scanner.js";
 import type { MetadataService } from "../services/metadata.js";
 import { getBrowseShortcuts } from "../config.js";
-import { browseDirectory, validateLibraryPath, validateDeckPath } from "../utils/paths.js";
+import { browseDirectory, validateLibraryPath } from "../utils/paths.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
 import { libraries } from "../db/schema.js";
 import { eq, sql } from "drizzle-orm";
@@ -90,22 +90,7 @@ export async function settingsRoutes(
       const scope = request.body?.scope ?? (request.body?.libraryId !== undefined ? "deck" : "library");
 
       if (scope === "deck") {
-        if (request.body?.libraryId !== undefined) {
-          const libraryId = request.body.libraryId;
-          const lib = await db.query.libraries.findFirst({
-            where: eq(libraries.id, libraryId),
-          });
-          if (!lib) {
-            return reply.status(400).send({ valid: false, error: "Library not found" });
-          }
-          return validateDeckPath(folderPath, [lib.path]);
-        }
-
-        const allLibraries = await db.query.libraries.findMany();
-        return validateDeckPath(
-          folderPath,
-          allLibraries.map((lib) => lib.path),
-        );
+        return validateLibraryPath(folderPath);
       }
 
       return validateLibraryPath(folderPath);
