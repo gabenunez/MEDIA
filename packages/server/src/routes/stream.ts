@@ -56,6 +56,8 @@ export async function streamRoutes(
     id: number;
     width?: number | null;
     height?: number | null;
+    videoCodec?: string | null;
+    audioCodec?: string | null;
   } | null> {
     if (type === "movie") {
       const file = await db.query.movieFiles.findFirst({
@@ -67,6 +69,8 @@ export async function streamRoutes(
             id: file.id,
             width: file.width,
             height: file.height,
+            videoCodec: file.videoCodec,
+            audioCodec: file.audioCodec,
           }
         : null;
     }
@@ -97,6 +101,19 @@ export async function streamRoutes(
       }
 
       const stats = fs.statSync(file.filePath);
+      const lstat = fs.lstatSync(file.filePath);
+      const isSymlink = lstat.isSymbolicLink();
+      let symlinkTarget: string | null = null;
+      if (isSymlink) {
+        try {
+          const link = fs.readlinkSync(file.filePath);
+          symlinkTarget = path.isAbsolute(link)
+            ? link
+            : path.resolve(path.dirname(file.filePath), link);
+        } catch {
+          symlinkTarget = null;
+        }
+      }
       const ext = path.extname(file.filePath);
       const mimeType = mime.lookup(ext) || "application/octet-stream";
       const sourceHeight = await resolveSourceHeight(file);
@@ -109,9 +126,15 @@ export async function streamRoutes(
         mimeType,
         fileSize: stats.size,
         fileName: path.basename(file.filePath),
-        width: sourceWidth,
+        filePath: file.filePath,
+        isSymlink,
+        symlinkTarget,
+        width: sourceWidth ?? probe?.width ?? null,
         height: sourceHeight,
         durationMs: probe?.durationMs ?? null,
+        videoCodec: probe?.videoCodec ?? file.videoCodec ?? null,
+        audioCodec: probe?.audioCodec ?? file.audioCodec ?? null,
+        bitrate: probe?.bitrate ?? null,
         availableQualities: getAvailableQualities(sourceHeight),
         transcodingEnabled: config.transcoding.enabled,
       };

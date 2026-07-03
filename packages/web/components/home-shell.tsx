@@ -8,14 +8,14 @@ export function HomeHeroStatic() {
     <div>
       <h1 className="mb-4 text-5xl font-black sm:text-7xl">Reel</h1>
       <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-        A private cinema console for movies, seasons, and instant local playback.
+        Your personal library for movies and TV, played locally on your network.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Button variant="outline" size="lg" asChild>
           <Link href="/settings">
             <Settings className="h-5 w-5" />
-            Console
+            Settings
           </Link>
         </Button>
       </div>
