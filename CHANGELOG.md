@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13 — 2026-07-03
+
+### UI
+- **Settings nav** — Settings icon highlights correctly on the settings page (trailing-slash paths)
+- **Condensed settings** — tighter layout, shared section component, shorter copy, compact system status rows
+
 ## 0.1.12 — 2026-07-03
 
 ### In-app updates

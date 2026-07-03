@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LibraryManager } from "@/components/library-manager";
 import { DeckManager } from "@/components/deck-manager";
 import { UpdateManager } from "@/components/update-manager";
+import { SettingsSection } from "@/components/settings-shell";
 
 export function SettingsClient() {
   const { logout, refresh: refreshAuth } = useAuth();
@@ -185,9 +186,9 @@ export function SettingsClient() {
   const initialLoad = loading && !settings;
 
   return (
-    <div className="space-y-6">
-      <Card className="min-h-[12rem]">
-        <CardContent className="pt-6">
+    <div className="space-y-4">
+      <Card className="min-h-[10rem]">
+        <CardContent className="p-4 sm:p-5">
           {initialLoad ? (
             <SettingsCardSkeleton lines={4} />
           ) : (
@@ -201,8 +202,8 @@ export function SettingsClient() {
         </CardContent>
       </Card>
 
-      <Card className="min-h-[10rem]">
-        <CardContent className="pt-6">
+      <Card className="min-h-[8rem]">
+        <CardContent className="p-4 sm:p-5">
           {initialLoad ? (
             <SettingsCardSkeleton lines={3} />
           ) : (
@@ -215,29 +216,23 @@ export function SettingsClient() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="pt-6">
+      <SettingsSection
+        icon={Lock}
+        title="Password"
+        description="Protect Reel with a password. When enabled, all pages and API routes require sign-in."
+      >
           {initialLoad ? (
-            <SettingsCardSkeleton lines={5} />
+            <SettingsCardSkeleton lines={4} />
           ) : (
             <>
-            <div className="mb-4 flex items-center gap-2">
-              <Lock className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Password</h2>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Require a password to access Reel. When enabled, all pages, streams,
-              and API routes are protected.
-            </p>
-
             {settings?.passwordConfigured ? (
-              <p className="mb-4 text-sm text-muted-foreground">
+              <p className="mb-3 text-sm text-muted-foreground">
                 Status:{" "}
-                <span className="font-medium text-accent">Password protection enabled</span>
+                <span className="font-medium text-accent">Enabled</span>
               </p>
             ) : (
-              <p className="mb-4 text-sm text-muted-foreground">
-                No password set — Reel is open to anyone on this network.
+              <p className="mb-3 text-sm text-muted-foreground">
+                No password set — open to anyone on this network.
               </p>
             )}
 
@@ -247,12 +242,12 @@ export function SettingsClient() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Current password"
-                className="mb-3"
+                className="mb-2"
                 autoComplete="current-password"
               />
             )}
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 type="password"
                 value={password}
@@ -269,8 +264,9 @@ export function SettingsClient() {
               />
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button
+                size="sm"
                 onClick={handleSavePassword}
                 disabled={
                   savingPassword ||
@@ -287,12 +283,13 @@ export function SettingsClient() {
                 <>
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={handleRemovePassword}
                     disabled={savingPassword || !currentPassword.trim()}
                   >
                     Remove password
                   </Button>
-                  <Button variant="ghost" onClick={handleLogout}>
+                  <Button variant="ghost" size="sm" onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Sign out
                   </Button>
@@ -305,177 +302,148 @@ export function SettingsClient() {
             )}
             </>
           )}
-          </CardContent>
-        </Card>
+      </SettingsSection>
 
         {!initialLoad && (
           <>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="mb-4 flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">TMDB Metadata</h2>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Get a free API key from{" "}
-              <a
-                href="https://www.themoviedb.org/settings/api"
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary transition-colors hover:text-accent"
-              >
-                themoviedb.org
-              </a>{" "}
-              for posters, descriptions, and cast info.
-            </p>
-
-            {settings?.metadata.tmdbConfigured && settings.metadata.tmdbApiKeyPreview && (
-              <p className="mb-3 text-sm text-muted-foreground">
-                Current key:{" "}
-                <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-accent">
-                  {settings.metadata.tmdbApiKeyPreview}
-                </code>
-              </p>
-            )}
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                type="password"
-                value={tmdbKey}
-                onChange={(e) => setTmdbKey(e.target.value)}
-                placeholder="Paste your TMDB API key"
-              />
-              <Button
-                onClick={handleSaveTmdbKey}
-                disabled={savingKey || !tmdbKey.trim()}
-                className="shrink-0"
-              >
-                {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Save key
-              </Button>
-            </div>
-            {keyMessage && (
-              <p className="mt-2 text-sm text-muted-foreground">{keyMessage}</p>
-            )}
-
-            {settings?.metadata.tmdbConfigured && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={handleRefreshMetadata}
-                disabled={savingKey}
-              >
-                {savingKey ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                Refresh metadata
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="mb-4 flex items-center gap-2">
-              <Subtitles className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">OpenSubtitles</h2>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Search and download subtitles while watching. Get a free API key from OpenSubtitles:
-            </p>
-            <ol className="mb-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-              <li>
-                Create an account or log in at{" "}
-                <a
-                  href="https://www.opensubtitles.com/en/users/sign_up"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary transition-colors hover:text-accent"
-                >
-                  opensubtitles.com
-                </a>
-              </li>
-              <li>
-                Open your profile →{" "}
-                <a
-                  href="https://www.opensubtitles.com/en/consumers"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary transition-colors hover:text-accent"
-                >
-                  API consumers
-                </a>
-              </li>
-              <li>
-                Click <strong className="text-foreground">New consumer</strong>, name your app
-                (e.g. Reel), and submit
-              </li>
-              <li>Copy the API key shown and paste it below</li>
-            </ol>
-
-            {settings?.subtitles.opensubtitlesConfigured &&
-              settings.subtitles.opensubtitlesApiKeyPreview && (
-                <p className="mb-3 text-sm text-muted-foreground">
+            <SettingsSection
+              icon={KeyRound}
+              title="TMDB Metadata"
+              description={
+                <>
+                  Free API key from{" "}
+                  <a
+                    href="https://www.themoviedb.org/settings/api"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary transition-colors hover:text-accent"
+                  >
+                    themoviedb.org
+                  </a>{" "}
+                  for posters and descriptions.
+                </>
+              }
+            >
+              {settings?.metadata.tmdbConfigured && settings.metadata.tmdbApiKeyPreview && (
+                <p className="mb-2 text-sm text-muted-foreground">
                   Current key:{" "}
                   <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-accent">
-                    {settings.subtitles.opensubtitlesApiKeyPreview}
+                    {settings.metadata.tmdbApiKeyPreview}
                   </code>
                 </p>
               )}
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                type="password"
-                value={osKey}
-                onChange={(e) => setOsKey(e.target.value)}
-                placeholder="Paste your OpenSubtitles API key"
-              />
-              <Button
-                onClick={handleSaveOsKey}
-                disabled={savingOsKey || !osKey.trim()}
-                className="shrink-0"
-              >
-                {savingOsKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Save key
-              </Button>
-            </div>
-            {osKeyMessage && (
-              <p className="mt-2 text-sm text-muted-foreground">{osKeyMessage}</p>
-            )}
-          </CardContent>
-        </Card>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  type="password"
+                  value={tmdbKey}
+                  onChange={(e) => setTmdbKey(e.target.value)}
+                  placeholder="Paste your TMDB API key"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSaveTmdbKey}
+                  disabled={savingKey || !tmdbKey.trim()}
+                  className="shrink-0"
+                >
+                  {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Save key
+                </Button>
+              </div>
+              {keyMessage && (
+                <p className="mt-2 text-sm text-muted-foreground">{keyMessage}</p>
+              )}
 
-        <UpdateManager />
+              {settings?.metadata.tmdbConfigured && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={handleRefreshMetadata}
+                  disabled={savingKey}
+                >
+                  {savingKey ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Refresh metadata
+                </Button>
+              )}
+            </SettingsSection>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="mb-4 flex items-center gap-2">
-              <Database className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">System Status</h2>
-            </div>
-            <div className="space-y-3">
-              <StatusRow
-                label="FFmpeg"
-                ok={settings?.ffmpegAvailable ?? false}
-                okText="Available for transcoding"
-                failText="Not found - install with: brew install ffmpeg"
-              />
-              <StatusRow
-                label="TMDB API"
-                ok={settings?.metadata.tmdbConfigured ?? false}
-                okText="Configured"
-                failText="Add your API key above for rich metadata"
-              />
-              <StatusRow
-                label="OpenSubtitles API"
-                ok={settings?.subtitles.opensubtitlesConfigured ?? false}
-                okText="Configured"
-                failText="Add your API key above for online subtitle search"
-              />
-            </div>
-          </CardContent>
-        </Card>
+            <SettingsSection
+              icon={Subtitles}
+              title="OpenSubtitles"
+              description={
+                <>
+                  Create a free key under{" "}
+                  <a
+                    href="https://www.opensubtitles.com/en/consumers"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary transition-colors hover:text-accent"
+                  >
+                    API consumers
+                  </a>{" "}
+                  on OpenSubtitles, then paste it below.
+                </>
+              }
+            >
+              {settings?.subtitles.opensubtitlesConfigured &&
+                settings.subtitles.opensubtitlesApiKeyPreview && (
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Current key:{" "}
+                    <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-accent">
+                      {settings.subtitles.opensubtitlesApiKeyPreview}
+                    </code>
+                  </p>
+                )}
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  type="password"
+                  value={osKey}
+                  onChange={(e) => setOsKey(e.target.value)}
+                  placeholder="Paste your OpenSubtitles API key"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSaveOsKey}
+                  disabled={savingOsKey || !osKey.trim()}
+                  className="shrink-0"
+                >
+                  {savingOsKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Save key
+                </Button>
+              </div>
+              {osKeyMessage && (
+                <p className="mt-2 text-sm text-muted-foreground">{osKeyMessage}</p>
+              )}
+            </SettingsSection>
+
+            <UpdateManager />
+
+            <SettingsSection icon={Database} title="System status">
+              <div className="space-y-1">
+                <StatusRow
+                  label="FFmpeg"
+                  ok={settings?.ffmpegAvailable ?? false}
+                  okText="Available"
+                  failText="Not found — install ffmpeg"
+                />
+                <StatusRow
+                  label="TMDB API"
+                  ok={settings?.metadata.tmdbConfigured ?? false}
+                  okText="Configured"
+                  failText="Not configured"
+                />
+                <StatusRow
+                  label="OpenSubtitles"
+                  ok={settings?.subtitles.opensubtitlesConfigured ?? false}
+                  okText="Configured"
+                  failText="Not configured"
+                />
+              </div>
+            </SettingsSection>
           </>
         )}
     </div>
@@ -505,15 +473,15 @@ function StatusRow({
   failText: string;
 }) {
   return (
-    <div className="flex items-center gap-3 border-l border-border/80 py-2 pl-4">
+    <div className="flex items-center gap-2.5 border-l border-border/80 py-1.5 pl-3">
       {ok ? (
-        <CheckCircle2 className="h-5 w-5 text-accent" />
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
       ) : (
-        <XCircle className="h-5 w-5 text-red-400" />
+        <XCircle className="h-4 w-4 shrink-0 text-red-400" />
       )}
-      <div>
-        <p className="font-medium">{label}</p>
-        <p className="text-sm text-muted-foreground">{ok ? okText : failText}</p>
+      <div className="min-w-0 text-sm">
+        <span className="font-medium">{label}</span>
+        <span className="text-muted-foreground"> — {ok ? okText : failText}</span>
       </div>
     </div>
   );
