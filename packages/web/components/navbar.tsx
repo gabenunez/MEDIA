@@ -77,7 +77,7 @@ export function Navbar() {
           <SearchPopover variant="bar" />
         </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-2.5">
+          <div className="ml-auto flex min-h-9 items-center gap-2 sm:gap-2.5">
           <SearchPopover variant="icon" className="hidden sm:block md:hidden" />
 
           <nav
@@ -94,7 +94,9 @@ export function Navbar() {
             />
           </nav>
 
-          <UpdateAvailableButton />
+          <div className="min-h-9">
+            <UpdateAvailableButton />
+          </div>
         </div>
       </div>
 

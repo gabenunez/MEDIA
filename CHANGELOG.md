@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.10 — 2026-07-03
+
+### UI
+- **Layout shift fixes** on Home and Settings — stable skeletons and reserved space while data loads
+- **Static page shells** prerender at build time; dynamic content hydrates in client islands (PPR-like with static export)
+- **Scroll arrows** on horizontal poster rows (Continue Watching, Recently Added) when content overflows
+- Settings background polling no longer flashes the loading state every few seconds
+- Navbar reserves space for the update button so it appearing does not shift nav items
+
 ## 0.1.9 — 2026-07-03
 
 ### UI

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PosterCard } from "./poster-card";
+import { ScrollRow } from "./scroll-row";
 import { api, type ContinueWatchingItem, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
@@ -10,28 +11,31 @@ interface MediaRowProps {
   title: string;
   items: MediaItem[];
   href?: string;
+  hideHeader?: boolean;
 }
 
-export function MediaRow({ title, items, href }: MediaRowProps) {
+export function MediaRow({ title, items, href, hideHeader = false }: MediaRowProps) {
   if (!items.length) return null;
 
   return (
-    <section className="mb-12">
-      <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-primary" />
-          <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
+    <section className={hideHeader ? undefined : "mb-12"}>
+      {!hideHeader && (
+        <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="h-px w-8 bg-primary" />
+            <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
+          </div>
+          {href && (
+            <Link
+              href={href}
+              className="flex items-center gap-1 text-sm text-primary transition-colors hover:text-accent"
+            >
+              See all <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
         </div>
-        {href && (
-          <Link
-            href={href}
-            className="flex items-center gap-1 text-sm text-primary transition-colors hover:text-accent"
-          >
-            See all <ArrowRight className="h-4 w-4" />
-          </Link>
-        )}
-      </div>
-      <div className="scrollbar-hide mx-auto flex max-w-7xl snap-x gap-4 overflow-x-auto px-4 pb-3 sm:px-6">
+      )}
+      <ScrollRow className="mx-auto max-w-7xl" contentClassName="px-4 sm:px-6">
         {items.map((item) => (
           <PosterCard
             key={item.id}
@@ -39,25 +43,28 @@ export function MediaRow({ title, items, href }: MediaRowProps) {
             className="w-36 shrink-0 snap-start sm:w-44"
           />
         ))}
-      </div>
+      </ScrollRow>
     </section>
   );
 }
 
 interface ContinueWatchingRowProps {
   items: ContinueWatchingItem[];
+  hideHeader?: boolean;
 }
 
-export function ContinueWatchingRow({ items }: ContinueWatchingRowProps) {
+export function ContinueWatchingRow({ items, hideHeader = false }: ContinueWatchingRowProps) {
   if (!items.length) return null;
 
   return (
-    <section className="mb-12">
-      <div className="mx-auto mb-4 flex max-w-7xl items-center gap-3 px-4 sm:px-6">
-        <span className="h-px w-8 bg-accent" />
-        <h2 className="text-lg font-semibold sm:text-xl">Continue Watching</h2>
-      </div>
-      <div className="scrollbar-hide mx-auto flex max-w-7xl snap-x gap-4 overflow-x-auto px-4 pb-3 sm:px-6">
+    <section className={hideHeader ? undefined : "mb-12"}>
+      {!hideHeader && (
+        <div className="mx-auto mb-4 flex max-w-7xl items-center gap-3 px-4 sm:px-6">
+          <span className="h-px w-8 bg-accent" />
+          <h2 className="text-lg font-semibold sm:text-xl">Continue Watching</h2>
+        </div>
+      )}
+      <ScrollRow className="mx-auto max-w-7xl" contentClassName="px-4 sm:px-6">
         {items.map((item) => (
           <Link
             key={item.id}
@@ -85,7 +92,7 @@ export function ContinueWatchingRow({ items }: ContinueWatchingRowProps) {
             )}
           </Link>
         ))}
-      </div>
+      </ScrollRow>
     </section>
   );
 }
