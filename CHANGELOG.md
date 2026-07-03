@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.26 — 2026-07-03
+
+### Features
+- **Favorites** — star movies and TV shows from the detail page; browse them from a new Favorites nav item with Movies / TV filters
+- Favorites row on home and quick-access card in Library Decks
+
+### Playback
+- **Original quality by default** — playback no longer auto-switches to transcoded quality for unsupported audio codecs
+- **Faster direct play** — skip redundant ffprobe when scan metadata is available; larger read buffers; seek-on-release scrubbing; `preload="auto"`; earlier resume positioning
+- Store TV episode codec/dimensions at scan time and backfill on rescan
+
+### Updates
+- **Upgrade progress fix** — in-app update banner no longer shows all steps complete immediately; log phase inference uses the current update session only
+
 ## 0.1.25 — 2026-07-03
 
 ### Playback

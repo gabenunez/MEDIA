@@ -504,7 +504,8 @@ export async function waitForFirstSegment(
       return true;
     }
 
-    await new Promise((r) => setTimeout(r, 500));
+    const elapsed = Date.now() - start;
+    await new Promise((r) => setTimeout(r, elapsed < 5000 ? 200 : 500));
   }
 
   return false;

@@ -79,16 +79,6 @@ interface MediaDetail {
   seasons?: TvSeasonSummary[];
 }
 
-function pickTranscodeQualityForPlayback(
-  available: StreamQuality[],
-): Exclude<StreamQuality, "original"> {
-  for (const quality of ["720p", "1080p", "480p"] as const) {
-    if (available.includes(quality)) return quality;
-  }
-  const fallback = available.find((quality) => quality !== "original");
-  return fallback ?? "720p";
-}
-
 function buildPlaybackTitle(
   type: "movie" | "episode",
   media: MediaDetail,
@@ -280,20 +270,7 @@ export function WatchClient() {
         setSourceHeight(info.height ?? null);
         setSourceDurationMs(info.durationMs ?? 0);
         setTranscodingEnabled(info.transcodingEnabled);
-
-        let selectedQuality: StreamQuality = "original";
-        if (
-          info.directPlayAudioSupported === false &&
-          info.transcodingEnabled &&
-          info.availableQualities.some((q) => q !== "original")
-        ) {
-          selectedQuality = pickTranscodeQualityForPlayback(info.availableQualities);
-        }
-
-        setQuality((current) => {
-          if (selectedQuality !== "original") return selectedQuality;
-          return info.availableQualities.includes(current) ? current : "original";
-        });
+        setQuality("original");
 
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs =
@@ -402,10 +379,13 @@ export function WatchClient() {
       streamGeneration,
     );
 
+    let resumeApplied = false;
     const applyResume = () => {
-      if (startAt > 0 && video.duration) {
-        video.currentTime = Math.min(startAt, video.duration);
+      if (resumeApplied || startAt <= 0 || !video.duration || !Number.isFinite(video.duration)) {
+        return;
       }
+      resumeApplied = true;
+      video.currentTime = Math.min(startAt, video.duration);
     };
 
     if (usingHls) {
@@ -439,15 +419,15 @@ export function WatchClient() {
       }
     } else {
       video.src = url;
-      video.onloadedmetadata = () => {
-        applyResume();
-      };
+      video.onloadeddata = applyResume;
+      video.onloadedmetadata = applyResume;
       video.play().catch(() => {});
     }
 
     progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
+      video.onloadeddata = null;
       video.onloadedmetadata = null;
       if (hlsRef.current) hlsRef.current.destroy();
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -745,11 +725,7 @@ export function WatchClient() {
 
   const handleScrubChange = (value: number) => {
     setScrubPreview(value);
-    if (quality === "original") {
-      seekToPercent(value);
-    } else {
-      revealControls(true);
-    }
+    revealControls(true);
   };
 
   const handleScrubCommit = (value: number) => {
@@ -781,6 +757,7 @@ export function WatchClient() {
         className="absolute inset-0 h-full w-full object-contain"
         controls={false}
         playsInline
+        preload="auto"
         onClick={togglePlay}
       />
 

@@ -13,6 +13,13 @@ import {
   inferDeckTypes,
   countDeckItems,
 } from "../services/decks.js";
+import {
+  addFavorite,
+  isFavorite,
+  listFavorites,
+  listRecentFavorites,
+  removeFavorite,
+} from "../services/favorites.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
 import {
   libraries,
@@ -106,6 +113,47 @@ export async function apiRoutes(
       activeScan: scanInfo,
     };
   });
+
+  app.get<{ Querystring: { page?: string; limit?: string; type?: string } }>(
+    "/api/favorites",
+    async (request) => {
+      const page = parseInt(request.query.page ?? "1", 10);
+      const limit = parseInt(request.query.limit ?? "48", 10);
+      const type =
+        request.query.type === "movie" || request.query.type === "tv"
+          ? request.query.type
+          : undefined;
+
+      return listFavorites(db, { page, limit, type });
+    },
+  );
+
+  app.post<{ Body: { mediaItemId?: number } }>("/api/favorites", async (request, reply) => {
+    const mediaItemId = request.body?.mediaItemId;
+    if (!mediaItemId || !Number.isFinite(mediaItemId)) {
+      return reply.status(400).send({ error: "mediaItemId is required" });
+    }
+
+    try {
+      await addFavorite(db, mediaItemId);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to add favorite";
+      if (message === "Media item not found") {
+        return reply.status(404).send({ error: message });
+      }
+      throw err;
+    }
+  });
+
+  app.delete<{ Params: { mediaItemId: string } }>(
+    "/api/favorites/:mediaItemId",
+    async (request) => {
+      const mediaItemId = parseInt(request.params.mediaItemId, 10);
+      await removeFavorite(db, mediaItemId);
+      return { success: true };
+    },
+  );
 
   app.get("/api/decks", async () => {
     return listDecksWithCounts(db);
@@ -205,6 +253,8 @@ export async function apiRoutes(
 
     if (!item) return reply.status(404).send({ error: "Not found" });
 
+    const favorite = await isFavorite(db, id);
+
     if (item.type === "movie") {
       const files = await db.query.movieFiles.findMany({
         where: eq(movieFiles.mediaItemId, id),
@@ -222,7 +272,7 @@ export async function apiRoutes(
         ),
       });
 
-      return { ...item, files, subtitles: subs, watchProgress: progress ?? null };
+      return { ...item, files, subtitles: subs, watchProgress: progress ?? null, isFavorite: favorite };
     }
 
     const seasons = await db.query.tvSeasons.findMany({
@@ -256,7 +306,7 @@ export async function apiRoutes(
       }),
     );
 
-    return { ...item, seasons: seasonsWithEpisodes };
+    return { ...item, seasons: seasonsWithEpisodes, isFavorite: favorite };
   });
 
   app.get<{ Params: { id: string } }>("/api/media/:id/related", async (request, reply) => {
@@ -390,6 +440,7 @@ export async function apiRoutes(
       }),
     );
     const decks = await listDecksWithCounts(db);
+    const favoritesList = await listRecentFavorites(db, 12);
     const continueItems = continueWatching.filter(
       (item): item is NonNullable<(typeof continueWatching)[number]> => item != null,
     );
@@ -405,6 +456,7 @@ export async function apiRoutes(
     return {
       continueWatching: continueItems,
       recentlyAdded: recent,
+      favorites: favoritesList,
       libraries: librariesWithCounts,
       decks,
       tmdbConfigured: metadata.isConfigured(),

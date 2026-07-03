@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Film, Home, Settings, Tv } from "lucide-react";
+import { Film, Heart, Home, Settings, Tv } from "lucide-react";
 import { ReelIcon } from "@/components/reel-icon";
 import type { LucideIcon } from "lucide-react";
 import { UpdateAvailableButton } from "@/components/update-available-button";
@@ -50,6 +50,7 @@ export function Navbar() {
   }
 
   const homeActive = isNavActive(pathname, "/");
+  const favoritesActive = isNavActive(pathname, "/favorites");
   const settingsActive = isNavActive(pathname, "/settings");
 
   return (
@@ -82,6 +83,13 @@ export function Navbar() {
             className="flex items-center gap-0.5 rounded-lg border border-border/70 bg-muted/25 p-0.5"
           >
             <NavTab href="/" icon={Home} label="Home" active={homeActive} compact />
+            <NavTab
+              href="/favorites/"
+              icon={Heart}
+              label="Favorites"
+              active={favoritesActive}
+              compact
+            />
             <NavTab href="/settings/" icon={Settings} label="Settings" active={settingsActive} compact />
           </nav>
 

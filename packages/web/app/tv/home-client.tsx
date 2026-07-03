@@ -15,6 +15,7 @@ export function TvHomeClient() {
   const [loaded, setLoaded] = useState(false);
   const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>([]);
   const [recentlyAdded, setRecentlyAdded] = useState<MediaItem[]>([]);
+  const [favorites, setFavorites] = useState<MediaItem[]>([]);
   const [libraries, setLibraries] = useState<
     Awaited<ReturnType<typeof api.getHome>>["libraries"]
   >([]);
@@ -28,6 +29,7 @@ export function TvHomeClient() {
       .then((data) => {
         setContinueWatching(data.continueWatching);
         setRecentlyAdded(data.recentlyAdded);
+        setFavorites(data.favorites);
         setLibraries(data.libraries);
         setDecks(data.decks);
       })
@@ -54,6 +56,7 @@ export function TvHomeClient() {
   const hasContent =
     continueWatching.length > 0 ||
     recentlyAdded.length > 0 ||
+    favorites.length > 0 ||
     libraries.length > 0 ||
     decks.length > 0;
 
@@ -104,6 +107,14 @@ export function TvHomeClient() {
         </TvRow>
       )}
 
+      {favorites.length > 0 && (
+        <TvRow title="Favorites">
+          {favorites.map((item) => (
+            <TvPoster key={item.id} item={item} />
+          ))}
+        </TvRow>
+      )}
+
       {recentlyAdded.length > 0 && (
         <TvRow title="Recently Added">
           {recentlyAdded.map((item) => (
@@ -119,6 +130,15 @@ export function TvHomeClient() {
             data-tv-row=""
             className="scrollbar-hide flex snap-x gap-4 overflow-x-auto px-8 pb-2"
           >
+            <TvFocusLink
+              href={tvRoutes.favorites()}
+              className="w-64 shrink-0 snap-start rounded-xl border border-border/80 bg-card p-5"
+            >
+              <p className="truncate text-lg font-semibold">Favorites</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Saved titles · {favorites.length} favorited
+              </p>
+            </TvFocusLink>
             {decks.map((deck) => (
               <TvFocusLink
                 key={`deck-${deck.id}`}

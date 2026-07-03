@@ -64,6 +64,10 @@ export const tvEpisodes = sqliteTable("tv_episodes", {
   filePath: text("file_path").notNull().unique(),
   durationMs: integer("duration_ms"),
   fileSize: integer("file_size"),
+  videoCodec: text("video_codec"),
+  audioCodec: text("audio_codec"),
+  width: integer("width"),
+  height: integer("height"),
   stillPath: text("still_path"),
   airDate: text("air_date"),
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -116,6 +120,17 @@ export const watchProgress = sqliteTable("watch_progress", {
     .$defaultFn(() => new Date()),
 });
 
+export const favorites = sqliteTable("favorites", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  mediaItemId: integer("media_item_id")
+    .notNull()
+    .references(() => mediaItems.id, { onDelete: "cascade" })
+    .unique(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const libraryDecks = sqliteTable("library_decks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
@@ -149,5 +164,6 @@ export type TvEpisode = typeof tvEpisodes.$inferSelect;
 export type MovieFile = typeof movieFiles.$inferSelect;
 export type Subtitle = typeof subtitles.$inferSelect;
 export type WatchProgress = typeof watchProgress.$inferSelect;
+export type Favorite = typeof favorites.$inferSelect;
 export type ScanJob = typeof scanJobs.$inferSelect;
 export type LibraryDeck = typeof libraryDecks.$inferSelect;

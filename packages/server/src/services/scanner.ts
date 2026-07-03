@@ -637,7 +637,27 @@ export class ScannerService {
     const existing = await this.db.query.movieFiles.findFirst({
       where: eq(movieFiles.filePath, filePath),
     });
-    if (existing) return;
+    if (existing) {
+      if (
+        probe &&
+        (!existing.videoCodec ||
+          !existing.height ||
+          existing.durationMs == null ||
+          !existing.width)
+      ) {
+        await this.db
+          .update(movieFiles)
+          .set({
+            durationMs: existing.durationMs ?? probe.durationMs ?? null,
+            videoCodec: existing.videoCodec ?? probe.videoCodec ?? null,
+            audioCodec: existing.audioCodec ?? probe.audioCodec ?? null,
+            width: existing.width ?? probe.width ?? null,
+            height: existing.height ?? probe.height ?? null,
+          })
+          .where(eq(movieFiles.id, existing.id));
+      }
+      return;
+    }
 
     const filename = path.basename(filePath);
     const parsed = parseMovieFilename(filename);
@@ -807,7 +827,27 @@ export class ScannerService {
     const existing = await this.db.query.tvEpisodes.findFirst({
       where: eq(tvEpisodes.filePath, filePath),
     });
-    if (existing) return;
+    if (existing) {
+      if (
+        probe &&
+        (!existing.videoCodec ||
+          !existing.height ||
+          existing.durationMs == null ||
+          !existing.width)
+      ) {
+        await this.db
+          .update(tvEpisodes)
+          .set({
+            durationMs: existing.durationMs ?? probe.durationMs ?? null,
+            videoCodec: existing.videoCodec ?? probe.videoCodec ?? null,
+            audioCodec: existing.audioCodec ?? probe.audioCodec ?? null,
+            width: existing.width ?? probe.width ?? null,
+            height: existing.height ?? probe.height ?? null,
+          })
+          .where(eq(tvEpisodes.id, existing.id));
+      }
+      return;
+    }
 
     const parsed = parseEpisodeFromPath(filePath, lib.path);
     if (!parsed) {
@@ -911,6 +951,10 @@ export class ScannerService {
         filePath,
         durationMs: probe?.durationMs ?? null,
         fileSize,
+        videoCodec: probe?.videoCodec ?? null,
+        audioCodec: probe?.audioCodec ?? null,
+        width: probe?.width ?? null,
+        height: probe?.height ?? null,
         stillPath,
         airDate: episodeMeta?.air_date ?? null,
       })

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { Home, Search } from "lucide-react";
+import { Home, Heart, Search } from "lucide-react";
 import { ReelIcon } from "@/components/reel-icon";
 import { TvSpatialNav } from "@/components/tv/tv-spatial-nav";
 import { tvRoutes } from "@/lib/tv/routes";
@@ -42,6 +42,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hideHeader = pathname.startsWith("/tv/watch");
   const homeActive = pathname === "/tv" || pathname === "/tv/";
+  const favoritesActive = pathname.startsWith("/tv/favorites");
   const searchActive = pathname.startsWith("/tv/search");
 
   return (
@@ -65,6 +66,13 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               <div className="ml-auto flex items-center gap-3">
                 <TvNavButton href={tvRoutes.home()} label="Home" active={homeActive}>
                   <Home className="h-6 w-6" />
+                </TvNavButton>
+                <TvNavButton
+                  href={tvRoutes.favorites()}
+                  label="Favorites"
+                  active={favoritesActive}
+                >
+                  <Heart className="h-6 w-6" />
                 </TvNavButton>
                 <TvNavButton
                   href={tvRoutes.search()}

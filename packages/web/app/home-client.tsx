@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Clapperboard,
   HardDrive,
+  Heart,
   Layers,
   Play,
   Loader2,
@@ -64,6 +65,7 @@ export function HomeClient() {
   });
   const decks = data?.decks ?? [];
   const recentlyAdded = data?.recentlyAdded ?? [];
+  const favorites = data?.favorites ?? [];
   const continueWatching = data?.continueWatching ?? [];
   const continueTarget = continueWatching[0] ?? null;
   const featured = recentlyAdded[0];
@@ -228,6 +230,28 @@ export function HomeClient() {
         )}
       </section>
 
+      {favorites.length > 0 && (
+        <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
+          <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <span className="h-px w-8 bg-primary" />
+              <h2 className="text-lg font-semibold sm:text-xl">Favorites</h2>
+            </div>
+            <Link
+              href={routes.favorites()}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              View all
+            </Link>
+          </div>
+          {!loaded ? (
+            <PosterRowSkeleton />
+          ) : (
+            <MediaRow title="Favorites" items={favorites} hideHeader />
+          )}
+        </section>
+      )}
+
       <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
         <HomeSectionHeading title="Recently Added" />
         {!loaded ? (
@@ -247,6 +271,27 @@ export function HomeClient() {
           </div>
         ) : decks.length > 0 || libraries.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Link
+              href={routes.favorites()}
+              className="group relative overflow-hidden rounded-md border border-border/80 bg-card/85 p-5 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card"
+            >
+              <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
+                  <Heart className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-semibold group-hover:text-primary">
+                    Favorites
+                  </h3>
+                  <p className="font-mono text-[0.68rem] uppercase text-muted-foreground">
+                    Saved titles / {favorites.length} favorited
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+              </div>
+            </Link>
+
             {decks.map((deck) => (
               <Link
                 key={`deck-${deck.id}`}

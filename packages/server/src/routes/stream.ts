@@ -36,6 +36,18 @@ interface StreamQuery {
   castToken?: string;
 }
 
+type StreamFile = {
+  filePath: string;
+  id: number;
+  durationMs?: number | null;
+  width?: number | null;
+  height?: number | null;
+  videoCodec?: string | null;
+  audioCodec?: string | null;
+};
+
+const STREAM_READ_HIGH_WATER_MARK = 1024 * 1024;
+
 function parseStartSeconds(value?: string): number {
   if (!value) return 0;
   const parsed = parseFloat(value);
@@ -51,14 +63,7 @@ export async function streamRoutes(
   async function resolveFile(
     fileId: number,
     type: "movie" | "episode",
-  ): Promise<{
-    filePath: string;
-    id: number;
-    width?: number | null;
-    height?: number | null;
-    videoCodec?: string | null;
-    audioCodec?: string | null;
-  } | null> {
+  ): Promise<StreamFile | null> {
     if (type === "movie") {
       const file = await db.query.movieFiles.findFirst({
         where: eq(movieFiles.id, fileId),
@@ -67,6 +72,7 @@ export async function streamRoutes(
         ? {
             filePath: file.filePath,
             id: file.id,
+            durationMs: file.durationMs,
             width: file.width,
             height: file.height,
             videoCodec: file.videoCodec,
@@ -78,12 +84,63 @@ export async function streamRoutes(
     const episode = await db.query.tvEpisodes.findFirst({
       where: eq(tvEpisodes.id, fileId),
     });
-    return episode ? { filePath: episode.filePath, id: episode.id } : null;
+    return episode
+      ? {
+          filePath: episode.filePath,
+          id: episode.id,
+          durationMs: episode.durationMs,
+          width: episode.width,
+          height: episode.height,
+          videoCodec: episode.videoCodec,
+          audioCodec: episode.audioCodec,
+        }
+      : null;
   }
 
-  async function resolveSourceHeight(
-    file: { filePath: string; width?: number | null; height?: number | null },
-  ): Promise<number | null> {
+  function hasCompleteStreamMetadata(file: StreamFile): boolean {
+    return (
+      file.durationMs != null &&
+      file.durationMs > 0 &&
+      file.height != null &&
+      file.height > 0 &&
+      file.width != null &&
+      file.width > 0 &&
+      Boolean(file.videoCodec) &&
+      Boolean(file.audioCodec)
+    );
+  }
+
+  async function resolveStreamMetadata(file: StreamFile): Promise<{
+    height: number | null;
+    width: number | null;
+    durationMs: number | null;
+    videoCodec: string | null;
+    audioCodec: string | null;
+    bitrate: number | null;
+  }> {
+    if (hasCompleteStreamMetadata(file)) {
+      return {
+        height: file.height ?? null,
+        width: file.width ?? null,
+        durationMs: file.durationMs ?? null,
+        videoCodec: file.videoCodec ?? null,
+        audioCodec: file.audioCodec ?? null,
+        bitrate: null,
+      };
+    }
+
+    const probe = await probeFile(file.filePath);
+    return {
+      height: file.height ?? probe?.height ?? null,
+      width: file.width ?? probe?.width ?? null,
+      durationMs: file.durationMs ?? probe?.durationMs ?? null,
+      videoCodec: file.videoCodec ?? probe?.videoCodec ?? null,
+      audioCodec: file.audioCodec ?? probe?.audioCodec ?? null,
+      bitrate: probe?.bitrate ?? null,
+    };
+  }
+
+  async function resolveSourceHeight(file: StreamFile): Promise<number | null> {
     if (file.height) return file.height;
     const probe = await probeFile(file.filePath);
     return probe?.height ?? null;
@@ -116,9 +173,7 @@ export async function streamRoutes(
       }
       const ext = path.extname(file.filePath);
       const mimeType = mime.lookup(ext) || "application/octet-stream";
-      const sourceHeight = await resolveSourceHeight(file);
-      const sourceWidth = file.width ?? null;
-      const probe = await probeFile(file.filePath);
+      const metadata = await resolveStreamMetadata(file);
       const progress = await db.query.watchProgress.findFirst({
         where: and(
           eq(watchProgress.itemType, type),
@@ -135,16 +190,16 @@ export async function streamRoutes(
         filePath: file.filePath,
         isSymlink,
         symlinkTarget,
-        width: sourceWidth ?? probe?.width ?? null,
-        height: sourceHeight,
-        durationMs: probe?.durationMs ?? null,
-        videoCodec: probe?.videoCodec ?? file.videoCodec ?? null,
-        audioCodec: probe?.audioCodec ?? file.audioCodec ?? null,
-        bitrate: probe?.bitrate ?? null,
-        availableQualities: getAvailableQualities(sourceHeight),
+        width: metadata.width,
+        height: metadata.height,
+        durationMs: metadata.durationMs,
+        videoCodec: metadata.videoCodec,
+        audioCodec: metadata.audioCodec,
+        bitrate: metadata.bitrate,
+        availableQualities: getAvailableQualities(metadata.height),
         transcodingEnabled: config.transcoding.enabled,
         directPlayAudioSupported: isBrowserDirectPlayAudioSupported(
-          probe?.audioCodec ?? file.audioCodec ?? null,
+          metadata.audioCodec,
         ),
         watchProgress: progress
           ? {
@@ -175,7 +230,19 @@ export async function streamRoutes(
       if (range) {
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+        let end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+
+        if (
+          !Number.isFinite(start) ||
+          start < 0 ||
+          start >= stats.size ||
+          !Number.isFinite(end) ||
+          end < start
+        ) {
+          return reply.status(416).send({ error: "Invalid range" });
+        }
+
+        end = Math.min(end, stats.size - 1);
         const chunkSize = end - start + 1;
 
         reply
@@ -186,7 +253,13 @@ export async function streamRoutes(
           .header("Content-Type", mimeType)
           .header("Access-Control-Allow-Origin", "*");
 
-        return reply.send(fs.createReadStream(file.filePath, { start, end }));
+        return reply.send(
+          fs.createReadStream(file.filePath, {
+            start,
+            end,
+            highWaterMark: STREAM_READ_HIGH_WATER_MARK,
+          }),
+        );
       }
 
       reply
@@ -195,7 +268,11 @@ export async function streamRoutes(
         .header("Accept-Ranges", "bytes")
         .header("Access-Control-Allow-Origin", "*");
 
-      return reply.send(fs.createReadStream(file.filePath));
+      return reply.send(
+        fs.createReadStream(file.filePath, {
+          highWaterMark: STREAM_READ_HIGH_WATER_MARK,
+        }),
+      );
     },
   );
 
@@ -323,6 +400,9 @@ export async function streamRoutes(
 
       reply.header("Content-Type", "video/mp2t");
       reply.header("Access-Control-Allow-Origin", "*");
+      if (!isTranscodeInProgress(sessionId)) {
+        reply.header("Cache-Control", "public, max-age=31536000, immutable");
+      }
       return reply.send(fs.createReadStream(segmentPath));
     },
   );

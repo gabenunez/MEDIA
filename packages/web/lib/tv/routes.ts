@@ -4,6 +4,8 @@ export const tvRoutes = {
   library: (id: number) => `/tv/library/?id=${id}`,
   deck: (id: number) => `/tv/library/?deck=${id}`,
   media: (id: number) => `/tv/media/?id=${id}`,
+  favorites: (type?: "movie" | "tv") =>
+    type ? `/tv/favorites/?type=${type}` : "/tv/favorites/",
   watch: (type: "movie" | "episode", fileId: number, mediaId?: number) => {
     const params = new URLSearchParams({
       type,

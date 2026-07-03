@@ -272,6 +272,7 @@ export const api = {
     fetchApi<{
       continueWatching: ContinueWatchingItem[];
       recentlyAdded: MediaItem[];
+      favorites: MediaItem[];
       libraries: Library[];
       decks: LibraryDeck[];
       tmdbConfigured: boolean;
@@ -348,6 +349,24 @@ export const api = {
     }),
   deleteDeck: (id: number) =>
     fetchApi<{ success: boolean }>(`/api/decks/${id}`, {
+      method: "DELETE",
+    }),
+  getFavorites: (page = 1, type?: "movie" | "tv") =>
+    fetchApi<{
+      items: MediaItem[];
+      page: number;
+      total: number;
+      totalPages: number;
+    }>(
+      `/api/favorites?page=${page}${type ? `&type=${type}` : ""}`,
+    ),
+  addFavorite: (mediaItemId: number) =>
+    fetchApi<{ success: boolean }>("/api/favorites", {
+      method: "POST",
+      body: JSON.stringify({ mediaItemId }),
+    }),
+  removeFavorite: (mediaItemId: number) =>
+    fetchApi<{ success: boolean }>(`/api/favorites/${mediaItemId}`, {
       method: "DELETE",
     }),
   updateMetadata: (tmdb_api_key: string) =>

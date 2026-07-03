@@ -216,32 +216,36 @@ function buildUpdateSteps(phase: UpdatePhase): UpdateStep[] {
   }));
 }
 
+const LOG_PHASE_PATTERNS: { phase: UpdatePhase; pattern: RegExp }[] = [
+  { phase: "failed", pattern: /Update failed|reel_progress "failed"|✗ Update failed/i },
+  { phase: "complete", pattern: /Update complete|Update finished|upgraded to/i },
+  {
+    phase: "restarting",
+    pattern:
+      /\[4\] Restarting|Restarting via|Restarting reel service|Restarting Reel process|Stopping Reel/i,
+  },
+  {
+    phase: "building",
+    pattern:
+      /\[3\] Building|Installing dependencies and building|Tasks:\s+\d+ successful|Compiled successfully|next build|@reel\/.*:build/i,
+  },
+  {
+    phase: "downloading",
+    pattern:
+      /\[2\] Downloading|Checking out release|Pulling latest|Synced release|git reset --hard|HEAD is now at/i,
+  },
+  { phase: "preparing", pattern: /\[1\] Checking install|Preparing update/i },
+];
+
 function inferPhaseFromLog(lines: string[]): UpdatePhase {
-  const text = lines.join("\n");
-  if (/Update complete|Update finished|upgraded to/i.test(text)) return "complete";
-  if (
-    /\[4\] Restarting|Restarting via|Restarting reel service|Restarting Reel process|Stopping Reel/i.test(
-      text,
-    )
-  ) {
-    return "restarting";
+  // Use the most recent matching line so older sessions in the log tail cannot
+  // mark a fresh update as complete while it is still building.
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    for (const { phase, pattern } of LOG_PHASE_PATTERNS) {
+      if (pattern.test(line)) return phase;
+    }
   }
-  if (
-    /\[3\] Building|Installing dependencies and building|Tasks:\s+\d+ successful|Compiled successfully|next build|@reel\/.*:build/i.test(
-      text,
-    )
-  ) {
-    return "building";
-  }
-  if (
-    /\[2\] Downloading|Checking out release|Pulling latest|Synced release|git reset --hard|HEAD is now at/i.test(
-      text,
-    )
-  ) {
-    return "downloading";
-  }
-  if (/\[1\] Checking install|Preparing update/i.test(text)) return "preparing";
-  if (/Update failed|reel_progress "failed"|✗ Update failed/i.test(text)) return "failed";
   return "unknown";
 }
 
@@ -256,13 +260,23 @@ function readLogTail(maxLines = 40): string[] {
 
   try {
     const raw = fs.readFileSync(logPath, "utf8");
-    return raw
+    const allLines = raw
       .split("\n")
       .map((line) => stripAnsi(line).trim())
-      .filter(Boolean)
+      .filter(Boolean);
+
+    let sessionStart = 0;
+    for (let i = allLines.length - 1; i >= 0; i--) {
+      if (allLines[i].startsWith("--- Update started")) {
+        sessionStart = i + 1;
+        break;
+      }
+    }
+
+    return allLines
+      .slice(sessionStart)
       .filter(
         (line) =>
-          !line.startsWith("--- Update started") &&
           !/^━+$/.test(line) &&
           line !== "Reel — Update" &&
           line !== "Pull latest, rebuild, and restart",
@@ -342,6 +356,15 @@ export function getUpdateProgress(): UpdateProgress | null {
   }
 
   phase = resolveUpdatePhase(phase, logTail);
+
+  // The lock file stays until the update script exits; never show "complete"
+  // while it is still held, even if stale log lines were misread.
+  if (phase === "complete") {
+    phase = "restarting";
+    if (message === UPDATE_STEP_LABELS.complete) {
+      message = UPDATE_STEP_LABELS.restarting;
+    }
+  }
 
   if (message === "Update in progress..." || message === "Starting update...") {
     message = UPDATE_STEP_LABELS[phase] ?? message;

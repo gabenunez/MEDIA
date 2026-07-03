@@ -9,6 +9,7 @@ import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaRow } from "@/components/media-row";
+import { FavoriteButton } from "@/components/favorite-button";
 import { formatDuration } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -45,6 +46,7 @@ interface MediaDetail {
   type: "movie" | "tv";
   genres?: string | null;
   rating?: number | null;
+  isFavorite?: boolean;
   files?: MovieFile[];
   seasons?: Season[];
 }
@@ -187,11 +189,26 @@ export function MediaClient() {
               )}
 
               {media.type === "movie" && media.files?.[0] && (
-                <Button size="lg" asChild>
-                  <Link href={routes.watch("movie", media.files[0].id, media.id)}>
-                    <Play className="h-5 w-5 fill-current" /> Play
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button size="lg" asChild>
+                    <Link href={routes.watch("movie", media.files[0].id, media.id)}>
+                      <Play className="h-5 w-5 fill-current" /> Play
+                    </Link>
+                  </Button>
+                  <FavoriteButton
+                    mediaId={media.id}
+                    initialFavorite={media.isFavorite}
+                    size="lg"
+                  />
+                </div>
+              )}
+
+              {media.type === "tv" && (
+                <FavoriteButton
+                  mediaId={media.id}
+                  initialFavorite={media.isFavorite}
+                  size="lg"
+                />
               )}
             </div>
           </div>

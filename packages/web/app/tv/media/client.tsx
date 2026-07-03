@@ -6,6 +6,7 @@ import { ChevronLeft, Loader2, Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { tvRoutes } from "@/lib/tv/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
+import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
 import { formatDuration } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -34,6 +35,7 @@ interface MediaDetail {
   posterPath?: string | null;
   backdropPath?: string | null;
   type: "movie" | "tv";
+  isFavorite?: boolean;
   files?: Array<{ id: number; durationMs?: number | null }>;
   seasons?: Season[];
 }
@@ -143,14 +145,17 @@ export function TvMediaClient() {
                 </p>
               )}
 
-              {media.type === "movie" && media.files?.[0] && (
-                <TvFocusLink
-                  href={tvRoutes.watch("movie", media.files[0].id, media.id)}
-                  className="inline-flex items-center gap-3 rounded-xl bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground"
-                >
-                  <Play className="h-6 w-6 fill-current" /> Play
-                </TvFocusLink>
-              )}
+              <div data-tv-row="" className="flex flex-wrap items-center gap-4">
+                {media.type === "movie" && media.files?.[0] && (
+                  <TvFocusLink
+                    href={tvRoutes.watch("movie", media.files[0].id, media.id)}
+                    className="inline-flex items-center gap-3 rounded-xl bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground"
+                  >
+                    <Play className="h-6 w-6 fill-current" /> Play
+                  </TvFocusLink>
+                )}
+                <TvFavoriteButton mediaId={media.id} initialFavorite={media.isFavorite} />
+              </div>
             </div>
           </div>
         </div>

@@ -9,7 +9,6 @@ import { tvRoutes } from "@/lib/tv/routes";
 import {
   buildPlaybackTitle,
   getVideoSeekableEnd,
-  pickTranscodeQualityForPlayback,
   PROGRESS_SAVE_MS,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
@@ -100,24 +99,7 @@ export function TvWatchClient() {
       .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
       .then((info: StreamInfo) => {
         setSourceDurationMs(info.durationMs ?? 0);
-
-        let selectedQuality: StreamQuality = "original";
-        if (
-          info.directPlayAudioSupported === false &&
-          info.transcodingEnabled &&
-          info.availableQualities.some((q) => q !== "original")
-        ) {
-          selectedQuality = pickTranscodeQualityForPlayback(info.availableQualities);
-        } else if (info.directPlayAudioSupported === false && !info.transcodingEnabled) {
-          setError(
-            "This audio format may not play on your TV. Enable transcoding on the server.",
-          );
-        }
-
-        setQuality((current) => {
-          if (selectedQuality !== "original") return selectedQuality;
-          return info.availableQualities.includes(current) ? current : "original";
-        });
+        setQuality("original");
 
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs = info.watchProgress?.durationMs ?? info.durationMs ?? 0;
@@ -205,18 +187,25 @@ export function TvWatchClient() {
         setError("HLS not supported on this device");
       }
     } else {
-      video.src = url;
-      video.onloadedmetadata = () => {
-        if (startAt > 0 && video.duration) {
-          video.currentTime = Math.min(startAt, video.duration);
+      let resumeApplied = false;
+      const applyResume = () => {
+        if (resumeApplied || startAt <= 0 || !video.duration || !Number.isFinite(video.duration)) {
+          return;
         }
+        resumeApplied = true;
+        video.currentTime = Math.min(startAt, video.duration);
       };
+
+      video.src = url;
+      video.onloadeddata = applyResume;
+      video.onloadedmetadata = applyResume;
       video.play().catch(() => {});
     }
 
     progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
+      video.onloadeddata = null;
       video.onloadedmetadata = null;
       if (hlsRef.current) hlsRef.current.destroy();
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -397,6 +386,7 @@ export function TvWatchClient() {
         className="absolute inset-0 h-full w-full object-contain"
         controls={false}
         playsInline
+        preload="auto"
         onClick={(e) => {
           e.stopPropagation();
           togglePlay();
