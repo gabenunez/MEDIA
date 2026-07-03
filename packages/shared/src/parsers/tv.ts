@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { ParsedEpisode } from "../types.js";
 import { isVideoFile } from "./movie.js";
 
@@ -93,5 +92,7 @@ export function resolveShowDirectory(
     : filePath;
   const parts = relative.split(/[/\\]/).filter(Boolean);
   if (parts.length < 2) return null;
-  return path.join(libraryRoot, parts[0]);
+  const root = libraryRoot.replace(/[/\\]+$/, "");
+  const sep = root.includes("\\") ? "\\" : "/";
+  return `${root}${sep}${parts[0]}`;
 }

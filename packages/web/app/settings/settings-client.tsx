@@ -411,7 +411,16 @@ export function SettingsClient() {
                   >
                     fanart.tv
                   </a>{" "}
-                  fetches TV show themes for detail pages. Local <code className="text-xs">theme.mp3</code>{" "}
+                  fetches TV show themes for detail pages. Movies use{" "}
+                  <a
+                    href="https://app.lizardbyte.dev/ThemerrDB"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    ThemerrDB
+                  </a>{" "}
+                  automatically. Local <code className="text-xs">theme.mp3</code>{" "}
                   files in a show folder still work without a key.
                 </>
               }

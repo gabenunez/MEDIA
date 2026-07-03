@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.35 — 2026-07-03
+
+### Theme music
+- **Movie themes** — fetches theme songs from ThemerrDB (e.g. Star Wars) via yt-dlp; TV shows fall back to ThemerrDB when fanart.tv has no theme
+- **Compressed cache** — downloaded themes re-encoded to 96 kbps MP3 to save disk space
+- **Banner waveform** — transparent live audio visualization in the detail page hero while theme music plays
+- **Autoplay** — muted-start playback and site-wide audio unlock so themes start without an extra click after navigating from the library
+
+### Fixes
+- **Shared build** — removed `node:path` from TV parser so web builds succeed on VPS
+
 ## 0.1.34 — 2026-07-03
 
 ### Settings

@@ -13,6 +13,9 @@ import {
   type MediaItem,
 } from "../db/schema.js";
 import type { MetadataService } from "./metadata.js";
+import { downloadYoutubeTheme, compressThemeMp3, ensureCompressedThemeMp3 } from "../utils/youtube-theme.js";
+
+const THEMERR_DB_BASE = "https://app.lizardbyte.dev/ThemerrDB";
 
 const THEME_MIME_TYPES: Record<string, string> = {
   ".mp3": "audio/mpeg",
@@ -65,11 +68,33 @@ export class ThemeService {
       return localPath;
     }
 
-    if (item.type === "tv" && item.tmdbId) {
-      const remotePath = await this.fetchFanartTvTheme(item.tmdbId);
+    if (item.type === "movie" && item.tmdbId) {
+      const remotePath = await this.fetchThemerrTheme(
+        "movies",
+        item.tmdbId,
+        `movie_tmdb_${item.tmdbId}.mp3`,
+      );
       if (remotePath) {
         await this.saveThemePath(item.id, remotePath);
         return remotePath;
+      }
+    }
+
+    if (item.type === "tv" && item.tmdbId) {
+      const fanartPath = await this.fetchFanartTvTheme(item.tmdbId);
+      if (fanartPath) {
+        await this.saveThemePath(item.id, fanartPath);
+        return fanartPath;
+      }
+
+      const themerrPath = await this.fetchThemerrTheme(
+        "tv_shows",
+        item.tmdbId,
+        `tv_tmdb_${item.tmdbId}.mp3`,
+      );
+      if (themerrPath) {
+        await this.saveThemePath(item.id, themerrPath);
+        return themerrPath;
       }
     }
 
@@ -143,6 +168,36 @@ export class ThemeService {
     return null;
   }
 
+  private async fetchThemerrTheme(
+    mediaType: "movies" | "tv_shows",
+    tmdbId: number,
+    cacheName: string,
+  ): Promise<string | null> {
+    const cachePath = path.join(this.cacheDir, cacheName);
+    if (fs.existsSync(cachePath)) {
+      await ensureCompressedThemeMp3(cachePath);
+      return cachePath;
+    }
+
+    const res = await fetch(
+      `${THEMERR_DB_BASE}/${mediaType}/themoviedb/${tmdbId}.json`,
+      { headers: { Accept: "application/json" } },
+    );
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data = (await res.json()) as { youtube_theme_url?: string };
+    const youtubeUrl = data.youtube_theme_url?.trim();
+    if (!youtubeUrl) {
+      return null;
+    }
+
+    const ok = await downloadYoutubeTheme(youtubeUrl, cachePath);
+    return ok ? cachePath : null;
+  }
+
   private async fetchFanartTvTheme(tmdbId: number): Promise<string | null> {
     const apiKey = this.configManager.get().metadata.fanart_api_key?.trim();
     if (!apiKey) return null;
@@ -152,6 +207,7 @@ export class ThemeService {
 
     const cachePath = path.join(this.cacheDir, `tv_${tvdbId}.mp3`);
     if (fs.existsSync(cachePath)) {
+      await ensureCompressedThemeMp3(cachePath);
       return cachePath;
     }
 
@@ -177,6 +233,7 @@ export class ThemeService {
 
     const buffer = Buffer.from(await download.arrayBuffer());
     fs.writeFileSync(cachePath, buffer);
+    await compressThemeMp3(cachePath);
     return cachePath;
   }
 }

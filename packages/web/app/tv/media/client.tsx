@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { tvRoutes } from "@/lib/tv/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
-import { ThemeMusicPlayer } from "@/components/theme-music-player";
+import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -110,9 +110,8 @@ export function TvMediaClient() {
       )
     : "Play";
 
-  return (
+  const page = (
     <div>
-      {media.hasThemeMusic && <ThemeMusicPlayer mediaId={media.id} />}
       <section className="relative overflow-hidden border-b border-border/70">
         {backdropUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -121,6 +120,9 @@ export function TvMediaClient() {
         {!backdropUrl && <div className="signal-grid absolute inset-0" />}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/30" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/75 to-transparent" />
+        {media.hasThemeMusic && (
+          <ThemeMusicWaveform className="absolute inset-x-0 bottom-0 z-[1] h-40 w-full [mask-image:linear-gradient(to_top,black_20%,transparent)]" />
+        )}
 
         <div className="relative px-8 pb-10 pt-8">
           <TvFocusLink
@@ -256,5 +258,11 @@ export function TvMediaClient() {
         </section>
       )}
     </div>
+  );
+
+  return media.hasThemeMusic ? (
+    <ThemeMusicProvider mediaId={media.id}>{page}</ThemeMusicProvider>
+  ) : (
+    page
   );
 }

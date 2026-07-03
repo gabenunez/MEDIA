@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { AuthProvider } from "@/components/auth-gate";
+import { AudioUnlock } from "@/components/audio-unlock";
 import { ScanStatusProvider } from "@/components/scan-status-provider";
 import { UpdateStatusProvider } from "@/components/update-status-provider";
 import { UpdateModal } from "@/components/update-modal";
@@ -13,11 +14,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isTv = pathname.startsWith("/tv");
 
   if (isTv) {
-    return <AuthProvider>{children}</AuthProvider>;
+    return (
+      <AuthProvider>
+        <AudioUnlock />
+        {children}
+      </AuthProvider>
+    );
   }
 
   return (
     <AuthProvider>
+      <AudioUnlock />
       <ScanStatusProvider>
         <UpdateStatusProvider>
           <Navbar />
