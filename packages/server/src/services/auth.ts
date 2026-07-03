@@ -6,6 +6,13 @@ import type { ConfigManager } from "../config.js";
 
 export const SESSION_COOKIE = "reel_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const CAST_TOKEN_TTL_MS = 4 * 60 * 60 * 1000;
+
+export interface CastTokenGrant {
+  fileId: number;
+  mediaType: "movie" | "episode";
+  subtitleId?: number;
+}
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -139,6 +146,71 @@ export class AuthService {
   clearSessionCookie(): string {
     return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
   }
+
+  createCastToken(grant: CastTokenGrant): string {
+    const payload = {
+      exp: Date.now() + CAST_TOKEN_TTL_MS,
+      fid: grant.fileId,
+      mt: grant.mediaType,
+      sid: grant.subtitleId ?? null,
+    };
+    const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const sig = crypto
+      .createHmac("sha256", this.sessionSecret)
+      .update(data)
+      .digest("base64url");
+    return `${data}.${sig}`;
+  }
+
+  verifyCastToken(token: string, pathname: string): boolean {
+    const [data, sig] = token.split(".");
+    if (!data || !sig) return false;
+
+    const expected = crypto
+      .createHmac("sha256", this.sessionSecret)
+      .update(data)
+      .digest("base64url");
+
+    try {
+      if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+
+    let payload: {
+      exp?: number;
+      fid?: number;
+      mt?: string;
+      sid?: number | null;
+    };
+    try {
+      payload = JSON.parse(
+        Buffer.from(data, "base64url").toString("utf-8"),
+      ) as typeof payload;
+    } catch {
+      return false;
+    }
+
+    if (typeof payload.exp !== "number" || payload.exp <= Date.now()) {
+      return false;
+    }
+    if (typeof payload.fid !== "number") return false;
+
+    const streamMatch = pathname.match(/^\/api\/stream\/(\d+)(?:\/|$)/);
+    if (streamMatch) {
+      return parseInt(streamMatch[1], 10) === payload.fid;
+    }
+
+    const subtitleMatch = pathname.match(/^\/api\/subtitles\/(\d+)$/);
+    if (subtitleMatch) {
+      const subtitleId = parseInt(subtitleMatch[1], 10);
+      return payload.sid === subtitleId;
+    }
+
+    return false;
+  }
 }
 
 export function isPublicPath(pathname: string, passwordRequired: boolean): boolean {
@@ -160,4 +232,11 @@ export function isPublicPath(pathname: string, passwordRequired: boolean): boole
   }
 
   return false;
+}
+
+export function isCastMediaPath(pathname: string): boolean {
+  return (
+    /^\/api\/stream\/\d+(\/|$)/.test(pathname) ||
+    /^\/api\/subtitles\/\d+$/.test(pathname)
+  );
 }

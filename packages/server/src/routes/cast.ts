@@ -14,14 +14,17 @@ import {
   checkFfmpegAvailable,
   probeFile,
   canDirectCast,
+  stopTranscodeSessionsForMedia,
 } from "../utils/ffmpeg.js";
-import { createStreamSessionId } from "../utils/stream-session.js";
-import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
+import { createStreamSessionId, createStreamSessionPrefix } from "../utils/stream-session.js";
+import { appendQueryParam, getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
+import type { AuthService } from "../services/auth.js";
 
 export async function castRoutes(
   app: FastifyInstance,
   db: DatabaseInstance,
   config: AppConfig,
+  auth: AuthService,
 ) {
   app.get("/api/cast/config", async (request) => {
     const castBase = getCastBaseUrl(request, config);
@@ -68,15 +71,22 @@ export async function castRoutes(
     }
 
     const castBase = getCastBaseUrl(request, config);
+    const castToken = auth.createCastToken({
+      fileId,
+      mediaType: type,
+      subtitleId,
+    });
+    const startSeconds = startTimeMs ? Math.max(0, Math.floor(startTimeMs / 1000)) : 0;
     const probe = await probeFile(filePath);
 
     let contentUrl: string;
     let contentType: string;
 
     if (canDirectCast(filePath, probe)) {
-      contentUrl = toAbsoluteUrl(
-        castBase,
-        `/api/stream/${fileId}?type=${type}`,
+      contentUrl = appendQueryParam(
+        toAbsoluteUrl(castBase, `/api/stream/${fileId}?type=${type}`),
+        "castToken",
+        castToken,
       );
       contentType = "video/mp4";
     } else {
@@ -88,11 +98,18 @@ export async function castRoutes(
       }
 
       const castQuality = "720p" as const;
-      const sessionId = createStreamSessionId(type, fileId, castQuality);
+      const sessionId = createStreamSessionId(type, fileId, castQuality, startSeconds);
       const outputDir = path.join(config.transcoding.cache_dir, sessionId);
+      const sessionPrefix = createStreamSessionPrefix(type, fileId, castQuality);
       const sourceHeight = probe?.height ?? null;
 
-      let session = resolveHlsSession(sessionId, outputDir);
+      stopTranscodeSessionsForMedia(
+        config.transcoding.cache_dir,
+        sessionPrefix,
+        sessionId,
+      );
+
+      let session = resolveHlsSession(sessionId, outputDir, startSeconds);
       if (!session) {
         session = startHlsTranscode(
           sessionId,
@@ -101,6 +118,7 @@ export async function castRoutes(
           config.transcoding.hls_segment_duration,
           castQuality,
           sourceHeight,
+          startSeconds,
         );
       }
 
@@ -123,16 +141,18 @@ export async function castRoutes(
         });
       }
 
-      contentUrl = toAbsoluteUrl(
-        castBase,
-        `/api/stream/${fileId}/hls/master.m3u8?type=${type}&quality=${castQuality}&cast=1&base=${encodeURIComponent(castBase)}`,
-      );
+      const masterPath = `/api/stream/${fileId}/hls/master.m3u8?type=${type}&quality=${castQuality}&start=${startSeconds}&cast=1&base=${encodeURIComponent(castBase)}&castToken=${encodeURIComponent(castToken)}`;
+      contentUrl = toAbsoluteUrl(castBase, masterPath);
       contentType = "application/vnd.apple.mpegurl";
     }
 
     let subtitleUrl: string | null = null;
     if (subtitleId) {
-      subtitleUrl = toAbsoluteUrl(castBase, `/api/subtitles/${subtitleId}`);
+      subtitleUrl = appendQueryParam(
+        toAbsoluteUrl(castBase, `/api/subtitles/${subtitleId}`),
+        "castToken",
+        castToken,
+      );
     }
 
     let posterUrl: string | null = null;
@@ -148,7 +168,7 @@ export async function castRoutes(
       title: title ?? path.basename(filePath),
       posterUrl,
       subtitleUrl,
-      startTime: startTimeMs ? startTimeMs / 1000 : 0,
+      startTime: startSeconds,
       castBaseUrl: castBase,
     };
   });

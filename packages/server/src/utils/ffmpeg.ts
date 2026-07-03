@@ -169,6 +169,7 @@ export function startHlsTranscode(
   sourceHeight?: number | null,
   startSeconds = 0,
 ): HlsSession {
+  stopHlsSession(sessionId);
   fs.mkdirSync(outputDir, { recursive: true });
   const playlistPath = `${outputDir}/master.m3u8`;
   const preset = TRANSCODE_PRESETS[quality];
@@ -355,6 +356,21 @@ export function stopHlsSession(sessionId: string): void {
   if (session?.process) {
     session.process.kill("SIGTERM");
     activeSessions.delete(sessionId);
+  }
+}
+
+export function stopTranscodeSessionsForMedia(
+  cacheDir: string,
+  sessionPrefix: string,
+  keepSessionId?: string,
+): void {
+  if (!fs.existsSync(cacheDir)) return;
+
+  for (const entry of fs.readdirSync(cacheDir)) {
+    if (!entry.startsWith(sessionPrefix)) continue;
+    if (entry === keepSessionId) continue;
+    stopHlsSession(entry);
+    clearTranscodeOutput(path.join(cacheDir, entry));
   }
 }
 

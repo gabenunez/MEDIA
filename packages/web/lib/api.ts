@@ -449,13 +449,15 @@ export const api = {
     type: "movie" | "episode",
     quality: StreamQuality = "original",
     startSeconds?: number,
+    cacheKey?: number,
   ) => {
     if (quality === "original") {
       return `${API_BASE}/api/stream/${fileId}?type=${type}`;
     }
     const params = new URLSearchParams({ type, quality });
-    if (startSeconds && startSeconds > 0) {
-      params.set("start", String(Math.floor(startSeconds)));
+    params.set("start", String(Math.floor(Math.max(0, startSeconds ?? 0))));
+    if (cacheKey !== undefined) {
+      params.set("_", String(cacheKey));
     }
     return `${API_BASE}/api/stream/${fileId}/hls/master.m3u8?${params.toString()}`;
   },

@@ -14,7 +14,7 @@ import { streamRoutes, subtitleRoutes } from "./routes/stream.js";
 import { subtitleSearchRoutes } from "./routes/subtitles-search.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { castRoutes } from "./routes/cast.js";
-import { AuthService, isPublicPath } from "./services/auth.js";
+import { AuthService, isCastMediaPath, isPublicPath } from "./services/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { updateRoutes } from "./routes/updates.js";
 
@@ -43,6 +43,16 @@ async function main() {
 
     if (!passwordRequired || isPublicPath(pathname, passwordRequired)) {
       return;
+    }
+
+    if (passwordRequired && isCastMediaPath(pathname)) {
+      const castToken = new URL(
+        request.url,
+        `http://${request.headers.host ?? "localhost"}`,
+      ).searchParams.get("castToken");
+      if (castToken && auth.verifyCastToken(castToken, pathname)) {
+        return;
+      }
     }
 
     if (!auth.isAuthenticated(request)) {
@@ -83,7 +93,7 @@ async function main() {
   await apiRoutes(app, db, config, scanner, metadata);
   await settingsRoutes(app, db, configManager, scanner, metadata);
   await updateRoutes(app);
-  await castRoutes(app, db, config);
+  await castRoutes(app, db, config, auth);
   await streamRoutes(app, db, config);
   await subtitleRoutes(app, db, subtitles);
   await subtitleSearchRoutes(app, db, configManager, subtitles);

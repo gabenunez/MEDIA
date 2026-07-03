@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.19 — 2026-07-03
+
+### Playback
+- **Seek anywhere while transcoding** — jump to any point in the video, not just the buffered range; in-buffer seeks are instant, far seeks restart transcoding at the new position
+- Skip back 10s / forward 30s buttons and arrow-key shortcuts on the watch page
+
+### Chromecast
+- **Cast fix** — signed cast tokens let the TV fetch streams without browser cookies (fixes casting when Reel has a password)
+- HLS cast uses the correct transcode session and resume position; segment URLs carry auth tokens
+- Prefer Mac Wi‑Fi (`en0`) for cast URLs; clearer error messages when cast fails
+
+### In-app updates
+- Release notes render as markdown (headings, lists, bold) instead of raw text
+
 ## 0.1.18 — 2026-07-03
 
 ### Playback

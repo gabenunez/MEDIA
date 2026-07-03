@@ -121,10 +121,8 @@ export interface CastMediaOptions {
 }
 
 const CAST_ERROR_HINTS: Record<string, string> = {
-  session_error:
-    "Chromecast couldn't load the video. Make sure your TV and Mac are on the same Wi-Fi, then allow incoming connections for Node/Reel in System Settings → Network → Firewall.",
   load_media_failed:
-    "Your TV couldn't play this file. Try enabling Transcode in the player, then cast again.",
+    "Your TV couldn't load this video. If you're using a password on Reel, try again after this update — or try a lower quality / Original in the player first.",
   cancel: "Cast cancelled.",
   receiver_unavailable: "No Chromecast device was found.",
   timeout: "Cast timed out. Try again.",
@@ -189,13 +187,6 @@ async function ensureCastSession(): Promise<CastSession> {
 
 export function formatCastError(err: unknown): Error {
   const code = normalizeCastErrorCode(err);
-  if (code && CAST_ERROR_HINTS[code]) {
-    return new Error(CAST_ERROR_HINTS[code]);
-  }
-
-  if (err instanceof Error) {
-    return err.message ? err : new Error("Cast failed");
-  }
 
   if (err && typeof err === "object") {
     const castErr = err as {
@@ -203,12 +194,30 @@ export function formatCastError(err: unknown): Error {
       message?: string;
       code?: string | number;
     };
-    if (castErr.description) {
+    if (castErr.description?.trim()) {
       return new Error(castErr.description);
     }
-    if (castErr.message) {
+    if (castErr.message?.trim()) {
       return new Error(castErr.message);
     }
+  }
+
+  if (code && CAST_ERROR_HINTS[code]) {
+    return new Error(CAST_ERROR_HINTS[code]);
+  }
+
+  if (code === "session_error") {
+    return new Error(
+      "Chromecast couldn't load the video. Check that your TV can reach Reel on your network (same Wi-Fi, firewall allows incoming connections on the Reel port).",
+    );
+  }
+
+  if (err instanceof Error) {
+    return err.message ? err : new Error("Cast failed");
+  }
+
+  if (err && typeof err === "object") {
+    const castErr = err as { code?: string | number };
     if (castErr.code !== undefined) {
       return new Error(`Cast failed (${String(castErr.code)})`);
     }
@@ -262,12 +271,14 @@ export async function castMedia(options: CastMediaOptions): Promise<void> {
       },
     ];
     mediaInfo.textTrackStyle = new chrome.cast.media.TextTrackStyle();
+    mediaInfo.activeTrackIds = [1];
   }
 
   const request = new chrome.cast.media.LoadRequest(mediaInfo);
   if (!isHls && options.startTime && options.startTime > 0) {
     request.currentTime = options.startTime;
   }
+  request.autoplay = true;
 
   try {
     await session.loadMedia(request);

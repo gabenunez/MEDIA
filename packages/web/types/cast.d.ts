@@ -123,6 +123,7 @@ declare global {
 
   interface CastLoadRequest {
     currentTime?: number;
+    autoplay?: boolean;
   }
 
   interface CastTrack {

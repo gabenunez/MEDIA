@@ -14,15 +14,12 @@ import {
   generateHlsPlaylist,
   isTranscodeInProgress,
   waitForFirstSegment,
-  readStartOffset,
-  clearTranscodeOutput,
-  stopHlsSession,
   getHlsSession,
-  listHlsSegments,
+  stopTranscodeSessionsForMedia,
   waitForPlaylist,
   probeFile,
 } from "../utils/ffmpeg.js";
-import { createStreamSessionId } from "../utils/stream-session.js";
+import { createStreamSessionId, createStreamSessionPrefix } from "../utils/stream-session.js";
 import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
 
 interface StreamParams {
@@ -36,6 +33,7 @@ interface StreamQuery {
   cast?: string;
   base?: string;
   start?: string;
+  castToken?: string;
 }
 
 function parseStartSeconds(value?: string): number {
@@ -43,34 +41,6 @@ function parseStartSeconds(value?: string): number {
   const parsed = parseFloat(value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return parsed;
-}
-
-function resetHlsSessionIfOffsetMismatch(
-  sessionId: string,
-  outputDir: string,
-  startSeconds: number,
-): void {
-  if (!fs.existsSync(outputDir)) return;
-
-  const storedOffset = readStartOffset(outputDir);
-  if (Math.abs(storedOffset - startSeconds) <= 5) return;
-
-  stopHlsSession(sessionId);
-  clearTranscodeOutput(outputDir);
-}
-
-function resolveStoredHlsSession(
-  sessionId: string,
-  outputDir: string,
-): ReturnType<typeof getHlsSession> {
-  const active = getHlsSession(sessionId);
-  if (active) return active;
-
-  if (!fs.existsSync(outputDir) || listHlsSegments(outputDir).length === 0) {
-    return undefined;
-  }
-
-  return resolveHlsSession(sessionId, outputDir, readStartOffset(outputDir));
 }
 
 export async function streamRoutes(
@@ -255,11 +225,16 @@ export async function streamRoutes(
         });
       }
 
-      const sessionId = createStreamSessionId(type, fileId, quality);
-      const outputDir = path.join(config.transcoding.cache_dir, sessionId);
       const startSeconds = parseStartSeconds(request.query.start);
+      const sessionId = createStreamSessionId(type, fileId, quality, startSeconds);
+      const outputDir = path.join(config.transcoding.cache_dir, sessionId);
+      const sessionPrefix = createStreamSessionPrefix(type, fileId, quality);
 
-      resetHlsSessionIfOffsetMismatch(sessionId, outputDir, startSeconds);
+      stopTranscodeSessionsForMedia(
+        config.transcoding.cache_dir,
+        sessionPrefix,
+        sessionId,
+      );
 
       let session = resolveHlsSession(sessionId, outputDir, startSeconds);
 
@@ -302,11 +277,15 @@ export async function streamRoutes(
             ? decodeURIComponent(request.query.base)
             : getCastBaseUrl(request, config))
         : "";
+      const castToken = request.query.castToken;
+      const tokenSuffix = castToken
+        ? `&castToken=${encodeURIComponent(castToken)}`
+        : "";
 
       const rewritten = playlist.replace(
         /segment_\d+\.ts/g,
         (match) => {
-          const segmentPath = `/api/stream/${fileId}/hls/${match}?type=${type}&quality=${quality}`;
+          const segmentPath = `/api/stream/${fileId}/hls/${match}?type=${type}&quality=${quality}&start=${Math.floor(startSeconds)}${tokenSuffix}`;
           return useAbsolute ? toAbsoluteUrl(baseUrl, segmentPath) : segmentPath;
         },
       );
@@ -326,10 +305,13 @@ export async function streamRoutes(
       const fileId = parseInt(request.params.fileId, 10);
       const type = request.query.type ?? "movie";
       const quality = parseTranscodeQuality(request.query.quality) ?? "720p";
-      const sessionId = createStreamSessionId(type, fileId, quality);
+      const startSeconds = parseStartSeconds(request.query.start);
+      const sessionId = createStreamSessionId(type, fileId, quality, startSeconds);
       const outputDir = path.join(config.transcoding.cache_dir, sessionId);
 
-      const session = resolveStoredHlsSession(sessionId, outputDir);
+      const session =
+        getHlsSession(sessionId) ??
+        resolveHlsSession(sessionId, outputDir, startSeconds);
       if (!session) {
         return reply.status(404).send({ error: "HLS session not found" });
       }

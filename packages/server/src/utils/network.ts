@@ -30,6 +30,8 @@ export function getLanBaseUrl(port: number): string {
   }
 
   const preferred =
+    candidates.find(({ name, address }) => name === "en0" && isPrivateIpv4(address)) ??
+    candidates.find(({ name, address }) => /^en\d+$/i.test(name) && isPrivateIpv4(address)) ??
     candidates.find(({ address }) => isPrivateIpv4(address)) ??
     candidates.find(({ name }) => /^(en|eth|wlan|wifi)/i.test(name)) ??
     candidates[0];
@@ -67,4 +69,14 @@ export function toAbsoluteUrl(baseUrl: string, path: string): string {
     return path;
   }
   return `${baseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export function appendQueryParam(
+  url: string,
+  key: string,
+  value: string,
+): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set(key, value);
+  return parsed.toString();
 }

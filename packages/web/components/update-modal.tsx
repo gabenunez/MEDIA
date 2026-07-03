@@ -9,9 +9,10 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatReleaseDate, previewReleaseNotes } from "@/lib/update-utils";
+import { formatReleaseDate } from "@/lib/update-utils";
 import { useUpdateStatus } from "@/components/update-status-provider";
 import { UpdateProgressPanel } from "@/components/update-progress-panel";
+import { ReleaseNotes } from "@/components/release-notes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +43,6 @@ export function UpdateModal() {
   if (!modalOpen) return null;
 
   const releaseDate = formatReleaseDate(status?.publishedAt ?? null);
-  const notesPreview = previewReleaseNotes(status?.releaseNotes ?? null);
   const showProgress = Boolean(status?.updateInProgress && status.updateProgress);
 
   return (
@@ -111,11 +111,7 @@ export function UpdateModal() {
                 <p className="text-sm font-medium">{status.latestReleaseName}</p>
               )}
 
-              {notesPreview && (
-                <pre className="whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-                  {notesPreview}
-                </pre>
-              )}
+              <ReleaseNotes notes={status?.releaseNotes ?? null} />
 
               {status?.updateAvailable && !status.updateInProgress && (
                 <div className="flex flex-wrap gap-2">

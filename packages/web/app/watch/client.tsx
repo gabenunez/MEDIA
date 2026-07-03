@@ -12,6 +12,8 @@ import {
   Minimize,
   Pause,
   Play,
+  SkipBack,
+  SkipForward,
   Subtitles,
   Settings2,
   Volume1,
@@ -154,11 +156,13 @@ export function WatchClient() {
   const hlsRef = useRef<Hls | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resumeTimeRef = useRef(0);
+  const saveProgressRef = useRef<() => void>(() => {});
+  const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const volumeBeforeMuteRef = useRef(1);
 
   const [quality, setQuality] = useState<StreamQuality>("original");
   const [hlsStartOffset, setHlsStartOffset] = useState(0);
+  const [streamStartSeconds, setStreamStartSeconds] = useState<number | null>(null);
   const [sourceDurationMs, setSourceDurationMs] = useState(0);
   const [streamGeneration, setStreamGeneration] = useState(0);
   const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
@@ -265,6 +269,13 @@ export function WatchClient() {
       durationMs,
     }).catch(() => {});
   }, [fileId, type, quality, hlsStartOffset, sourceDurationMs]);
+
+  saveProgressRef.current = saveProgress;
+
+  useEffect(() => {
+    setStreamStartSeconds(null);
+    setStreamGeneration(0);
+  }, [fileId, type]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
@@ -383,12 +394,16 @@ export function WatchClient() {
     setBufferedSeconds(0);
 
     if (hlsRef.current) {
+      hlsRef.current.stopLoad();
+      hlsRef.current.detachMedia();
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
 
-    const startAt = resumeTimeRef.current || initialResumeSeconds;
-    resumeTimeRef.current = 0;
+    video.removeAttribute("src");
+    video.load();
+
+    const startAt = streamStartSeconds ?? initialResumeSeconds ?? 0;
     const usingHls = quality !== "original";
 
     if (usingHls) {
@@ -397,11 +412,16 @@ export function WatchClient() {
       setHlsStartOffset(0);
     }
 
+    video.pause();
+    video.currentTime = 0;
+    setCurrentTime(0);
+
     const url = api.streamUrl(
       fileId,
       type === "movie" ? "movie" : "episode",
       quality,
       usingHls ? startAt : undefined,
+      streamGeneration,
     );
 
     const applyResume = () => {
@@ -445,15 +465,15 @@ export function WatchClient() {
       video.play().catch(() => {});
     }
 
-    progressInterval.current = setInterval(saveProgress, PROGRESS_SAVE_MS);
+    progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
       video.onloadedmetadata = null;
       if (hlsRef.current) hlsRef.current.destroy();
       if (progressInterval.current) clearInterval(progressInterval.current);
-      saveProgress();
+      saveProgressRef.current();
     };
-  }, [fileId, type, quality, streamGeneration, saveProgress, initialResumeSeconds]);
+  }, [fileId, type, quality, streamGeneration, streamStartSeconds, initialResumeSeconds]);
 
   useEffect(() => {
     const onPageHide = () => saveProgress();
@@ -464,12 +484,14 @@ export function WatchClient() {
   const changeQuality = useCallback(
     (nextQuality: StreamQuality) => {
       const video = videoRef.current;
-      if (video && video.currentTime > 0) {
+      if (video) {
         const absoluteTime =
           quality !== "original"
             ? hlsStartOffset + video.currentTime
             : video.currentTime;
-        resumeTimeRef.current = absoluteTime;
+        if (absoluteTime > 0) {
+          setStreamStartSeconds(absoluteTime);
+        }
       }
       setQuality(nextQuality);
       setQualityMenuOpen(false);
@@ -599,17 +621,78 @@ export function WatchClient() {
   const absoluteCurrentTime =
     quality !== "original" ? hlsStartOffset + currentTime : currentTime;
   const absoluteDurationMs = sourceDurationMs || duration * 1000;
+  const totalDurationSeconds =
+    absoluteDurationMs > 0 ? absoluteDurationMs / 1000 : 0;
   const progress =
     absoluteDurationMs > 0 ? (absoluteCurrentTime * 1000) / absoluteDurationMs * 100 : 0;
   const displayedProgress = scrubPreview ?? progress;
   const displayedAbsoluteTime =
     scrubPreview !== null && absoluteDurationMs > 0
-      ? (scrubPreview / 100) * (absoluteDurationMs / 1000)
+      ? (scrubPreview / 100) * totalDurationSeconds
       : absoluteCurrentTime;
   const bufferedPercent =
     absoluteDurationMs > 0
       ? Math.min(100, (bufferedSeconds * 1000) / absoluteDurationMs * 100)
       : 0;
+
+  const seekToAbsolute = useCallback(
+    (targetSeconds: number) => {
+      const video = videoRef.current;
+      if (!video || !totalDurationSeconds) return;
+
+      const clamped = Math.max(0, Math.min(targetSeconds, totalDurationSeconds));
+
+      if (quality === "original") {
+        video.currentTime = clamped;
+        setScrubPreview(null);
+        revealControls(true);
+        return;
+      }
+
+      const relativeTarget = clamped - hlsStartOffset;
+      const bufferedRelative = Math.max(0, bufferedSeconds - hlsStartOffset);
+      const canSeekInBuffer =
+        relativeTarget >= 0 && relativeTarget <= bufferedRelative + 0.5;
+
+      if (canSeekInBuffer && video.readyState >= 1) {
+        video.currentTime = relativeTarget;
+        setCurrentTime(relativeTarget);
+        setScrubPreview(null);
+        revealControls(true);
+        return;
+      }
+
+      setScrubPreview(null);
+      setStreamStartSeconds(clamped);
+      setStreamGeneration((current) => current + 1);
+      setBuffering(true);
+      revealControls(true);
+    },
+    [
+      totalDurationSeconds,
+      quality,
+      hlsStartOffset,
+      bufferedSeconds,
+      revealControls,
+    ],
+  );
+
+  seekToAbsoluteRef.current = seekToAbsolute;
+
+  const seekToPercent = useCallback(
+    (percent: number) => {
+      if (!totalDurationSeconds) return;
+      seekToAbsolute((percent / 100) * totalDurationSeconds);
+    },
+    [totalDurationSeconds, seekToAbsolute],
+  );
+
+  const skipRelative = useCallback(
+    (deltaSeconds: number) => {
+      seekToAbsolute(absoluteCurrentTime + deltaSeconds);
+    },
+    [absoluteCurrentTime, seekToAbsolute],
+  );
   const isPreparing = initialResumeSeconds === null;
   const showLoadingOverlay = (isPreparing || buffering) && !error;
   const loadingMessage = isPreparing
@@ -633,7 +716,6 @@ export function WatchClient() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
       const target = e.target as HTMLElement;
       if (
         target.tagName === "INPUT" ||
@@ -643,13 +725,28 @@ export function WatchClient() {
       ) {
         return;
       }
-      e.preventDefault();
-      togglePlay();
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        seekToAbsoluteRef.current(absoluteCurrentTime + 10);
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        seekToAbsoluteRef.current(Math.max(0, absoluteCurrentTime - 10));
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay]);
+  }, [togglePlay, absoluteCurrentTime]);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -660,38 +757,17 @@ export function WatchClient() {
     }
   };
 
-  const seek = (value: number) => {
-    const video = videoRef.current;
-    if (!video || !absoluteDurationMs) return;
-
-    const targetSeconds = (value / 100) * (absoluteDurationMs / 1000);
-
-    if (quality !== "original") {
-      resumeTimeRef.current = targetSeconds;
-      setStreamGeneration((current) => current + 1);
-    } else {
-      video.currentTime = targetSeconds;
-    }
-    revealControls(true);
-  };
-
   const handleScrubChange = (value: number) => {
     setScrubPreview(value);
     if (quality === "original") {
-      seek(value);
+      seekToPercent(value);
     } else {
       revealControls(true);
     }
   };
 
   const handleScrubCommit = (value: number) => {
-    setScrubPreview(null);
-    if (quality !== "original") {
-      const targetSeconds = (value / 100) * (absoluteDurationMs / 1000);
-      if (Math.abs(targetSeconds - absoluteCurrentTime) > 2) {
-        seek(value);
-      }
-    }
+    seekToPercent(value);
   };
 
   if (!fileId || Number.isNaN(fileId)) {
@@ -812,6 +888,9 @@ export function WatchClient() {
                   onPointerUp={(e) =>
                     handleScrubCommit(parseFloat((e.currentTarget as HTMLInputElement).value))
                   }
+                  onMouseUp={(e) =>
+                    handleScrubCommit(parseFloat((e.currentTarget as HTMLInputElement).value))
+                  }
                   onTouchEnd={(e) =>
                     handleScrubCommit(parseFloat((e.currentTarget as HTMLInputElement).value))
                   }
@@ -826,6 +905,15 @@ export function WatchClient() {
                   variant="ghost"
                   size="icon"
                   className="text-white hover:bg-white/10"
+                  onClick={() => skipRelative(-10)}
+                  title="Back 10 seconds"
+                >
+                  <SkipBack className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/10"
                   onClick={togglePlay}
                 >
                   {isPlaying ? (
@@ -833,6 +921,15 @@ export function WatchClient() {
                   ) : (
                     <Play className="h-5 w-5" />
                   )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/10"
+                  onClick={() => skipRelative(30)}
+                  title="Forward 30 seconds"
+                >
+                  <SkipForward className="h-5 w-5" />
                 </Button>
 
                 <span className="hidden min-w-[5.5rem] text-sm tabular-nums text-white/80 sm:inline">

@@ -9,9 +9,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatReleaseDate, previewReleaseNotes } from "@/lib/update-utils";
+import { formatReleaseDate } from "@/lib/update-utils";
 import { useUpdateStatus } from "@/components/update-status-provider";
 import { UpdateProgressPanel } from "@/components/update-progress-panel";
+import { ReleaseNotes } from "@/components/release-notes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,6 @@ export function UpdateManager() {
   };
 
   const releaseDate = formatReleaseDate(status?.publishedAt ?? null);
-  const notesPreview = previewReleaseNotes(status?.releaseNotes ?? null, 4);
 
   useEffect(() => {
     void refresh(true);
@@ -114,11 +114,7 @@ export function UpdateManager() {
                   Update available: v{status.latestVersion}
                   {status.latestReleaseName ? ` — ${status.latestReleaseName}` : ""}
                 </p>
-                {notesPreview && (
-                  <pre className="mt-3 whitespace-pre-wrap rounded bg-background/60 p-3 text-xs text-muted-foreground">
-                    {notesPreview}
-                  </pre>
-                )}
+                <ReleaseNotes notes={status.releaseNotes ?? null} maxLines={4} className="mt-3 bg-background/60" />
                 <div className="mt-4 flex flex-wrap gap-2">
                   {status.updateSupported ? (
                     <Button onClick={handleApply} disabled={applying}>
