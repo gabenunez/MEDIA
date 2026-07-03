@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Clapperboard, Film, Home, Settings, Tv } from "lucide-react";
+import { Film, Home, Settings, Tv } from "lucide-react";
+import { ReelIcon } from "@/components/reel-icon";
 import type { LucideIcon } from "lucide-react";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { SearchPopover } from "@/components/search-popover";
@@ -63,9 +64,7 @@ export function Navbar() {
           href="/"
           className="group flex shrink-0 items-center gap-2.5 rounded-lg outline-none ring-primary/40 focus-visible:ring-2"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/25 transition-all group-hover:bg-primary/15 group-hover:ring-primary/40">
-            <Clapperboard className="h-4 w-4 text-primary transition-transform group-hover:-rotate-6" />
-          </div>
+          <ReelIcon className="h-9 w-9 transition-transform group-hover:-rotate-6" />
           <div className="leading-none">
             <span className="block text-base font-semibold tracking-tight">Reel</span>
           </div>

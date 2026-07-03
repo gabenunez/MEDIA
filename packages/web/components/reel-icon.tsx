@@ -1,0 +1,23 @@
+import { cn } from "@/lib/utils";
+
+export function ReelIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 32 32"
+      fill="none"
+      className={cn("shrink-0", className)}
+      aria-hidden
+    >
+      <rect width="32" height="32" rx="7" fill="#0c1415" />
+      <circle cx="16" cy="16" r="10" stroke="#2fffe5" strokeWidth="2.2" />
+      <circle cx="16" cy="16" r="3" fill="#2fffe5" />
+      <circle cx="16" cy="8.5" r="1.6" fill="#2fffe5" />
+      <circle cx="16" cy="23.5" r="1.6" fill="#2fffe5" />
+      <circle cx="9.5" cy="12" r="1.6" fill="#2fffe5" />
+      <circle cx="22.5" cy="12" r="1.6" fill="#2fffe5" />
+      <circle cx="9.5" cy="20" r="1.6" fill="#2fffe5" />
+      <circle cx="22.5" cy="20" r="1.6" fill="#2fffe5" />
+    </svg>
+  );
+}

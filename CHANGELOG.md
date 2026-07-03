@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.22 — 2026-07-03
+
+### UI
+- **App icon** — navbar and login screen use the same film-reel icon as the favicon
+
 ## 0.1.21 — 2026-07-03
 
 ### Docs
