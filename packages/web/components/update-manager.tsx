@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpCircle,
   CheckCircle2,
@@ -41,6 +41,10 @@ export function UpdateManager() {
 
   const releaseDate = formatReleaseDate(status?.publishedAt ?? null);
   const notesPreview = previewReleaseNotes(status?.releaseNotes ?? null, 4);
+
+  useEffect(() => {
+    void refresh(true);
+  }, [refresh]);
 
   return (
     <Card>

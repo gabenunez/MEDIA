@@ -51,9 +51,11 @@ export function UpdateStatusProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let timeout: ReturnType<typeof setTimeout>;
+    let firstPoll = true;
 
     const poll = async () => {
-      const next = await refresh();
+      const next = await refresh(firstPoll);
+      firstPoll = false;
       if (cancelled) return;
 
       const updating = Boolean(next?.updateInProgress);

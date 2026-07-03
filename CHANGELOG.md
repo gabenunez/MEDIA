@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7 — 2026-07-03
+
+### In-app updates
+- **Automatic update checks** on app load and when opening Settings — no need to press Check for updates
+
 ## 0.1.6 — 2026-07-03
 
 ### UI
