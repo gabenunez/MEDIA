@@ -8,6 +8,7 @@ import { PosterCard } from "@/components/poster-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, LibraryBig } from "lucide-react";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 export function LibraryClient() {
   const searchParams = useSearchParams();
@@ -22,6 +23,8 @@ export function LibraryClient() {
 
   const isDeck = !Number.isNaN(deckId) && deckId > 0;
   const isLibrary = !Number.isNaN(libraryId) && libraryId > 0;
+
+  useDocumentTitle(isDeck || isLibrary ? title : null);
 
   useEffect(() => {
     setPage(1);

@@ -13,6 +13,7 @@ import {
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { useScanStatus } from "@/components/scan-status-provider";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import { ContinueWatchingRow, MediaRow } from "@/components/media-row";
 import { ScanProgressBanner } from "@/components/scan-progress";
 import { HomeHeroStatic, HomeSectionHeading } from "@/components/home-shell";
@@ -23,6 +24,7 @@ import { LibraryIcon } from "@/components/navbar";
 import { cn } from "@/lib/utils";
 
 export function HomeClient() {
+  useDocumentTitle("Home");
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getHome>> | null>(
     null,
   );

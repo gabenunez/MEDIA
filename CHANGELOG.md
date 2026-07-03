@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.20 — 2026-07-03
+
+### UI
+- **Favicon** — Reel film-reel icon in the browser tab
+- **Dynamic page titles** — tab title updates per page (e.g. movie/show name while watching, library name when browsing)
+
 ## 0.1.19 — 2026-07-03
 
 ### Playback

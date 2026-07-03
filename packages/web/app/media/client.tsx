@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaRow } from "@/components/media-row";
 import { formatDuration } from "@/lib/utils";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 interface MovieFile {
   id: number;
@@ -55,6 +56,8 @@ export function MediaClient() {
   const [related, setRelated] = useState<MediaItem[]>([]);
   const [selectedSeason, setSelectedSeason] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  useDocumentTitle(media?.title ?? null);
 
   useEffect(() => {
     if (!mediaId || Number.isNaN(mediaId)) return;

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 interface SubtitleTrack {
   id: number;
@@ -198,6 +199,8 @@ export function WatchClient() {
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [playbackNotice, setPlaybackNotice] = useState<string | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
+
+  useDocumentTitle(title || null);
 
   const revealControls = useCallback((autoHide = true) => {
     setShowControls(true);

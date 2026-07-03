@@ -21,8 +21,10 @@ import { LibraryManager } from "@/components/library-manager";
 import { DeckManager } from "@/components/deck-manager";
 import { UpdateManager } from "@/components/update-manager";
 import { SettingsSection } from "@/components/settings-shell";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 export function SettingsClient() {
+  useDocumentTitle("Settings");
   const { logout, refresh: refreshAuth } = useAuth();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
