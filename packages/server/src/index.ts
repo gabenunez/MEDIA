@@ -132,9 +132,13 @@ async function main() {
     app.log.info({ removed }, "Pruned stale transcode cache directories");
   }
   setInterval(() => {
-    const count = pruneStaleTranscodeCache(config.transcoding.cache_dir, 60 * 60 * 1000);
-    if (count > 0) {
-      app.log.info({ removed: count }, "Pruned stale transcode cache directories");
+    try {
+      const count = pruneStaleTranscodeCache(config.transcoding.cache_dir, 60 * 60 * 1000);
+      if (count > 0) {
+        app.log.info({ removed: count }, "Pruned stale transcode cache directories");
+      }
+    } catch (err) {
+      app.log.error(err, "Failed to prune stale transcode cache");
     }
   }, 60 * 60 * 1000);
 

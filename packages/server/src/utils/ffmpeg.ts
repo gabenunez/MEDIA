@@ -201,9 +201,87 @@ export function clearTranscodeOutput(outputDir: string): void {
   }
 }
 
-export function removeTranscodeDir(outputDir: string): void {
-  if (!fs.existsSync(outputDir)) return;
-  fs.rmSync(outputDir, { recursive: true, force: true });
+function sleepMs(ms: number): void {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    // Allow FFmpeg to release file handles before retrying removal.
+  }
+}
+
+function killFfmpegInDir(outputDir: string): void {
+  try {
+    const stdout = execSync("pgrep -af ffmpeg || true", { encoding: "utf8" });
+    for (const line of stdout.split("\n")) {
+      if (!line.includes(outputDir)) continue;
+      const pid = parseInt(line.trim().split(/\s+/)[0] ?? "", 10);
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+        // process already exited
+      }
+    }
+  } catch {
+    // pgrep unavailable
+  }
+}
+
+function removeTranscodeDirContents(dir: string): void {
+  for (const entry of fs.readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(full);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      removeTranscodeDirContents(full);
+      try {
+        fs.rmdirSync(full);
+      } catch {
+        fs.rmSync(full, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
+      }
+    } else {
+      try {
+        fs.unlinkSync(full);
+      } catch {
+        // ignore busy files; outer retries will try again
+      }
+    }
+  }
+}
+
+/** Best-effort cache cleanup — never throws (transcode cleanup must not crash the server). */
+export function removeTranscodeDir(outputDir: string): boolean {
+  if (!fs.existsSync(outputDir)) return true;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) {
+      killFfmpegInDir(outputDir);
+      sleepMs(150 * attempt);
+    }
+
+    try {
+      fs.rmSync(outputDir, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 100,
+      });
+      return !fs.existsSync(outputDir);
+    } catch {
+      try {
+        removeTranscodeDirContents(outputDir);
+        fs.rmdirSync(outputDir);
+        return true;
+      } catch {
+        // retry outer loop
+      }
+    }
+  }
+
+  return !fs.existsSync(outputDir);
 }
 
 export function startHlsTranscode(
@@ -516,6 +594,7 @@ export function stopHlsSession(sessionId: string): void {
   if (!session) return;
   session.process?.kill("SIGTERM");
   activeSessions.delete(sessionId);
+  killFfmpegInDir(session.outputDir);
   removeTranscodeDir(session.outputDir);
 }
 
@@ -530,7 +609,6 @@ export function stopTranscodeSessionsForMedia(
     if (!entry.startsWith(sessionPrefix)) continue;
     if (entry === keepSessionId) continue;
     stopHlsSession(entry);
-    removeTranscodeDir(path.join(cacheDir, entry));
   }
 }
 
@@ -601,7 +679,11 @@ export function cleanupIdleSessions(maxIdleMs = IDLE_SESSION_MS): void {
   const now = Date.now();
   for (const [id, session] of activeSessions) {
     if (now - session.lastAccess > maxIdleMs) {
-      stopHlsSession(id);
+      try {
+        stopHlsSession(id);
+      } catch (err) {
+        console.warn(`Failed to stop idle transcode session ${id}:`, err);
+      }
     }
   }
 }
@@ -630,14 +712,21 @@ export function pruneStaleTranscodeCache(
     if (activeDirs.has(outputDir)) continue;
     if (stat.mtimeMs > cutoff) continue;
 
-    removeTranscodeDir(outputDir);
-    removed++;
+    if (removeTranscodeDir(outputDir)) {
+      removed++;
+    }
   }
 
   return removed;
 }
 
-setInterval(() => cleanupIdleSessions(), 60_000);
+setInterval(() => {
+  try {
+    cleanupIdleSessions();
+  } catch (err) {
+    console.warn("Idle transcode session cleanup failed:", err);
+  }
+}, 60_000);
 
 export async function waitForFirstSegment(
   outputDir: string,

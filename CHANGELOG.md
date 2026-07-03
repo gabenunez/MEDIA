@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.39 — 2026-07-03
+
+### Stability
+- **Transcode cache cleanup** — removing HLS cache directories no longer crashes the server on `ENOTEMPTY`; kills orphan FFmpeg, retries removal, and isolates cleanup timer failures
+
 ## 0.1.38 — 2026-07-03
 
 ### UI
