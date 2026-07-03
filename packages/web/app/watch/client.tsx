@@ -54,6 +54,7 @@ function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): str
 }
 
 const VOLUME_STORAGE_KEY = "reel:volume";
+const PROGRESS_SAVE_MS = 10_000;
 
 interface TvEpisodeSummary {
   id: number;
@@ -207,7 +208,13 @@ export function WatchClient() {
 
   const saveProgress = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !video.duration || !fileId) return;
+    if (!video || !fileId) return;
+
+    const durationMs = Math.floor(
+      sourceDurationMs || (video.duration ? video.duration * 1000 : 0),
+    );
+    if (!durationMs) return;
+
     const positionSeconds =
       quality !== "original"
         ? hlsStartOffset + video.currentTime
@@ -216,7 +223,7 @@ export function WatchClient() {
       itemType: type === "movie" ? "movie" : "episode",
       itemId: fileId,
       positionMs: Math.floor(positionSeconds * 1000),
-      durationMs: Math.floor((sourceDurationMs || video.duration * 1000)),
+      durationMs,
     }).catch(() => {});
   }, [fileId, type, quality, hlsStartOffset, sourceDurationMs]);
 
@@ -377,7 +384,7 @@ export function WatchClient() {
       video.play().catch(() => {});
     }
 
-    progressInterval.current = setInterval(saveProgress, 10000);
+    progressInterval.current = setInterval(saveProgress, PROGRESS_SAVE_MS);
 
     return () => {
       video.onloadedmetadata = null;
@@ -386,6 +393,12 @@ export function WatchClient() {
       saveProgress();
     };
   }, [fileId, type, quality, streamGeneration, saveProgress, initialResumeSeconds]);
+
+  useEffect(() => {
+    const onPageHide = () => saveProgress();
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [saveProgress]);
 
   const changeQuality = useCallback(
     (nextQuality: StreamQuality) => {
@@ -415,6 +428,7 @@ export function WatchClient() {
     const onPause = () => {
       setIsPlaying(false);
       revealControls(false);
+      saveProgress();
     };
     const onTimeUpdate = () => setCurrentTime(video.currentTime);
     const onDurationChange = () => setDuration(video.duration || 0);
@@ -433,7 +447,7 @@ export function WatchClient() {
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
     };
-  }, [revealControls]);
+  }, [revealControls, saveProgress]);
 
   useEffect(() => {
     const onFullscreenChange = () => {

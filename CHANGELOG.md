@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.15 — 2026-07-03
+
+### Playback
+- Watch progress saves every **10 seconds** while playing
+- Also saves on **pause** and when leaving the page
+- More reliable saves when duration comes from stream info (HLS/transcoding)
+
+### In-app updates
+- Update script resets local changes before checking out a release tag on the server
+
 ## 0.1.14 — 2026-07-03
 
 ### UI
