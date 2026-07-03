@@ -118,7 +118,7 @@ export function LibraryManager({
       </div>
 
       {showForm && (
-        <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
+        <div className="rounded-md border border-primary/35 bg-primary/10 p-5">
           <h3 className="mb-4 font-medium">
             {editing ? "Edit Library" : "New Library"}
           </h3>
@@ -165,7 +165,7 @@ export function LibraryManager({
             <div className="flex gap-2">
               <Button onClick={handleSave} disabled={saving || !name.trim() || !path.trim()}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {editing ? "Save changes" : "Add & scan"}
+                {editing ? "Save changes" : "Add and scan"}
               </Button>
               <Button variant="outline" onClick={resetForm}>
                 Cancel
@@ -180,8 +180,8 @@ export function LibraryManager({
           <div
             key={lib.id}
             className={cn(
-              "rounded-xl border border-border p-4",
-              !lib.pathExists && "border-yellow-500/30 bg-yellow-500/5",
+              "rounded-md border border-border/80 bg-background/35 p-4",
+              !lib.pathExists && "border-amber-400/35 bg-amber-400/10",
             )}
           >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -195,15 +195,15 @@ export function LibraryManager({
                   <p className="font-medium">{lib.name}</p>
                 </div>
                 <p className="mt-1 truncate text-sm text-muted-foreground">{lib.path}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {lib.type === "movies" ? "Movies" : "TV Shows"} · {lib.itemCount ?? 0} items
+                  <p className="mt-1 text-xs text-muted-foreground">
+                  {lib.type === "movies" ? "Movies" : "TV Shows"} / {lib.itemCount ?? 0} items
                   {lib.lastScannedAt &&
-                    ` · Last scanned ${new Date(lib.lastScannedAt).toLocaleString()}`}
+                    ` / Last scanned ${new Date(lib.lastScannedAt).toLocaleString()}`}
                 </p>
                 {!lib.pathExists && (
-                  <p className="mt-2 flex items-center gap-1.5 text-xs text-yellow-400">
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-300">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    Folder not found — update the path
+                    Folder not found - update the path
                   </p>
                 )}
               </div>
@@ -243,7 +243,7 @@ export function LibraryManager({
         ))}
 
         {!libraries.length && !showForm && (
-          <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
+          <div className="rounded-md border border-dashed border-border px-6 py-10 text-center">
             <FolderPlus className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
             <p className="mb-1 font-medium">No libraries yet</p>
             <p className="mb-4 text-sm text-muted-foreground">

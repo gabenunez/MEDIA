@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Film, Home, Search, Settings, Tv } from "lucide-react";
+import { Clapperboard, Film, Home, Search, Settings, Tv } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -19,15 +19,19 @@ export function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 glass border-b border-border">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Film className="h-5 w-5 text-primary-foreground" />
+    <header className="sticky top-0 z-50 border-b border-border/80 glass">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+        <Link href="/" className="group flex items-center gap-3">
+          <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-primary/40 bg-background shadow-[0_0_28px_hsl(var(--primary)/0.18)]">
+            <div className="absolute inset-y-0 left-0 w-1 bg-primary" />
+            <Clapperboard className="h-5 w-5 text-primary transition-transform group-hover:-rotate-6" />
           </div>
-          <span className="text-xl font-bold tracking-tight">
-            Reel<span className="text-primary">.</span>
-          </span>
+          <div className="leading-none">
+            <span className="block text-lg font-bold">Reel</span>
+            <span className="hidden font-mono text-[0.62rem] uppercase text-muted-foreground sm:block">
+              Local signal
+            </span>
+          </div>
         </Link>
 
         <nav className="flex items-center gap-1">
@@ -36,14 +40,17 @@ export function Navbar() {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
                 pathname === href
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  ? "bg-primary/[0.12] text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               <Icon className="h-4 w-4" />
               <span className="hidden sm:inline">{label}</span>
+              {pathname === href && (
+                <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
+              )}
             </Link>
           ))}
         </nav>

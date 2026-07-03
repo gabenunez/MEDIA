@@ -297,7 +297,7 @@ export function WatchClient() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-40 bg-black"
+      className="fixed inset-0 z-40 bg-background"
       onMouseMove={() => revealControls(true)}
       onTouchStart={() => revealControls(true)}
     >
@@ -326,118 +326,137 @@ export function WatchClient() {
           showControls ? "opacity-100" : "opacity-0",
         )}
       >
-        <div className="pointer-events-auto bg-gradient-to-b from-black/90 via-black/40 to-transparent px-4 pb-8 pt-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" asChild>
+        <div className="pointer-events-auto bg-gradient-to-b from-background/95 via-background/45 to-transparent px-3 pb-8 pt-3 sm:px-4">
+          <div className="mx-auto flex max-w-7xl items-center gap-3 rounded-md border border-white/10 bg-background/65 px-2 py-2 backdrop-blur">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/10"
+              asChild
+            >
               <Link href={mediaId ? routes.media(parseInt(mediaId, 10)) : "/"}>
                 <ArrowLeft className="h-5 w-5" />
               </Link>
             </Button>
-            <h1 className="truncate text-lg font-medium text-white">{title}</h1>
+            <div className="min-w-0">
+              <p className="font-mono text-[0.62rem] uppercase text-primary">
+                Now playing
+              </p>
+              <h1 className="truncate text-base font-medium text-white sm:text-lg">
+                {title}
+              </h1>
+            </div>
           </div>
         </div>
 
-        <div className="pointer-events-auto bg-gradient-to-t from-black/90 via-black/40 to-transparent px-4 pb-4 pt-10">
-          <div className="mb-3 flex items-center gap-3">
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={0.1}
-              value={progress}
-              onChange={(e) => seek(parseFloat(e.target.value))}
-              className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/25 accent-primary [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/10"
-                onClick={togglePlay}
-              >
-                {isPlaying ? (
-                  <Pause className="h-5 w-5" />
-                ) : (
-                  <Play className="h-5 w-5" />
-                )}
-              </Button>
-
-              <span className="min-w-[5.5rem] text-sm tabular-nums text-white/80">
-                {formatDuration(currentTime * 1000)} / {formatDuration(duration * 1000)}
-              </span>
+        <div className="pointer-events-auto bg-gradient-to-t from-background/95 via-background/45 to-transparent px-3 pb-3 pt-10 sm:px-4 sm:pb-4">
+          <div className="mx-auto max-w-7xl rounded-md border border-white/10 bg-background/75 p-3 backdrop-blur">
+            <div className="mb-3 flex items-center gap-3">
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={0.1}
+                value={progress}
+                onChange={(e) => seek(parseFloat(e.target.value))}
+                className="range-signal h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-white/20 accent-primary"
+              />
             </div>
 
-            <div className="flex items-center gap-1">
-              {subtitles.length > 0 && (
-                <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-white/10"
-                    onClick={() => setSubtitleMenuOpen((open) => !open)}
-                  >
-                    <Subtitles className="h-4 w-4" />
-                  </Button>
-                  {subtitleMenuOpen && (
-                    <div className="absolute bottom-full right-0 mb-2 min-w-32 rounded-lg border border-border bg-card p-1 shadow-xl">
-                      <button
-                        className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-secondary"
-                        onClick={() => {
-                          setActiveSubtitle(null);
-                          setSubtitleMenuOpen(false);
-                        }}
-                      >
-                        Off
-                      </button>
-                      {subtitles.map((sub) => (
+            <div className="flex items-center justify-between gap-2 sm:gap-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/10"
+                  onClick={togglePlay}
+                >
+                  {isPlaying ? (
+                    <Pause className="h-5 w-5" />
+                  ) : (
+                    <Play className="h-5 w-5" />
+                  )}
+                </Button>
+
+                <span className="hidden min-w-[5.5rem] text-sm tabular-nums text-white/80 sm:inline">
+                  {formatDuration(currentTime * 1000)} /{" "}
+                  {formatDuration(duration * 1000)}
+                </span>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1">
+                {subtitles.length > 0 && (
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:bg-white/10"
+                      onClick={() => setSubtitleMenuOpen((open) => !open)}
+                    >
+                      <Subtitles className="h-4 w-4" />
+                    </Button>
+                    {subtitleMenuOpen && (
+                      <div className="absolute bottom-full right-0 mb-2 min-w-32 rounded-md border border-border bg-card p-1 shadow-xl">
                         <button
-                          key={sub.id}
-                          className={cn(
-                            "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-secondary",
-                            activeSubtitle === sub.id && "bg-primary/10 text-primary",
-                          )}
+                          className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted"
                           onClick={() => {
-                            setActiveSubtitle(sub.id);
+                            setActiveSubtitle(null);
                             setSubtitleMenuOpen(false);
                           }}
                         >
-                          {sub.language}
+                          Off
                         </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-white/10"
-                onClick={() => setTranscode(!transcode)}
-              >
-                <Settings2 className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {transcode ? "Transcode" : "Direct"}
-                </span>
-              </Button>
-
-              <CastButton onCast={handleCast} className="text-white hover:bg-white/10" />
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/10"
-                onClick={toggleFullscreen}
-              >
-                {isFullscreen ? (
-                  <Minimize className="h-5 w-5" />
-                ) : (
-                  <Maximize className="h-5 w-5" />
+                        {subtitles.map((sub) => (
+                          <button
+                            key={sub.id}
+                            className={cn(
+                              "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted",
+                              activeSubtitle === sub.id &&
+                                "bg-primary/10 text-primary",
+                            )}
+                            onClick={() => {
+                              setActiveSubtitle(sub.id);
+                              setSubtitleMenuOpen(false);
+                            }}
+                          >
+                            {sub.language}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
-              </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/10"
+                  onClick={() => setTranscode(!transcode)}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">
+                    {transcode ? "Transcode" : "Direct"}
+                  </span>
+                </Button>
+
+                <CastButton
+                  onCast={handleCast}
+                  className="text-white hover:bg-white/10"
+                />
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/10"
+                  onClick={toggleFullscreen}
+                >
+                  {isFullscreen ? (
+                    <Minimize className="h-5 w-5" />
+                  ) : (
+                    <Maximize className="h-5 w-5" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

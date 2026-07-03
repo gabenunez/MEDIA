@@ -85,7 +85,7 @@ export function FolderPicker({ value, onChange, onSelect }: FolderPickerProps) {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl">
             <div className="border-b border-border px-5 py-4">
               <h3 className="text-lg font-semibold">Choose a folder</h3>
               <p className="mt-1 truncate text-sm text-muted-foreground">
@@ -123,7 +123,7 @@ export function FolderPicker({ value, onChange, onSelect }: FolderPickerProps) {
                     key={entry.path}
                     type="button"
                     onClick={() => navigate(entry.path)}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-muted"
                   >
                     <Folder className="h-5 w-5 shrink-0 text-primary" />
                     <span className="truncate">{entry.name}</span>
