@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { PosterCard } from "./poster-card";
 import { api, type ContinueWatchingItem, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -16,21 +16,28 @@ export function MediaRow({ title, items, href }: MediaRowProps) {
   if (!items.length) return null;
 
   return (
-    <section className="mb-10">
-      <div className="mb-4 flex items-center justify-between px-6">
-        <h2 className="text-xl font-semibold">{title}</h2>
+    <section className="mb-12">
+      <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-primary" />
+          <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
+        </div>
         {href && (
           <Link
             href={href}
-            className="flex items-center gap-1 text-sm text-primary hover:underline"
+            className="flex items-center gap-1 text-sm text-primary transition-colors hover:text-accent"
           >
-            See all <ChevronRight className="h-4 w-4" />
+            See all <ArrowRight className="h-4 w-4" />
           </Link>
         )}
       </div>
-      <div className="flex gap-4 overflow-x-auto px-6 pb-2 scrollbar-hide">
+      <div className="scrollbar-hide mx-auto flex max-w-7xl snap-x gap-4 overflow-x-auto px-4 pb-3 sm:px-6">
         {items.map((item) => (
-          <PosterCard key={item.id} item={item} className="w-36 shrink-0 sm:w-44" />
+          <PosterCard
+            key={item.id}
+            item={item}
+            className="w-36 shrink-0 snap-start sm:w-44"
+          />
         ))}
       </div>
     </section>
@@ -45,9 +52,12 @@ export function ContinueWatchingRow({ items }: ContinueWatchingRowProps) {
   if (!items.length) return null;
 
   return (
-    <section className="mb-10">
-      <h2 className="mb-4 px-6 text-xl font-semibold">Continue Watching</h2>
-      <div className="flex gap-4 overflow-x-auto px-6 pb-2">
+    <section className="mb-12">
+      <div className="mx-auto mb-4 flex max-w-7xl items-center gap-3 px-4 sm:px-6">
+        <span className="h-px w-8 bg-accent" />
+        <h2 className="text-lg font-semibold sm:text-xl">Continue Watching</h2>
+      </div>
+      <div className="scrollbar-hide mx-auto flex max-w-7xl snap-x gap-4 overflow-x-auto px-4 pb-3 sm:px-6">
         {items.map((item) => (
           <Link
             key={item.id}
@@ -56,7 +66,7 @@ export function ContinueWatchingRow({ items }: ContinueWatchingRowProps) {
                 ? routes.watch("movie", item.itemId, item.mediaId)
                 : routes.watch("episode", item.itemId, item.mediaId)
             }
-            className="w-56 shrink-0"
+            className="w-44 shrink-0 snap-start sm:w-56"
           >
             <PosterCard
               item={{
@@ -69,7 +79,7 @@ export function ContinueWatchingRow({ items }: ContinueWatchingRowProps) {
               progress={item.percent}
             />
             {item.subtitle && (
-              <p className="mt-1 truncate px-1 text-xs text-muted-foreground">
+              <p className="mt-1 truncate px-1 font-mono text-[0.68rem] text-muted-foreground">
                 {item.subtitle}
               </p>
             )}

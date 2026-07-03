@@ -7,7 +7,7 @@ import { api, type MediaItem } from "@/lib/api";
 import { PosterCard } from "@/components/poster-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, LibraryBig } from "lucide-react";
 
 export function LibraryClient() {
   const searchParams = useSearchParams();
@@ -26,13 +26,13 @@ export function LibraryClient() {
         setItems(data.items);
         setTotalPages(data.totalPages);
       })
-      .catch(console.error)
+      .catch((err) => console.warn("Failed to load library items", err))
       .finally(() => setLoading(false));
   }, [libraryId, page]);
 
   if (!libraryId || Number.isNaN(libraryId)) {
     return (
-      <div className="mx-auto max-w-7xl px-6 py-20 text-center">
+      <div className="mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
         <p className="mb-4 text-muted-foreground">Invalid library</p>
         <Button asChild>
           <Link href="/">Go Home</Link>
@@ -42,29 +42,43 @@ export function LibraryClient() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-10">
-      <div className="mb-8 flex items-center gap-4">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-6">
+        <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/">
             <ChevronLeft className="h-5 w-5" />
           </Link>
         </Button>
-        <h1 className="text-3xl font-bold">Library</h1>
+          <div>
+            <p className="mb-1 flex items-center gap-2 font-mono text-[0.68rem] uppercase text-primary">
+              <LibraryBig className="h-3.5 w-3.5" />
+              Library deck
+            </p>
+            <h1 className="text-3xl font-bold">Browse Titles</h1>
+          </div>
+        </div>
+        {!loading && (
+          <p className="font-mono text-[0.68rem] uppercase text-muted-foreground">
+            {items.length} shown / page {page}
+          </p>
+        )}
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
           {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-[2/3] rounded-xl" />
+            <Skeleton key={i} className="aspect-[2/3] rounded-md" />
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-center text-muted-foreground">
-          No items in this library yet.
-        </p>
+        <div className="border-y border-border/70 py-16 text-center">
+          <LibraryBig className="mx-auto mb-4 h-12 w-12 text-primary" />
+          <p className="text-muted-foreground">No items in this library yet.</p>
+        </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {items.map((item) => (
               <PosterCard key={item.id} item={item} />
             ))}

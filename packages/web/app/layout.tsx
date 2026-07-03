@@ -6,7 +6,7 @@ import { Navbar } from "@/components/navbar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Reel — Your Personal Media Server",
+  title: "Reel - Personal Media Server",
   description: "Self-hosted movies and TV streaming",
 };
 

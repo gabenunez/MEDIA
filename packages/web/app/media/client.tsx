@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Play, Star, ChevronLeft } from "lucide-react";
+import { Calendar, ChevronLeft, Clock3, Layers3, Play, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,7 @@ export function MediaClient() {
     return (
       <div>
         <Skeleton className="h-80 w-full" />
-        <div className="mx-auto max-w-7xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
           <Skeleton className="mb-4 h-10 w-64" />
           <Skeleton className="h-24 w-full max-w-2xl" />
         </div>
@@ -102,149 +102,166 @@ export function MediaClient() {
 
   return (
     <div>
-      <div className="relative h-72 overflow-hidden sm:h-96">
+      <section className="relative overflow-hidden border-b border-border/70">
         {backdropUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={backdropUrl}
             alt=""
-            className="h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/80 to-transparent" />
-      </div>
+        {!backdropUrl && <div className="signal-grid absolute inset-0" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/20" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-background/10" />
 
-      <div className="relative mx-auto max-w-7xl px-6">
-        <div className="-mt-32 flex flex-col gap-6 sm:-mt-40 sm:flex-row">
-          <div className="w-40 shrink-0 sm:w-48">
-            {posterUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={posterUrl}
-                alt={media.title}
-                className="w-full rounded-xl poster-shadow"
-              />
-            ) : (
-              <div className="aspect-[2/3] rounded-xl bg-secondary" />
-            )}
-          </div>
+        <div className="relative mx-auto max-w-7xl px-4 pb-10 pt-20 sm:px-6 sm:pt-28">
+          <Button variant="ghost" size="sm" asChild className="mb-8">
+            <Link href="/">
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Link>
+          </Button>
 
-          <div className="flex-1 pt-4 sm:pt-16">
-            <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
-              <Link href="/">
-                <ChevronLeft className="h-4 w-4" /> Back
-              </Link>
-            </Button>
-
-            <h1 className="mb-2 text-3xl font-bold sm:text-4xl">
-              {media.title}
-              {media.year && (
-                <span className="ml-2 text-xl text-muted-foreground">
-                  ({media.year})
-                </span>
-              )}
-            </h1>
-
-            <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              {media.rating && (
-                <span className="flex items-center gap-1">
-                  <Star className="h-4 w-4 fill-primary text-primary" />
-                  {media.rating.toFixed(1)}
-                </span>
-              )}
-              {media.genres && <span>{media.genres}</span>}
-              {media.type === "movie" && media.files?.[0]?.durationMs && (
-                <span>{formatDuration(media.files[0].durationMs)}</span>
+          <div className="grid gap-7 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
+            <div className="w-36 sm:w-48">
+              {posterUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={posterUrl}
+                  alt={media.title}
+                  className="w-full rounded-md border border-white/10 poster-shadow"
+                />
+              ) : (
+                <div className="signal-grid aspect-[2/3] rounded-md border border-border bg-muted" />
               )}
             </div>
 
-            {media.overview && (
-              <p className="mb-6 max-w-3xl text-muted-foreground leading-relaxed">
-                {media.overview}
+            <div className="max-w-4xl">
+              <p className="mb-3 font-mono text-[0.68rem] uppercase text-primary">
+                {media.type === "movie" ? "Film file" : "Series stack"}
               </p>
-            )}
+              <h1 className="mb-4 text-4xl font-black sm:text-6xl">
+                {media.title}
+              </h1>
 
-            {media.type === "movie" && media.files?.[0] && (
-              <Button size="lg" asChild>
-                <Link href={routes.watch("movie", media.files[0].id, media.id)}>
-                  <Play className="h-5 w-5 fill-current" /> Play
-                </Link>
-              </Button>
-            )}
+              <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+                {media.year && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/55 px-2.5 py-1 text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5 text-primary" />
+                    {media.year}
+                  </span>
+                )}
+                {media.rating && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/55 px-2.5 py-1 text-muted-foreground">
+                    <Star className="h-3.5 w-3.5 fill-accent text-accent" />
+                    {media.rating.toFixed(1)}
+                  </span>
+                )}
+                {media.type === "movie" && media.files?.[0]?.durationMs && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/55 px-2.5 py-1 text-muted-foreground">
+                    <Clock3 className="h-3.5 w-3.5 text-primary" />
+                    {formatDuration(media.files[0].durationMs)}
+                  </span>
+                )}
+                {media.genres && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/55 px-2.5 py-1 text-muted-foreground">
+                    <Layers3 className="h-3.5 w-3.5 text-primary" />
+                    {media.genres}
+                  </span>
+                )}
+              </div>
+
+              {media.overview && (
+                <p className="mb-7 max-w-3xl text-base leading-7 text-muted-foreground">
+                  {media.overview}
+                </p>
+              )}
+
+              {media.type === "movie" && media.files?.[0] && (
+                <Button size="lg" asChild>
+                  <Link href={routes.watch("movie", media.files[0].id, media.id)}>
+                    <Play className="h-5 w-5 fill-current" /> Play
+                  </Link>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
+      </section>
 
-        {media.type === "tv" && media.seasons && (
-          <div className="mt-12 pb-16">
-            <div className="mb-6 flex gap-2 overflow-x-auto">
-              {media.seasons.map((season, idx) => (
-                <Button
-                  key={season.id}
-                  variant={selectedSeason === idx ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedSeason(idx)}
-                >
-                  {season.name ?? `Season ${season.seasonNumber}`}
-                </Button>
-              ))}
-            </div>
+      {media.type === "tv" && media.seasons && (
+        <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+          <div className="scrollbar-hide mb-6 flex gap-2 overflow-x-auto">
+            {media.seasons.map((season, idx) => (
+              <Button
+                key={season.id}
+                variant={selectedSeason === idx ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedSeason(idx)}
+              >
+                {season.name ?? `Season ${season.seasonNumber}`}
+              </Button>
+            ))}
+          </div>
 
-            <div className="space-y-2">
-              {media.seasons[selectedSeason]?.episodes.map((ep) => (
-                <Link
-                  key={ep.id}
-                  href={routes.watch("episode", ep.id, media.id)}
-                  className="group flex items-center gap-4 rounded-xl border border-border bg-card/50 p-4 transition-all hover:border-primary/50 hover:bg-card"
-                >
-                  <div className="relative flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary">
-                    {ep.stillPath ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={api.imageUrl(ep.stillPath) ?? ""}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-2xl font-bold text-muted-foreground">
-                        {ep.episodeNumber}
-                      </span>
-                    )}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Play className="h-8 w-8 fill-white text-white" />
-                    </div>
-                    {ep.watchProgress && ep.watchProgress.positionMs > 0 && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
-                        <div
-                          className="h-full bg-primary"
-                          style={{
-                            width: `${Math.min(100, (ep.watchProgress.positionMs / (ep.durationMs ?? 1)) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">
-                      {ep.episodeNumber}. {ep.title}
-                    </p>
-                    {ep.overview && (
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                        {ep.overview}
-                      </p>
-                    )}
-                  </div>
-                  {ep.durationMs && (
-                    <span className="shrink-0 text-sm text-muted-foreground">
-                      {formatDuration(ep.durationMs)}
+          <div className="space-y-3">
+            {media.seasons[selectedSeason]?.episodes.map((ep) => (
+              <Link
+                key={ep.id}
+                href={routes.watch("episode", ep.id, media.id)}
+                className="group relative flex items-center gap-4 overflow-hidden rounded-md border border-border/80 bg-card/70 p-3 transition-all hover:border-primary/50 hover:bg-card sm:p-4"
+              >
+                <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
+                <div className="relative flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                  {ep.stillPath ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={api.imageUrl(ep.stillPath) ?? ""}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="font-mono text-2xl font-bold text-muted-foreground">
+                      {String(ep.episodeNumber).padStart(2, "0")}
                     </span>
                   )}
-                </Link>
-              ))}
-            </div>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Play className="h-8 w-8 fill-white text-white" />
+                  </div>
+                  {ep.watchProgress && ep.watchProgress.positionMs > 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
+                      <div
+                        className="h-full bg-accent"
+                        style={{
+                          width: `${Math.min(100, (ep.watchProgress.positionMs / (ep.durationMs ?? 1)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">
+                    <span className="mr-2 font-mono text-xs text-primary">
+                      E{String(ep.episodeNumber).padStart(2, "0")}
+                    </span>
+                    {ep.title}
+                  </p>
+                  {ep.overview && (
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                      {ep.overview}
+                    </p>
+                  )}
+                </div>
+                {ep.durationMs && (
+                  <span className="hidden shrink-0 font-mono text-xs text-muted-foreground sm:inline">
+                    {formatDuration(ep.durationMs)}
+                  </span>
+                )}
+              </Link>
+            ))}
           </div>
-        )}
-      </div>
+        </section>
+      )}
     </div>
   );
 }

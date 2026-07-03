@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import {
   CheckCircle2,
+  Database,
   Loader2,
   XCircle,
   KeyRound,
+  ServerCog,
 } from "lucide-react";
 import { api, type AppSettings } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -56,12 +58,12 @@ export default function SettingsPage() {
       const result = await api.updateMetadata(tmdbKey);
       if (result.metadataRefresh?.updated) {
         setKeyMessage(
-          `API key saved — updated metadata for ${result.metadataRefresh.updated} title${result.metadataRefresh.updated === 1 ? "" : "s"}`,
+          `API key saved - updated metadata for ${result.metadataRefresh.updated} title${result.metadataRefresh.updated === 1 ? "" : "s"}`,
         );
       } else if (result.tmdbConfigured) {
-        setKeyMessage("API key saved — run Scan on your libraries to fetch metadata");
+        setKeyMessage("API key saved - run Scan on your libraries to fetch metadata");
       } else {
-        setKeyMessage("Key saved — verify it works after scanning");
+        setKeyMessage("Key saved - verify it works after scanning");
       }
       setTmdbKey("");
       loadSettings();
@@ -92,19 +94,22 @@ export default function SettingsPage() {
 
   if (loading && !settings) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-10">
+      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <Skeleton className="mb-8 h-10 w-48" />
-        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-md" />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="mb-2 text-3xl font-bold">Settings</h1>
-      <p className="mb-8 text-muted-foreground">
-        Manage libraries, metadata, and server status — no config files required.
-      </p>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="mb-8 border-b border-border/70 pb-6">
+        <p className="mb-1 flex items-center gap-2 font-mono text-[0.68rem] uppercase text-primary">
+          <ServerCog className="h-3.5 w-3.5" />
+          Control room
+        </p>
+        <h1 className="text-3xl font-bold">Settings</h1>
+      </div>
 
       <div className="space-y-6">
         <Card>
@@ -130,7 +135,7 @@ export default function SettingsPage() {
                 href="https://www.themoviedb.org/settings/api"
                 target="_blank"
                 rel="noreferrer"
-                className="text-primary hover:underline"
+                className="text-primary transition-colors hover:text-accent"
               >
                 themoviedb.org
               </a>{" "}
@@ -140,7 +145,7 @@ export default function SettingsPage() {
             {settings?.metadata.tmdbConfigured && settings.metadata.tmdbApiKeyPreview && (
               <p className="mb-3 text-sm text-muted-foreground">
                 Current key:{" "}
-                <code className="rounded bg-secondary px-1.5 py-0.5">
+                <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-accent">
                   {settings.metadata.tmdbApiKeyPreview}
                 </code>
               </p>
@@ -185,13 +190,16 @@ export default function SettingsPage() {
 
         <Card>
           <CardContent className="pt-6">
-            <h2 className="mb-4 text-lg font-semibold">System Status</h2>
+            <div className="mb-4 flex items-center gap-2">
+              <Database className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">System Status</h2>
+            </div>
             <div className="space-y-3">
               <StatusRow
                 label="FFmpeg"
                 ok={settings?.ffmpegAvailable ?? false}
                 okText="Available for transcoding"
-                failText="Not found — install with: brew install ffmpeg"
+                failText="Not found - install with: brew install ffmpeg"
               />
               <StatusRow
                 label="TMDB API"
@@ -219,9 +227,9 @@ function StatusRow({
   failText: string;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 border-l border-border/80 py-2 pl-4">
       {ok ? (
-        <CheckCircle2 className="h-5 w-5 text-green-500" />
+        <CheckCircle2 className="h-5 w-5 text-accent" />
       ) : (
         <XCircle className="h-5 w-5 text-red-400" />
       )}
