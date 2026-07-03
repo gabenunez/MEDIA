@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Reel one-line VPS installer
 #
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_ORG/reel/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/install.sh | bash
 #
 # Options (env vars):
-#   REEL_REPO=https://github.com/YOUR_ORG/reel.git
+#   REEL_REPO=https://github.com/gabenunez/reel.git
 #   REEL_BRANCH=main
 #   REEL_INSTALL_DIR=/opt/reel
 #   REEL_PORT=8096

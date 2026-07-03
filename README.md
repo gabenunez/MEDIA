@@ -2,6 +2,8 @@
 
 A beautiful, self-hosted Plex alternative for streaming your personal movie and TV libraries.
 
+**Repository:** [github.com/gabenunez/reel](https://github.com/gabenunez/reel)
+
 ## Features
 
 - **Library scanning** — Automatically indexes movies and TV shows from configured folders
@@ -9,12 +11,72 @@ A beautiful, self-hosted Plex alternative for streaming your personal movie and 
 - **Smart parsing** — Detects `S01E02`, season folders, and movie filenames
 - **Streaming** — Direct play with byte-range requests or HLS transcoding via FFmpeg
 - **Subtitles** — External `.srt`/`.vtt` files and embedded track extraction
+- **Chromecast** — Cast any video to your TV from Chrome
 - **Beautiful UI** — Dark cinematic web interface with continue watching, search, and more
 - **Native deployment** — Single Node process, SQLite database, simple config file
 
+## Quick Start
+
+### VPS (one command)
+
+On a fresh Linux server (Ubuntu/Debian recommended):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/install.sh | bash
+```
+
+The guided installer will set up Node, FFmpeg, build Reel, and start a systemd service at `/opt/reel`.
+
+Then open `http://YOUR_SERVER_IP:8096/settings` and add your media folders.
+
+**Scripts:** [install.sh](https://github.com/gabenunez/reel/blob/main/install.sh) · [scripts/install-vps.sh](https://github.com/gabenunez/reel/blob/main/scripts/install-vps.sh)
+
+### Local development
+
+```bash
+git clone https://github.com/gabenunez/reel.git
+cd reel
+pnpm install
+pnpm build
+pnpm start
+```
+
+Open http://localhost:8096/settings
+
+Or use the dev script with hot reload:
+
+```bash
+chmod +x scripts/dev.sh
+./scripts/dev.sh
+```
+
+### Update
+
+On a VPS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/update.sh | bash
+```
+
+From a local clone:
+
+```bash
+./update.sh
+# or
+pnpm update
+```
+
+**Script:** [update.sh](https://github.com/gabenunez/reel/blob/main/update.sh)
+
+### First-time setup
+
+1. Add your movie/TV folders in **Settings**
+2. Paste your [TMDB API key](https://www.themoviedb.org/settings/api) (free, recommended for posters and metadata)
+3. Click **Scan** on each library, then browse your collection
+
 ## Prerequisites
 
-- **Node.js** 20+ and **pnpm**
+- **Node.js** 20+ and **pnpm** (local dev)
 - **FFmpeg** (includes ffprobe)
 
 ```bash
@@ -25,44 +87,17 @@ brew install ffmpeg
 sudo apt install ffmpeg
 ```
 
-- **TMDB API key** (free): https://www.themoviedb.org/settings/api
-
 ## Configuration
 
 Everything is managed in the web UI at **Settings** (`/settings`):
 
 - Add, edit, and remove media library folders with a built-in folder browser
 - Set your TMDB API key for posters and metadata
-- Trigger library scans
+- Trigger library scans or refresh metadata
 
 On first launch, Reel auto-creates a `config.yaml` if needed. You shouldn't need to edit it manually.
 
-## Quick Start
-
-```bash
-pnpm install
-pnpm build
-pnpm start
-open http://localhost:8096/settings
-```
-
-1. Add your movie/TV folders in Settings
-2. Paste your TMDB API key (optional but recommended)
-3. Wait for the scan to finish, then browse your library
-
-## Prerequisites
-
-```bash
-chmod +x scripts/dev.sh
-./scripts/dev.sh
-```
-
-Or manually:
-
-```bash
-pnpm install
-pnpm dev
-```
+See [config.example.yaml](https://github.com/gabenunez/reel/blob/main/config.example.yaml) for the full schema.
 
 ## Auto-Start
 
@@ -76,23 +111,28 @@ launchctl load ~/Library/LaunchAgents/com.reel.server.plist
 
 ### Linux (systemd)
 
+Installed automatically by the VPS installer. Manual setup:
+
 ```bash
-# Edit deploy/reel.service — set WorkingDirectory and User
 sudo cp deploy/reel.service /etc/systemd/system/
 sudo systemctl enable reel
 sudo systemctl start reel
 ```
 
+See [deploy/reel.service](https://github.com/gabenunez/reel/blob/main/deploy/reel.service).
+
 ## Project Structure
 
 ```
-plex/
+reel/
+├── install.sh              # One-line VPS installer entry point
+├── update.sh               # One-line updater entry point
 ├── config.example.yaml     # Configuration template
 ├── packages/
 │   ├── shared/             # Shared types and filename parsers
 │   ├── server/             # Fastify API, scanner, streaming
 │   └── web/                # Next.js static web UI
-├── scripts/                # Install and dev scripts
+├── scripts/                # Install, update, and dev scripts
 └── deploy/                 # launchd and systemd units
 ```
 
@@ -109,6 +149,7 @@ plex/
 | `GET /api/stream/:fileId/hls/master.m3u8` | HLS transcoded stream |
 | `GET /api/subtitles/:id` | Subtitle track (WebVTT) |
 | `POST /api/libraries/:id/scan` | Trigger library rescan |
+| `POST /api/metadata/refresh` | Re-fetch TMDB metadata |
 
 ## Supported Video Formats
 
