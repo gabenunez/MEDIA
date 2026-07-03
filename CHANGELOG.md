@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.17 — 2026-07-03
+
+### Playback
+- **Loading & buffering feedback** — spinner while preparing, loading, or re-buffering; buffer range shown on the scrub bar
+- **Audio fix** — auto-switch to transcoded playback when the browser cannot decode the file's audio (AC3, DTS, etc.)
+- FFmpeg HLS transcoding now explicitly maps the first audio track
+- Volume no longer stuck at zero from a saved slider value
+
 ## 0.1.16 — 2026-07-03
 
 ### UI

@@ -194,6 +194,10 @@ export function startHlsTranscode(
   args.push(
     "-i",
     filePath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
     "-vf",
     `scale=-2:${height}`,
     "-c:v",

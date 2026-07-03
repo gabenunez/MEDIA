@@ -3,7 +3,7 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import mime from "mime-types";
 import type { AppConfig } from "@reel/shared";
-import { getAvailableQualities, parseTranscodeQuality } from "@reel/shared";
+import { getAvailableQualities, isBrowserDirectPlayAudioSupported, parseTranscodeQuality } from "@reel/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import type { SubtitleService } from "../services/subtitles.js";
 import { movieFiles, tvEpisodes, subtitles, watchProgress } from "../db/schema.js";
@@ -143,6 +143,9 @@ export async function streamRoutes(
         bitrate: probe?.bitrate ?? null,
         availableQualities: getAvailableQualities(sourceHeight),
         transcodingEnabled: config.transcoding.enabled,
+        directPlayAudioSupported: isBrowserDirectPlayAudioSupported(
+          probe?.audioCodec ?? file.audioCodec ?? null,
+        ),
         watchProgress: progress
           ? {
               positionMs: progress.positionMs,

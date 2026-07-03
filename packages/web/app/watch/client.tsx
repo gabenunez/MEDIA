@@ -7,6 +7,7 @@ import Hls from "hls.js";
 import {
   ArrowLeft,
   Info,
+  Loader2,
   Maximize,
   Minimize,
   Pause,
@@ -74,6 +75,16 @@ interface MediaDetail {
   seasons?: TvSeasonSummary[];
 }
 
+function pickTranscodeQualityForPlayback(
+  available: StreamQuality[],
+): Exclude<StreamQuality, "original"> {
+  for (const quality of ["720p", "1080p", "480p"] as const) {
+    if (available.includes(quality)) return quality;
+  }
+  const fallback = available.find((quality) => quality !== "original");
+  return fallback ?? "720p";
+}
+
 function buildPlaybackTitle(
   type: "movie" | "episode",
   media: MediaDetail,
@@ -115,7 +126,21 @@ function loadStoredVolume(): number {
   const stored = localStorage.getItem(VOLUME_STORAGE_KEY);
   if (stored === null) return 1;
   const parsed = parseFloat(stored);
-  return Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 1;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+  return Math.min(1, parsed);
+}
+
+function getVideoBufferedEnd(video: HTMLVideoElement): number {
+  const ranges = video.buffered;
+  if (!ranges.length) return 0;
+
+  for (let index = 0; index < ranges.length; index++) {
+    if (video.currentTime >= ranges.start(index) && video.currentTime <= ranges.end(index)) {
+      return ranges.end(index);
+    }
+  }
+
+  return ranges.end(ranges.length - 1);
 }
 
 export function WatchClient() {
@@ -146,6 +171,8 @@ export function WatchClient() {
   const [transcodingEnabled, setTranscodingEnabled] = useState(true);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [bufferingMidPlayback, setBufferingMidPlayback] = useState(false);
+  const [bufferedSeconds, setBufferedSeconds] = useState(0);
   const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<number | null>(null);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
@@ -164,6 +191,7 @@ export function WatchClient() {
   const [volumeMenuOpen, setVolumeMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
+  const [playbackNotice, setPlaybackNotice] = useState<string | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
 
   const revealControls = useCallback((autoHide = true) => {
@@ -206,6 +234,16 @@ export function WatchClient() {
     setMuted(true);
   }, [muted, volume]);
 
+  const updateBufferedPosition = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const localBufferedEnd = getVideoBufferedEnd(video);
+    const absoluteBuffered =
+      quality !== "original" ? hlsStartOffset + localBufferedEnd : localBufferedEnd;
+    setBufferedSeconds(absoluteBuffered);
+  }, [quality, hlsStartOffset]);
+
   const saveProgress = useCallback(() => {
     const video = videoRef.current;
     if (!video || !fileId) return;
@@ -231,6 +269,7 @@ export function WatchClient() {
     if (!fileId || Number.isNaN(fileId)) return;
 
     setInitialResumeSeconds(null);
+    setPlaybackNotice(null);
 
     api
       .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
@@ -240,9 +279,31 @@ export function WatchClient() {
         setSourceHeight(info.height ?? null);
         setSourceDurationMs(info.durationMs ?? 0);
         setTranscodingEnabled(info.transcodingEnabled);
-        setQuality((current) =>
-          info.availableQualities.includes(current) ? current : "original",
-        );
+
+        let selectedQuality: StreamQuality = "original";
+        if (
+          info.directPlayAudioSupported === false &&
+          info.transcodingEnabled &&
+          info.availableQualities.some((q) => q !== "original")
+        ) {
+          selectedQuality = pickTranscodeQualityForPlayback(info.availableQualities);
+          const codec = info.audioCodec?.toUpperCase() ?? "This audio";
+          setPlaybackNotice(
+            `${codec} is not supported in your browser — using transcoded audio.`,
+          );
+        } else if (
+          info.directPlayAudioSupported === false &&
+          !info.transcodingEnabled
+        ) {
+          setPlaybackNotice(
+            "This file uses an audio format your browser may not play. Enable transcoding on the server for audio support.",
+          );
+        }
+
+        setQuality((current) => {
+          if (selectedQuality !== "original") return selectedQuality;
+          return info.availableQualities.includes(current) ? current : "original";
+        });
 
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs =
@@ -269,7 +330,7 @@ export function WatchClient() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.volume = muted ? 0 : volume;
+    video.volume = muted ? 0 : Math.max(volume, 0.01);
     video.muted = muted;
   }, [volume, muted]);
 
@@ -316,7 +377,9 @@ export function WatchClient() {
     if (!video || !fileId || Number.isNaN(fileId) || initialResumeSeconds === null) return;
 
     setError(null);
-    setBuffering(quality !== "original");
+    setBuffering(true);
+    setBufferingMidPlayback(false);
+    setBufferedSeconds(0);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -354,7 +417,6 @@ export function WatchClient() {
         hls.loadSource(url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setBuffering(false);
           hls.startLoad(0);
           video.play().catch(() => {});
         });
@@ -364,12 +426,11 @@ export function WatchClient() {
             setError("Playback failed. Try a lower quality or Original.");
           }
         });
+        hls.on(Hls.Events.FRAG_BUFFERED, () => updateBufferedPosition());
+        hls.on(Hls.Events.BUFFER_APPENDED, () => updateBufferedPosition());
         hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = url;
-        video.onloadedmetadata = () => {
-          setBuffering(false);
-        };
         video.play().catch(() => {});
       } else {
         setBuffering(false);
@@ -378,7 +439,6 @@ export function WatchClient() {
     } else {
       video.src = url;
       video.onloadedmetadata = () => {
-        setBuffering(false);
         applyResume();
       };
       video.play().catch(() => {});
@@ -430,15 +490,35 @@ export function WatchClient() {
       revealControls(false);
       saveProgress();
     };
-    const onTimeUpdate = () => setCurrentTime(video.currentTime);
+    const onTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      updateBufferedPosition();
+    };
     const onDurationChange = () => setDuration(video.duration || 0);
     const onLoadedMetadata = () => setDuration(video.duration || 0);
+    const onProgress = () => updateBufferedPosition();
+    const onWaiting = () => {
+      setBuffering(true);
+      setBufferingMidPlayback(true);
+    };
+    const onPlaying = () => {
+      setBuffering(false);
+      setBufferingMidPlayback(false);
+      updateBufferedPosition();
+    };
+    const onCanPlay = () => {
+      updateBufferedPosition();
+    };
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("loadedmetadata", onLoadedMetadata);
+    video.addEventListener("progress", onProgress);
+    video.addEventListener("waiting", onWaiting);
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("canplay", onCanPlay);
 
     return () => {
       video.removeEventListener("play", onPlay);
@@ -446,8 +526,12 @@ export function WatchClient() {
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
+      video.removeEventListener("progress", onProgress);
+      video.removeEventListener("waiting", onWaiting);
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("canplay", onCanPlay);
     };
-  }, [revealControls, saveProgress]);
+  }, [revealControls, saveProgress, updateBufferedPosition]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -516,6 +600,19 @@ export function WatchClient() {
   const absoluteDurationMs = sourceDurationMs || duration * 1000;
   const progress =
     absoluteDurationMs > 0 ? (absoluteCurrentTime * 1000) / absoluteDurationMs * 100 : 0;
+  const bufferedPercent =
+    absoluteDurationMs > 0
+      ? Math.min(100, (bufferedSeconds * 1000) / absoluteDurationMs * 100)
+      : 0;
+  const isPreparing = initialResumeSeconds === null;
+  const showLoadingOverlay = (isPreparing || buffering) && !error;
+  const loadingMessage = isPreparing
+    ? "Preparing playback..."
+    : bufferingMidPlayback
+      ? "Buffering..."
+      : quality !== "original"
+        ? `Starting ${quality.toUpperCase()} stream...`
+        : "Loading video...";
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -600,13 +697,12 @@ export function WatchClient() {
         onClick={togglePlay}
       />
 
-      {buffering && !error && (
+      {showLoadingOverlay && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40">
-          <p className="rounded-md border border-white/10 bg-background/80 px-4 py-2 text-sm text-white">
-            {quality === "original"
-              ? "Loading..."
-              : `Transcoding to ${quality.toUpperCase()}...`}
-          </p>
+          <div className="flex items-center gap-3 rounded-md border border-white/10 bg-background/80 px-4 py-3 text-sm text-white">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            {loadingMessage}
+          </div>
         </div>
       )}
 
@@ -664,16 +760,33 @@ export function WatchClient() {
 
         <div className="pointer-events-auto bg-gradient-to-t from-background/95 via-background/45 to-transparent px-3 pb-3 pt-10 sm:px-4 sm:pb-4">
           <div className="mx-auto max-w-7xl rounded-md border border-white/10 bg-background/75 p-3 backdrop-blur">
+            {playbackNotice ? (
+              <p className="mb-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+                {playbackNotice}
+              </p>
+            ) : null}
             <div className="mb-3 flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.1}
-                value={progress}
-                onChange={(e) => seek(parseFloat(e.target.value))}
-                className="range-signal h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-white/20 accent-primary"
-              />
+              <div className="relative flex h-4 flex-1 items-center">
+                <div className="pointer-events-none absolute inset-x-0 h-1.5 overflow-hidden rounded-full bg-white/20">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-white/45 transition-[width] duration-150"
+                    style={{ width: `${bufferedPercent}%` }}
+                  />
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-primary/70"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={progress}
+                  onChange={(e) => seek(parseFloat(e.target.value))}
+                  className="range-signal range-signal-overlay relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-2 sm:gap-4">

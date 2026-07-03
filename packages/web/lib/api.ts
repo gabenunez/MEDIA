@@ -218,6 +218,7 @@ export interface StreamInfo {
   bitrate?: number | null;
   availableQualities: StreamQuality[];
   transcodingEnabled: boolean;
+  directPlayAudioSupported: boolean;
   watchProgress?: {
     positionMs: number;
     durationMs?: number | null;

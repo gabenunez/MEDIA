@@ -90,4 +90,12 @@
     background: hsl(var(--primary));
     box-shadow: 0 0 0 5px hsl(var(--primary) / 0.18);
   }
+
+  .range-signal-overlay::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  .range-signal-overlay::-moz-range-track {
+    background: transparent;
+  }
 }
