@@ -9,6 +9,7 @@ import {
   extractEmbeddedSubtitle,
   type ProbeResult,
 } from "../utils/ffmpeg.js";
+import { subtitleHasContent } from "../utils/subtitle-content.js";
 
 const LANGUAGE_MAP: Record<string, string> = {
   en: "English",
@@ -120,14 +121,41 @@ export class SubtitleService {
     const rows = await this.db.query.subtitles.findMany({
       where: eq(subtitles.movieFileId, movieFileId),
     });
-    return rows.map(subtitleToTrack);
+    return this.filterTracksWithContent(rows);
   }
 
   async listForEpisode(episodeId: number) {
     const rows = await this.db.query.subtitles.findMany({
       where: eq(subtitles.episodeId, episodeId),
     });
-    return rows.map(subtitleToTrack);
+    return this.filterTracksWithContent(rows);
+  }
+
+  private async filterTracksWithContent(
+    rows: Array<typeof subtitles.$inferSelect>,
+  ) {
+    const tracks = [];
+
+    for (const row of rows) {
+      if (await this.rowHasContent(row)) {
+        tracks.push(subtitleToTrack(row));
+      } else {
+        await this.deleteSubtitle(row.id);
+      }
+    }
+
+    return tracks;
+  }
+
+  private async rowHasContent(
+    subtitle: typeof subtitles.$inferSelect,
+  ): Promise<boolean> {
+    try {
+      const content = await this.getSubtitleContent(subtitle);
+      return subtitleHasContent(content);
+    } catch {
+      return false;
+    }
   }
 
   async attachOpenSubtitlesDownload(params: {
@@ -146,6 +174,10 @@ export class SubtitleService {
     const vtt = params.rawContent.trimStart().startsWith("WEBVTT")
       ? params.rawContent
       : this.convertSrtToVtt(params.rawContent);
+
+    if (!subtitleHasContent(vtt)) {
+      throw new Error("Subtitle file has no dialogue");
+    }
 
     fs.writeFileSync(cachePath, vtt, "utf-8");
 
@@ -220,6 +252,16 @@ export class SubtitleService {
         entryBase.startsWith(`${base}_`)
       ) {
         const fullPath = path.join(dir, entry);
+        try {
+          const raw = fs.readFileSync(fullPath, "utf-8");
+          const content = entry.toLowerCase().endsWith(".srt")
+            ? this.convertSrtToVtt(raw)
+            : raw;
+          if (!subtitleHasContent(content)) continue;
+        } catch {
+          continue;
+        }
+
         await this.db.insert(subtitles).values({
           movieFileId: ids.movieFileId ?? null,
           episodeId: ids.episodeId ?? null,
@@ -245,6 +287,22 @@ export class SubtitleService {
       );
 
       try {
+        if (!fs.existsSync(cachePath)) {
+          await extractEmbeddedSubtitle(filePath, stream.index, cachePath);
+        }
+
+        const content = fs.readFileSync(cachePath, "utf-8");
+        if (!subtitleHasContent(content)) {
+          if (fs.existsSync(cachePath)) {
+            try {
+              fs.unlinkSync(cachePath);
+            } catch {
+              // ignore cleanup errors
+            }
+          }
+          continue;
+        }
+
         await this.db.insert(subtitles).values({
           movieFileId: type === "movie" ? fileId : null,
           episodeId: type === "episode" ? fileId : null,

@@ -6,6 +6,7 @@ import type { AppConfig } from "@reel/shared";
 import { getAvailableQualities, isBrowserDirectPlayAudioSupported, parseHlsQuality, resolveOriginalPlaybackMode } from "@reel/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import type { SubtitleService } from "../services/subtitles.js";
+import { subtitleHasContent } from "../utils/subtitle-content.js";
 import { movieFiles, tvEpisodes, subtitles, watchProgress } from "../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import {
@@ -453,6 +454,10 @@ export async function subtitleRoutes(
 
       try {
         const content = await subtitleService.getSubtitleContent(subtitle);
+        if (!subtitleHasContent(content)) {
+          await subtitleService.deleteSubtitle(id);
+          return reply.status(404).send({ error: "Subtitle has no content" });
+        }
         reply.header("Content-Type", "text/vtt");
         reply.header("Access-Control-Allow-Origin", "*");
         return content;

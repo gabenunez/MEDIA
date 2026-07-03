@@ -46,11 +46,9 @@ function notifyChange() {
 }
 
 export function ThemeMusicSettingsProvider({ children }: { children: ReactNode }) {
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(readEnabled);
 
   useEffect(() => {
-    setEnabled(readEnabled());
-
     const sync = () => setEnabled(readEnabled());
     window.addEventListener(THEME_MUSIC_CHANGED_EVENT, sync);
     window.addEventListener("storage", sync);

@@ -27,6 +27,7 @@ import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
+import { SubtitleAppearanceSettingsLink } from "@/components/subtitle-style-settings";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -332,6 +333,9 @@ export function WatchClient() {
         type === "movie" ? "movie" : "episode",
       );
       setSubtitles(data.tracks);
+      setActiveSubtitle((current) =>
+        current && data.tracks.some((track) => track.id === current) ? current : null,
+      );
       setOpensubtitlesConfigured(data.opensubtitlesConfigured);
     } catch (err) {
       console.warn("Failed to load subtitles", err);
@@ -831,7 +835,7 @@ export function WatchClient() {
     >
       <video
         ref={videoRef}
-        className="absolute inset-0 h-full w-full object-contain"
+        className="reel-subtitles absolute inset-0 h-full w-full object-contain"
         controls={false}
         playsInline
         preload="auto"
@@ -1146,6 +1150,10 @@ export function WatchClient() {
                           )}
                         </div>
                       ))}
+                      <div className="my-1 border-t border-border" />
+                      <SubtitleAppearanceSettingsLink
+                        onNavigate={() => setSubtitleMenuOpen(false)}
+                      />
                       <div className="my-1 border-t border-border" />
                       <button
                         className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"

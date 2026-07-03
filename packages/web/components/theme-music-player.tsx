@@ -10,15 +10,13 @@ import {
 } from "react";
 import { api } from "@/lib/api";
 import { ensureAudioUnlocked, getSharedAudioContext } from "@/lib/audio-unlock";
-import {
-  isThemeMusicEnabled,
-  useThemeMusicSettings,
-} from "@/components/theme-music-settings";
+import { useThemeMusicSettings } from "@/components/theme-music-settings";
 
 const TARGET_VOLUME = 0.38;
 const FADE_MS = 1800;
 const MAX_PLAY_MS = 42_000;
-const THEME_MUSIC_CHANGED_EVENT = "reel-theme-music-changed";
+
+const themeBlobCache = new Map<number, Blob>();
 
 function fadeVolume(
   audio: HTMLAudioElement,
@@ -42,6 +40,36 @@ function fadeVolume(
 
   frame = requestAnimationFrame(step);
   return () => cancelAnimationFrame(frame);
+}
+
+async function loadThemeBlob(mediaId: number, signal: AbortSignal): Promise<Blob> {
+  const cached = themeBlobCache.get(mediaId);
+  if (cached) return cached;
+
+  const res = await fetch(api.themeMusicUrl(mediaId), {
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) throw new Error("Theme unavailable");
+
+  const blob = await res.blob();
+  themeBlobCache.set(mediaId, blob);
+  return blob;
+}
+
+function tryAttachAnalyser(element: HTMLAudioElement): AnalyserNode | null {
+  try {
+    const audioContext = getSharedAudioContext();
+    const source = audioContext.createMediaElementSource(element);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 128;
+    analyser.smoothingTimeConstant = 0.82;
+    source.connect(analyser);
+    analyser.connect(audioContext.destination);
+    return analyser;
+  } catch {
+    return null;
+  }
 }
 
 type ThemeMusicContextValue = {
@@ -72,7 +100,6 @@ export function ThemeMusicProvider({
   const { enabled: themeMusicEnabled } = useThemeMusicSettings();
   const [isPlaying, setIsPlaying] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopFadeRef = useRef<(() => void) | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -84,16 +111,24 @@ export function ThemeMusicProvider({
   }, [themeMusicEnabled]);
 
   useEffect(() => {
-    if (!enabled || !mediaId || !themeMusicEnabled || !isThemeMusicEnabled()) return;
+    if (!enabled || !mediaId || !themeMusicEnabled) return;
 
+    const session = Symbol("theme-session");
+    let activeSession: symbol | null = session;
     let objectUrl: string | null = null;
-    let cancelled = false;
-    let started = false;
     let audio: HTMLAudioElement | null = null;
+    let readyHandler: (() => void) | null = null;
+    let playbackStarted = false;
+    let playbackQueued = false;
+    let retryListenersAttached = false;
+    const abortController = new AbortController();
+
+    const isActive = () => activeSession === session;
 
     const cleanup = () => {
-      cancelled = true;
+      activeSession = null;
       setIsPlaying(false);
+      setAnalyser(null);
       stopFadeRef.current?.();
       stopFadeRef.current = null;
       if (stopTimerRef.current) {
@@ -101,16 +136,22 @@ export function ThemeMusicProvider({
         stopTimerRef.current = null;
       }
       if (audio) {
+        if (readyHandler) {
+          audio.removeEventListener("loadeddata", readyHandler);
+          audio.removeEventListener("canplay", readyHandler);
+          audio.removeEventListener("canplaythrough", readyHandler);
+          readyHandler = null;
+        }
         audio.pause();
         audio.removeAttribute("src");
         audio.load();
+        audio = null;
       }
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
         objectUrl = null;
       }
-      setAnalyser(null);
-      audioRef.current = null;
+      abortController.abort();
     };
 
     cleanupRef.current = cleanup;
@@ -118,26 +159,7 @@ export function ThemeMusicProvider({
     const removeRetryListeners = (handler: () => void) => {
       document.removeEventListener("pointerdown", handler, true);
       document.removeEventListener("keydown", handler, true);
-    };
-
-    let analyserAttached = false;
-
-    const attachAnalyser = (element: HTMLAudioElement) => {
-      if (analyserAttached) return;
-      try {
-        const audioContext = getSharedAudioContext();
-        const source = audioContext.createMediaElementSource(element);
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 128;
-        analyser.smoothingTimeConstant = 0.82;
-        source.connect(analyser);
-        analyser.connect(audioContext.destination);
-        setAnalyser(analyser);
-        analyserAttached = true;
-        void audioContext.resume();
-      } catch {
-        setAnalyser(null);
-      }
+      retryListenersAttached = false;
     };
 
     const scheduleStop = () => {
@@ -150,86 +172,119 @@ export function ThemeMusicProvider({
       );
 
       stopTimerRef.current = setTimeout(() => {
-        if (cancelled || !audio) return;
+        if (!isActive() || !audio) return;
         stopFadeRef.current = fadeVolume(audio, audio.volume, 0, FADE_MS, () => {
           cleanup();
         });
       }, playForMs);
     };
 
-    const attemptPlay = async () => {
-      if (cancelled || !audio) return;
+    const beginAudiblePlayback = () => {
+      if (!audio || !isActive()) return;
 
-      audio.muted = true;
-      audio.volume = 0;
-      await ensureAudioUnlocked();
-      await audio.play();
-
-      if (cancelled) return;
-
-      attachAnalyser(audio);
       audio.muted = false;
       setIsPlaying(true);
       stopFadeRef.current = fadeVolume(audio, 0, TARGET_VOLUME, FADE_MS);
       scheduleStop();
+
+      window.setTimeout(() => {
+        if (!isActive() || !audio || !audio.paused) return;
+        void audio.play().catch(() => {});
+      }, 400);
     };
 
-    const startPlayback = () => {
-      if (cancelled || started || !audio) return;
-      started = true;
+    const attemptPlay = async () => {
+      if (!isActive() || !audio || playbackStarted) return;
+      playbackStarted = true;
 
+      audio.muted = true;
+      audio.volume = 0;
+
+      await ensureAudioUnlocked();
+
+      const node = tryAttachAnalyser(audio);
+      if (node) {
+        setAnalyser(node);
+        await getSharedAudioContext().resume();
+      }
+
+      try {
+        await audio.play();
+      } catch {
+        playbackStarted = false;
+        throw new Error("play blocked");
+      }
+
+      if (!isActive() || !audio) return;
+      beginAudiblePlayback();
+    };
+
+    const queueGestureRetry = () => {
+      if (!isActive() || retryListenersAttached) return;
+      retryListenersAttached = true;
+
+      const retry = () => {
+        removeRetryListeners(retry);
+        if (!isActive() || !audio) return;
+        void attemptPlay().catch(() => {
+          playbackStarted = false;
+        });
+      };
+
+      document.addEventListener("pointerdown", retry, { once: true, capture: true });
+      document.addEventListener("keydown", retry, { once: true, capture: true });
+    };
+
+    const queuePlayback = () => {
+      if (!isActive() || !audio || playbackStarted || playbackQueued) return;
+      playbackQueued = true;
       void attemptPlay().catch(() => {
-        if (cancelled || !audio) return;
-        started = false;
-
-        const retry = () => {
-          removeRetryListeners(retry);
-          if (cancelled || !audio) return;
-          started = true;
-          void attemptPlay().catch(() => {
-            started = false;
-            cleanup();
-          });
-        };
-
-        document.addEventListener("pointerdown", retry, { once: true, capture: true });
-        document.addEventListener("keydown", retry, { once: true, capture: true });
+        playbackStarted = false;
+        playbackQueued = false;
+        queueGestureRetry();
       });
     };
 
-    void fetch(api.themeMusicUrl(mediaId), { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error("Theme unavailable");
-        return res.blob();
-      })
+    void loadThemeBlob(mediaId, abortController.signal)
       .then((blob) => {
-        if (cancelled) return;
+        if (!isActive()) return;
+
         objectUrl = URL.createObjectURL(blob);
         audio = new Audio(objectUrl);
         audio.preload = "auto";
         audio.volume = 0;
-        audioRef.current = audio;
-        audio.addEventListener("canplaythrough", startPlayback, { once: true });
-        audio.addEventListener("pause", () => setIsPlaying(false));
-        audio.addEventListener("ended", () => setIsPlaying(false));
-        audio.addEventListener("error", cleanup, { once: true });
+
+        let readyHandled = false;
+        readyHandler = () => {
+          if (readyHandled) return;
+          readyHandled = true;
+          queuePlayback();
+        };
+        audio.addEventListener("loadeddata", readyHandler);
+        audio.addEventListener("canplay", readyHandler);
+        audio.addEventListener("canplaythrough", readyHandler);
+        audio.addEventListener("ended", () => {
+          if (isActive()) cleanup();
+        });
+        audio.addEventListener("error", () => {
+          if (isActive()) cleanup();
+        }, { once: true });
+
         audio.load();
+
+        if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+          queuePlayback();
+        }
       })
-      .catch(() => cleanup());
+      .catch(() => {
+        if (isActive()) cleanup();
+      });
 
     return () => {
       cleanup();
       cleanupRef.current = null;
     };
   }, [mediaId, enabled, themeMusicEnabled]);
-
-  useEffect(() => {
-    const onSettingsChange = () => {
-      if (!isThemeMusicEnabled()) cleanupRef.current?.();
-    };
-    window.addEventListener(THEME_MUSIC_CHANGED_EVENT, onSettingsChange);
-    return () => window.removeEventListener(THEME_MUSIC_CHANGED_EVENT, onSettingsChange);
-  }, []);
 
   return (
     <ThemeMusicContext.Provider value={{ isPlaying, analyser }}>

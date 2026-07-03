@@ -172,16 +172,24 @@ export async function subtitleSearchRoutes(
       opensubtitlesFileId,
     );
 
-    const track = await subtitleService.attachOpenSubtitlesDownload({
-      movieFileId: context.movieFileId,
-      episodeId: context.episodeId,
-      opensubtitlesFileId,
-      language,
-      release: release || "Downloaded subtitle",
-      rawContent: content,
-    });
+    try {
+      const track = await subtitleService.attachOpenSubtitlesDownload({
+        movieFileId: context.movieFileId,
+        episodeId: context.episodeId,
+        opensubtitlesFileId,
+        language,
+        release: release || "Downloaded subtitle",
+        rawContent: content,
+      });
 
-    return { success: true, track };
+      return { success: true, track };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save subtitle";
+      if (message.includes("no dialogue")) {
+        return reply.status(400).send({ error: "Downloaded subtitle has no dialogue" });
+      }
+      throw err;
+    }
   });
 
   app.delete<{ Params: { id: string } }>(

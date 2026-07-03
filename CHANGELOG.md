@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.37 — 2026-07-03
+
+### Subtitles
+- **Appearance settings** — Netflix-style subtitle styling (size, font, color, opacity, background, edge style) with live preview in Settings
+- **Empty track filtering** — external, embedded, and downloaded subtitles are validated for dialogue before listing or serving
+
+### Theme music
+- **Playback reliability** — resume AudioContext before play, blob cache, multi-ready events, gesture retry, and synchronous mute preference hydration
+
 ## 0.1.36 — 2026-07-03
 
 ### Theme music

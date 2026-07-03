@@ -22,6 +22,7 @@ import { LibraryManager } from "@/components/library-manager";
 import { DeckManager } from "@/components/deck-manager";
 import { UpdateManager } from "@/components/update-manager";
 import { SettingsSection } from "@/components/settings-shell";
+import { SubtitleAppearanceSettings } from "@/components/subtitle-style-settings";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
 export function SettingsClient() {
@@ -455,6 +456,14 @@ export function SettingsClient() {
               {fanartKeyMessage && (
                 <p className="mt-2 text-sm text-muted-foreground">{fanartKeyMessage}</p>
               )}
+            </SettingsSection>
+
+            <SettingsSection
+              icon={Subtitles}
+              title="Subtitle appearance"
+              description="Customize how subtitles look during playback. Changes apply on this device."
+            >
+              <SubtitleAppearanceSettings />
             </SettingsSection>
 
             <SettingsSection
