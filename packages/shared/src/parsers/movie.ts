@@ -36,7 +36,10 @@ export function parseMovieFilename(filename: string): ParsedMovie {
     titlePart = base.slice(0, yearMatch.index);
   }
 
-  const title = cleanTitle(titlePart) || cleanTitle(base) || base;
+  const title =
+    cleanTitle(titlePart).replace(/[\(\[\{]+\s*$/g, "").trim() ||
+    cleanTitle(base).replace(/[\(\[\{]+\s*$/g, "").trim() ||
+    base;
 
   return {
     title,
