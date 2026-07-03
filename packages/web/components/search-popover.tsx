@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { Clapperboard, Film, Loader2, Search, Tv, X } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function SearchPopover() {
@@ -77,12 +76,13 @@ export function SearchPopover() {
 
   return (
     <div ref={containerRef} className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
+      <button
+        type="button"
         className={cn(
-          "gap-2 text-muted-foreground hover:bg-muted hover:text-foreground",
-          open && "bg-primary/[0.12] text-primary",
+          "relative flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:px-4",
+          open
+            ? "bg-primary/[0.12] text-primary"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
@@ -90,7 +90,10 @@ export function SearchPopover() {
       >
         <Search className="h-4 w-4" />
         <span className="hidden sm:inline">Search</span>
-      </Button>
+        {open && (
+          <span className="absolute inset-x-3 bottom-1 h-px bg-primary/70" />
+        )}
+      </button>
 
       {open && (
         <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(100vw-2rem,28rem)] overflow-hidden rounded-md border border-border bg-card shadow-2xl">
