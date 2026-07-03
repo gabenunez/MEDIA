@@ -182,6 +182,7 @@ export function WatchClient() {
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [scrubPreview, setScrubPreview] = useState<number | null>(null);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -600,6 +601,11 @@ export function WatchClient() {
   const absoluteDurationMs = sourceDurationMs || duration * 1000;
   const progress =
     absoluteDurationMs > 0 ? (absoluteCurrentTime * 1000) / absoluteDurationMs * 100 : 0;
+  const displayedProgress = scrubPreview ?? progress;
+  const displayedAbsoluteTime =
+    scrubPreview !== null && absoluteDurationMs > 0
+      ? (scrubPreview / 100) * (absoluteDurationMs / 1000)
+      : absoluteCurrentTime;
   const bufferedPercent =
     absoluteDurationMs > 0
       ? Math.min(100, (bufferedSeconds * 1000) / absoluteDurationMs * 100)
@@ -667,6 +673,25 @@ export function WatchClient() {
       video.currentTime = targetSeconds;
     }
     revealControls(true);
+  };
+
+  const handleScrubChange = (value: number) => {
+    setScrubPreview(value);
+    if (quality === "original") {
+      seek(value);
+    } else {
+      revealControls(true);
+    }
+  };
+
+  const handleScrubCommit = (value: number) => {
+    setScrubPreview(null);
+    if (quality !== "original") {
+      const targetSeconds = (value / 100) * (absoluteDurationMs / 1000);
+      if (Math.abs(targetSeconds - absoluteCurrentTime) > 2) {
+        seek(value);
+      }
+    }
   };
 
   if (!fileId || Number.isNaN(fileId)) {
@@ -774,7 +799,7 @@ export function WatchClient() {
                   />
                   <div
                     className="absolute inset-y-0 left-0 rounded-full bg-primary/70"
-                    style={{ width: `${progress}%` }}
+                    style={{ width: `${displayedProgress}%` }}
                   />
                 </div>
                 <input
@@ -782,8 +807,14 @@ export function WatchClient() {
                   min={0}
                   max={100}
                   step={0.1}
-                  value={progress}
-                  onChange={(e) => seek(parseFloat(e.target.value))}
+                  value={displayedProgress}
+                  onChange={(e) => handleScrubChange(parseFloat(e.target.value))}
+                  onPointerUp={(e) =>
+                    handleScrubCommit(parseFloat((e.currentTarget as HTMLInputElement).value))
+                  }
+                  onTouchEnd={(e) =>
+                    handleScrubCommit(parseFloat((e.currentTarget as HTMLInputElement).value))
+                  }
                   className="range-signal range-signal-overlay relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent"
                 />
               </div>
@@ -805,7 +836,7 @@ export function WatchClient() {
                 </Button>
 
                 <span className="hidden min-w-[5.5rem] text-sm tabular-nums text-white/80 sm:inline">
-                  {formatDuration(absoluteCurrentTime * 1000)} /{" "}
+                  {formatDuration(displayedAbsoluteTime * 1000)} /{" "}
                   {formatDuration(absoluteDurationMs)}
                 </span>
 

@@ -17,6 +17,8 @@ import {
   readStartOffset,
   clearTranscodeOutput,
   stopHlsSession,
+  getHlsSession,
+  listHlsSegments,
   waitForPlaylist,
   probeFile,
 } from "../utils/ffmpeg.js";
@@ -41,6 +43,34 @@ function parseStartSeconds(value?: string): number {
   const parsed = parseFloat(value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return parsed;
+}
+
+function resetHlsSessionIfOffsetMismatch(
+  sessionId: string,
+  outputDir: string,
+  startSeconds: number,
+): void {
+  if (!fs.existsSync(outputDir)) return;
+
+  const storedOffset = readStartOffset(outputDir);
+  if (Math.abs(storedOffset - startSeconds) <= 5) return;
+
+  stopHlsSession(sessionId);
+  clearTranscodeOutput(outputDir);
+}
+
+function resolveStoredHlsSession(
+  sessionId: string,
+  outputDir: string,
+): ReturnType<typeof getHlsSession> {
+  const active = getHlsSession(sessionId);
+  if (active) return active;
+
+  if (!fs.existsSync(outputDir) || listHlsSegments(outputDir).length === 0) {
+    return undefined;
+  }
+
+  return resolveHlsSession(sessionId, outputDir, readStartOffset(outputDir));
 }
 
 export async function streamRoutes(
@@ -229,16 +259,9 @@ export async function streamRoutes(
       const outputDir = path.join(config.transcoding.cache_dir, sessionId);
       const startSeconds = parseStartSeconds(request.query.start);
 
-      let session = resolveHlsSession(sessionId, outputDir, startSeconds);
+      resetHlsSessionIfOffsetMismatch(sessionId, outputDir, startSeconds);
 
-      if (
-        !session &&
-        fs.existsSync(outputDir) &&
-        Math.abs(readStartOffset(outputDir) - startSeconds) > 5
-      ) {
-        stopHlsSession(sessionId);
-        clearTranscodeOutput(outputDir);
-      }
+      let session = resolveHlsSession(sessionId, outputDir, startSeconds);
 
       if (!session) {
         session = startHlsTranscode(
@@ -305,9 +328,8 @@ export async function streamRoutes(
       const quality = parseTranscodeQuality(request.query.quality) ?? "720p";
       const sessionId = createStreamSessionId(type, fileId, quality);
       const outputDir = path.join(config.transcoding.cache_dir, sessionId);
-      const startSeconds = parseStartSeconds(request.query.start);
 
-      const session = resolveHlsSession(sessionId, outputDir, startSeconds);
+      const session = resolveStoredHlsSession(sessionId, outputDir);
       if (!session) {
         return reply.status(404).send({ error: "HLS session not found" });
       }

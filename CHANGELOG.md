@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.18 — 2026-07-03
+
+### Playback
+- **Seek during transcoding** — scrubbing and skip-ahead now restart HLS at the correct position instead of staying at the start
+- Scrub bar previews the target time while dragging; seek commits on release so transcoding is not restarted on every pixel
+
 ## 0.1.17 — 2026-07-03
 
 ### Playback

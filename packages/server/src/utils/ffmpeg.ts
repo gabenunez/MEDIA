@@ -274,7 +274,11 @@ export function resolveHlsSession(
   startSeconds = 0,
 ): HlsSession | undefined {
   const active = getHlsSession(sessionId);
-  if (active) return active;
+  if (active) {
+    const storedOffset = readStartOffset(active.outputDir);
+    if (Math.abs(storedOffset - startSeconds) <= 5) return active;
+    return undefined;
+  }
 
   if (listHlsSegments(outputDir).length === 0) return undefined;
   if (Math.abs(readStartOffset(outputDir) - startSeconds) > 5) return undefined;
