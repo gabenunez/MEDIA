@@ -227,19 +227,51 @@ const LOG_PHASE_PATTERNS: { phase: UpdatePhase; pattern: RegExp }[] = [
   {
     phase: "building",
     pattern:
-      /\[3\] Building|Installing dependencies and building|Tasks:\s+\d+ successful|Compiled successfully|next build|@reel\/.*:build/i,
+      /\[3\] Building|Installing dependencies and building|pnpm install|pnpm build|Tasks:\s+\d+ successful|Compiled successfully|next build|@reel\/.*:build/i,
   },
   {
     phase: "downloading",
     pattern:
-      /\[2\] Downloading|Checking out release|Pulling latest|Synced release|git reset --hard|HEAD is now at/i,
+      /\[2\] Downloading|Checking out release|Fetching release|Pulling latest|Synced release|Synced latest|git fetch|git reset --hard|HEAD is now at/i,
   },
   { phase: "preparing", pattern: /\[1\] Checking install|Preparing update/i },
 ];
 
+function readSessionStartedAt(): string | null {
+  const logPath = getUpdateLogPath();
+  if (!fs.existsSync(logPath)) return null;
+
+  try {
+    const raw = fs.readFileSync(logPath, "utf8");
+    const lines = raw.split("\n").map((line) => stripAnsi(line).trim());
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const match = lines[i].match(/^--- Update started (.+?) \(/);
+      if (match?.[1]) {
+        const parsed = Date.parse(match[1]);
+        if (Number.isFinite(parsed)) {
+          return new Date(parsed).toISOString();
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
 function inferPhaseFromLog(lines: string[]): UpdatePhase {
-  // Use the most recent matching line so older sessions in the log tail cannot
-  // mark a fresh update as complete while it is still building.
+  // Authoritative progress markers emitted by scripts/update.sh
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const marker = lines[i].match(/REEL_UPDATE_PROGRESS phase=(\w+)/i);
+    if (marker?.[1]) {
+      const phase = marker[1].toLowerCase() as UpdatePhase;
+      if (phase in UPDATE_STEP_LABELS) return phase;
+    }
+  }
+
+  // Fall back to step output in the current session log tail.
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
     for (const { phase, pattern } of LOG_PHASE_PATTERNS) {
@@ -308,6 +340,7 @@ function writeUpdateProgress(
   phase: UpdatePhase,
   message: string,
   releaseTag: string | null,
+  startedAt?: string | null,
 ): void {
   const configDir = getConfigDir();
   fs.mkdirSync(configDir, { recursive: true });
@@ -317,6 +350,7 @@ function writeUpdateProgress(
       phase,
       message,
       releaseTag,
+      startedAt: startedAt ?? readLockMeta().startedAt ?? readSessionStartedAt(),
       updatedAt: new Date().toISOString(),
     }),
   );
@@ -328,14 +362,14 @@ export function getUpdateProgress(): UpdateProgress | null {
   }
 
   const logTail = readLogTail();
-  const { startedAt, releaseTag: lockTag } = readLockMeta();
-  const startedMs = startedAt ? Date.parse(startedAt) : Date.now();
-  const elapsedMs = Math.max(0, Date.now() - startedMs);
+  const { startedAt: lockStartedAt, releaseTag: lockTag } = readLockMeta();
+  const sessionStartedAt = readSessionStartedAt();
 
   let phase: UpdatePhase = "unknown";
   let message = "Update in progress...";
   let releaseTag = lockTag;
   let updatedAt: string | null = null;
+  let progressStartedAt: string | null = null;
 
   const progressPath = getUpdateProgressPath();
   if (fs.existsSync(progressPath)) {
@@ -345,30 +379,58 @@ export function getUpdateProgress(): UpdateProgress | null {
         message?: string;
         releaseTag?: string | null;
         updatedAt?: string;
+        startedAt?: string;
       };
       if (parsed.phase) phase = parsed.phase;
       if (parsed.message) message = parsed.message;
       if (parsed.releaseTag) releaseTag = parsed.releaseTag;
       if (parsed.updatedAt) updatedAt = parsed.updatedAt;
+      if (parsed.startedAt) progressStartedAt = parsed.startedAt;
     } catch {
       // fall through to log inference
     }
   }
 
-  phase = resolveUpdatePhase(phase, logTail);
+  const resolvedPhase = resolveUpdatePhase(phase, logTail);
+  phase = resolvedPhase;
 
   // The lock file stays until the update script exits; never show "complete"
   // while it is still held, even if stale log lines were misread.
   if (phase === "complete") {
     phase = "restarting";
-    if (message === UPDATE_STEP_LABELS.complete) {
-      message = UPDATE_STEP_LABELS.restarting;
+  }
+
+  let fileMessage: string | null = null;
+  let filePhase: UpdatePhase | null = null;
+  if (fs.existsSync(progressPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(progressPath, "utf8")) as {
+        phase?: UpdatePhase;
+        message?: string;
+      };
+      filePhase = parsed.phase ?? null;
+      fileMessage = parsed.message?.trim() || null;
+    } catch {
+      // ignore
     }
   }
 
-  if (message === "Update in progress..." || message === "Starting update...") {
+  if (fileMessage && filePhase === phase) {
+    message = fileMessage;
+  } else if (
+    message === "Update in progress..." ||
+    message === "Starting update..." ||
+    filePhase !== phase
+  ) {
     message = UPDATE_STEP_LABELS[phase] ?? message;
   }
+
+  const startedAt = lockStartedAt ?? sessionStartedAt ?? progressStartedAt;
+  const startedMs = startedAt ? Date.parse(startedAt) : null;
+  const elapsedMs =
+    startedMs != null && Number.isFinite(startedMs)
+      ? Math.max(0, Date.now() - startedMs)
+      : 0;
 
   return {
     phase,
@@ -612,9 +674,10 @@ export function triggerUpdate(releaseTag: string, installDir = detectInstallDir(
   const configDir = path.join(os.homedir(), ".config/reel");
   fs.mkdirSync(configDir, { recursive: true });
   const logPath = path.join(configDir, "update.log");
-  fs.writeFileSync(getUpdateLockPath(), `${Date.now()}\n${releaseTag}\n`);
-  fs.appendFileSync(logPath, `\n--- Update started ${new Date().toISOString()} (${releaseTag}) ---\n`);
-  writeUpdateProgress("preparing", "Starting update...", releaseTag);
+  const startedMs = Date.now();
+  fs.writeFileSync(getUpdateLockPath(), `${startedMs}\n${releaseTag}\n`);
+  fs.appendFileSync(logPath, `\n--- Update started ${new Date(startedMs).toISOString()} (${releaseTag}) ---\n`);
+  writeUpdateProgress("preparing", "Starting update...", releaseTag, new Date(startedMs).toISOString());
 
   const logFd = fs.openSync(logPath, "a");
 

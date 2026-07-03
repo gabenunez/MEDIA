@@ -68,17 +68,27 @@ reel_progress() {
   local message="$2"
   local progress_dir="${HOME}/.config/reel"
   local tag="${REEL_RELEASE_TAG:-}"
+  local lock_file="$progress_dir/updating.lock"
+  local started_ms=""
+  if [[ -f "$lock_file" ]]; then
+    started_ms="$(head -1 "$lock_file" | tr -d '[:space:]')"
+  fi
   mkdir -p "$progress_dir"
   node -e "
     const fs = require('fs');
+    const startedMs = process.argv[5];
     const payload = {
       phase: process.argv[1],
       message: process.argv[2],
       releaseTag: process.argv[3] || null,
+      startedAt:
+        startedMs && /^\\d+$/.test(startedMs)
+          ? new Date(Number(startedMs)).toISOString()
+          : null,
       updatedAt: new Date().toISOString(),
     };
     fs.writeFileSync(process.argv[4], JSON.stringify(payload));
-  " "$phase" "$message" "$tag" "$progress_dir/update-progress.json" 2>/dev/null \
+  " "$phase" "$message" "$tag" "$progress_dir/update-progress.json" "$started_ms" 2>/dev/null \
     || printf '{"phase":"%s","message":"%s","releaseTag":"%s","updatedAt":"%s"}\n' \
       "$phase" "$message" "$tag" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$progress_dir/update-progress.json"
   echo "REEL_UPDATE_PROGRESS phase=$phase"

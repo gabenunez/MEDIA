@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.30 — 2026-07-03
+
+### Updates
+- **Upgrade banner fix** — progress phase and elapsed time update correctly during in-app updates; live timer, reliable log parsing, and stable start-time tracking
+
 ## 0.1.29 — 2026-07-03
 
 ### UI
