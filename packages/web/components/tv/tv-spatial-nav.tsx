@@ -97,6 +97,27 @@ function moveInScrollRow(active: HTMLElement, direction: "left" | "right") {
   return false;
 }
 
+function moveInVerticalRow(active: HTMLElement, direction: "up" | "down") {
+  const row = active.closest("[data-tv-row][data-tv-vertical]");
+  if (!row) return false;
+
+  const items = getRowItems(row);
+  const index = items.indexOf(active);
+  if (index === -1) return false;
+
+  if (direction === "down" && index < items.length - 1) {
+    focusTvItem(items[index + 1]);
+    return true;
+  }
+
+  if (direction === "up" && index > 0) {
+    focusTvItem(items[index - 1]);
+    return true;
+  }
+
+  return false;
+}
+
 function focusNavFromContent(active: HTMLElement) {
   const navRow = getNavRow();
   if (!navRow) return false;
@@ -187,7 +208,11 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
     return false;
   }
 
-  if (activeRow.hasAttribute("data-tv-grid") || activeRow.hasAttribute("data-tv-vertical")) {
+  if (activeRow.hasAttribute("data-tv-vertical")) {
+    if (moveInVerticalRow(active, direction)) return true;
+  }
+
+  if (activeRow.hasAttribute("data-tv-grid")) {
     const next = findNextByGeometry(active, direction);
     if (next) {
       focusTvItem(next);

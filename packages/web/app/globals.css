@@ -162,6 +162,10 @@
     transform: scale(1.03);
   }
 
+  .tv-ui [data-tv-vertical] [data-tv-item] {
+    scroll-margin-block: 1.75rem;
+  }
+
   .tv-ui [data-tv-vertical] [data-tv-item].tv-focus-card {
     margin-block: 0.1875rem;
   }
@@ -338,5 +342,11 @@
   .tv-ui [data-tv-watch-scrub][data-tv-focused] {
     box-shadow: var(--tv-focus-glow-strong);
     transform: scaleY(1.65);
+  }
+
+  html[data-native-video="true"],
+  html[data-native-video="true"] body,
+  html[data-native-video="true"] .tv-ui {
+    background: transparent !important;
   }
 }

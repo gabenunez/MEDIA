@@ -136,4 +136,35 @@ object ServerConnector {
             // Best-effort logout; local session is cleared regardless.
         }
     }
+
+    fun saveProgress(
+        serverUrl: String,
+        sessionToken: String?,
+        itemType: String,
+        itemId: Int,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        try {
+            val connection = openPost("$serverUrl/api/watch-progress")
+            if (!sessionToken.isNullOrBlank()) {
+                connection.setRequestProperty("Cookie", "reel_session=$sessionToken")
+            }
+            try {
+                val body = JSONObject()
+                    .put("itemType", itemType)
+                    .put("itemId", itemId)
+                    .put("positionMs", positionMs)
+                    .put("durationMs", durationMs)
+                OutputStreamWriter(connection.outputStream).use { writer ->
+                    writer.write(body.toString())
+                }
+                connection.responseCode
+            } finally {
+                connection.disconnect()
+            }
+        } catch (_: Exception) {
+            // Best-effort progress save.
+        }
+    }
 }

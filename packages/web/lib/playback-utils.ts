@@ -1,5 +1,6 @@
 import type { StreamQuality } from "@/lib/api";
 import type { StreamInfo } from "@/lib/api";
+import { nativeTvPlayerAvailable } from "@/lib/android-bridge";
 import {
   isBrowserDirectPlayVideoSupported,
   isHlsVideoCopySupported,
@@ -11,6 +12,12 @@ import {
 export const PROGRESS_SAVE_MS = 10_000;
 
 export type PlaybackHlsQuality = StreamQuality | "remux";
+
+export function isTvClient(): boolean {
+  if (typeof window === "undefined") return false;
+  if (sessionStorage.getItem("reel-client") === "android-tv") return true;
+  return navigator.userAgent.includes("ReelAndroidTV");
+}
 
 function browserSupportsHevcPlayback(): boolean {
   if (typeof document === "undefined") return false;
@@ -43,11 +50,16 @@ function browserSupportsDirectPlayVideo(videoCodec?: string | null): boolean {
 function effectiveOriginalPlaybackMode(
   streamInfo: StreamInfo,
 ): ReturnType<typeof resolveOriginalPlaybackMode> {
-  let mode = resolveOriginalPlaybackMode({
+  const mode = resolveOriginalPlaybackMode({
     audioCodec: streamInfo.audioCodec,
     videoCodec: streamInfo.videoCodec,
     transcodingEnabled: streamInfo.transcodingEnabled,
   });
+
+  // Native ExoPlayer decodes source resolution — direct play and remux stay at original quality.
+  if (nativeTvPlayerAvailable()) {
+    return mode;
+  }
 
   if (mode === "direct" && !browserSupportsDirectPlayVideo(streamInfo.videoCodec)) {
     if (!streamInfo.transcodingEnabled) return "unsupported";
@@ -298,4 +310,25 @@ export function findEpisode(
     }
   }
   return null;
+}
+
+/** Shared hls.js config — sends session cookies on manifest + segment requests. */
+export function createPlaybackHls(
+  HlsConstructor: typeof import("hls.js").default,
+  options?: { tv?: boolean },
+) {
+  const tv = options?.tv ?? isTvClient();
+
+  return new HlsConstructor({
+    backBufferLength: tv ? 30 : 90,
+    maxBufferLength: tv ? 60 : 30,
+    maxMaxBufferLength: tv ? 120 : 600,
+    maxBufferSize: tv ? 100 * 1000 * 1000 : 60 * 1000 * 1000,
+    maxBufferHole: 0.5,
+    nudgeOnVideoHole: true,
+    startFragPrefetch: tv,
+    xhrSetup: (xhr) => {
+      xhr.withCredentials = true;
+    },
+  });
 }

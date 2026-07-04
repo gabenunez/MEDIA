@@ -1,26 +1,26 @@
 /** Shared TV focus helpers for spatial nav and page views. */
 
 export function scrollItemIntoView(el: HTMLElement) {
-  const scrollRow = el.closest<HTMLElement>("[data-tv-scroll-row]");
-  if (scrollRow) {
-    const rowRect = scrollRow.getBoundingClientRect();
+  const horizontalRow = el.closest<HTMLElement>(
+    "[data-tv-scroll-row]:not([data-tv-vertical])",
+  );
+  if (horizontalRow) {
+    const rowRect = horizontalRow.getBoundingClientRect();
     const elRect = el.getBoundingClientRect();
     const targetLeft =
-      scrollRow.scrollLeft +
+      horizontalRow.scrollLeft +
       (elRect.left - rowRect.left) -
       (rowRect.width - elRect.width) / 2;
-    scrollRow.scrollTo({ left: Math.max(0, targetLeft), behavior: "smooth" });
+    horizontalRow.scrollTo({ left: Math.max(0, targetLeft), behavior: "smooth" });
   }
 
-  const section =
-    el.closest<HTMLElement>("section") ??
-    el.closest<HTMLElement>("[data-tv-content-row]");
-  if (section) {
-    section.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-    return;
-  }
-
-  el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  // Scroll the focused item itself — not its parent row/section (critical for long
+  // vertical episode lists where the row spans the full page height).
+  el.scrollIntoView({
+    behavior: "smooth",
+    block: "center",
+    inline: "nearest",
+  });
 }
 
 export function focusTvItem(el: HTMLElement) {
