@@ -498,27 +498,49 @@ function fetchLatestTagFromGit(installDir: string): string | null {
       ["-C", installDir, "remote", "set-url", "origin", `https://github.com/${GITHUB_REPO}.git`],
       { stdio: "ignore" },
     );
+    return parseLatestTagFromLsRemote(
+      execFileSync(
+        "git",
+        ["-C", installDir, "ls-remote", "--tags", "origin"],
+        {
+          encoding: "utf8",
+          timeout: 20000,
+          env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        },
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Latest semver tag from GitHub — works even when the install dir is not a git clone. */
+function fetchLatestTagRemote(): string | null {
+  try {
     const stdout = execFileSync(
       "git",
-      ["-C", installDir, "ls-remote", "--tags", "origin"],
+      ["ls-remote", "--tags", `https://github.com/${GITHUB_REPO}.git`],
       {
         encoding: "utf8",
         timeout: 20000,
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
       },
     );
-
-    const versions = stdout
-      .split("\n")
-      .map((line) => line.match(/refs\/tags\/v?(\d+\.\d+\.\d+)/)?.[1])
-      .filter((value): value is string => Boolean(value));
-
-    const unique = [...new Set(versions)];
-    unique.sort((a, b) => compareVersions(b, a));
-    return unique[0] ?? null;
+    return parseLatestTagFromLsRemote(stdout);
   } catch {
     return null;
   }
+}
+
+function parseLatestTagFromLsRemote(stdout: string): string | null {
+  const versions = stdout
+    .split("\n")
+    .map((line) => line.match(/refs\/tags\/v?(\d+\.\d+\.\d+)/)?.[1])
+    .filter((value): value is string => Boolean(value));
+
+  const unique = [...new Set(versions)];
+  unique.sort((a, b) => compareVersions(b, a));
+  return unique[0] ?? null;
 }
 
 function extractChangelogSection(markdown: string, version: string): string | null {
@@ -561,7 +583,7 @@ async function fetchReleaseNotesFromChangelog(version: string): Promise<string |
   return null;
 }
 
-function resolveLatestFromGit(
+function resolveLatestFromTags(
   installDir: string,
   currentVersion: string,
 ): {
@@ -570,16 +592,16 @@ function resolveLatestFromGit(
   releaseUrl: string;
   updateAvailable: boolean;
 } | null {
-  const gitLatest = fetchLatestTagFromGit(installDir);
-  if (!gitLatest) {
+  const latest = fetchLatestTagFromGit(installDir) ?? fetchLatestTagRemote();
+  if (!latest) {
     return null;
   }
 
   return {
-    latestVersion: gitLatest,
-    latestReleaseName: `v${gitLatest}`,
-    releaseUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v${gitLatest}`,
-    updateAvailable: isNewerVersion(gitLatest, currentVersion),
+    latestVersion: latest,
+    latestReleaseName: `v${latest}`,
+    releaseUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v${latest}`,
+    updateAvailable: isNewerVersion(latest, currentVersion),
   };
 }
 
@@ -619,13 +641,13 @@ export async function checkForUpdates(force = false): Promise<UpdateStatus> {
   let updateAvailable = false;
   let updateCheckWarning: string | null = null;
 
-  const gitLatest = resolveLatestFromGit(installDir, currentVersion);
-  if (gitLatest) {
-    latestVersion = gitLatest.latestVersion;
-    latestReleaseName = gitLatest.latestReleaseName;
-    releaseUrl = gitLatest.releaseUrl;
-    updateAvailable = gitLatest.updateAvailable;
-    releaseNotes = await fetchReleaseNotesFromChangelog(gitLatest.latestVersion);
+  const tagLatest = resolveLatestFromTags(installDir, currentVersion);
+  if (tagLatest) {
+    latestVersion = tagLatest.latestVersion;
+    latestReleaseName = tagLatest.latestReleaseName;
+    releaseUrl = tagLatest.releaseUrl;
+    updateAvailable = tagLatest.updateAvailable;
+    releaseNotes = await fetchReleaseNotesFromChangelog(tagLatest.latestVersion);
   } else {
     try {
       const release = await fetchLatestReleaseFromGitHubApi();

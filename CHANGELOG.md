@@ -20,6 +20,10 @@
 ### UI
 - **Lazy posters** — defer loading browse/search poster images until they scroll into view
 
+### Dev
+- **Actions-free releases** — drop the tag-triggered GitHub Actions workflow; publish releases locally with `pnpm release` (`gh` + CHANGELOG.md)
+- **Updater tag detection** — check latest version via `git ls-remote` tags and CHANGELOG.md instead of relying on the GitHub Releases API
+
 ## 0.1.44 — 2026-07-04
 
 ### TV

@@ -7,6 +7,7 @@
     "build": "turbo build",
     "start": "pnpm --filter @reel/server start",
     "update": "bash scripts/update.sh",
+    "release": "bash scripts/release.sh",
     "db:generate": "pnpm --filter @reel/server db:generate",
     "db:migrate": "pnpm --filter @reel/server db:migrate",
     "lint": "turbo lint",
