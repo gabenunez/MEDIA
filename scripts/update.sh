@@ -250,16 +250,13 @@ cleanup_update_lock() {
   rm -f "${HOME}/.config/reel/updating.lock" 2>/dev/null || true
 }
 
+on_update_error() {
+  media_progress "failed" "Update failed — see $(media_config_dir)/update.log for details"
+  cleanup_update_lock
+  exit 1
+}
+
 main() {
-  local config_dir
-  config_dir="$(media_config_dir)"
-
-  on_update_error() {
-    media_progress "failed" "Update failed — see $config_dir/update.log for details"
-    cleanup_update_lock
-    exit 1
-  }
-
   trap on_update_error ERR
   trap cleanup_update_lock EXIT
 
@@ -323,6 +320,9 @@ main() {
   echo -e "  ${REEL_BOLD}Before:${REEL_RESET} ${REEL_DIM}$before${REEL_RESET}"
   echo -e "  ${REEL_BOLD}After:${REEL_RESET}  $after"
   echo ""
+
+  trap - EXIT ERR
+  cleanup_update_lock
 }
 
 main "$@"

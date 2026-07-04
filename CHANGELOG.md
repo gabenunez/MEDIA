@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.56 — 2026-07-04
+
+### Fix
+- **Update script** — move trap handlers to top level and clear EXIT trap on success so `config_dir` is never unbound after a completed update
+
 ## 0.1.55 — 2026-07-04
 
 ### Performance
