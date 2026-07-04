@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.55 — 2026-07-04
+
+### Performance
+- **Lazy routes** — load watch and settings pages on demand to shrink the initial bundle
+- **Build** — enable Radix tree-shaking and Turbopack filesystem cache for faster rebuilds
+- **Dependencies** — remove unused framer-motion
+
 ## 0.1.54 — 2026-07-04
 
 ### TV
