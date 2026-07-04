@@ -108,6 +108,22 @@ class NativePlayerManager(
         emitState()
     }
 
+    fun isPlaying(): Boolean = player?.isPlaying == true
+
+    fun isActive(): Boolean = playerView.visibility == View.VISIBLE && player != null
+
+    fun togglePlayPause() {
+        val exoPlayer = player ?: return
+        if (exoPlayer.isPlaying) {
+            exoPlayer.pause()
+        } else {
+            exoPlayer.play()
+        }
+        emitState()
+    }
+
+    fun currentPositionMs(): Long = player?.currentPosition ?: 0L
+
     fun resume() {
         player?.play()
         emitState()

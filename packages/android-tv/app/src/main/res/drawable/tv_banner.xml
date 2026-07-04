@@ -1,6 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/media_background" />
-    <corners android:radius="8dp" />
-</shape>
+<!-- 320x180 TV launcher banner (TV-LB, TV-BN) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#0A0A0B"
+        android:pathData="M0,0 H320 V180 H0 Z" />
+    <path
+        android:fillColor="#141416"
+        android:pathData="M8,8 H312 V172 H8 Z" />
+    <!-- App mark -->
+    <path
+        android:fillColor="#0C1415"
+        android:pathData="M24,48 H96 V132 H24 Z" />
+    <path
+        android:fillColor="#2FFFE5"
+        android:pathData="M36,68 L36,112 L44,112 L44,88 L52,100 L60,88 L60,112 L68,112 L68,68 L58,68 L52,80 L46,68 Z" />
+    <path
+        android:fillColor="#2FFFE5"
+        android:pathData="M74,68 L74,92 L82,92 L82,68 Z" />
+    <path
+        android:fillColor="#2FFFE5"
+        android:pathData="M74,98 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <!-- MEDIA! wordmark -->
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M112,78 H124 V102 H112 Z M112,106 H124 V130 H112 Z M112,78 H136 V86 H112 Z M112,122 H136 V130 H112 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M142,78 H154 V130 H142 Z M142,78 H166 V86 H142 Z M142,102 H162 V110 H142 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M172,78 H184 V130 H172 Z M172,78 H196 V86 H172 Z M172,102 H196 V110 H172 Z M172,122 H196 V130 H172 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M202,78 H214 V130 H202 Z M214,78 H226 V86 H202 Z M202,94 H226 V102 H202 Z M202,110 H226 V130 H214 V118 H202 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M232,78 H256 V86 H244 V130 H232 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M262,78 H274 V102 H262 Z M262,106 H274 V130 H262 Z M262,78 H286 V86 H262 Z M262,122 H286 V130 H262 Z" />
+    <path
+        android:fillColor="#E5A00D"
+        android:pathData="M292,78 H304 V118 H292 Z M292,124 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+</vector>

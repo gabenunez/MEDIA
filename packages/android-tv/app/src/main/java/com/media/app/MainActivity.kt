@@ -17,6 +17,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.ui.PlayerView
@@ -49,13 +50,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         configureWebView()
+        configureBackNavigation()
         applySessionCookie()
         webView.loadUrl(buildLaunchUrl(serverUrl))
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
-        webView.setBackgroundColor(Color.TRANSPARENT)
+        webView.setBackgroundColor(Color.BLACK)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         }
@@ -68,7 +70,9 @@ class MainActivity : AppCompatActivity() {
             userAgentString = buildUserAgent(userAgentString)
         }
 
-        webView.addJavascriptInterface(MediaAndroidBridge(), "MediaAndroid")
+        val bridge = MediaAndroidBridge()
+        webView.addJavascriptInterface(bridge, "MediaAndroid")
+        webView.addJavascriptInterface(bridge, "ReelAndroid")
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -79,7 +83,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onHideCustomView() {
                 keepScreenOn = false
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                updateKeepScreenOn()
                 super.onHideCustomView()
             }
         }
@@ -90,7 +94,14 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?,
             ): Boolean {
                 val target = request?.url ?: return false
-                val host = target.host ?: return false
+                if (!request.isForMainFrame) return false
+
+                val scheme = target.scheme?.lowercase()
+                if (scheme != "http" && scheme != "https") {
+                    return true
+                }
+
+                val host = target.host ?: return true
                 val allowedHost = serverHost()
                 return !host.equals(allowedHost, ignoreCase = true)
             }
@@ -111,7 +122,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private     fun applySessionCookie() {
+    private fun configureBackNavigation() {
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    when {
+                        nativePlayer.isActive() -> {
+                            nativePlayer.stop()
+                            updateKeepScreenOn()
+                        }
+                        webView.canGoBack() -> webView.goBack()
+                        else -> finishAffinity()
+                    }
+                }
+            },
+        )
+    }
+
+    private fun applySessionCookie() {
         CookieManager.getInstance().setAcceptCookie(true)
         val token = AuthSession.resolveSessionToken(this, serverUrl) ?: return
         val cookieManager = CookieManager.getInstance()
@@ -133,7 +162,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun performLogout(reload: Boolean = true) {
-        nativePlayer.stop()
+        pauseAllPlayback()
         val sessionToken = SessionPreferences.getSessionToken(this)
         executor.execute {
             ServerConnector.logout(serverUrl, sessionToken)
@@ -186,12 +215,51 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun pauseAllPlayback() {
+        if (nativePlayer.isActive()) {
+            nativePlayer.pause()
+        }
+        pauseWebPlayback()
+        updateKeepScreenOn()
+    }
+
+    private fun pauseWebPlayback() {
+        webView.evaluateJavascript(PAUSE_WEB_PLAYBACK_JS, null)
+    }
+
+    private fun dispatchMediaKeyToWeb(keyCode: Int) {
+        val key =
+            when (keyCode) {
+                KeyEvent.KEYCODE_MEDIA_PLAY -> "MediaPlay"
+                KeyEvent.KEYCODE_MEDIA_PAUSE -> "MediaPause"
+                else -> "MediaPlayPause"
+            }
+        webView.evaluateJavascript(
+            """
+            (function(){
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: '$key', bubbles: true }));
+            })();
+            """.trimIndent(),
+            null,
+        )
+    }
+
+    private fun updateKeepScreenOn() {
+        val shouldKeepOn = keepScreenOn || nativePlayer.isPlaying()
+        if (shouldKeepOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         webView.onResume()
     }
 
     override fun onPause() {
+        pauseAllPlayback()
         webView.onPause()
         super.onPause()
     }
@@ -203,19 +271,51 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        when {
-            webView.canGoBack() -> webView.goBack()
-            else -> showAccountMenu()
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_MEDIA_PLAY,
+                KeyEvent.KEYCODE_MEDIA_PAUSE,
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    if (nativePlayer.isActive()) {
+                        nativePlayer.togglePlayPause()
+                        updateKeepScreenOn()
+                        return true
+                    }
+                    dispatchMediaKeyToWeb(event.keyCode)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    if (nativePlayer.isActive()) {
+                        nativePlayer.togglePlayPause()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                    if (nativePlayer.isActive()) {
+                        val position = nativePlayer.currentPositionMs()
+                        nativePlayer.seekTo((position - 10_000).coerceAtLeast(0L))
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                    if (nativePlayer.isActive()) {
+                        val position = nativePlayer.currentPositionMs()
+                        nativePlayer.seekTo(position + 10_000)
+                        return true
+                    }
+                }
+            }
         }
+
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            onBackPressed()
-            return true
-        }
         if (keyCode == KeyEvent.KEYCODE_MENU) {
             showAccountMenu()
             return true
@@ -284,7 +384,7 @@ class MainActivity : AppCompatActivity() {
         fun stop() {
             runOnUiThread {
                 nativePlayer.stop()
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                updateKeepScreenOn()
             }
         }
     }
@@ -292,5 +392,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SERVER_URL = "server_url"
         private const val USER_AGENT_TOKEN = "MediaAndroidTV"
+        private const val PAUSE_WEB_PLAYBACK_JS =
+            "(function(){var video=document.querySelector('video');if(video&&!video.paused){video.pause();}})();"
     }
 }

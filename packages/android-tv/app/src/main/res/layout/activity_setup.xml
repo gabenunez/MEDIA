@@ -10,7 +10,10 @@
         android:layout_height="wrap_content"
         android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:padding="48dp">
+        android:paddingStart="72dp"
+        android:paddingTop="48dp"
+        android:paddingEnd="72dp"
+        android:paddingBottom="48dp">
 
         <TextView
             android:layout_width="wrap_content"

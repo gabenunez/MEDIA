@@ -176,6 +176,9 @@ class SetupActivity : AppCompatActivity() {
             finishAffinity()
             return true
         }
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            return true
+        }
         return super.onKeyDown(keyCode, event)
     }
 }
