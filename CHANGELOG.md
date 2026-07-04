@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.64 — 2026-07-04
+
+### Fix
+- **TV library** — restore missing posters and videos on Android TV (eager image loading, remove CSS `contain` that hid tiles)
+- **TV playback** — restore native direct play instead of forcing MKV→HLS remux on every title
+- **TV menus** — fix broken subtitle/quality selection borders (solid focus borders instead of inset shadows); remove backdrop blur from menus; lighter focus transitions
+
 ## 0.1.63 — 2026-07-04
 
 ### Playback
