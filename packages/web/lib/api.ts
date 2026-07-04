@@ -226,7 +226,7 @@ export interface CastConfigResponse {
   transcodingEnabled: boolean;
 }
 
-export type StreamQuality = "original" | "480p" | "720p" | "1080p";
+export type StreamQuality = "original" | "480p" | "720p" | "1080p" | "2160p";
 
 export interface StreamInfo {
   id: number;

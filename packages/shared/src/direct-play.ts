@@ -100,7 +100,7 @@ export function pickTranscodeQualityForPlayback(
     (quality): quality is TranscodeQuality => quality !== "original",
   );
 
-  for (const quality of ["720p", "1080p", "480p"] as const) {
+  for (const quality of ["2160p", "1080p", "720p", "480p"] as const) {
     if (transcodeTiers.includes(quality)) return quality;
   }
 

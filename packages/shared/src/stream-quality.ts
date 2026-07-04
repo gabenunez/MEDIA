@@ -1,4 +1,4 @@
-export type StreamQuality = "original" | "480p" | "720p" | "1080p";
+export type StreamQuality = "original" | "480p" | "720p" | "1080p" | "2160p";
 
 export type TranscodeQuality = Exclude<StreamQuality, "original">;
 
@@ -43,10 +43,34 @@ export const TRANSCODE_PRESETS: Record<TranscodeQuality, TranscodePreset> = {
     audioBitrate: "192k",
     h264Level: "4.0",
   },
+  "2160p": {
+    label: "4K",
+    maxHeight: 2160,
+    crf: 19,
+    maxrate: "25000k",
+    bufsize: "50000k",
+    audioBitrate: "256k",
+    h264Level: "5.1",
+  },
 };
 
+export function is4KSource(
+  sourceHeight?: number | null,
+  sourceWidth?: number | null,
+): boolean {
+  return (
+    (sourceHeight != null && sourceHeight >= 2160) ||
+    (sourceWidth != null && sourceWidth >= 3840)
+  );
+}
+
 export function parseTranscodeQuality(value?: string | null): TranscodeQuality | null {
-  if (value === "480p" || value === "720p" || value === "1080p") {
+  if (
+    value === "480p" ||
+    value === "720p" ||
+    value === "1080p" ||
+    value === "2160p"
+  ) {
     return value;
   }
   return null;
@@ -57,16 +81,20 @@ export function parseHlsQuality(value?: string | null): HlsQuality | null {
   return parseTranscodeQuality(value);
 }
 
-export function getAvailableQualities(sourceHeight?: number | null): StreamQuality[] {
+export function getAvailableQualities(
+  sourceHeight?: number | null,
+  sourceWidth?: number | null,
+): StreamQuality[] {
   const qualities: StreamQuality[] = ["original"];
-  if (!sourceHeight) {
+  if (!sourceHeight && !sourceWidth) {
     return ["original", "480p", "720p", "1080p"];
   }
   // Always offer 480p transcode for sub-SD sources (e.g. 368p phone rips) — output
   // height is capped to source via effectiveTranscodeHeight().
-  if (sourceHeight > 0) qualities.push("480p");
-  if (sourceHeight >= 720) qualities.push("720p");
-  if (sourceHeight >= 1080) qualities.push("1080p");
+  if ((sourceHeight ?? 0) > 0) qualities.push("480p");
+  if ((sourceHeight ?? 0) >= 720) qualities.push("720p");
+  if ((sourceHeight ?? 0) >= 1080) qualities.push("1080p");
+  if (is4KSource(sourceHeight, sourceWidth)) qualities.push("2160p");
   return qualities;
 }
 
