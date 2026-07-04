@@ -11,6 +11,15 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "",
   },
+  experimental: {
+    optimizePackageImports: [
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-scroll-area",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-tabs",
+    ],
+    turbopackFileSystemCacheForBuild: true,
+  },
 };
 
 export default nextConfig;
