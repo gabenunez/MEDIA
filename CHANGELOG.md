@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.53 — 2026-07-04
+
+### Fix
+- **Static build** — remove server `headers()` from root layout so static export builds succeed again
+
 ## 0.1.52 — 2026-07-04
 
 ### Fix
