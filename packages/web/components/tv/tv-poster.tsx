@@ -4,7 +4,7 @@ import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { TvFocusLink } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
-import { Clapperboard, Play, Tv } from "lucide-react";
+import { Clapperboard, Tv } from "lucide-react";
 
 interface TvPosterProps {
   item: MediaItem;
@@ -56,12 +56,8 @@ export function TvPoster({
             )}
           </div>
 
-          <div className="tv-poster-play absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-200 ease-out">
-            <Play className="h-9 w-9 fill-white text-white drop-shadow-md" />
-          </div>
-
           {progress !== undefined && progress > 0 && (
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25">
+            <div className="absolute bottom-0 left-0 right-0 z-10 h-1 bg-white/25">
               <div
                 className="h-full bg-accent"
                 style={{ width: `${Math.min(100, progress)}%` }}
@@ -69,7 +65,7 @@ export function TvPoster({
             </div>
           )}
         </div>
-        <p className="tv-poster-title mt-2 line-clamp-2 text-sm font-semibold leading-snug transition-colors">
+        <p className="tv-poster-title mt-2 line-clamp-2 text-sm font-medium leading-snug text-muted-foreground transition-colors">
           {item.title}
         </p>
         {subtitle && (

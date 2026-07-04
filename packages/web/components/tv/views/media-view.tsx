@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Play } from "lucide-react";
 import { api } from "@/lib/api";
@@ -11,9 +11,9 @@ import { TvPageHeader, TvSectionLabel } from "@/components/tv/tv-page-header";
 import { tvScrollRowClassName } from "@/components/tv/tv-row";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
-import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
+import { resolveNextEpisodeTarget } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
-import { focusFirstContentItem } from "@/lib/tv-focus";
+import { focusEpisodeItem, focusFirstContentItem } from "@/lib/tv-focus";
 import { cn } from "@/lib/utils";
 
 interface Episode {
@@ -54,6 +54,7 @@ export function TvMediaView() {
   const [media, setMedia] = useState<MediaDetail | null>(null);
   const [selectedSeason, setSelectedSeason] = useState(0);
   const [loading, setLoading] = useState(true);
+  const nextEpisodeIdRef = useRef<number | null>(null);
 
   useDocumentTitle(media?.title ?? null);
 
@@ -61,15 +62,19 @@ export function TvMediaView() {
     if (!mediaId || Number.isNaN(mediaId)) return;
     setLoading(true);
     setSelectedSeason(0);
+    nextEpisodeIdRef.current = null;
     api
       .getMedia(mediaId)
       .then((data) => {
         const nextMedia = data as unknown as MediaDetail;
         setMedia(nextMedia);
         if (nextMedia.type === "tv" && nextMedia.seasons?.length) {
-          setSelectedSeason(resolveActiveSeasonIndex(nextMedia.seasons));
+          const target = resolveNextEpisodeTarget(nextMedia.seasons);
+          setSelectedSeason(target?.seasonIndex ?? 0);
+          nextEpisodeIdRef.current = target?.episodeId ?? null;
         } else {
           setSelectedSeason(0);
+          nextEpisodeIdRef.current = null;
         }
       })
       .catch(console.error)
@@ -78,8 +83,15 @@ export function TvMediaView() {
 
   useEffect(() => {
     if (loading || !media) return;
-    focusFirstContentItem();
-  }, [loading, media, selectedSeason]);
+
+    requestAnimationFrame(() => {
+      const nextEpisodeId = nextEpisodeIdRef.current;
+      if (media.type === "tv" && nextEpisodeId != null && focusEpisodeItem(nextEpisodeId)) {
+        return;
+      }
+      focusFirstContentItem();
+    });
+  }, [loading, media]);
 
   if (!mediaId || Number.isNaN(mediaId)) {
     return (
@@ -266,6 +278,7 @@ export function TvMediaView() {
                   key={ep.id}
                   href={routes.watch("episode", ep.id, media.id)}
                   variant="card"
+                  data-tv-episode-id={ep.id}
                   className="flex items-center gap-3 px-3 py-2.5"
                 >
                   <div className="relative h-[3.75rem] w-[6.75rem] shrink-0 overflow-hidden rounded-md bg-muted">

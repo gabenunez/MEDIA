@@ -36,6 +36,18 @@ export function focusTvItem(
   requestAnimationFrame(() => scrollItemIntoView(el, scrollBehavior));
 }
 
+/** Focus a TV episode row by file id. Returns false if the row is not in the DOM. */
+export function focusEpisodeItem(episodeId: number): boolean {
+  const main = document.querySelector("main");
+  if (!main) return false;
+  const item = main.querySelector<HTMLElement>(
+    `[data-tv-item][data-tv-episode-id="${episodeId}"]`,
+  );
+  if (!item) return false;
+  focusTvItem(item);
+  return true;
+}
+
 /** Focus the first focusable item inside main content (skips side nav). */
 export function focusFirstContentItem() {
   const main = document.querySelector("main");

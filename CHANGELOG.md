@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.50 — 2026-07-04
+
+### TV
+- **Poster focus** — cleaner selection ring on browse rows; removed play overlay on focus
+- **Show page** — auto-focus the next episode (continue watching, up next, or S1E1) when opening a series
+
+### UI
+- **Favicon** — updated to the M! logo to match the app icon
+
 ## 0.1.49 — 2026-07-04
 
 ### Fix

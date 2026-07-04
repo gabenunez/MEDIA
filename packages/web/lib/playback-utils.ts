@@ -403,9 +403,11 @@ function watchProgressTimestamp(
   return Number.isFinite(time) ? time : 0;
 }
 
-/** Season tab to show on a TV show page based on recent watch activity. */
-export function resolveActiveSeasonIndex(seasons: MediaSeasonProgress[]): number {
-  if (!seasons.length) return 0;
+/** Season tab and episode to focus on a TV show page based on watch activity. */
+export function resolveNextEpisodeTarget(
+  seasons: MediaSeasonProgress[],
+): { seasonIndex: number; episodeId: number } | null {
+  if (!seasons.length) return null;
 
   let bestSeasonIndex = 0;
   let bestTimestamp = -1;
@@ -432,24 +434,49 @@ export function resolveActiveSeasonIndex(seasons: MediaSeasonProgress[]): number
     }
   }
 
-  if (!bestEpisode?.watchProgress) return 0;
+  if (bestEpisode?.watchProgress) {
+    const durationMs =
+      bestEpisode.watchProgress.durationMs ?? bestEpisode.durationMs ?? 1;
+    const completed =
+      bestEpisode.watchProgress.positionMs / durationMs >= WATCH_COMPLETED_FRACTION;
 
-  const durationMs =
-    bestEpisode.watchProgress.durationMs ?? bestEpisode.durationMs ?? 1;
-  const completed =
-    bestEpisode.watchProgress.positionMs / durationMs >= WATCH_COMPLETED_FRACTION;
+    if (!completed) {
+      return { seasonIndex: bestSeasonIndex, episodeId: bestEpisode.id };
+    }
 
-  if (completed) {
     const next = findNextEpisode({ title: "", seasons }, bestEpisode.id);
     if (next) {
       const nextSeasonIndex = seasons.findIndex(
         (season) => season.seasonNumber === next.seasonNumber,
       );
-      if (nextSeasonIndex >= 0) return nextSeasonIndex;
+      return {
+        seasonIndex: nextSeasonIndex >= 0 ? nextSeasonIndex : bestSeasonIndex,
+        episodeId: next.episode.id,
+      };
+    }
+
+    return { seasonIndex: bestSeasonIndex, episodeId: bestEpisode.id };
+  }
+
+  const orderedSeasons = seasons
+    .map((season, index) => ({ season, index }))
+    .sort((a, b) => a.season.seasonNumber - b.season.seasonNumber);
+
+  for (const { season, index } of orderedSeasons) {
+    const episodes = [...season.episodes].sort(
+      (a, b) => a.episodeNumber - b.episodeNumber,
+    );
+    if (episodes[0]) {
+      return { seasonIndex: index, episodeId: episodes[0].id };
     }
   }
 
-  return bestSeasonIndex;
+  return null;
+}
+
+/** Season tab to show on a TV show page based on recent watch activity. */
+export function resolveActiveSeasonIndex(seasons: MediaSeasonProgress[]): number {
+  return resolveNextEpisodeTarget(seasons)?.seasonIndex ?? 0;
 }
 
 /** Shared hls.js config — sends session cookies on manifest + segment requests. */
