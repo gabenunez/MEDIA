@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Hls from "hls.js";
 import {
@@ -29,7 +29,10 @@ import {
   resolvePlaybackStream,
   createPlaybackHls,
   startDirectPlaybackWithResume,
+  type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
+import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
+import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
@@ -142,6 +145,7 @@ export function WatchClient() {
 }
 
 function WatchDesktopClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const type = (searchParams.get("type") ?? "movie") as "movie" | "episode";
   const fileId = parseInt(searchParams.get("id") ?? "", 10);
@@ -195,6 +199,7 @@ function WatchDesktopClient() {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
   const [posterPath, setPosterPath] = useState<string | null>(null);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
@@ -208,6 +213,34 @@ function WatchDesktopClient() {
     [quality, streamInfo],
   );
   const usingHlsPlayback = playbackStream.usingHls;
+
+  const backHref =
+    mediaId && !Number.isNaN(parseInt(mediaId, 10))
+      ? routes.media(parseInt(mediaId, 10))
+      : routes.home();
+
+  const handlePlaybackFinished = useCallback(() => {
+    router.push(backHref);
+  }, [router, backHref]);
+
+  const {
+    countdown,
+    countdownLabel,
+    startNextEpisodeCountdown,
+    cancelCountdown,
+    playNextEpisodeNow,
+  } = useNextEpisodeCountdown({
+    type,
+    fileId,
+    mediaId,
+    media: mediaDetail,
+    onNavigate: (href) => router.push(href),
+    onFinished: handlePlaybackFinished,
+  });
+
+  useEffect(() => {
+    cancelCountdown();
+  }, [fileId, cancelCountdown]);
 
   useDocumentTitle(title || null);
 
@@ -405,6 +438,7 @@ function WatchDesktopClient() {
       .getMedia(parseInt(mediaId, 10))
       .then((data) => {
         const media = data as unknown as MediaDetail;
+        setMediaDetail(media);
         setTitle(buildPlaybackTitle(type, media, fileId));
 
         if (type === "episode") {
@@ -570,6 +604,11 @@ function WatchDesktopClient() {
         setOptimisticAbsoluteSeconds(null);
       }
     };
+    const onEnded = () => {
+      setIsPlaying(false);
+      saveProgress();
+      startNextEpisodeCountdown();
+    };
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -581,6 +620,7 @@ function WatchDesktopClient() {
     video.addEventListener("playing", onPlaying);
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("seeked", onSeeked);
+    video.addEventListener("ended", onEnded);
 
     return () => {
       video.removeEventListener("play", onPlay);
@@ -593,8 +633,9 @@ function WatchDesktopClient() {
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("ended", onEnded);
     };
-  }, [revealControls, saveProgress, updateBufferedPosition, optimisticAbsoluteSeconds, usingHlsPlayback, quality, hlsStartOffset]);
+  }, [revealControls, saveProgress, updateBufferedPosition, optimisticAbsoluteSeconds, usingHlsPlayback, quality, hlsStartOffset, startNextEpisodeCountdown]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -925,6 +966,18 @@ function WatchDesktopClient() {
             {loadingMessage}
           </div>
         </div>
+      )}
+
+      {countdown && countdownLabel && (
+        <NextEpisodeCountdownOverlay
+          countdown={countdown}
+          label={countdownLabel}
+          onCancel={() => {
+            cancelCountdown();
+            router.push(backHref);
+          }}
+          onPlayNow={playNextEpisodeNow}
+        />
       )}
 
       {error && (

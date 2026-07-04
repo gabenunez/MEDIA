@@ -312,6 +312,138 @@ export function findEpisode(
   return null;
 }
 
+export interface NextEpisodeInfo {
+  episode: TvEpisodeSummary;
+  seasonNumber: number;
+}
+
+export const WATCH_COMPLETED_FRACTION = 0.95;
+export const NEXT_EPISODE_COUNTDOWN_SECONDS = 10;
+
+/** Next episode in season order (same season, then following seasons). */
+export function findNextEpisode(
+  media: PlaybackMediaDetail,
+  currentEpisodeId: number,
+): NextEpisodeInfo | null {
+  const seasons = [...(media.seasons ?? [])].sort(
+    (a, b) => a.seasonNumber - b.seasonNumber,
+  );
+
+  for (let seasonIndex = 0; seasonIndex < seasons.length; seasonIndex++) {
+    const season = seasons[seasonIndex];
+    const episodes = [...season.episodes].sort(
+      (a, b) => a.episodeNumber - b.episodeNumber,
+    );
+
+    for (let episodeIndex = 0; episodeIndex < episodes.length; episodeIndex++) {
+      if (episodes[episodeIndex].id !== currentEpisodeId) continue;
+
+      if (episodeIndex + 1 < episodes.length) {
+        return {
+          episode: episodes[episodeIndex + 1],
+          seasonNumber: season.seasonNumber,
+        };
+      }
+
+      for (let nextSeasonIndex = seasonIndex + 1; nextSeasonIndex < seasons.length; nextSeasonIndex++) {
+        const nextSeason = seasons[nextSeasonIndex];
+        const nextEpisodes = [...nextSeason.episodes].sort(
+          (a, b) => a.episodeNumber - b.episodeNumber,
+        );
+        if (nextEpisodes.length > 0) {
+          return {
+            episode: nextEpisodes[0],
+            seasonNumber: nextSeason.seasonNumber,
+          };
+        }
+      }
+
+      return null;
+    }
+  }
+
+  return null;
+}
+
+export function formatEpisodeLabel(
+  episode: TvEpisodeSummary,
+  seasonNumber: number,
+): string {
+  const name = episode.title?.trim() || `Episode ${episode.episodeNumber}`;
+  return `S${seasonNumber}E${episode.episodeNumber} · ${name}`;
+}
+
+export interface MediaSeasonProgress {
+  seasonNumber: number;
+  episodes: Array<
+    TvEpisodeSummary & {
+      durationMs?: number | null;
+      watchProgress?: {
+        positionMs: number;
+        durationMs?: number | null;
+        updatedAt?: string | number | Date | null;
+      } | null;
+    }
+  >;
+}
+
+function watchProgressTimestamp(
+  progress: NonNullable<MediaSeasonProgress["episodes"][number]["watchProgress"]>,
+): number {
+  if (progress.updatedAt == null) return 0;
+  const time = new Date(progress.updatedAt).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+/** Season tab to show on a TV show page based on recent watch activity. */
+export function resolveActiveSeasonIndex(seasons: MediaSeasonProgress[]): number {
+  if (!seasons.length) return 0;
+
+  let bestSeasonIndex = 0;
+  let bestTimestamp = -1;
+  let bestSeriesOrder = -1;
+  let bestEpisode: MediaSeasonProgress["episodes"][number] | null = null;
+
+  for (let seasonIndex = 0; seasonIndex < seasons.length; seasonIndex++) {
+    const season = seasons[seasonIndex];
+    for (const episode of season.episodes) {
+      const progress = episode.watchProgress;
+      if (!progress || progress.positionMs <= 0) continue;
+
+      const timestamp = watchProgressTimestamp(progress);
+      const seriesOrder = season.seasonNumber * 10_000 + episode.episodeNumber;
+      if (
+        timestamp > bestTimestamp ||
+        (timestamp === bestTimestamp && seriesOrder > bestSeriesOrder)
+      ) {
+        bestTimestamp = timestamp;
+        bestSeriesOrder = seriesOrder;
+        bestSeasonIndex = seasonIndex;
+        bestEpisode = episode;
+      }
+    }
+  }
+
+  if (!bestEpisode?.watchProgress) return 0;
+
+  const durationMs =
+    bestEpisode.watchProgress.durationMs ?? bestEpisode.durationMs ?? 1;
+  const completed =
+    bestEpisode.watchProgress.positionMs / durationMs >= WATCH_COMPLETED_FRACTION;
+
+  if (completed) {
+    const next = findNextEpisode({ title: "", seasons }, bestEpisode.id);
+    if (next) {
+      const nextSeasonIndex = seasons.findIndex(
+        (season) => season.seasonNumber === next.seasonNumber,
+      );
+      if (nextSeasonIndex >= 0) return nextSeasonIndex;
+    }
+  }
+
+  return bestSeasonIndex;
+}
+
 /** Shared hls.js config — sends session cookies on manifest + segment requests. */
 export function createPlaybackHls(
   HlsConstructor: typeof import("hls.js").default,

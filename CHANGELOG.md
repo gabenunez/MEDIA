@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.44 — 2026-07-04
+
+### TV
+- **Next episode autoplay** — countdown overlay when a TV episode ends, with play-now and cancel options
+- **Continue Watching** — show the next episode in a series after the previous one is finished
+- **Show page** — open on the last active season instead of always defaulting to season 1
+- **Focus styling** — compact focus rings on buttons and chips so focused controls no longer overlap on Android TV
+
 ## 0.1.43 — 2026-07-04
 
 ### Android TV

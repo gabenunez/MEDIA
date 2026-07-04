@@ -24,6 +24,7 @@ import {
   qualityLabel,
 } from "@/lib/watch-helpers";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
+import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { focusTvItem } from "@/lib/tv-focus";
 import { cn, formatDuration } from "@/lib/utils";
@@ -38,6 +39,7 @@ import {
   stopNativePlayback,
   toAbsoluteMediaUrl,
 } from "@/lib/android-bridge";
+import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 
 export function TvWatchView() {
   const router = useRouter();
@@ -94,6 +96,7 @@ export function TvWatchView() {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
@@ -120,6 +123,29 @@ export function TvWatchView() {
     mediaId && !Number.isNaN(parseInt(mediaId, 10))
       ? routes.media(parseInt(mediaId, 10))
       : routes.home();
+
+  const handlePlaybackFinished = useCallback(() => {
+    router.push(backHref);
+  }, [router, backHref]);
+
+  const {
+    countdown,
+    countdownLabel,
+    startNextEpisodeCountdown,
+    cancelCountdown,
+    playNextEpisodeNow,
+  } = useNextEpisodeCountdown({
+    type,
+    fileId,
+    mediaId,
+    media: mediaDetail,
+    onNavigate: (href) => router.push(href),
+    onFinished: handlePlaybackFinished,
+  });
+
+  useEffect(() => {
+    cancelCountdown();
+  }, [fileId, cancelCountdown]);
 
   useDocumentTitle(title || null);
 
@@ -251,10 +277,11 @@ export function TvWatchView() {
       },
       onEnded: () => {
         setIsPlaying(false);
-        router.push(backHref);
+        saveProgressRef.current();
+        startNextEpisodeCountdown();
       },
     });
-  }, [usesNativePlayer, router, backHref]);
+  }, [usesNativePlayer, startNextEpisodeCountdown]);
 
   useEffect(() => {
     if (!usesNativePlayer) return;
@@ -328,6 +355,7 @@ export function TvWatchView() {
       .getMedia(parseInt(mediaId, 10))
       .then((data) => {
         const media = data as unknown as PlaybackMediaDetail;
+        setMediaDetail(media);
         setTitle(buildPlaybackTitle(type, media, fileId));
       })
       .catch(console.error);
@@ -676,6 +704,11 @@ export function TvWatchView() {
         setOptimisticAbsoluteSeconds(null);
       }
     };
+    const onEnded = () => {
+      setIsPlaying(false);
+      saveProgress();
+      startNextEpisodeCountdown();
+    };
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -687,6 +720,7 @@ export function TvWatchView() {
     video.addEventListener("playing", onPlaying);
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("seeked", onSeeked);
+    video.addEventListener("ended", onEnded);
 
     return () => {
       video.removeEventListener("play", onPlay);
@@ -699,6 +733,7 @@ export function TvWatchView() {
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("ended", onEnded);
     };
   }, [
     revealControls,
@@ -707,6 +742,7 @@ export function TvWatchView() {
     optimisticAbsoluteSeconds,
     usingHlsPlayback,
     hlsStartOffset,
+    startNextEpisodeCountdown,
   ]);
 
   useEffect(() => {
@@ -714,6 +750,16 @@ export function TvWatchView() {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!countdown) return;
+    requestAnimationFrame(() => {
+      const first = document.querySelector<HTMLElement>(
+        "[data-tv-watch-next-episode] [data-tv-item]",
+      );
+      if (first) focusTvItem(first);
+    });
+  }, [countdown]);
 
   useEffect(() => {
     if (!subtitleMenuOpen && !qualityMenuOpen) return;
@@ -774,6 +820,12 @@ export function TvWatchView() {
       const active = document.activeElement as HTMLElement | null;
 
       if (e.key === "Escape" || e.key === "Backspace" || e.key === "GoBack") {
+        if (countdown) {
+          e.preventDefault();
+          cancelCountdown();
+          router.push(backHref);
+          return;
+        }
         if (panelOpen || subtitleSearchOpen) {
           e.preventDefault();
           if (subtitleSearchOpen) {
@@ -865,6 +917,8 @@ export function TvWatchView() {
     closeMenus,
     revealControls,
     controlsVisible,
+    countdown,
+    cancelCountdown,
   ]);
 
   if (!fileId || Number.isNaN(fileId)) {
@@ -916,6 +970,19 @@ export function TvWatchView() {
             {loadingMessage}
           </div>
         </div>
+      )}
+
+      {countdown && countdownLabel && (
+        <NextEpisodeCountdownOverlay
+          countdown={countdown}
+          label={countdownLabel}
+          tv
+          onCancel={() => {
+            cancelCountdown();
+            router.push(backHref);
+          }}
+          onPlayNow={playNextEpisodeNow}
+        />
       )}
 
       {error && (
@@ -1022,7 +1089,7 @@ export function TvWatchView() {
               data-tv-row=""
               data-tv-content-row=""
               data-tv-watch-controls=""
-              className="flex items-center gap-2 py-1"
+              className="flex items-center gap-3 py-1"
             >
               <TvFocusButton
                 variant="nav"

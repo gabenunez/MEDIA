@@ -13,6 +13,7 @@ import { FavoriteButton } from "@/components/favorite-button";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
 import { ThemeMusicMuteButton } from "@/components/theme-music-settings";
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
+import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvMediaView } from "@/components/tv/views/media-view";
@@ -76,10 +77,19 @@ function MediaDesktopClient() {
   useEffect(() => {
     if (!mediaId || Number.isNaN(mediaId)) return;
     setLoading(true);
+    setSelectedSeason(0);
     setRelated([]);
 
     Promise.all([
-      api.getMedia(mediaId).then((data) => setMedia(data as unknown as MediaDetail)),
+      api.getMedia(mediaId).then((data) => {
+        const nextMedia = data as unknown as MediaDetail;
+        setMedia(nextMedia);
+        if (nextMedia.type === "tv" && nextMedia.seasons?.length) {
+          setSelectedSeason(resolveActiveSeasonIndex(nextMedia.seasons));
+        } else {
+          setSelectedSeason(0);
+        }
+      }),
       api.getRelatedMedia(mediaId).then((data) => setRelated(data.items)),
     ])
       .catch(console.error)

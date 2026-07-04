@@ -81,6 +81,14 @@
       0 0 0 4px hsl(var(--primary)),
       0 0 0 8px hsl(var(--primary) / 0.4),
       0 0 36px hsl(var(--primary) / 0.55);
+    /* Compact ring for buttons/chips — stays inside the layout box */
+    --tv-focus-ring-compact:
+      inset 0 0 0 2px hsl(var(--primary-foreground) / 0.18),
+      0 0 0 2px hsl(var(--primary));
+    --tv-focus-ring-compact-strong:
+      inset 0 0 0 2px hsl(var(--primary-foreground) / 0.28),
+      0 0 0 3px hsl(var(--primary)),
+      0 0 18px hsl(var(--primary) / 0.35);
   }
 
   /* —— Side nav —— */
@@ -97,9 +105,8 @@
   .tv-ui [data-tv-item].tv-focus-nav[data-tv-focused] {
     background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    box-shadow: var(--tv-focus-glow-strong);
-    transform: scale(1.1);
-    z-index: 1;
+    box-shadow: var(--tv-focus-ring-compact-strong);
+    transform: none;
   }
 
   /* —— Standard buttons —— */
@@ -110,9 +117,8 @@
 
   .tv-ui [data-tv-item].tv-focus-button[data-tv-focused] {
     background-color: hsl(var(--primary) / 0.2);
-    box-shadow: var(--tv-focus-glow);
-    transform: scale(1.05);
-    z-index: 1;
+    box-shadow: var(--tv-focus-ring-compact);
+    transform: none;
   }
 
   /* —— Chips (season / filter tabs) —— */
@@ -132,10 +138,9 @@
   .tv-ui [data-tv-item].tv-focus-chip[data-tv-focused] {
     background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    box-shadow: var(--tv-focus-glow-strong);
-    transform: scale(1.06);
+    box-shadow: var(--tv-focus-ring-compact-strong);
+    transform: none;
     font-weight: 600;
-    z-index: 1;
   }
 
   /* —— List / episode cards —— */
@@ -150,16 +155,15 @@
 
   .tv-ui [data-tv-item].tv-focus-card[data-tv-focused] {
     background-color: hsl(var(--primary) / 0.18);
-    box-shadow: var(--tv-focus-glow);
-    transform: scale(1.02);
-    z-index: 1;
+    box-shadow: var(--tv-focus-ring-compact);
+    transform: none;
   }
 
   .tv-ui [data-tv-item].tv-focus-card[data-tv-selected][data-tv-focused] {
     background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    box-shadow: var(--tv-focus-glow-strong);
-    transform: scale(1.03);
+    box-shadow: var(--tv-focus-ring-compact-strong);
+    transform: none;
   }
 
   .tv-ui [data-tv-vertical] [data-tv-item] {
@@ -170,11 +174,11 @@
     margin-block: 0.1875rem;
   }
 
-  /* Primary-filled action buttons keep their fill; focus adds glow on top */
+  /* Primary-filled action buttons keep their fill; focus adds ring on top */
   .tv-ui [data-tv-item].tv-focus-button.bg-primary[data-tv-focused],
   .tv-ui [data-tv-item].tv-focus-card.bg-primary[data-tv-focused] {
-    box-shadow: var(--tv-focus-glow-strong);
-    transform: scale(1.05);
+    box-shadow: var(--tv-focus-ring-compact-strong);
+    transform: none;
   }
 
   .tv-ui .tv-scroll-row {
@@ -318,9 +322,8 @@
 
   .tv-ui [data-tv-watch-controls] [data-tv-item][data-tv-focused]:not([data-tv-watch-scrub]) {
     background-color: hsl(var(--primary) / 0.45);
-    box-shadow: var(--tv-focus-glow-strong);
-    transform: scale(1.1);
-    z-index: 1;
+    box-shadow: var(--tv-focus-ring-compact-strong);
+    transform: none;
   }
 
   .tv-ui [data-tv-watch-menu] [data-tv-item].tv-focus-card {
@@ -334,9 +337,8 @@
   }
 
   .tv-ui [data-tv-watch-menu] [data-tv-item][data-tv-focused] {
-    box-shadow: var(--tv-focus-glow-strong);
-    transform: scale(1.02);
-    z-index: 1;
+    box-shadow: var(--tv-focus-ring-compact);
+    transform: none;
   }
 
   .tv-ui [data-tv-watch-scrub][data-tv-focused] {

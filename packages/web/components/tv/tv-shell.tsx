@@ -86,7 +86,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               data-tv-row=""
               data-tv-nav-row=""
               data-tv-vertical=""
-              className="flex flex-col items-center gap-1.5"
+              className="flex flex-col items-center gap-2"
             >
               <TvNavButton href={routes.home()} label="Home" active={homeActive}>
                 <Home className="h-5 w-5" />

@@ -82,7 +82,7 @@ export function TvPagination({ page, totalPages, onPageChange, className }: TvPa
       data-tv-row=""
       data-tv-content-row=""
       className={cn(
-        "flex items-center justify-center gap-2 border-t border-border/50 pt-4",
+        "flex items-center justify-center gap-3 border-t border-border/50 pt-4",
         className,
       )}
     >

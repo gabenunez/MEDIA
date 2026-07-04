@@ -11,6 +11,7 @@ import { TvPageHeader, TvSectionLabel } from "@/components/tv/tv-page-header";
 import { tvScrollRowClassName } from "@/components/tv/tv-row";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
+import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
 import { cn } from "@/lib/utils";
@@ -59,9 +60,18 @@ export function TvMediaView() {
   useEffect(() => {
     if (!mediaId || Number.isNaN(mediaId)) return;
     setLoading(true);
+    setSelectedSeason(0);
     api
       .getMedia(mediaId)
-      .then((data) => setMedia(data as unknown as MediaDetail))
+      .then((data) => {
+        const nextMedia = data as unknown as MediaDetail;
+        setMedia(nextMedia);
+        if (nextMedia.type === "tv" && nextMedia.seasons?.length) {
+          setSelectedSeason(resolveActiveSeasonIndex(nextMedia.seasons));
+        } else {
+          setSelectedSeason(0);
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [mediaId]);
@@ -213,7 +223,7 @@ export function TvMediaView() {
             data-tv-row=""
             data-tv-content-row=""
             data-tv-scroll-row=""
-            className={cn(tvScrollRowClassName, "mb-5 gap-2 px-6")}
+            className={cn(tvScrollRowClassName, "mb-5 gap-3 px-6")}
           >
             {seasons.map((season, idx) => (
               <TvFocusButton
