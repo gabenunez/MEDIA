@@ -1027,7 +1027,7 @@ export function TvWatchView() {
               data-tv-watch-scrub=""
               aria-label="Progress"
               onClick={() => revealControls(false)}
-              className="relative h-3 w-full overflow-hidden rounded-full bg-white/20 p-0"
+              className="relative h-2 w-full overflow-visible rounded-full bg-white/20 p-0"
             >
               {bufferedRanges.map((range, index) => {
                 const left = toTimelinePercent(range.start);
@@ -1036,17 +1036,22 @@ export function TvWatchView() {
                 return (
                   <div
                     key={index}
-                    className="pointer-events-none absolute inset-y-0 bg-white/45"
+                    className="pointer-events-none absolute inset-y-0 rounded-full bg-white/45"
                     style={{ left: `${left}%`, width: `${width}%` }}
                   />
                 );
               })}
               <div
                 className={cn(
-                  "pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary",
+                  "pointer-events-none absolute inset-y-0 left-0 bg-primary",
+                  progress >= 99.5 ? "rounded-full" : "rounded-l-full",
                   optimisticAbsoluteSeconds === null && "transition-[width] duration-150",
                 )}
                 style={{ width: `${Math.min(100, progress)}%` }}
+              />
+              <div
+                className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary"
+                style={{ left: `${Math.min(100, progress)}%` }}
               />
             </TvFocusButton>
           </div>

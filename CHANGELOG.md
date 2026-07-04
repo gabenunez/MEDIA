@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.57 — 2026-07-04
+
+### UI
+- **Playback scrubber** — cleaner progress bar and thumb styling on desktop; TV scrubber gets a proper playhead dot instead of stretching on focus
+
 ## 0.1.56 — 2026-07-04
 
 ### Fix

@@ -972,7 +972,7 @@ function WatchDesktopClient() {
                     spriteUrl={thumbnails?.spriteUrl ?? null}
                   />
                 )}
-                <div className="pointer-events-none absolute inset-x-0 h-2 overflow-hidden rounded-full bg-white/15">
+                <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-white/15">
                   {bufferedRanges.map((range, index) => {
                     const left = toTimelinePercent(range.start);
                     const width = Math.max(0, toTimelinePercent(range.end) - left);
@@ -987,7 +987,8 @@ function WatchDesktopClient() {
                   })}
                   <div
                     className={cn(
-                      "absolute inset-y-0 left-0 z-[1] rounded-full bg-primary",
+                      "absolute inset-y-0 left-0 z-[1] bg-primary",
+                      displayedProgress >= 99.5 ? "rounded-full" : "rounded-l-full",
                       !isOptimisticScrub && "transition-[width] duration-150",
                     )}
                     style={{ width: `${displayedProgress}%` }}
@@ -1009,7 +1010,7 @@ function WatchDesktopClient() {
                   onTouchEnd={(e) =>
                     handleScrubCommit(parseFloat((e.currentTarget as HTMLInputElement).value))
                   }
-                  className="range-signal range-signal-overlay relative z-[2] h-4 w-full cursor-pointer appearance-none bg-transparent"
+                  className="range-signal range-signal-overlay relative z-[2] w-full cursor-pointer appearance-none bg-transparent"
                 />
               </div>
             </div>
