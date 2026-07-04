@@ -7,7 +7,7 @@ import { Home, Heart, LogOut, Search } from "lucide-react";
 import { useAuth } from "@/components/auth-gate";
 import { MediaIcon } from "@/components/media-icon";
 import { TvSpatialNav } from "@/components/tv/tv-spatial-nav";
-import { tvNavItemClassName } from "@/components/tv/tv-focus-link";
+import { tvNavItemClassName, TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -44,19 +44,15 @@ function TvNavButton({
 
 function TvLogoutButton({ onLogout }: { onLogout: () => void }) {
   return (
-    <button
-      type="button"
-      data-tv-item=""
+    <TvFocusButton
+      variant="nav"
       title="Sign out"
       aria-label="Sign out"
       onClick={onLogout}
-      className={cn(
-        "flex h-11 w-11 items-center justify-center text-muted-foreground",
-        tvNavItemClassName,
-      )}
+      className="flex h-11 w-11 items-center justify-center text-muted-foreground"
     >
       <LogOut className="h-5 w-5" />
-    </button>
+    </TvFocusButton>
   );
 }
 

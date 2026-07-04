@@ -35,6 +35,10 @@ export function nativeTvPlayerAvailable(): boolean {
   return typeof getAndroidBridge()?.play === "function";
 }
 
+export function androidTvShellSupportsLogout(): boolean {
+  return typeof getAndroidBridge()?.logout === "function";
+}
+
 export function toAbsoluteMediaUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;

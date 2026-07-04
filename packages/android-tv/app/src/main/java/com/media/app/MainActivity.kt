@@ -125,6 +125,7 @@ class MainActivity : AppCompatActivity() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         cookieManager.setCookie(serverUrl, "media_session=; Max-Age=0")
+        cookieManager.setCookie(serverUrl, "reel_session=; Max-Age=0")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             cookieManager.flush()
         }
@@ -234,7 +235,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun logout() {
             runOnUiThread {
-                performLogout(reload = false)
+                performLogout(reload = true)
             }
         }
 

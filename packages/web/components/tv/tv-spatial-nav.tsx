@@ -314,6 +314,22 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
 
     function onKeyDown(e: KeyboardEvent) {
       if (
+        e.key === "Enter" ||
+        e.key === "NumpadEnter" ||
+        e.key === "Select"
+      ) {
+        const active = document.activeElement as HTMLElement | null;
+        if (
+          active?.hasAttribute("data-tv-item") &&
+          (active.tagName === "BUTTON" || active.tagName === "A")
+        ) {
+          e.preventDefault();
+          active.click();
+        }
+        return;
+      }
+
+      if (
         e.key !== "ArrowLeft" &&
         e.key !== "ArrowRight" &&
         e.key !== "ArrowUp" &&

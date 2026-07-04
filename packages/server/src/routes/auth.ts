@@ -34,7 +34,7 @@ export async function authRoutes(
   );
 
   app.post("/api/auth/logout", async (_request, reply) => {
-    reply.header("Set-Cookie", auth.clearSessionCookie());
+    reply.header("Set-Cookie", auth.clearAllSessionCookies());
     return { success: true };
   });
 
@@ -56,7 +56,7 @@ export async function authRoutes(
 
     if (remove) {
       auth.clearPassword();
-      reply.header("Set-Cookie", auth.clearSessionCookie());
+      reply.header("Set-Cookie", auth.clearAllSessionCookies());
       return { success: true, passwordConfigured: false };
     }
 

@@ -148,6 +148,14 @@ export class AuthService {
     return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
   }
 
+  clearLegacySessionCookie(): string {
+    return `${LEGACY_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  }
+
+  clearAllSessionCookies(): string[] {
+    return [this.clearSessionCookie(), this.clearLegacySessionCookie()];
+  }
+
   createCastToken(grant: CastTokenGrant): string {
     const payload = {
       exp: Date.now() + CAST_TOKEN_TTL_MS,

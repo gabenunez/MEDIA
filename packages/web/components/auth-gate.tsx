@@ -11,7 +11,9 @@ import {
 import { Loader2 } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { api } from "@/lib/api";
-import { notifyAndroidLogout } from "@/lib/android-bridge";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { androidTvShellSupportsLogout, notifyAndroidLogout } from "@/lib/android-bridge";
+import { isTvClient } from "@/lib/tv-mode-detect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -52,7 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    await api.logout();
+    invalidateApiCache();
+    try {
+      await api.logout();
+    } catch (err) {
+      console.error(err);
+    }
+
+    if (isTvClient()) {
+      if (androidTvShellSupportsLogout()) {
+        notifyAndroidLogout();
+        return;
+      }
+      window.location.href = `${window.location.origin}/?tv=1`;
+      return;
+    }
+
     notifyAndroidLogout();
     await refresh();
   }, [refresh]);

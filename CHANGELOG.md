@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.60 — 2026-07-04
+
+### TV
+- **Sign out** — clear legacy `reel_session` cookies on logout; reload the TV shell; activate logout with Enter on focused nav buttons
+
 ## 0.1.59 — 2026-07-04
 
 ### TV
