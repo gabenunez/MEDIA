@@ -1,3 +1,5 @@
+import { cachedFetch, invalidateApiCache } from "./api-cache";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
@@ -297,42 +299,65 @@ export const api = {
         body: JSON.stringify(data),
       },
     ),
-  getStatus: () => fetchApi<ServerStatus>("/api/status"),
+  getStatus: () =>
+    cachedFetch("status", () => fetchApi<ServerStatus>("/api/status"), 5_000),
   getHome: () =>
-    fetchApi<{
-      continueWatching: ContinueWatchingItem[];
-      recentlyAdded: MediaItem[];
-      favorites: MediaItem[];
-      libraries: Library[];
-      decks: LibraryDeck[];
-      tmdbConfigured: boolean;
-      recentPlay: HomePlayTarget | null;
-    }>("/api/home"),
-  getDecks: () => fetchApi<LibraryDeck[]>("/api/decks"),
-  getDeck: (id: number) => fetchApi<LibraryDeck>(`/api/decks/${id}`),
+    cachedFetch(
+      "home",
+      () =>
+        fetchApi<{
+          continueWatching: ContinueWatchingItem[];
+          recentlyAdded: MediaItem[];
+          favorites: MediaItem[];
+          libraries: Library[];
+          decks: LibraryDeck[];
+          tmdbConfigured: boolean;
+          recentPlay: HomePlayTarget | null;
+        }>("/api/home"),
+      30_000,
+    ),
+  getDecks: () =>
+    cachedFetch("decks", () => fetchApi<LibraryDeck[]>("/api/decks"), 60_000),
+  getDeck: (id: number) =>
+    cachedFetch(`deck:${id}`, () => fetchApi<LibraryDeck>(`/api/decks/${id}`), 60_000),
   getDeckItems: (id: number, page = 1) =>
-    fetchApi<{
-      items: MediaItem[];
-      page: number;
-      total: number;
-      totalPages: number;
-    }>(`/api/decks/${id}/items?page=${page}`),
-  getLibraries: () => fetchApi<Library[]>("/api/libraries"),
+    cachedFetch(`deck:${id}:items:${page}`, () =>
+      fetchApi<{
+        items: MediaItem[];
+        page: number;
+        total: number;
+        totalPages: number;
+      }>(`/api/decks/${id}/items?page=${page}`),
+    ),
+  getLibraries: () =>
+    cachedFetch("libraries", () => fetchApi<Library[]>("/api/libraries"), 60_000),
   getLibraryItems: (id: number, page = 1) =>
-    fetchApi<{
-      items: MediaItem[];
-      page: number;
-      total: number;
-      totalPages: number;
-    }>(`/api/libraries/${id}/items?page=${page}`),
-  getMedia: (id: number) => fetchApi<Record<string, unknown>>(`/api/media/${id}`),
+    cachedFetch(`library:${id}:items:${page}`, () =>
+      fetchApi<{
+        items: MediaItem[];
+        page: number;
+        total: number;
+        totalPages: number;
+      }>(`/api/libraries/${id}/items?page=${page}`),
+    ),
+  getMedia: (id: number) =>
+    cachedFetch(`media:${id}`, () => fetchApi<Record<string, unknown>>(`/api/media/${id}`), 60_000),
   getRelatedMedia: (id: number) =>
-    fetchApi<{ items: MediaItem[] }>(`/api/media/${id}/related`),
+    cachedFetch(`media:${id}:related`, () =>
+      fetchApi<{ items: MediaItem[] }>(`/api/media/${id}/related`),
+    ),
   search: (q: string) =>
-    fetchApi<{ results: MediaItem[] }>(`/api/search?q=${encodeURIComponent(q)}`),
+    cachedFetch(
+      `search:${q}`,
+      () => fetchApi<{ results: MediaItem[] }>(`/api/search?q=${encodeURIComponent(q)}`),
+      10_000,
+    ),
   scanLibrary: (id: number) =>
     fetchApi<{ success: boolean }>(`/api/libraries/${id}/scan`, {
       method: "POST",
+    }).then((result) => {
+      invalidateApiCache();
+      return result;
     }),
   getSettings: () => fetchApi<AppSettings>("/api/settings"),
   previewPlexImport: (path?: string) =>
@@ -391,36 +416,50 @@ export const api = {
       method: "DELETE",
     }),
   getFavorites: (page = 1, type?: "movie" | "tv") =>
-    fetchApi<{
-      items: MediaItem[];
-      page: number;
-      total: number;
-      totalPages: number;
-    }>(
-      `/api/favorites?page=${page}${type ? `&type=${type}` : ""}`,
+    cachedFetch(`favorites:${page}:${type ?? "all"}`, () =>
+      fetchApi<{
+        items: MediaItem[];
+        page: number;
+        total: number;
+        totalPages: number;
+      }>(`/api/favorites?page=${page}${type ? `&type=${type}` : ""}`),
     ),
   getContinueWatching: (page = 1) =>
-    fetchApi<{
-      items: ContinueWatchingItem[];
-      page: number;
-      total: number;
-      totalPages: number;
-    }>(`/api/continue-watching?page=${page}`),
+    cachedFetch(`continue:${page}`, () =>
+      fetchApi<{
+        items: ContinueWatchingItem[];
+        page: number;
+        total: number;
+        totalPages: number;
+      }>(`/api/continue-watching?page=${page}`),
+    ),
   getRecentlyAdded: (page = 1) =>
-    fetchApi<{
-      items: MediaItem[];
-      page: number;
-      total: number;
-      totalPages: number;
-    }>(`/api/recent?page=${page}`),
+    cachedFetch(`recent:${page}`, () =>
+      fetchApi<{
+        items: MediaItem[];
+        page: number;
+        total: number;
+        totalPages: number;
+      }>(`/api/recent?page=${page}`),
+    ),
   addFavorite: (mediaItemId: number) =>
     fetchApi<{ success: boolean }>("/api/favorites", {
       method: "POST",
       body: JSON.stringify({ mediaItemId }),
+    }).then((result) => {
+      invalidateApiCache("home");
+      invalidateApiCache("favorites");
+      invalidateApiCache(`media:${mediaItemId}`);
+      return result;
     }),
   removeFavorite: (mediaItemId: number) =>
     fetchApi<{ success: boolean }>(`/api/favorites/${mediaItemId}`, {
       method: "DELETE",
+    }).then((result) => {
+      invalidateApiCache("home");
+      invalidateApiCache("favorites");
+      invalidateApiCache(`media:${mediaItemId}`);
+      return result;
     }),
   updateMetadata: (tmdb_api_key: string) =>
     fetchApi<{
@@ -509,6 +548,10 @@ export const api = {
     fetchApi<{ success: boolean }>("/api/watch-progress", {
       method: "POST",
       body: JSON.stringify(data),
+    }).then((result) => {
+      invalidateApiCache("home");
+      invalidateApiCache("continue");
+      return result;
     }),
   getCastConfig: () => fetchApi<CastConfigResponse>("/api/cast/config"),
   prepareCast: (data: {

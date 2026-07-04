@@ -7,6 +7,7 @@ import { Clapperboard, Film, Loader2, Search, Tv, X } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useMediaSearch } from "@/lib/use-media-search";
 
 interface SearchPopoverProps {
   variant?: "bar" | "icon";
@@ -19,13 +20,14 @@ export function SearchPopover({ variant = "bar", className }: SearchPopoverProps
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<MediaItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { results, loading, searched } = useMediaSearch(query, {
+    minLength: 1,
+    debounceMs: 250,
+  });
 
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
-    setResults([]);
     inputRef.current?.blur();
   }, []);
 
@@ -82,25 +84,6 @@ export function SearchPopover({ variant = "bar", className }: SearchPopoverProps
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open, close]);
-
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      setLoading(false);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setLoading(true);
-      api
-        .search(query)
-        .then((data) => setResults(data.results))
-        .catch((err) => console.warn("Failed to search media", err))
-        .finally(() => setLoading(false));
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [query]);
 
   const resultsPanel = (
     <div
@@ -168,9 +151,9 @@ export function SearchPopover({ variant = "bar", className }: SearchPopoverProps
               </li>
             ))}
           </ul>
-        ) : query.trim() ? (
+        ) : searched && query.trim() ? (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-            No results for &ldquo;{query}&rdquo;
+            No results for &ldquo;{query.trim()}&rdquo;
           </p>
         ) : (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">

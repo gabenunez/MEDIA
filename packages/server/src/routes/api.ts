@@ -25,12 +25,12 @@ import {
   listContinueWatching,
   listRecentlyAdded,
 } from "../services/home-rows.js";
+import { listLibrariesWithCounts, getLibraryItemCounts } from "../services/library-stats.js";
+import { loadTvSeasonsWithEpisodes } from "../services/media-detail.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
 import {
   libraries,
   mediaItems,
-  tvSeasons,
-  tvEpisodes,
   movieFiles,
   watchProgress,
   scanJobs,
@@ -73,24 +73,7 @@ export async function apiRoutes(
 ) {
   app.get("/api/status", async () => {
     const ffmpegAvailable = await checkFfmpegAvailable();
-    const allLibraries = await db.query.libraries.findMany();
-
-    const libraryStats = await Promise.all(
-      allLibraries.map(async (lib) => {
-        const count = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(mediaItems)
-          .where(eq(mediaItems.libraryId, lib.id));
-        return {
-          id: lib.id,
-          name: lib.name,
-          type: lib.type,
-          path: lib.path,
-          itemCount: count[0]?.count ?? 0,
-          lastScannedAt: lib.lastScannedAt?.toISOString() ?? null,
-        };
-      }),
-    );
+    const libraryStats = await listLibrariesWithCounts(db);
 
     const activeScan = scanner.getActiveScan();
     let scanInfo = null;
@@ -206,19 +189,12 @@ export async function apiRoutes(
 
   app.get("/api/libraries", async () => {
     const allLibraries = await db.query.libraries.findMany();
-    return Promise.all(
-      allLibraries.map(async (lib) => {
-        const count = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(mediaItems)
-          .where(eq(mediaItems.libraryId, lib.id));
-        return {
-          ...lib,
-          itemCount: count[0]?.count ?? 0,
-          lastScannedAt: lib.lastScannedAt?.toISOString() ?? null,
-        };
-      }),
-    );
+    const counts = await getLibraryItemCounts(db);
+    return allLibraries.map((lib) => ({
+      ...lib,
+      itemCount: counts.get(lib.id) ?? 0,
+      lastScannedAt: lib.lastScannedAt?.toISOString() ?? null,
+    }));
   });
 
   app.get<{ Params: { id: string }; Querystring: { page?: string; limit?: string } }>(
@@ -283,9 +259,10 @@ export async function apiRoutes(
 
     if (!item) return reply.status(404).send({ error: "Not found" });
 
-    const themePath = themes.hasThemeMusic(item)
-      ? item.themePath
-      : await themes.syncForMediaItem(item);
+    const themePath = themes.hasThemeMusic(item) ? item.themePath : null;
+    if (!themePath) {
+      void themes.syncForMediaItem(item);
+    }
     const hasThemeMusic = Boolean(themePath && fs.existsSync(themePath));
     const favorite = await isFavorite(db, id);
 
@@ -316,36 +293,7 @@ export async function apiRoutes(
       };
     }
 
-    const seasons = await db.query.tvSeasons.findMany({
-      where: eq(tvSeasons.mediaItemId, id),
-      orderBy: [tvSeasons.seasonNumber],
-    });
-
-    const seasonsWithEpisodes = await Promise.all(
-      seasons.map(async (season) => {
-        const episodes = await db.query.tvEpisodes.findMany({
-          where: eq(tvEpisodes.seasonId, season.id),
-          orderBy: [tvEpisodes.episodeNumber],
-        });
-
-        const episodesWithProgress = await Promise.all(
-          episodes.map(async (ep) => {
-            const progress = await db.query.watchProgress.findFirst({
-              where: and(
-                eq(watchProgress.itemType, "episode"),
-                eq(watchProgress.itemId, ep.id),
-              ),
-            });
-            const subs = await db.query.subtitles.findMany({
-              where: eq(subtitles.episodeId, ep.id),
-            });
-            return { ...ep, watchProgress: progress ?? null, subtitles: subs };
-          }),
-        );
-
-        return { ...season, episodes: episodesWithProgress };
-      }),
-    );
+    const seasonsWithEpisodes = await loadTvSeasonsWithEpisodes(db, id);
 
     return { ...item, seasons: seasonsWithEpisodes, isFavorite: favorite, hasThemeMusic };
   });
@@ -366,6 +314,8 @@ export async function apiRoutes(
         eq(mediaItems.type, item.type),
         ne(mediaItems.id, id),
       ),
+      orderBy: [desc(mediaItems.rating)],
+      limit: 80,
     });
 
     const items = candidates
@@ -422,23 +372,7 @@ export async function apiRoutes(
       listRecentlyAdded(db, { page: 1, limit: 12 }),
     ]);
 
-    const librariesList = await db.query.libraries.findMany();
-    const librariesWithCounts = await Promise.all(
-      librariesList.map(async (lib) => {
-        const count = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(mediaItems)
-          .where(eq(mediaItems.libraryId, lib.id));
-        return {
-          id: lib.id,
-          name: lib.name,
-          type: lib.type,
-          path: lib.path,
-          itemCount: count[0]?.count ?? 0,
-          lastScannedAt: lib.lastScannedAt?.toISOString() ?? null,
-        };
-      }),
-    );
+    const librariesWithCounts = await listLibrariesWithCounts(db);
     const decks = await listDecksWithCounts(db);
     const favoritesList = await listRecentFavorites(db, 12);
     const latestContinue = continueItems[0] ?? null;

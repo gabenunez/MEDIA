@@ -33,7 +33,9 @@ export function initTvMode(): boolean {
 }
 
 export function TvModeProvider({ children }: { children: ReactNode }) {
-  const [isTvMode, setIsTvMode] = useState(false);
+  const [isTvMode, setIsTvMode] = useState(() =>
+    typeof window !== "undefined" ? initTvMode() : false,
+  );
 
   useEffect(() => {
     setIsTvMode(initTvMode());

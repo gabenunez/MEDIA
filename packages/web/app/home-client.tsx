@@ -51,20 +51,15 @@ function HomeDesktopClient() {
   }, []);
 
   useEffect(() => {
-    if (!isScanning) {
-      if (wasScanningRef.current) {
-        api.getHome().then(setData).catch(console.error);
-      }
-      wasScanningRef.current = false;
+    if (isScanning) {
+      wasScanningRef.current = true;
       return;
     }
 
-    wasScanningRef.current = true;
-    const interval = setInterval(() => {
+    if (wasScanningRef.current) {
       api.getHome().then(setData).catch(console.error);
-    }, 1500);
-
-    return () => clearInterval(interval);
+    }
+    wasScanningRef.current = false;
   }, [isScanning]);
 
   const libraries = (data?.libraries ?? []).map((lib) => {

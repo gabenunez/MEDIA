@@ -7,9 +7,9 @@ import type { ThemeService } from "../services/themes.js";
 import { getBrowseShortcuts } from "../config.js";
 import { browseDirectory, validateLibraryPath } from "../utils/paths.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
+import { getLibraryItemCounts } from "../services/library-stats.js";
 import { libraries } from "../db/schema.js";
-import { eq, sql } from "drizzle-orm";
-import { mediaItems } from "../db/schema.js";
+import { eq } from "drizzle-orm";
 import {
   createDeck,
   updateDeck,
@@ -35,25 +35,17 @@ export async function settingsRoutes(
     const config = configManager.get();
     const ffmpegAvailable = await checkFfmpegAvailable();
     const allLibraries = await db.query.libraries.findMany();
+    const counts = await getLibraryItemCounts(db);
 
-    const libraryDetails = await Promise.all(
-      allLibraries.map(async (lib) => {
-        const count = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(mediaItems)
-          .where(eq(mediaItems.libraryId, lib.id));
-
-        return {
-          id: lib.id,
-          name: lib.name,
-          type: lib.type,
-          path: lib.path,
-          itemCount: count[0]?.count ?? 0,
-          lastScannedAt: lib.lastScannedAt?.toISOString() ?? null,
-          pathExists: validateLibraryPath(lib.path).valid,
-        };
-      }),
-    );
+    const libraryDetails = allLibraries.map((lib) => ({
+      id: lib.id,
+      name: lib.name,
+      type: lib.type,
+      path: lib.path,
+      itemCount: counts.get(lib.id) ?? 0,
+      lastScannedAt: lib.lastScannedAt?.toISOString() ?? null,
+      pathExists: validateLibraryPath(lib.path).valid,
+    }));
 
     const key = config.metadata.tmdb_api_key?.trim() ?? "";
     const hasKey = Boolean(key && key !== "YOUR_KEY_HERE");

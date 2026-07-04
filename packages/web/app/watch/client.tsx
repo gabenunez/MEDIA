@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Hls from "hls.js";
+import type Hls from "hls.js";
 import {
   ArrowLeft,
   Info,
@@ -31,7 +31,7 @@ import {
   findEpisode,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
-import { destroyHlsInstance, startWebPlayback } from "@/lib/playback-engine";
+import { destroyHlsInstance, loadHls, startWebPlayback } from "@/lib/playback-engine";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useMediaSession } from "@/lib/use-media-session";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
@@ -456,23 +456,37 @@ function WatchDesktopClient() {
       setError("Playback failed. Try a lower quality or Original.");
     };
 
-    const webPlayback = startWebPlayback({
-      HlsConstructor: Hls,
-      video,
-      url,
-      usingHls,
-      startAt,
-      onFatalError,
-      onBufferUpdate: updateBufferedPosition,
-      onSeekComplete: (seconds) => setCurrentTime(seconds),
-    });
+    let cancelled = false;
+    let webPlayback: ReturnType<typeof startWebPlayback> | null = null;
 
-    hlsRef.current = webPlayback.hls;
+    void (async () => {
+      const HlsConstructor = usingHls ? await loadHls() : undefined;
+      if (cancelled) return;
+
+      webPlayback = startWebPlayback({
+        HlsConstructor,
+        video,
+        url,
+        usingHls,
+        startAt,
+        onFatalError,
+        onBufferUpdate: updateBufferedPosition,
+        onSeekComplete: (seconds) => setCurrentTime(seconds),
+      });
+
+      if (cancelled) {
+        webPlayback.cleanup();
+        return;
+      }
+
+      hlsRef.current = webPlayback.hls;
+    })();
 
     progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
-      webPlayback.cleanup();
+      cancelled = true;
+      webPlayback?.cleanup();
       hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Hls from "hls.js";
+import type Hls from "hls.js";
 import { ChevronLeft, Loader2, Pause, Play, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -15,7 +15,7 @@ import {
   resolvePlaybackStream,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
-import { destroyHlsInstance, startWebPlayback } from "@/lib/playback-engine";
+import { destroyHlsInstance, loadHls, startWebPlayback } from "@/lib/playback-engine";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
@@ -480,24 +480,38 @@ export function TvWatchView() {
       setError("Playback failed. Try a lower quality from the settings menu.");
     };
 
-    const webPlayback = startWebPlayback({
-      HlsConstructor: Hls,
-      video,
-      url,
-      usingHls,
-      startAt,
-      tv: true,
-      onFatalError,
-      onBufferUpdate: updateBufferedPosition,
-      onSeekComplete: (seconds) => setCurrentTime(seconds),
-    });
+    let cancelled = false;
+    let webPlayback: ReturnType<typeof startWebPlayback> | null = null;
 
-    hlsRef.current = webPlayback.hls;
+    void (async () => {
+      const HlsConstructor = usingHls ? await loadHls() : undefined;
+      if (cancelled) return;
+
+      webPlayback = startWebPlayback({
+        HlsConstructor,
+        video,
+        url,
+        usingHls,
+        startAt,
+        tv: true,
+        onFatalError,
+        onBufferUpdate: updateBufferedPosition,
+        onSeekComplete: (seconds) => setCurrentTime(seconds),
+      });
+
+      if (cancelled) {
+        webPlayback.cleanup();
+        return;
+      }
+
+      hlsRef.current = webPlayback.hls;
+    })();
 
     progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
-      webPlayback.cleanup();
+      cancelled = true;
+      webPlayback?.cleanup();
       hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();

@@ -1,8 +1,17 @@
 import type Hls from "hls.js";
 import { createPlaybackHls, startDirectPlaybackWithResume } from "@/lib/playback-utils";
 
+let hlsModulePromise: Promise<typeof import("hls.js").default> | null = null;
+
+export async function loadHls() {
+  if (!hlsModulePromise) {
+    hlsModulePromise = import("hls.js").then((mod) => mod.default);
+  }
+  return hlsModulePromise;
+}
+
 export interface WebPlaybackOptions {
-  HlsConstructor: typeof import("hls.js").default;
+  HlsConstructor?: typeof import("hls.js").default;
   video: HTMLVideoElement;
   url: string;
   usingHls: boolean;
@@ -46,6 +55,10 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   };
 
   if (usingHls) {
+    if (!HlsConstructor) {
+      onFatalError();
+      return { hls: null, cleanup: () => {} };
+    }
     if (HlsConstructor.isSupported()) {
       hls = createPlaybackHls(HlsConstructor, { tv });
       hls.loadSource(url);

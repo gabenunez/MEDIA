@@ -27,11 +27,11 @@ function BrowseDesktopClient() {
   useDocumentTitle("Browse");
 
   useEffect(() => {
-    Promise.all([api.getLibraries(), api.getDecks(), api.getHome()])
-      .then(([libs, deckList, home]) => {
+    Promise.all([api.getLibraries(), api.getDecks(), api.getFavorites(1)])
+      .then(([libs, deckList, favorites]) => {
         setLibraries(libs);
         setDecks(deckList);
-        setFavoritesCount(home.favorites.length);
+        setFavoritesCount(favorites.total);
       })
       .catch(console.warn)
       .finally(() => setLoading(false));

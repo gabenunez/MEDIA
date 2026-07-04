@@ -108,6 +108,15 @@ async function main() {
       root: webOut,
       prefix: "/",
       redirect: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}_next${path.sep}static${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          return;
+        }
+        if (filePath.endsWith(`${path.sep}index.html`)) {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
     });
 
     app.setNotFoundHandler((request, reply) => {

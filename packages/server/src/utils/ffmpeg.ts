@@ -13,6 +13,8 @@ const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_TRANSCODES = 2;
 const IDLE_SESSION_MS = 2 * 60 * 1000;
 const PRUNE_CACHE_MS = 60 * 60 * 1000;
+const FFMPEG_CACHE_MS = 5 * 60 * 1000;
+let ffmpegAvailabilityCache: { available: boolean; checkedAt: number } | null = null;
 /** Max segments kept on disk and in the live playlist (~12 min at 6s segments). */
 export const HLS_PLAYLIST_WINDOW_SEGMENTS = 120;
 
@@ -74,11 +76,21 @@ function audioMapArgs(audioStreamIndex?: number | null): string[] {
 }
 
 export async function checkFfmpegAvailable(): Promise<boolean> {
+  const now = Date.now();
+  if (
+    ffmpegAvailabilityCache &&
+    now - ffmpegAvailabilityCache.checkedAt < FFMPEG_CACHE_MS
+  ) {
+    return ffmpegAvailabilityCache.available;
+  }
+
   try {
     await execFileAsync("ffmpeg", ["-version"]);
     await execFileAsync("ffprobe", ["-version"]);
+    ffmpegAvailabilityCache = { available: true, checkedAt: now };
     return true;
   } catch {
+    ffmpegAvailabilityCache = { available: false, checkedAt: now };
     return false;
   }
 }

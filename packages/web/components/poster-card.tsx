@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { memo } from "react";
 import { Clapperboard, Play, Tv } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -14,7 +14,7 @@ interface PosterCardProps {
   progress?: number;
 }
 
-export function PosterCard({
+export const PosterCard = memo(function PosterCard({
   item,
   className,
   showTitle = true,
@@ -28,11 +28,7 @@ export function PosterCard({
       className={cn("group block", className)}
       aria-label={item.title}
     >
-      <motion.div
-        whileHover={{ scale: 1.025, y: -5 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className="poster-shadow relative aspect-[2/3] overflow-hidden rounded-md border border-white/10 bg-muted"
-      >
+      <div className="poster-shadow relative aspect-[2/3] overflow-hidden rounded-md border border-white/10 bg-muted transition-transform duration-300 will-change-transform group-hover:-translate-y-1 group-hover:scale-[1.025]">
         <div className="absolute inset-y-0 left-0 z-10 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -41,6 +37,8 @@ export function PosterCard({
             alt={item.title}
             loading="lazy"
             decoding="async"
+            width={342}
+            height={513}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
@@ -73,7 +71,7 @@ export function PosterCard({
             />
           </div>
         )}
-      </motion.div>
+      </div>
 
       {showTitle && (
         <div className="mt-2 px-1">
@@ -87,4 +85,4 @@ export function PosterCard({
       )}
     </Link>
   );
-}
+});

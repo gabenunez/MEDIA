@@ -6,6 +6,8 @@ import { useEffect, type ReactNode } from "react";
 const NAV_COOLDOWN_MS = 90;
 const NAV_REPEAT_COOLDOWN_MS = 45;
 
+let currentScrollBehavior: ScrollBehavior = "smooth";
+
 function isTvFocusable(el: HTMLElement) {
   return (
     !el.hasAttribute("disabled") &&
@@ -20,7 +22,9 @@ function getRowItems(row: Element) {
 }
 
 function getContentRows() {
-  return Array.from(document.querySelectorAll<HTMLElement>("[data-tv-content-row]"));
+  const main = document.querySelector("main");
+  if (!main) return [];
+  return Array.from(main.querySelectorAll<HTMLElement>("[data-tv-content-row]"));
 }
 
 function getNavRow() {
@@ -33,6 +37,63 @@ function isScrollRow(row: Element) {
     !row.hasAttribute("data-tv-grid") &&
     !row.hasAttribute("data-tv-vertical")
   );
+}
+
+function focusItem(el: HTMLElement) {
+  focusTvItem(el, currentScrollBehavior);
+}
+
+function estimateGridColumns(items: HTMLElement[]): number {
+  if (items.length <= 1) return 1;
+  const firstTop = items[0].getBoundingClientRect().top;
+  let cols = 1;
+  for (let i = 1; i < items.length; i++) {
+    if (Math.abs(items[i].getBoundingClientRect().top - firstTop) < 4) cols++;
+    else break;
+  }
+  return cols || 1;
+}
+
+function moveInGridRow(
+  active: HTMLElement,
+  direction: "left" | "right" | "up" | "down",
+) {
+  const row = active.closest("[data-tv-row][data-tv-grid]");
+  if (!row) return false;
+
+  const items = getRowItems(row);
+  const index = items.indexOf(active);
+  if (index === -1) return false;
+
+  const cols = estimateGridColumns(items);
+
+  if (direction === "right" && index < items.length - 1) {
+    focusItem(items[index + 1]);
+    return true;
+  }
+
+  if (direction === "left" && index > 0) {
+    focusItem(items[index - 1]);
+    return true;
+  }
+
+  if (direction === "down") {
+    const next = index + cols;
+    if (next < items.length) {
+      focusItem(items[next]);
+      return true;
+    }
+  }
+
+  if (direction === "up") {
+    const prev = index - cols;
+    if (prev >= 0) {
+      focusItem(items[prev]);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function findNextByGeometry(
@@ -85,12 +146,12 @@ function moveInScrollRow(active: HTMLElement, direction: "left" | "right") {
   if (index === -1) return false;
 
   if (direction === "right" && index < items.length - 1) {
-    focusTvItem(items[index + 1]);
+    focusItem(items[index + 1]);
     return true;
   }
 
   if (direction === "left" && index > 0) {
-    focusTvItem(items[index - 1]);
+    focusItem(items[index - 1]);
     return true;
   }
 
@@ -106,12 +167,12 @@ function moveInVerticalRow(active: HTMLElement, direction: "up" | "down") {
   if (index === -1) return false;
 
   if (direction === "down" && index < items.length - 1) {
-    focusTvItem(items[index + 1]);
+    focusItem(items[index + 1]);
     return true;
   }
 
   if (direction === "up" && index > 0) {
-    focusTvItem(items[index - 1]);
+    focusItem(items[index - 1]);
     return true;
   }
 
@@ -139,7 +200,7 @@ function focusNavFromContent(active: HTMLElement) {
     }
   }
 
-  focusTvItem(best);
+  focusItem(best);
   return true;
 }
 
@@ -155,7 +216,7 @@ function focusContentFromNav(active: HTMLElement) {
     const items = getRowItems(row);
     if (!items.length) continue;
     const next = items[Math.min(Math.max(navIndex, 0), items.length - 1)];
-    focusTvItem(next);
+    focusItem(next);
     return true;
   }
 
@@ -172,6 +233,10 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
     return focusContentFromNav(active);
   }
 
+  if (!inNav && row.hasAttribute("data-tv-grid")) {
+    if (moveInGridRow(active, direction)) return true;
+  }
+
   if (!inNav && isScrollRow(row)) {
     if (moveInScrollRow(active, direction)) return true;
     if (direction === "left") return focusNavFromContent(active);
@@ -180,7 +245,7 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
 
   const next = findNextByGeometry(active, direction);
   if (next) {
-    focusTvItem(next);
+    focusItem(next);
     return true;
   }
 
@@ -202,7 +267,7 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
   if (inNav) {
     const next = findNextByGeometry(active, direction);
     if (next) {
-      focusTvItem(next);
+      focusItem(next);
       return true;
     }
     return false;
@@ -213,11 +278,7 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
   }
 
   if (activeRow.hasAttribute("data-tv-grid")) {
-    const next = findNextByGeometry(active, direction);
-    if (next) {
-      focusTvItem(next);
-      return true;
-    }
+    if (moveInGridRow(active, direction)) return true;
   }
 
   if (direction === "down" && contentIndex >= 0 && contentIndex < contentRows.length - 1) {
@@ -226,7 +287,7 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
     const nextItems = getRowItems(contentRows[contentIndex + 1]);
     const next = nextItems[Math.min(itemIndex, nextItems.length - 1)];
     if (next) {
-      focusTvItem(next);
+      focusItem(next);
       return true;
     }
     return false;
@@ -238,7 +299,7 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
     const prevItems = getRowItems(contentRows[contentIndex - 1]);
     const prev = prevItems[Math.min(itemIndex, prevItems.length - 1)];
     if (prev) {
-      focusTvItem(prev);
+      focusItem(prev);
       return true;
     }
     return false;
@@ -294,6 +355,8 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       if (now - lastMoveAt < cooldown) return;
       lastMoveAt = now;
 
+      currentScrollBehavior = e.repeat ? "instant" : "smooth";
+
       if (e.key === "ArrowRight") {
         moveHorizontal(active, "right");
         return;
@@ -319,7 +382,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         if (node !== target) node.removeAttribute("data-tv-focused");
       });
       target.setAttribute("data-tv-focused", "");
-      requestAnimationFrame(() => scrollItemIntoView(target));
+      requestAnimationFrame(() => scrollItemIntoView(target, "smooth"));
     }
 
     window.addEventListener("keydown", onKeyDown);

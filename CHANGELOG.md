@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.48 — 2026-07-04
+
+### Performance
+- **Client API cache** — stale-while-revalidate caching for home, libraries, media, and browse routes so back-navigation feels instant
+- **TV spatial nav** — index-based grid focus and instant scroll on key repeat for snappier D-pad browsing
+- **Dynamic hls.js** — load the HLS library only when transcoding playback is needed
+- **Scan polling** — stop refetching the full home payload every 1.5s during library scans
+- **TV mode init** — detect Android TV on first paint to avoid desktop shell flash
+- **Poster cards** — replace framer-motion with CSS transitions and memoization
+- **Server batch queries** — TV show detail, library counts, and related media use fewer DB round-trips
+- **DB indexes** — add indexes on hot lookup columns (library_id, season_id, watch_progress, etc.)
+- **Static assets** — long-cache headers for hashed Next.js bundles
+- **FFmpeg probe cache** — avoid spawning ffmpeg/ffprobe on every status poll
+
+### Search
+- **Fast typing fix** — ignore stale search responses so "No results found" no longer flashes while typing
+
 ## 0.1.47 — 2026-07-04
 
 ### Playback
