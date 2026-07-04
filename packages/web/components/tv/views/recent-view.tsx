@@ -33,9 +33,9 @@ export function TvRecentView() {
   }, [page]);
 
   useEffect(() => {
-    if (loading) return;
-    focusFirstContentItem();
-  }, [loading, page]);
+    if (loading || items.length === 0) return;
+    requestAnimationFrame(() => focusFirstContentItem());
+  }, [loading, page, items.length]);
 
   if (loading) {
     return (

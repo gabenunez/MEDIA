@@ -48,10 +48,20 @@ export function focusEpisodeItem(episodeId: number): boolean {
   return true;
 }
 
-/** Focus the first focusable item inside main content (skips side nav). */
+/** Focus the first focusable item inside main content (skips side nav and page chrome). */
 export function focusFirstContentItem() {
   const main = document.querySelector("main");
   if (!main) return;
+
+  const posterRow =
+    main.querySelector<HTMLElement>("[data-tv-grid]") ??
+    main.querySelector<HTMLElement>("[data-tv-scroll-row]");
+  const posterItem = posterRow?.querySelector<HTMLElement>("[data-tv-item]");
+  if (posterItem) {
+    focusTvItem(posterItem);
+    return;
+  }
+
   const item = main.querySelector<HTMLElement>("[data-tv-item]");
   if (item) focusTvItem(item);
 }

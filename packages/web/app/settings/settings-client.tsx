@@ -9,8 +9,6 @@ import {
   Lock,
   LogOut,
   XCircle,
-  KeyRound,
-  Music2,
   Subtitles,
 } from "lucide-react";
 import { api, type AppSettings, type PlexImportPreview } from "@/lib/api";
@@ -19,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ApiKeysSettings } from "@/components/api-keys-settings";
 import { LibraryManager } from "@/components/library-manager";
 import { DeckManager } from "@/components/deck-manager";
 import { UpdateManager } from "@/components/update-manager";
@@ -32,15 +31,6 @@ export function SettingsClient() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState<number | null>(null);
-  const [tmdbKey, setTmdbKey] = useState("");
-  const [fanartKey, setFanartKey] = useState("");
-  const [osKey, setOsKey] = useState("");
-  const [savingKey, setSavingKey] = useState(false);
-  const [savingFanartKey, setSavingFanartKey] = useState(false);
-  const [savingOsKey, setSavingOsKey] = useState(false);
-  const [keyMessage, setKeyMessage] = useState<string | null>(null);
-  const [fanartKeyMessage, setFanartKeyMessage] = useState<string | null>(null);
-  const [osKeyMessage, setOsKeyMessage] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -123,87 +113,6 @@ export function SettingsClient() {
       console.error(err);
     } finally {
       setScanning(null);
-    }
-  };
-
-  const handleSaveOsKey = async () => {
-    setSavingOsKey(true);
-    setOsKeyMessage(null);
-    try {
-      const result = await api.updateOpenSubtitlesKey(osKey);
-      setOsKeyMessage(
-        result.opensubtitlesConfigured
-          ? "OpenSubtitles API key saved"
-          : "Key cleared",
-      );
-      setOsKey("");
-      loadSettings();
-    } catch (err) {
-      setOsKeyMessage(err instanceof Error ? err.message : "Failed to save key");
-    } finally {
-      setSavingOsKey(false);
-    }
-  };
-
-  const handleSaveFanartKey = async () => {
-    setSavingFanartKey(true);
-    setFanartKeyMessage(null);
-    try {
-      const result = await api.updateFanartKey(fanartKey);
-      setFanartKeyMessage(
-        result.fanartConfigured
-          ? result.themesSynced
-            ? `Fanart API key saved — checked themes in ${result.themesSynced} librar${result.themesSynced === 1 ? "y" : "ies"}`
-            : "Fanart API key saved"
-          : "Key cleared",
-      );
-      setFanartKey("");
-      loadSettings();
-    } catch (err) {
-      setFanartKeyMessage(err instanceof Error ? err.message : "Failed to save key");
-    } finally {
-      setSavingFanartKey(false);
-    }
-  };
-
-  const handleSaveTmdbKey = async () => {
-    setSavingKey(true);
-    setKeyMessage(null);
-    try {
-      const result = await api.updateMetadata(tmdbKey);
-      if (result.metadataRefresh?.updated) {
-        setKeyMessage(
-          `API key saved - updated metadata for ${result.metadataRefresh.updated} title${result.metadataRefresh.updated === 1 ? "" : "s"}`,
-        );
-      } else if (result.tmdbConfigured) {
-        setKeyMessage("API key saved - run Scan on your libraries to fetch metadata");
-      } else {
-        setKeyMessage("Key saved - verify it works after scanning");
-      }
-      setTmdbKey("");
-      loadSettings();
-    } catch (err) {
-      setKeyMessage(err instanceof Error ? err.message : "Failed to save key");
-    } finally {
-      setSavingKey(false);
-    }
-  };
-
-  const handleRefreshMetadata = async () => {
-    setSavingKey(true);
-    setKeyMessage(null);
-    try {
-      const result = await api.refreshMetadata();
-      setKeyMessage(
-        result.updated > 0
-          ? `Updated metadata for ${result.updated} title${result.updated === 1 ? "" : "s"}`
-          : "No unmatched titles found to update",
-      );
-      loadSettings();
-    } catch (err) {
-      setKeyMessage(err instanceof Error ? err.message : "Failed to refresh metadata");
-    } finally {
-      setSavingKey(false);
     }
   };
 
@@ -512,131 +421,9 @@ export function SettingsClient() {
           )}
       </SettingsSection>
 
-        {!initialLoad && (
+        {!initialLoad && settings && (
           <>
-            <SettingsSection
-              icon={KeyRound}
-              title="TMDB Metadata"
-              description={
-                <>
-                  Free API key from{" "}
-                  <a
-                    href="https://www.themoviedb.org/settings/api"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary transition-colors hover:text-accent"
-                  >
-                    themoviedb.org
-                  </a>{" "}
-                  for posters and descriptions.
-                </>
-              }
-            >
-              {settings?.metadata.tmdbConfigured && settings.metadata.tmdbApiKeyPreview && (
-                <p className="mb-2 text-sm text-muted-foreground">
-                  Current key:{" "}
-                  <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-accent">
-                    {settings.metadata.tmdbApiKeyPreview}
-                  </code>
-                </p>
-              )}
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  type="password"
-                  value={tmdbKey}
-                  onChange={(e) => setTmdbKey(e.target.value)}
-                  placeholder="Paste your TMDB API key"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSaveTmdbKey}
-                  disabled={savingKey || !tmdbKey.trim()}
-                  className="shrink-0"
-                >
-                  {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Save key
-                </Button>
-              </div>
-              {keyMessage && (
-                <p className="mt-2 text-sm text-muted-foreground">{keyMessage}</p>
-              )}
-
-              {settings?.metadata.tmdbConfigured && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={handleRefreshMetadata}
-                  disabled={savingKey}
-                >
-                  {savingKey ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  Refresh metadata
-                </Button>
-              )}
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Music2}
-              title="Theme music"
-              description={
-                <>
-                  Free API key from{" "}
-                  <a
-                    href="https://fanart.tv/get-an-api-key/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary transition-colors hover:text-accent"
-                  >
-                    fanart.tv
-                  </a>{" "}
-                  fetches TV show themes for detail pages. Movies use{" "}
-                  <a
-                    href="https://app.lizardbyte.dev/ThemerrDB"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    ThemerrDB
-                  </a>{" "}
-                  automatically. Local <code className="text-xs">theme.mp3</code>{" "}
-                  files in a show folder still work without a key.
-                </>
-              }
-            >
-              {settings?.metadata.fanartConfigured &&
-                settings.metadata.fanartApiKeyPreview && (
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    Current key:{" "}
-                    <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-accent">
-                      {settings.metadata.fanartApiKeyPreview}
-                    </code>
-                  </p>
-                )}
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  type="password"
-                  value={fanartKey}
-                  onChange={(e) => setFanartKey(e.target.value)}
-                  placeholder="Paste your fanart.tv API key"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSaveFanartKey}
-                  disabled={savingFanartKey || !fanartKey.trim()}
-                  className="shrink-0"
-                >
-                  {savingFanartKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Save key
-                </Button>
-              </div>
-              {fanartKeyMessage && (
-                <p className="mt-2 text-sm text-muted-foreground">{fanartKeyMessage}</p>
-              )}
-            </SettingsSection>
+            <ApiKeysSettings settings={settings} onChange={() => loadSettings()} />
 
             <SettingsSection
               icon={Subtitles}
@@ -644,56 +431,6 @@ export function SettingsClient() {
               description="Customize how subtitles look during playback. Changes apply on this device."
             >
               <SubtitleAppearanceSettings />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Subtitles}
-              title="OpenSubtitles"
-              description={
-                <>
-                  Create a free key under{" "}
-                  <a
-                    href="https://www.opensubtitles.com/en/consumers"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary transition-colors hover:text-accent"
-                  >
-                    API consumers
-                  </a>{" "}
-                  on OpenSubtitles, then paste it below.
-                </>
-              }
-            >
-              {settings?.subtitles.opensubtitlesConfigured &&
-                settings.subtitles.opensubtitlesApiKeyPreview && (
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    Current key:{" "}
-                    <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-accent">
-                      {settings.subtitles.opensubtitlesApiKeyPreview}
-                    </code>
-                  </p>
-                )}
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  type="password"
-                  value={osKey}
-                  onChange={(e) => setOsKey(e.target.value)}
-                  placeholder="Paste your OpenSubtitles API key"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSaveOsKey}
-                  disabled={savingOsKey || !osKey.trim()}
-                  className="shrink-0"
-                >
-                  {savingOsKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Save key
-                </Button>
-              </div>
-              {osKeyMessage && (
-                <p className="mt-2 text-sm text-muted-foreground">{osKeyMessage}</p>
-              )}
             </SettingsSection>
 
             <UpdateManager />

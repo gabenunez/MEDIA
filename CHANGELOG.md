@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.54 — 2026-07-04
+
+### TV
+- **Continue / Recently Added** — auto-focus the first poster when opening either list
+- **Startup** — fix React 19 `flushSync` warning; add fallback so TV bootstrap cannot leave a blank page
+
+### Settings
+- **API keys** — consolidate TMDB, fanart.tv, and OpenSubtitles into one section
+
+### Dependencies
+- **Next.js 16** — upgrade to Next.js 16.2 with React 19.2; add required `not-found` page for static export
+
+### Fix
+- **Update script** — fix cleanup trap referencing an unbound variable after successful updates
+
 ## 0.1.53 — 2026-07-04
 
 ### Fix

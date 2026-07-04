@@ -242,15 +242,17 @@ restart_service() {
   fi
 }
 
+cleanup_update_lock() {
+  local config_dir
+  config_dir="$(media_config_dir)"
+  rm -f "$config_dir/updating.lock" 2>/dev/null || true
+  rm -f "${HOME}/.config/media-app/updating.lock" 2>/dev/null || true
+  rm -f "${HOME}/.config/reel/updating.lock" 2>/dev/null || true
+}
+
 main() {
   local config_dir
   config_dir="$(media_config_dir)"
-
-  cleanup_update_lock() {
-    rm -f "$config_dir/updating.lock" 2>/dev/null || true
-    rm -f "${HOME}/.config/media-app/updating.lock" 2>/dev/null || true
-    rm -f "${HOME}/.config/reel/updating.lock" 2>/dev/null || true
-  }
 
   on_update_error() {
     media_progress "failed" "Update failed — see $config_dir/update.log for details"

@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { flushSync } from "react-dom";
 import {
   TV_MODE_HTML_CLASS,
   TV_READY_HTML_CLASS,
@@ -26,9 +25,15 @@ export function TvModeProvider({ children }: { children: ReactNode }) {
     if (tv) {
       document.documentElement.classList.add(TV_MODE_HTML_CLASS);
     }
-    flushSync(() => setIsTvMode(tv));
-    document.documentElement.classList.add(TV_READY_HTML_CLASS);
+    setIsTvMode(tv);
   }, []);
+
+  useLayoutEffect(() => {
+    const pendingTvShell =
+      document.documentElement.classList.contains(TV_MODE_HTML_CLASS) && !isTvMode;
+    if (pendingTvShell) return;
+    document.documentElement.classList.add(TV_READY_HTML_CLASS);
+  }, [isTvMode]);
 
   return (
     <TvModeContext.Provider value={isTvMode}>{children}</TvModeContext.Provider>
