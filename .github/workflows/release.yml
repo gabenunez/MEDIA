@@ -18,10 +18,13 @@ jobs:
         id: version
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
+      - name: Extract release notes from CHANGELOG
+        run: node scripts/extract-changelog.mjs "${{ steps.version.outputs.tag }}" > release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
           name: Reel ${{ steps.version.outputs.tag }}
+          body_path: release-notes.md
           draft: false
           prerelease: false
