@@ -111,7 +111,11 @@ export function resolvePlaybackStream(
   }
 
   if (mode === "transcode") {
-    const fallback = pickTranscodeQualityForPlayback(streamInfo.availableQualities);
+    const networkQuality = pickNetworkAwareTranscodeQuality(streamInfo.availableQualities);
+    const fallback =
+      networkQuality && networkQuality !== "original"
+        ? networkQuality
+        : pickTranscodeQualityForPlayback(streamInfo.availableQualities);
     return {
       usingHls: true,
       hlsQuality: fallback,
@@ -143,8 +147,12 @@ export function resolveInitialStreamQuality(streamInfo: StreamInfo): {
 
   if (playback.audioCompatNotice) {
     if (streamInfo.transcodingEnabled) {
+      const networkQuality = pickNetworkAwareTranscodeQuality(streamInfo.availableQualities);
       return {
-        quality: pickTranscodeQualityForPlayback(streamInfo.availableQualities),
+        quality:
+          networkQuality && networkQuality !== "original"
+            ? networkQuality
+            : pickTranscodeQualityForPlayback(streamInfo.availableQualities),
         error: null,
       };
     }
@@ -459,8 +467,46 @@ export function createPlaybackHls(
     maxBufferHole: 0.5,
     nudgeOnVideoHole: true,
     startFragPrefetch: tv,
+    manifestLoadingMaxRetry: 4,
+    manifestLoadingRetryDelay: 1000,
+    levelLoadingMaxRetry: 4,
+    levelLoadingRetryDelay: 1000,
+    fragLoadingMaxRetry: 6,
+    fragLoadingRetryDelay: 1000,
     xhrSetup: (xhr) => {
       xhr.withCredentials = true;
     },
   });
+}
+
+type NetworkInformation = {
+  effectiveType?: string;
+  saveData?: boolean;
+};
+
+/** Suggest a transcode tier from Network Information API hints. */
+export function pickNetworkAwareTranscodeQuality(
+  availableQualities: StreamQuality[],
+): StreamQuality | null {
+  if (typeof navigator === "undefined") return null;
+
+  const conn = (navigator as Navigator & { connection?: NetworkInformation })
+    .connection;
+  if (!conn) return null;
+
+  if (conn.saveData) {
+    if (availableQualities.includes("480p")) return "480p";
+    return null;
+  }
+
+  switch (conn.effectiveType) {
+    case "slow-2g":
+    case "2g":
+      return availableQualities.includes("480p") ? "480p" : null;
+    case "3g":
+      if (availableQualities.includes("720p")) return "720p";
+      return availableQualities.includes("480p") ? "480p" : null;
+    default:
+      return null;
+  }
 }

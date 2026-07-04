@@ -27,10 +27,16 @@ import {
   getVideoSeekableEnd,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
-  createPlaybackHls,
-  startDirectPlaybackWithResume,
+  buildPlaybackTitle,
+  findEpisode,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
+import { destroyHlsInstance, startWebPlayback } from "@/lib/playback-engine";
+import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
+import { useMediaSession } from "@/lib/use-media-session";
+import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
+import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
+import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { cn, formatDuration } from "@/lib/utils";
@@ -75,59 +81,7 @@ function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): str
 const VOLUME_STORAGE_KEY = "reel:volume";
 const PROGRESS_SAVE_MS = 10_000;
 
-interface TvEpisodeSummary {
-  id: number;
-  title?: string | null;
-  episodeNumber: number;
-  stillPath?: string | null;
-}
-
-interface TvSeasonSummary {
-  seasonNumber: number;
-  episodes: TvEpisodeSummary[];
-}
-
-interface MediaDetail {
-  title: string;
-  posterPath?: string | null;
-  seasons?: TvSeasonSummary[];
-}
-
-function buildPlaybackTitle(
-  type: "movie" | "episode",
-  media: MediaDetail,
-  fileId: number,
-): string {
-  if (type !== "episode") {
-    return media.title;
-  }
-
-  for (const season of media.seasons ?? []) {
-    for (const episode of season.episodes ?? []) {
-      if (episode.id !== fileId) continue;
-
-      const episodeName =
-        episode.title?.trim() || `Episode ${episode.episodeNumber}`;
-      return `${media.title} — ${episodeName} (Season ${season.seasonNumber} Episode ${episode.episodeNumber})`;
-    }
-  }
-
-  return media.title;
-}
-
-function findEpisode(
-  media: MediaDetail,
-  fileId: number,
-): TvEpisodeSummary | null {
-  for (const season of media.seasons ?? []) {
-    for (const episode of season.episodes ?? []) {
-      if (episode.id === fileId) {
-        return episode;
-      }
-    }
-  }
-  return null;
-}
+interface MediaDetail extends PlaybackMediaDetail {}
 
 function loadStoredVolume(): number {
   if (typeof window === "undefined") return 1;
@@ -213,6 +167,12 @@ function WatchDesktopClient() {
     [quality, streamInfo],
   );
   const usingHlsPlayback = playbackStream.usingHls;
+  const posterUrl = api.imageUrl(posterPath);
+  const { thumbnails, lookupCue } = useSeekThumbnails(
+    fileId,
+    type === "movie" ? "movie" : "episode",
+    Boolean(fileId && !Number.isNaN(fileId)),
+  );
 
   const backHref =
     mediaId && !Number.isNaN(parseInt(mediaId, 10))
@@ -469,9 +429,7 @@ function WatchDesktopClient() {
     setBufferingMidPlayback(false);
 
     if (hlsRef.current) {
-      hlsRef.current.stopLoad();
-      hlsRef.current.detachMedia();
-      hlsRef.current.destroy();
+      destroyHlsInstance(hlsRef.current);
       hlsRef.current = null;
     }
 
@@ -502,60 +460,34 @@ function WatchDesktopClient() {
       stream.hlsQuality,
     );
 
-    let stopDirectPlayback: (() => void) | null = null;
-
-    const onVideoError = () => {
+    const onFatalError = () => {
       setBuffering(false);
       if (tryFallbackQualityRef.current()) return;
       setError("Playback failed. Try a lower quality or Original.");
     };
 
-    if (usingHls) {
-      if (Hls.isSupported()) {
-        const hls = createPlaybackHls(Hls);
-        hls.loadSource(url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          hls.startLoad(0);
-          video.play().catch(() => {});
-        });
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            setBuffering(false);
-            if (tryFallbackQualityRef.current()) return;
-            setError("Playback failed. Try a lower quality or Original.");
-          }
-        });
-        hls.on(Hls.Events.FRAG_BUFFERED, () => updateBufferedPosition());
-        hls.on(Hls.Events.BUFFER_APPENDED, () => updateBufferedPosition());
-        hlsRef.current = hls;
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = url;
-        video.addEventListener("error", onVideoError);
-        video.play().catch(() => {});
-      } else {
-        setBuffering(false);
-        if (tryFallbackQualityRef.current()) return;
-        setError("HLS not supported in this browser");
-      }
-    } else {
-      video.src = url;
-      video.addEventListener("error", onVideoError);
-      stopDirectPlayback = startDirectPlaybackWithResume(video, startAt, {
-        onSeekComplete: (seconds) => setCurrentTime(seconds),
-      });
-    }
+    const webPlayback = startWebPlayback({
+      HlsConstructor: Hls,
+      video,
+      url,
+      usingHls,
+      startAt,
+      onFatalError,
+      onBufferUpdate: updateBufferedPosition,
+      onSeekComplete: (seconds) => setCurrentTime(seconds),
+    });
+
+    hlsRef.current = webPlayback.hls;
 
     progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
-      video.removeEventListener("error", onVideoError);
-      stopDirectPlayback?.();
-      if (hlsRef.current) hlsRef.current.destroy();
+      webPlayback.cleanup();
+      hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();
     };
-  }, [fileId, type, quality, streamGeneration, streamStartSeconds, initialResumeSeconds, streamInfo]);
+  }, [fileId, type, quality, streamGeneration, streamStartSeconds, initialResumeSeconds, streamInfo, updateBufferedPosition]);
 
   useEffect(() => {
     const onPageHide = () => saveProgress();
@@ -563,79 +495,41 @@ function WatchDesktopClient() {
     return () => window.removeEventListener("pagehide", onPageHide);
   }, [saveProgress]);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const onPlay = () => {
-      setIsPlaying(true);
-      revealControls(true);
-    };
-    const onPause = () => {
-      setIsPlaying(false);
-      revealControls(false);
-      saveProgress();
-    };
-    const onTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
-      updateBufferedPosition();
-    };
-    const onDurationChange = () => setDuration(video.duration || 0);
-    const onLoadedMetadata = () => setDuration(video.duration || 0);
-    const onProgress = () => updateBufferedPosition();
-    const onWaiting = () => {
-      setBuffering(true);
-      setBufferingMidPlayback(true);
-    };
-    const onPlaying = () => {
-      setBuffering(false);
-      setBufferingMidPlayback(false);
-      updateBufferedPosition();
-    };
-    const onCanPlay = () => {
-      updateBufferedPosition();
-    };
-    const onSeeked = () => {
-      if (optimisticAbsoluteSeconds === null) return;
-      const actual = usingHlsPlayback
-        ? hlsStartOffset + video.currentTime
-        : video.currentTime;
-      if (Math.abs(actual - optimisticAbsoluteSeconds) < 1.5) {
-        setOptimisticAbsoluteSeconds(null);
-      }
-    };
-    const onEnded = () => {
-      setIsPlaying(false);
-      saveProgress();
-      startNextEpisodeCountdown();
-    };
-
-    video.addEventListener("play", onPlay);
-    video.addEventListener("pause", onPause);
-    video.addEventListener("timeupdate", onTimeUpdate);
-    video.addEventListener("durationchange", onDurationChange);
-    video.addEventListener("loadedmetadata", onLoadedMetadata);
-    video.addEventListener("progress", onProgress);
-    video.addEventListener("waiting", onWaiting);
-    video.addEventListener("playing", onPlaying);
-    video.addEventListener("canplay", onCanPlay);
-    video.addEventListener("seeked", onSeeked);
-    video.addEventListener("ended", onEnded);
-
-    return () => {
-      video.removeEventListener("play", onPlay);
-      video.removeEventListener("pause", onPause);
-      video.removeEventListener("timeupdate", onTimeUpdate);
-      video.removeEventListener("durationchange", onDurationChange);
-      video.removeEventListener("loadedmetadata", onLoadedMetadata);
-      video.removeEventListener("progress", onProgress);
-      video.removeEventListener("waiting", onWaiting);
-      video.removeEventListener("playing", onPlaying);
-      video.removeEventListener("canplay", onCanPlay);
-      video.removeEventListener("seeked", onSeeked);
-      video.removeEventListener("ended", onEnded);
-    };
-  }, [revealControls, saveProgress, updateBufferedPosition, optimisticAbsoluteSeconds, usingHlsPlayback, quality, hlsStartOffset, startNextEpisodeCountdown]);
+  useVideoPlaybackEvents({
+    videoRef,
+    enabled: Boolean(fileId && !Number.isNaN(fileId)),
+    usingHlsPlayback,
+    hlsStartOffset,
+    optimisticAbsoluteSeconds,
+    handlers: {
+      onPlay: () => {
+        setIsPlaying(true);
+        revealControls(true);
+      },
+      onPause: () => {
+        setIsPlaying(false);
+        revealControls(false);
+      },
+      onSaveProgress: saveProgress,
+      onBufferUpdate: updateBufferedPosition,
+      onEnded: () => {
+        setIsPlaying(false);
+        startNextEpisodeCountdown();
+      },
+      onCurrentTime: setCurrentTime,
+      onDuration: setDuration,
+      onBuffering: (nextBuffering, midPlayback) => {
+        setBuffering(nextBuffering);
+        setBufferingMidPlayback(midPlayback);
+      },
+      onSeekResolved: (actual) => {
+        if (optimisticAbsoluteSeconds === null) return;
+        if (Math.abs(actual - optimisticAbsoluteSeconds) < 1.5) {
+          setOptimisticAbsoluteSeconds(null);
+        }
+      },
+    },
+  });
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -810,6 +704,16 @@ function WatchDesktopClient() {
 
   seekToAbsoluteRef.current = seekToAbsolute;
 
+  usePlaybackVisibility({
+    enabled: Boolean(fileId && !Number.isNaN(fileId)),
+    videoRef,
+    hlsRef,
+    fileId,
+    type: type === "movie" ? "movie" : "episode",
+    usingHlsPlayback,
+    onSaveProgress: saveProgress,
+  });
+
   const seekToPercent = useCallback(
     (percent: number) => {
       if (!totalDurationSeconds) return;
@@ -849,6 +753,20 @@ function WatchDesktopClient() {
     }
     revealControls(!video.paused);
   }, [revealControls]);
+
+  useMediaSession({
+    title,
+    posterUrl,
+    isPlaying,
+    onPlay: () => {
+      const video = videoRef.current;
+      if (video?.paused) void video.play().catch(() => {});
+    },
+    onPause: () => videoRef.current?.pause(),
+    onSeekBackward: () =>
+      seekToAbsoluteRef.current(Math.max(0, absoluteCurrentTime - 10)),
+    onSeekForward: () => seekToAbsoluteRef.current(absoluteCurrentTime + 10),
+  });
 
   useEffect(() => {
     if (optimisticAbsoluteSeconds === null) return;
@@ -955,7 +873,8 @@ function WatchDesktopClient() {
         className="reel-subtitles absolute inset-0 h-full w-full object-contain"
         controls={false}
         playsInline
-        preload="auto"
+        poster={posterUrl ?? undefined}
+        preload={streamInfo ? "auto" : "metadata"}
         onClick={togglePlay}
       />
 
@@ -1042,12 +961,12 @@ function WatchDesktopClient() {
                 onPointerLeave={() => setTimelineHoverPercent(null)}
               >
                 {timelinePreviewPercent !== null && timelinePreviewMs !== null && (
-                  <div
-                    className="pointer-events-none absolute bottom-full z-20 mb-2 -translate-x-1/2 rounded border border-white/20 bg-background/95 px-2 py-1 font-mono text-xs tabular-nums text-white shadow-lg"
-                    style={{ left: `${timelinePreviewPercent}%` }}
-                  >
-                    {formatDuration(timelinePreviewMs)}
-                  </div>
+                  <SeekPreviewTooltip
+                    percent={timelinePreviewPercent}
+                    timeMs={timelinePreviewMs}
+                    cue={lookupCue(timelinePreviewMs)}
+                    spriteUrl={thumbnails?.spriteUrl ?? null}
+                  />
                 )}
                 <div className="pointer-events-none absolute inset-x-0 h-2 overflow-hidden rounded-full bg-white/15">
                   {bufferedRanges.map((range, index) => {

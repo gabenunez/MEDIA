@@ -261,7 +261,13 @@ function SearchResultPoster({ item }: { item: MediaItem }) {
     <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded border border-white/10 bg-muted">
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        <img
+          src={imageUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-muted-foreground">
           {item.type === "movie" ? (

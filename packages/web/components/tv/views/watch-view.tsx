@@ -13,10 +13,11 @@ import {
   PROGRESS_SAVE_MS,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
-  createPlaybackHls,
-  startDirectPlaybackWithResume,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
+import { destroyHlsInstance, startWebPlayback } from "@/lib/playback-engine";
+import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
+import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import {
   formatSubtitleLabel,
@@ -96,6 +97,7 @@ export function TvWatchView() {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [posterPath, setPosterPath] = useState<string | null>(null);
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
@@ -118,6 +120,7 @@ export function TvWatchView() {
   );
   const usingHlsPlayback = playbackStream.usingHls;
   usingHlsRef.current = usingHlsPlayback;
+  const posterUrl = api.imageUrl(posterPath);
 
   const backHref =
     mediaId && !Number.isNaN(parseInt(mediaId, 10))
@@ -357,6 +360,17 @@ export function TvWatchView() {
         const media = data as unknown as PlaybackMediaDetail;
         setMediaDetail(media);
         setTitle(buildPlaybackTitle(type, media, fileId));
+        if (type === "episode") {
+          for (const season of media.seasons ?? []) {
+            for (const episode of season.episodes ?? []) {
+              if (episode.id === fileId) {
+                setPosterPath(episode.stillPath ?? media.posterPath ?? null);
+                return;
+              }
+            }
+          }
+        }
+        setPosterPath(media.posterPath ?? null);
       })
       .catch(console.error);
   }, [mediaId, fileId, type]);
@@ -433,9 +447,7 @@ export function TvWatchView() {
     setBufferedRanges([]);
 
     if (hlsRef.current) {
-      hlsRef.current.stopLoad();
-      hlsRef.current.detachMedia();
-      hlsRef.current.destroy();
+      destroyHlsInstance(hlsRef.current);
       hlsRef.current = null;
     }
 
@@ -462,56 +474,31 @@ export function TvWatchView() {
       stream.hlsQuality,
     );
 
-    let stopDirectPlayback: (() => void) | null = null;
-
-    const onVideoError = () => {
+    const onFatalError = () => {
       setBuffering(false);
       if (tryFallbackQualityRef.current()) return;
       setError("Playback failed. Try a lower quality from the settings menu.");
     };
 
-    if (usingHls) {
-      if (Hls.isSupported()) {
-        const hls = createPlaybackHls(Hls, { tv: true });
-        hls.loadSource(url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          hls.startLoad(0);
-          video.play().catch(() => {});
-        });
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            setBuffering(false);
-            if (tryFallbackQualityRef.current()) return;
-            setError("Playback failed. Try a lower quality from the settings menu.");
-          }
-        });
-        hls.on(Hls.Events.FRAG_BUFFERED, () => updateBufferedPosition());
-        hls.on(Hls.Events.BUFFER_APPENDED, () => updateBufferedPosition());
-        hlsRef.current = hls;
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = url;
-        video.addEventListener("error", onVideoError);
-        video.play().catch(() => {});
-      } else {
-        setBuffering(false);
-        if (tryFallbackQualityRef.current()) return;
-        setError("HLS not supported on this device");
-      }
-    } else {
-      video.src = url;
-      video.addEventListener("error", onVideoError);
-      stopDirectPlayback = startDirectPlaybackWithResume(video, startAt, {
-        onSeekComplete: (seconds) => setCurrentTime(seconds),
-      });
-    }
+    const webPlayback = startWebPlayback({
+      HlsConstructor: Hls,
+      video,
+      url,
+      usingHls,
+      startAt,
+      tv: true,
+      onFatalError,
+      onBufferUpdate: updateBufferedPosition,
+      onSeekComplete: (seconds) => setCurrentTime(seconds),
+    });
+
+    hlsRef.current = webPlayback.hls;
 
     progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
-      video.removeEventListener("error", onVideoError);
-      stopDirectPlayback?.();
-      if (hlsRef.current) hlsRef.current.destroy();
+      webPlayback.cleanup();
+      hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();
     };
@@ -663,87 +650,52 @@ export function TvWatchView() {
     }
   }, [absoluteCurrentTime, optimisticAbsoluteSeconds]);
 
-  useEffect(() => {
-    if (usesNativePlayer) return;
+  usePlaybackVisibility({
+    enabled: Boolean(fileId && !Number.isNaN(fileId)),
+    videoRef,
+    hlsRef,
+    fileId,
+    type: type === "movie" ? "movie" : "episode",
+    usingHlsPlayback,
+    usesNativePlayer,
+    onSaveProgress: saveProgress,
+  });
 
-    const video = videoRef.current;
-    if (!video) return;
-
-    const onPlay = () => {
-      setIsPlaying(true);
-      revealControls(true);
-    };
-    const onPause = () => {
-      setIsPlaying(false);
-      revealControls(false);
-      saveProgress();
-    };
-    const onTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
-      updateBufferedPosition();
-    };
-    const onDurationChange = () => setDuration(video.duration || 0);
-    const onLoadedMetadata = () => setDuration(video.duration || 0);
-    const onProgress = () => updateBufferedPosition();
-    const onWaiting = () => {
-      setBuffering(true);
-      setBufferingMidPlayback(true);
-    };
-    const onPlaying = () => {
-      setBuffering(false);
-      setBufferingMidPlayback(false);
-      updateBufferedPosition();
-    };
-    const onCanPlay = () => updateBufferedPosition();
-    const onSeeked = () => {
-      if (optimisticAbsoluteSeconds === null) return;
-      const actual = usingHlsPlayback
-        ? hlsStartOffset + video.currentTime
-        : video.currentTime;
-      if (Math.abs(actual - optimisticAbsoluteSeconds) < 1.5) {
-        setOptimisticAbsoluteSeconds(null);
-      }
-    };
-    const onEnded = () => {
-      setIsPlaying(false);
-      saveProgress();
-      startNextEpisodeCountdown();
-    };
-
-    video.addEventListener("play", onPlay);
-    video.addEventListener("pause", onPause);
-    video.addEventListener("timeupdate", onTimeUpdate);
-    video.addEventListener("durationchange", onDurationChange);
-    video.addEventListener("loadedmetadata", onLoadedMetadata);
-    video.addEventListener("progress", onProgress);
-    video.addEventListener("waiting", onWaiting);
-    video.addEventListener("playing", onPlaying);
-    video.addEventListener("canplay", onCanPlay);
-    video.addEventListener("seeked", onSeeked);
-    video.addEventListener("ended", onEnded);
-
-    return () => {
-      video.removeEventListener("play", onPlay);
-      video.removeEventListener("pause", onPause);
-      video.removeEventListener("timeupdate", onTimeUpdate);
-      video.removeEventListener("durationchange", onDurationChange);
-      video.removeEventListener("loadedmetadata", onLoadedMetadata);
-      video.removeEventListener("progress", onProgress);
-      video.removeEventListener("waiting", onWaiting);
-      video.removeEventListener("playing", onPlaying);
-      video.removeEventListener("canplay", onCanPlay);
-      video.removeEventListener("seeked", onSeeked);
-      video.removeEventListener("ended", onEnded);
-    };
-  }, [
-    revealControls,
-    saveProgress,
-    updateBufferedPosition,
-    optimisticAbsoluteSeconds,
+  useVideoPlaybackEvents({
+    videoRef,
+    enabled: Boolean(fileId && !Number.isNaN(fileId) && !usesNativePlayer),
     usingHlsPlayback,
     hlsStartOffset,
-    startNextEpisodeCountdown,
-  ]);
+    optimisticAbsoluteSeconds,
+    handlers: {
+      onPlay: () => {
+        setIsPlaying(true);
+        revealControls(true);
+      },
+      onPause: () => {
+        setIsPlaying(false);
+        revealControls(false);
+      },
+      onSaveProgress: saveProgress,
+      onBufferUpdate: updateBufferedPosition,
+      onEnded: () => {
+        setIsPlaying(false);
+        startNextEpisodeCountdown();
+      },
+      onCurrentTime: setCurrentTime,
+      onDuration: setDuration,
+      onBuffering: (nextBuffering, midPlayback) => {
+        setBuffering(nextBuffering);
+        setBufferingMidPlayback(midPlayback);
+      },
+      onSeekResolved: (actual) => {
+        if (optimisticAbsoluteSeconds === null) return;
+        if (Math.abs(actual - optimisticAbsoluteSeconds) < 1.5) {
+          setOptimisticAbsoluteSeconds(null);
+        }
+      },
+    },
+  });
 
   useEffect(() => {
     return () => {
@@ -951,7 +903,8 @@ export function TvWatchView() {
         className="reel-subtitles absolute inset-0 h-full w-full object-contain"
         controls={false}
         playsInline
-        preload="auto"
+        poster={posterUrl ?? undefined}
+        preload={streamInfo ? "auto" : "metadata"}
         onClick={(e) => {
           e.stopPropagation();
           if (panelOpen) {

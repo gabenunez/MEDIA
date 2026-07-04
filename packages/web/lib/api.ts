@@ -248,6 +248,7 @@ export interface StreamInfo {
   directPlayAudioSupported: boolean;
   directPlayVideoSupported?: boolean;
   originalPlaybackMode?: "direct" | "remux" | "transcode" | "unsupported";
+  thumbnailsReady?: boolean;
   watchProgress?: {
     positionMs: number;
     durationMs?: number | null;
@@ -524,6 +525,15 @@ export const api = {
     }),
   getStreamInfo: (fileId: number, type: "movie" | "episode") =>
     fetchApi<StreamInfo>(`/api/stream/${fileId}/info?type=${type}`),
+  stopStream: (fileId: number, type: "movie" | "episode") =>
+    fetchApi<{ success: boolean }>(`/api/stream/${fileId}/stop`, {
+      method: "POST",
+      body: JSON.stringify({ type }),
+    }),
+  thumbnailVttUrl: (fileId: number, type: "movie" | "episode") =>
+    `${API_BASE}/api/stream/${fileId}/thumbnails/thumbs.vtt?type=${type}`,
+  thumbnailSpriteUrl: (fileId: number, type: "movie" | "episode") =>
+    `${API_BASE}/api/stream/${fileId}/thumbnails/sprite.jpg?type=${type}`,
   streamUrl: (
     fileId: number,
     type: "movie" | "episode",

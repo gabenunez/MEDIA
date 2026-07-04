@@ -9,6 +9,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
@@ -41,9 +42,21 @@ class NativePlayerManager(
         playerView.visibility = View.VISIBLE
 
         val mediaSourceFactory = authenticatedMediaSourceFactory(sessionToken)
-        val exoPlayer = ExoPlayer.Builder(playerView.context)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .build()
+        val loadControl =
+            DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    15_000,
+                    60_000,
+                    2_500,
+                    5_000,
+                )
+                .setBackBuffer(30_000, true)
+                .build()
+        val exoPlayer =
+            ExoPlayer.Builder(playerView.context)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setLoadControl(loadControl)
+                .build()
 
         player = exoPlayer
         playerView.player = exoPlayer

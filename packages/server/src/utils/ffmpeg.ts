@@ -13,6 +13,8 @@ const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_TRANSCODES = 2;
 const IDLE_SESSION_MS = 2 * 60 * 1000;
 const PRUNE_CACHE_MS = 60 * 60 * 1000;
+/** Max segments kept on disk and in the live playlist (~12 min at 6s segments). */
+export const HLS_PLAYLIST_WINDOW_SEGMENTS = 120;
 
 export interface ProbeResult {
   durationMs: number;
@@ -548,12 +550,28 @@ export function listHlsSegments(outputDir: string): string[] {
     });
 }
 
+export function pruneOldHlsSegments(
+  outputDir: string,
+  keepCount = HLS_PLAYLIST_WINDOW_SEGMENTS,
+): void {
+  const segments = listHlsSegments(outputDir);
+  if (segments.length <= keepCount) return;
+
+  for (const segment of segments.slice(0, segments.length - keepCount)) {
+    try {
+      fs.unlinkSync(path.join(outputDir, segment));
+    } catch {
+      // segment may already be removed
+    }
+  }
+}
+
 export function generateHlsPlaylist(
   outputDir: string,
   segmentDuration: number,
   inProgress: boolean,
 ): string | null {
-  const segments = listHlsSegments(outputDir).filter((name) => {
+  const allSegments = listHlsSegments(outputDir).filter((name) => {
     try {
       return fs.statSync(path.join(outputDir, name)).size > 0;
     } catch {
@@ -561,14 +579,24 @@ export function generateHlsPlaylist(
     }
   });
 
-  if (segments.length === 0) return null;
+  if (allSegments.length === 0) return null;
 
+  if (inProgress && allSegments.length > HLS_PLAYLIST_WINDOW_SEGMENTS) {
+    pruneOldHlsSegments(outputDir, HLS_PLAYLIST_WINDOW_SEGMENTS);
+  }
+
+  const segments =
+    allSegments.length > HLS_PLAYLIST_WINDOW_SEGMENTS
+      ? allSegments.slice(-HLS_PLAYLIST_WINDOW_SEGMENTS)
+      : allSegments;
+
+  const mediaSequence = parseInt(segments[0]?.match(/\d+/)?.[0] ?? "0", 10);
   const targetDuration = Math.max(segmentDuration + 1, 6);
   const lines = [
     "#EXTM3U",
     "#EXT-X-VERSION:3",
     `#EXT-X-TARGETDURATION:${targetDuration}`,
-    "#EXT-X-MEDIA-SEQUENCE:0",
+    `#EXT-X-MEDIA-SEQUENCE:${mediaSequence}`,
     "#EXT-X-PLAYLIST-TYPE:EVENT",
   ];
 

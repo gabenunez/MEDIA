@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import {
   findNextEpisode,
   formatEpisodeLabel,
   NEXT_EPISODE_COUNTDOWN_SECONDS,
+  resolveInitialStreamQuality,
+  resolvePlaybackStream,
   type NextEpisodeInfo,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
@@ -65,6 +68,27 @@ export function useNextEpisodeCountdown(options: {
       ...next,
       secondsLeft: NEXT_EPISODE_COUNTDOWN_SECONDS,
     });
+
+    void api
+      .getStreamInfo(next.episode.id, "episode")
+      .then((info) => {
+        const initial = resolveInitialStreamQuality(info);
+        const playback = resolvePlaybackStream(initial.quality, info);
+        if (!playback.usingHls) return;
+
+        void fetch(
+          api.streamUrl(
+            next.episode.id,
+            "episode",
+            initial.quality,
+            0,
+            0,
+            playback.hlsQuality,
+          ),
+          { credentials: "include" },
+        ).catch(() => {});
+      })
+      .catch(() => {});
   }, [type, mediaId, media, fileId]);
 
   useEffect(() => {

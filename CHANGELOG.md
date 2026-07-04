@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.45 — 2026-07-04
+
+### Playback
+- **Poster on load** — show episode still or poster art on the `<video>` element while the stream starts
+- **Background tabs** — pause playback and stop server transcodes when the tab is hidden
+- **HLS segment window** — cap live transcode playlists at 120 segments and prune old `.ts` files from disk
+- **hls.js retries** — retry manifest, level, and fragment loads before falling back to a lower quality
+- **Throttled timeline** — cap `timeupdate` UI refreshes at 4 Hz to reduce main-thread work during playback
+- **Network-aware quality** — pick 480p/720p on slow or metered connections when auto-transcoding
+- **Seek previews** — generate thumbnail sprites server-side and show scrub-bar preview frames
+- **Next-episode prefetch** — warm the next episode's HLS manifest during the autoplay countdown
+- **Media Session** — lock-screen play/pause/seek controls on mobile browsers
+- **Shared playback engine** — unify HLS/direct-play setup between desktop and TV web players
+
+### Android TV
+- **ExoPlayer buffers** — tune LoadControl (15–60s forward, 30s back) to match web TV hls.js settings
+
+### UI
+- **Lazy posters** — defer loading browse/search poster images until they scroll into view
+
 ## 0.1.44 — 2026-07-04
 
 ### TV
