@@ -87,8 +87,8 @@ function ContinueWatchingDesktopClient() {
                 key={item.id}
                 href={
                   item.itemType === "movie"
-                    ? routes.watch("movie", item.itemId, item.mediaId)
-                    : routes.watch("episode", item.itemId, item.mediaId)
+                    ? routes.watch("movie", item.itemId, item.mediaId, item.posterPath)
+                    : routes.watch("episode", item.itemId, item.mediaId, item.posterPath)
                 }
               >
                 <PosterCard

@@ -226,7 +226,7 @@ function MediaDesktopClient() {
               {media.type === "movie" && movieFile && (
                 <div className="flex flex-wrap items-center gap-3">
                   <Button size="lg" asChild>
-                    <Link href={routes.watch("movie", movieFile.id, media.id)}>
+                    <Link href={routes.watch("movie", movieFile.id, media.id, media.posterPath)}>
                       <Play className="h-5 w-5 fill-current" /> {moviePlaybackLabel}
                     </Link>
                   </Button>
@@ -275,7 +275,12 @@ function MediaDesktopClient() {
               return (
               <Link
                 key={ep.id}
-                href={routes.watch("episode", ep.id, media.id)}
+                href={routes.watch(
+                  "episode",
+                  ep.id,
+                  media.id,
+                  ep.stillPath ?? media.posterPath,
+                )}
                 className="group relative flex items-center gap-4 overflow-hidden rounded-md border border-border/80 bg-card/70 p-3 transition-all hover:border-primary/50 hover:bg-card sm:p-4"
               >
                 <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />

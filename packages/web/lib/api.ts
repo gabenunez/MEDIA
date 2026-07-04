@@ -228,6 +228,11 @@ export interface CastConfigResponse {
   transcodingEnabled: boolean;
 }
 
+export interface TvCastStatusResponse {
+  available: boolean;
+  label: string | null;
+}
+
 export type StreamQuality = "original" | "480p" | "720p" | "1080p" | "2160p";
 
 export interface StreamInfo {
@@ -251,6 +256,8 @@ export interface StreamInfo {
   directPlayVideoSupported?: boolean;
   originalPlaybackMode?: "direct" | "remux" | "transcode" | "unsupported";
   thumbnailsReady?: boolean;
+  posterPath?: string | null;
+  mediaId?: number | null;
   watchProgress?: {
     positionMs: number;
     durationMs?: number | null;
@@ -563,6 +570,19 @@ export const api = {
     startTimeMs?: number;
   }) =>
     fetchApi<CastPrepareResponse>("/api/cast/prepare", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getTvCastStatus: () => fetchApi<TvCastStatusResponse>("/api/cast/tv/status"),
+  sendTvCast: (data: {
+    fileId: number;
+    type: "movie" | "episode";
+    title?: string;
+    posterPath?: string | null;
+    mediaId?: number | null;
+    startTimeMs?: number;
+  }) =>
+    fetchApi<{ success: boolean }>("/api/cast/tv/send", {
       method: "POST",
       body: JSON.stringify(data),
     }),

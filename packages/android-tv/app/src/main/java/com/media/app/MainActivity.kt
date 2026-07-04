@@ -1,6 +1,8 @@
 package com.media.app
 
 import android.annotation.SuppressLint
+import android.app.SearchManager
+import android.content.ComponentCallbacks2
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
@@ -21,6 +23,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.ui.PlayerView
+import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -30,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nativePlayer: NativePlayerManager
     private var serverUrl: String = ""
     private var keepScreenOn = false
+    private var voiceSearchHelper: VoiceSearchHelper? = null
+    private var tvCastPoller: TvCastPoller? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,7 +58,15 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         configureBackNavigation()
         applySessionCookie()
+        handleSearchIntent(intent)
+        startTvCastPoller()
         webView.loadUrl(buildLaunchUrl(serverUrl))
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSearchIntent(intent)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -265,10 +279,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        voiceSearchHelper?.release()
+        tvCastPoller?.shutdown()
         executor.shutdownNow()
         nativePlayer.release()
         webView.destroy()
         super.onDestroy()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW && ::webView.isInitialized) {
+            webView.clearCache(true)
+        }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -309,6 +332,10 @@ class MainActivity : AppCompatActivity() {
                         return true
                     }
                 }
+                KeyEvent.KEYCODE_SEARCH -> {
+                    startVoiceSearch()
+                    return true
+                }
             }
         }
 
@@ -330,6 +357,71 @@ class MainActivity : AppCompatActivity() {
         }
         startActivity(Intent(this, SetupActivity::class.java))
         finish()
+    }
+
+    private fun handleSearchIntent(intent: Intent?) {
+        val query = intent?.getStringExtra(SearchManager.QUERY)
+        if (!query.isNullOrBlank()) {
+            navigateToSearch(query)
+        }
+    }
+
+    private fun navigateToSearch(query: String) {
+        val encoded = URLEncoder.encode(query.trim(), Charsets.UTF_8.name())
+        val base = serverUrl.trimEnd('/')
+        webView.loadUrl("$base/search/?tv=1&q=$encoded")
+    }
+
+    private fun startVoiceSearch() {
+        voiceSearchHelper?.release()
+        voiceSearchHelper =
+            VoiceSearchHelper(
+                this,
+                onResult = { query -> runOnUiThread { navigateToSearch(query) } },
+                onError = {
+                    runOnUiThread {
+                        Toast.makeText(
+                            this,
+                            R.string.voice_search_failed,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                },
+            )
+        voiceSearchHelper?.start()
+    }
+
+    private fun startTvCastPoller() {
+        tvCastPoller?.shutdown()
+        tvCastPoller =
+            TvCastPoller(
+                serverUrl = serverUrl.trimEnd('/'),
+                sessionTokenProvider = {
+                    AuthSession.resolveSessionToken(this, serverUrl)
+                },
+                onCast = { pending ->
+                    runOnUiThread { handleTvCast(pending) }
+                },
+            )
+        tvCastPoller?.start()
+    }
+
+    private fun handleTvCast(pending: JSONObject) {
+        val type = pending.optString("type")
+        val fileId = pending.optInt("fileId", 0)
+        if (fileId <= 0 || (type != "movie" && type != "episode")) return
+
+        val mediaId = pending.optInt("mediaId", 0)
+        val startMs = pending.optLong("startTimeMs", 0L)
+        val params =
+            buildString {
+                append("type=$type&id=$fileId&tv=1")
+                if (mediaId > 0) append("&media=$mediaId")
+                if (startMs > 0) append("&start=${startMs / 1000}")
+            }
+
+        nativePlayer.stop()
+        webView.loadUrl("${serverUrl.trimEnd('/')}/watch/?$params")
     }
 
     private inner class MediaAndroidBridge {

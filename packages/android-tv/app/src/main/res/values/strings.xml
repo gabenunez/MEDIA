@@ -35,4 +35,6 @@
     <string name="change_server">Change server</string>
     <string name="playback_auth_required">Sign in again from the MEDIA! home screen.</string>
     <string name="playback_failed">Playback failed.</string>
+    <string name="search_hint">Search movies and TV shows</string>
+    <string name="voice_search_failed">Voice search unavailable. Try typing instead.</string>
 </resources>

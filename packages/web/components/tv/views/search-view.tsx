@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Search } from "lucide-react";
 import { routes } from "@/lib/routes";
 import { TvPageHeader, TvSectionLabel } from "@/components/tv/tv-page-header";
@@ -12,9 +13,17 @@ import { useMediaSearch } from "@/lib/use-media-search";
 
 export function TvSearchView() {
   useDocumentTitle("Search");
+  const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("q")?.trim() ?? "");
   const { results, loading, searched } = useMediaSearch(query);
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("q")?.trim() ?? "";
+    if (fromUrl && fromUrl !== query) {
+      setQuery(fromUrl);
+    }
+  }, [searchParams, query]);
 
   useEffect(() => {
     inputRef.current?.focus();

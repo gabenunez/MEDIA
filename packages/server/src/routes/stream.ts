@@ -7,7 +7,14 @@ import { getAvailableQualities, isBrowserDirectPlayAudioSupported, isBrowserDire
 import type { DatabaseInstance } from "../db/index.js";
 import type { SubtitleService } from "../services/subtitles.js";
 import { subtitleHasContent } from "../utils/subtitle-content.js";
-import { movieFiles, tvEpisodes, subtitles, watchProgress } from "../db/schema.js";
+import {
+  mediaItems,
+  movieFiles,
+  tvEpisodes,
+  tvSeasons,
+  subtitles,
+  watchProgress,
+} from "../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import {
   startHlsTranscode,
@@ -158,6 +165,47 @@ export async function streamRoutes(
     return probe?.height ?? null;
   }
 
+  async function resolvePlaybackArtwork(
+    fileId: number,
+    type: "movie" | "episode",
+  ): Promise<{ posterPath: string | null; mediaId: number | null }> {
+    if (type === "movie") {
+      const row = await db
+        .select({
+          posterPath: mediaItems.posterPath,
+          mediaId: mediaItems.id,
+        })
+        .from(movieFiles)
+        .innerJoin(mediaItems, eq(movieFiles.mediaItemId, mediaItems.id))
+        .where(eq(movieFiles.id, fileId))
+        .limit(1)
+        .then((rows) => rows[0]);
+
+      return {
+        posterPath: row?.posterPath ?? null,
+        mediaId: row?.mediaId ?? null,
+      };
+    }
+
+    const row = await db
+      .select({
+        stillPath: tvEpisodes.stillPath,
+        posterPath: mediaItems.posterPath,
+        mediaId: mediaItems.id,
+      })
+      .from(tvEpisodes)
+      .innerJoin(tvSeasons, eq(tvEpisodes.seasonId, tvSeasons.id))
+      .innerJoin(mediaItems, eq(tvSeasons.mediaItemId, mediaItems.id))
+      .where(eq(tvEpisodes.id, fileId))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    return {
+      posterPath: row?.stillPath ?? row?.posterPath ?? null,
+      mediaId: row?.mediaId ?? null,
+    };
+  }
+
   app.get<{ Params: StreamParams; Querystring: StreamQuery }>(
     "/api/stream/:fileId/info",
     async (request, reply) => {
@@ -186,6 +234,7 @@ export async function streamRoutes(
       const ext = path.extname(file.filePath);
       const mimeType = mime.lookup(ext) || "application/octet-stream";
       const metadata = await resolveStreamMetadata(file);
+      const artwork = await resolvePlaybackArtwork(fileId, type);
       const progress = await db.query.watchProgress.findFirst({
         where: and(
           eq(watchProgress.itemType, type),
@@ -233,6 +282,8 @@ export async function streamRoutes(
           transcodingEnabled: config.transcoding.enabled,
         }),
         thumbnailsReady: Boolean(thumbCached),
+        posterPath: artwork.posterPath,
+        mediaId: artwork.mediaId,
         watchProgress: progress
           ? {
               positionMs: progress.positionMs,

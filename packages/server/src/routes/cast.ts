@@ -19,6 +19,14 @@ import {
 import { createStreamSessionId } from "../utils/stream-session.js";
 import { appendQueryParam, getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
 import type { AuthService } from "../services/auth.js";
+import {
+  consumePendingTvCast,
+  getTvPresenceLabel,
+  isTvPresent,
+  queueTvCast,
+  recordTvPresence,
+  type TvCastRequest,
+} from "../services/tv-cast.js";
 
 export async function castRoutes(
   app: FastifyInstance,
@@ -26,6 +34,63 @@ export async function castRoutes(
   config: AppConfig,
   auth: AuthService,
 ) {
+  function requireSessionToken(request: Parameters<typeof auth.getSessionToken>[0]) {
+    return auth.getSessionToken(request);
+  }
+
+  app.post<{ Body: { label?: string } }>("/api/cast/tv/heartbeat", async (request, reply) => {
+    const sessionToken = requireSessionToken(request);
+    if (!sessionToken || !auth.verifySessionToken(sessionToken)) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    recordTvPresence(sessionToken, request.body?.label?.trim() || "MEDIA! TV");
+    return { success: true };
+  });
+
+  app.get("/api/cast/tv/status", async (request, reply) => {
+    const sessionToken = requireSessionToken(request);
+    if (!sessionToken || !auth.verifySessionToken(sessionToken)) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    const available = isTvPresent(sessionToken);
+    return {
+      available,
+      label: available ? getTvPresenceLabel(sessionToken) : null,
+    };
+  });
+
+  app.post<{ Body: TvCastRequest }>("/api/cast/tv/send", async (request, reply) => {
+    const sessionToken = requireSessionToken(request);
+    if (!sessionToken || !auth.verifySessionToken(sessionToken)) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    const { fileId, type } = request.body ?? {};
+    if (!fileId || (type !== "movie" && type !== "episode")) {
+      return reply.status(400).send({ error: "Invalid TV cast request" });
+    }
+
+    if (!isTvPresent(sessionToken)) {
+      return reply.status(409).send({ error: "MEDIA! TV is not active on your account" });
+    }
+
+    queueTvCast(sessionToken, request.body);
+    return { success: true };
+  });
+
+  app.get("/api/cast/tv/pending", async (request, reply) => {
+    const sessionToken = requireSessionToken(request);
+    if (!sessionToken || !auth.verifySessionToken(sessionToken)) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    recordTvPresence(sessionToken);
+    const pending = consumePendingTvCast(sessionToken);
+    return { pending };
+  });
+
   app.get("/api/cast/config", async (request) => {
     const castBase = getCastBaseUrl(request, config);
     return {

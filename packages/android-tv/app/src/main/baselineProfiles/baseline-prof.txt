@@ -1,0 +1,6 @@
+HSPLcom/media/app/MainActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLcom/media/app/MainActivity;->configureWebView()V
+HSPLcom/media/app/SetupActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLcom/media/app/NativePlayerManager;->play(Ljava/lang/String;Ljava/lang/String;Lcom/media/app/PlaybackPayload;)V
+HSPLcom/media/app/ServerConnector;->connect(Ljava/lang/String;Ljava/lang/String;)Lcom/media/app/ConnectResult;
+PLandroidx/media3/exoplayer/ExoPlayer$Builder;->build()Landroidx/media3/exoplayer/ExoPlayer;

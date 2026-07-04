@@ -26,6 +26,7 @@ import {
 } from "@/lib/watch-helpers";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
+import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { focusTvItem } from "@/lib/tv-focus";
 import { cn, formatDuration } from "@/lib/utils";
@@ -48,6 +49,7 @@ export function TvWatchView() {
   const type = (searchParams.get("type") ?? "movie") as "movie" | "episode";
   const fileId = parseInt(searchParams.get("id") ?? "", 10);
   const mediaId = searchParams.get("media");
+  const posterFromUrl = searchParams.get("poster");
   const usesNativePlayer = nativeTvPlayerAvailable();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,7 +104,7 @@ export function TvWatchView() {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [posterPath, setPosterPath] = useState<string | null>(null);
+  const [posterPath, setPosterPath] = useState<string | null>(posterFromUrl);
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
@@ -110,6 +112,7 @@ export function TvWatchView() {
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [playbackHasBegun, setPlaybackHasBegun] = useState(false);
 
   const {
     subtitles,
@@ -303,7 +306,14 @@ export function TvWatchView() {
     setStreamStartSeconds(null);
     setStreamGeneration(0);
     setShowControls(true);
+    setPlaybackHasBegun(false);
   }, [fileId, type]);
+
+  useEffect(() => {
+    if (initialResumeSeconds !== null && isPlaying && !buffering) {
+      setPlaybackHasBegun(true);
+    }
+  }, [initialResumeSeconds, isPlaying, buffering]);
 
   useEffect(() => {
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
@@ -320,6 +330,10 @@ export function TvWatchView() {
   }, [isPlaying, panelOpen, scheduleControlsAutoHide]);
 
   useEffect(() => {
+    setPosterPath(posterFromUrl);
+  }, [fileId, type, posterFromUrl]);
+
+  useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
 
     setInitialResumeSeconds(null);
@@ -329,6 +343,9 @@ export function TvWatchView() {
       .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
       .then((info: StreamInfo) => {
         setStreamInfo(info);
+        if (info.posterPath) {
+          setPosterPath(info.posterPath);
+        }
         setAvailableQualities(info.availableQualities);
         setSourceHeight(info.height ?? null);
         setSourceDurationMs(info.durationMs ?? 0);
@@ -759,6 +776,7 @@ export function TvWatchView() {
   }, [error]);
 
   const isPreparing = initialResumeSeconds === null;
+  const showPosterBackdrop = Boolean(posterUrl) && !playbackHasBegun && !error;
   const showLoadingOverlay =
     (isPreparing || buffering) &&
     !error &&
@@ -917,10 +935,14 @@ export function TvWatchView() {
     <div
       data-tv-watch-player=""
       data-native-video={usesNativePlayer ? "" : undefined}
-      className={cn("fixed inset-0 z-40", usesNativePlayer ? "bg-transparent" : "bg-black")}
+      className={cn(
+        "fixed inset-0 z-40 bg-black",
+        usesNativePlayer && playbackHasBegun && "bg-transparent",
+      )}
       onMouseMove={() => revealControls(true)}
       onClick={() => revealControls(true)}
     >
+      <PlaybackPosterBackdrop posterUrl={posterUrl} visible={showPosterBackdrop} />
       <div
         ref={focusSinkRef}
         tabIndex={-1}
@@ -931,10 +953,9 @@ export function TvWatchView() {
       <video
         ref={videoRef}
         tabIndex={-1}
-        className="media-subtitles absolute inset-0 h-full w-full object-contain outline-none focus:outline-none"
+        className="media-subtitles absolute inset-0 z-[2] h-full w-full object-contain outline-none focus:outline-none"
         controls={false}
         playsInline
-        poster={posterUrl ?? undefined}
         preload={streamInfo ? "auto" : "metadata"}
         onClick={(e) => {
           e.stopPropagation();

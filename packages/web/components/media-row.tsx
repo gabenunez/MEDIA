@@ -70,8 +70,8 @@ export function ContinueWatchingRow({ items, hideHeader = false }: ContinueWatch
             key={item.id}
             href={
               item.itemType === "movie"
-                ? routes.watch("movie", item.itemId, item.mediaId)
-                : routes.watch("episode", item.itemId, item.mediaId)
+                ? routes.watch("movie", item.itemId, item.mediaId, item.posterPath)
+                : routes.watch("episode", item.itemId, item.mediaId, item.posterPath)
             }
             className="w-44 shrink-0 snap-start sm:w-56"
           >

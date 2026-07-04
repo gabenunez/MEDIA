@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- TV hardware: leanback required; touch and phone features not required (TV-MT). -->
     <uses-feature
@@ -40,6 +41,7 @@
         android:required="false" />
 
     <application
+        android:name=".MediaAppApplication"
         android:allowBackup="true"
         android:banner="@drawable/tv_banner"
         android:icon="@drawable/ic_launcher"
@@ -63,10 +65,19 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="false"
+            android:exported="true"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:screenOrientation="landscape"
-            android:theme="@style/Theme.MediaTV.Fullscreen" />
+            android:theme="@style/Theme.MediaTV.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.searchable"
+                android:resource="@xml/searchable" />
+        </activity>
     </application>
 </manifest>

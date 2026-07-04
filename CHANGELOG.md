@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.62 — 2026-07-04
+
+### TV
+- **Google TV Tier 2/3** — MediaSession for native playback; voice search (mic / SEARCH key); cast-to-TV from web watch page; baseline profile + AAB bundle; memory trimming under low RAM
+- **Watch poster** — show artwork immediately on the player (stream info + URL param + preloaded backdrop) instead of a blank play placeholder
+
 ## 0.1.61 — 2026-07-04
 
 ### TV

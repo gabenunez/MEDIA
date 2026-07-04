@@ -24,6 +24,7 @@ class NativePlayerManager(
     private var serverUrl: String = ""
     private var sessionToken: String? = null
     private var currentPayload: PlaybackPayload? = null
+    private var mediaSessionManager: PlaybackMediaSessionManager? = null
 
     private val progressRunnable = object : Runnable {
         override fun run() {
@@ -61,6 +62,8 @@ class NativePlayerManager(
         player = exoPlayer
         playerView.player = exoPlayer
         playerView.useController = false
+        mediaSessionManager?.release()
+        mediaSessionManager = PlaybackMediaSessionManager(playerView.context, exoPlayer)
 
         exoPlayer.setMediaItem(buildMediaItem(payload))
         exoPlayer.prepare()
@@ -149,6 +152,8 @@ class NativePlayerManager(
     }
 
     private fun releasePlayer() {
+        mediaSessionManager?.release()
+        mediaSessionManager = null
         playerView.player = null
         player?.release()
         player = null

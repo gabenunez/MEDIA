@@ -9,12 +9,18 @@ export const routes = {
   continueWatching: () => "/continue/",
   recentlyAdded: () => "/recent/",
   browse: () => "/browse/",
-  watch: (type: "movie" | "episode", fileId: number, mediaId?: number) => {
+  watch: (
+    type: "movie" | "episode",
+    fileId: number,
+    mediaId?: number,
+    posterPath?: string | null,
+  ) => {
     const params = new URLSearchParams({
       type,
       id: String(fileId),
     });
     if (mediaId) params.set("media", String(mediaId));
+    if (posterPath) params.set("poster", posterPath);
     return `/watch/?${params.toString()}`;
   },
 };

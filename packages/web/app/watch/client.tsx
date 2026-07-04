@@ -42,6 +42,8 @@ import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown
 import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
+import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
+import { TvCastButton, type TvCastPayload } from "@/components/tv-cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { SubtitleAppearanceSettingsLink } from "@/components/subtitle-style-settings";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
@@ -94,6 +96,8 @@ function WatchDesktopClient() {
   const type = (searchParams.get("type") ?? "movie") as "movie" | "episode";
   const fileId = parseInt(searchParams.get("id") ?? "", 10);
   const mediaId = searchParams.get("media");
+  const posterFromUrl = searchParams.get("poster");
+  const castStartSeconds = parseInt(searchParams.get("start") ?? "", 10);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -144,11 +148,12 @@ function WatchDesktopClient() {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
-  const [posterPath, setPosterPath] = useState<string | null>(null);
+  const [posterPath, setPosterPath] = useState<string | null>(posterFromUrl);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [volumeMenuOpen, setVolumeMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [playbackHasBegun, setPlaybackHasBegun] = useState(false);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
 
@@ -300,7 +305,19 @@ function WatchDesktopClient() {
   useEffect(() => {
     setStreamStartSeconds(null);
     setStreamGeneration(0);
+    setPlaybackHasBegun(false);
   }, [fileId, type]);
+
+  useEffect(() => {
+    const isPreparingPlayback = initialResumeSeconds === null || !streamInfo;
+    if (!isPreparingPlayback && isPlaying && !buffering) {
+      setPlaybackHasBegun(true);
+    }
+  }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
+
+  useEffect(() => {
+    setPosterPath(posterFromUrl);
+  }, [fileId, type, posterFromUrl]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
@@ -311,6 +328,9 @@ function WatchDesktopClient() {
       .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
       .then((info) => {
         setStreamInfo(info);
+        if (info.posterPath) {
+          setPosterPath(info.posterPath);
+        }
         setAvailableQualities(info.availableQualities);
         setSourceHeight(info.height ?? null);
         setSourceDurationMs(info.durationMs ?? 0);
@@ -323,6 +343,14 @@ function WatchDesktopClient() {
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs =
           info.watchProgress?.durationMs ?? info.durationMs ?? 0;
+        const castStartMs =
+          !Number.isNaN(castStartSeconds) && castStartSeconds > 0
+            ? castStartSeconds * 1000
+            : null;
+        if (castStartMs !== null) {
+          setInitialResumeSeconds(castStartMs / 1000);
+          return;
+        }
         if (positionMs > 0 && durationMs > 0) {
           const percent = positionMs / durationMs;
           if (percent > 0.02 && percent < 0.95) {
@@ -336,7 +364,7 @@ function WatchDesktopClient() {
         console.error(err);
         setInitialResumeSeconds(0);
       });
-  }, [fileId, type]);
+  }, [fileId, type, castStartSeconds]);
 
   useEffect(() => {
     setVolume(loadStoredVolume());
@@ -602,6 +630,27 @@ function WatchDesktopClient() {
     };
   }, [activeSubtitle, subtitles, streamGeneration]);
 
+  const handleTvCast = useCallback(async (): Promise<TvCastPayload> => {
+    const video = videoRef.current;
+    const itemType = type === "movie" ? "movie" : "episode";
+    return {
+      fileId,
+      type: itemType,
+      title: title || undefined,
+      posterPath,
+      mediaId:
+        mediaId && !Number.isNaN(parseInt(mediaId, 10))
+          ? parseInt(mediaId, 10)
+          : undefined,
+      startTimeMs: video
+        ? Math.floor(
+            (usingHlsPlayback ? hlsStartOffset + video.currentTime : video.currentTime) *
+              1000,
+          )
+        : 0,
+    };
+  }, [fileId, type, title, posterPath, mediaId, usingHlsPlayback, hlsStartOffset]);
+
   const handleCast = useCallback(async () => {
     const video = videoRef.current;
     const prepared = await api.prepareCast({
@@ -733,6 +782,7 @@ function WatchDesktopClient() {
     [absoluteCurrentTime, seekToAbsolute],
   );
   const isPreparing = initialResumeSeconds === null || !streamInfo;
+  const showPosterBackdrop = Boolean(posterUrl) && !playbackHasBegun && !error;
   const showLoadingOverlay =
     (isPreparing || buffering) &&
     !error &&
@@ -868,16 +918,16 @@ function WatchDesktopClient() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-40 bg-background"
+      className="fixed inset-0 z-40 bg-black"
       onMouseMove={() => revealControls(true)}
       onTouchStart={() => revealControls(true)}
     >
+      <PlaybackPosterBackdrop posterUrl={posterUrl} visible={showPosterBackdrop} />
       <video
         ref={videoRef}
-        className="media-subtitles absolute inset-0 h-full w-full object-contain"
+        className="media-subtitles absolute inset-0 z-[2] h-full w-full object-contain"
         controls={false}
         playsInline
-        poster={posterUrl ?? undefined}
         preload={streamInfo ? "auto" : "metadata"}
         onClick={togglePlay}
       />
@@ -1271,6 +1321,11 @@ function WatchDesktopClient() {
 
                 <CastButton
                   onCast={handleCast}
+                  className="text-white hover:bg-white/10"
+                />
+
+                <TvCastButton
+                  onCast={handleTvCast}
                   className="text-white hover:bg-white/10"
                 />
 

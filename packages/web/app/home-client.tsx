@@ -74,7 +74,12 @@ function HomeDesktopClient() {
   const featured = recentlyAdded[0];
   const continueHref =
     continueTarget != null
-      ? routes.watch(continueTarget.itemType, continueTarget.itemId, continueTarget.mediaId)
+      ? routes.watch(
+          continueTarget.itemType,
+          continueTarget.itemId,
+          continueTarget.mediaId,
+          continueTarget.posterPath,
+        )
       : null;
   const featuredImage = api.imageUrl(featured?.posterPath ?? featured?.backdropPath);
   const tmdbConfigured = data?.tmdbConfigured;

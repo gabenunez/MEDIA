@@ -77,11 +77,11 @@ export function TvHomeView() {
                 type: item.itemType === "movie" ? "movie" : "tv",
                 posterPath: item.posterPath,
               }}
-              href={
-                item.itemType === "movie"
-                  ? routes.watch("movie", item.itemId, item.mediaId)
-                  : routes.watch("episode", item.itemId, item.mediaId)
-              }
+                href={
+                  item.itemType === "movie"
+                    ? routes.watch("movie", item.itemId, item.mediaId, item.posterPath)
+                    : routes.watch("episode", item.itemId, item.mediaId, item.posterPath)
+                }
               progress={item.percent}
               subtitle={item.subtitle}
             />

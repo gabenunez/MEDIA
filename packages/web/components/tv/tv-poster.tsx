@@ -40,8 +40,9 @@ export function TvPoster({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={imageUrl}
+                srcSet={`${imageUrl} 1x, ${imageUrl} 2x`}
                 alt=""
-                loading="lazy"
+                loading="eager"
                 decoding="async"
                 className="h-full w-full object-cover"
               />

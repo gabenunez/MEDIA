@@ -200,7 +200,7 @@ export function TvMediaView() {
                   className="flex flex-wrap items-center gap-2 py-0.5"
                 >
                   <TvFocusLink
-                    href={routes.watch("movie", movieFile.id, media.id)}
+                    href={routes.watch("movie", movieFile.id, media.id, media.posterPath)}
                     className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
                   >
                     <Play className="h-4 w-4 fill-current" />
@@ -276,7 +276,12 @@ export function TvMediaView() {
               return (
                 <TvFocusLink
                   key={ep.id}
-                  href={routes.watch("episode", ep.id, media.id)}
+                  href={routes.watch(
+                    "episode",
+                    ep.id,
+                    media.id,
+                    ep.stillPath ?? media.posterPath,
+                  )}
                   variant="card"
                   data-tv-episode-id={ep.id}
                   className="flex items-center gap-3 px-3 py-2.5"

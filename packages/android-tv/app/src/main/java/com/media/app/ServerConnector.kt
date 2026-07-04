@@ -167,4 +167,40 @@ object ServerConnector {
             // Best-effort progress save.
         }
     }
+
+    fun getJson(url: String, sessionToken: String?): JSONObject? {
+        return try {
+            val connection = openGet(url)
+            if (!sessionToken.isNullOrBlank()) {
+                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
+            }
+            try {
+                if (connection.responseCode !in 200..299) return null
+                JSONObject(readStream(connection.inputStream))
+            } finally {
+                connection.disconnect()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun postJson(url: String, sessionToken: String?, body: String): Boolean {
+        return try {
+            val connection = openPost(url)
+            if (!sessionToken.isNullOrBlank()) {
+                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
+            }
+            try {
+                OutputStreamWriter(connection.outputStream).use { writer ->
+                    writer.write(body)
+                }
+                connection.responseCode in 200..299
+            } finally {
+                connection.disconnect()
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
 }
