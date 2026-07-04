@@ -1,0 +1,83 @@
+---
+description: Reel project agent workflow — TV device, deploy, releases, and TV UI constraints
+alwaysApply: true
+---
+
+# Reel agent guidelines
+
+## TV device — permission required
+
+**Never launch, restart, or force-stop the TV app unless the user explicitly asks.**
+
+This includes any ADB command aimed at the TV, for example:
+
+- `adb shell am start … com.reel.tv …`
+- `adb shell am force-stop com.reel.tv`
+- Relaunching after deploy, hotfix, or “verify on TV” without a direct request
+
+Deploying server changes, building, and fixing code is fine — just do not touch the TV app.
+
+When the user **does** ask to launch the TV:
+
+- Use the ADB device and package name the user provides, or read from their local `adb devices` output.
+- Legacy app: `com.reel.tv` → `com.reel.tv.SetupActivity` (LEANBACK_LAUNCHER)
+- Newer app: `com.media.app` (may need QR pairing)
+
+## Git and releases
+
+- Do **not** commit, push, tag, or cut releases unless the user explicitly asks.
+- Do **not** open pull requests unless asked.
+- When committing, follow existing message style and never commit secrets (`.env`, credentials).
+
+## Deployment
+
+- Do **not** hardcode or repeat production URLs, SSH hosts, credentials, or server paths in commits, rules, or chat output.
+- Preferred deploy: `MEDIA_NONINTERACTIVE=1 MEDIA_RELEASE_TAG=vX.X.X bash scripts/update.sh` (see `scripts/update.sh` for env vars).
+- Hotfixes may deploy a web bundle + restart the server without a new tag — only when the user asks to deploy.
+- Use connection details from the user's environment, existing project config, or ask — never invent or paste secrets.
+- After deploy, verify with HTTP/curl or logs — **not** by launching the TV app.
+
+## Web app changes — always consider TV
+
+The web app serves **desktop and Android TV** (WebView in `com.reel.tv` / `com.media.app`). Treat TV as a first-class client for any `packages/web/**` change, not only files under `components/tv/`.
+
+Before finishing a web change, ask: **does this affect TV?** If yes, update or guard accordingly.
+
+**Shared surfaces that often need TV attention:**
+
+- Playback/watch (`watch-view.tsx`, `playback-utils.ts`, subtitle/quality menus)
+- Posters, grids, and scroll rows (`tv-poster.tsx`, `home-view.tsx`, shared card components)
+- Global styles (`globals.css` under `.tv-ui`, focus rings, layout)
+- Dialogs and overlays used on TV (`subtitle-search-dialog.tsx`, auth/settings gates)
+- API/data fetching used by TV views (`media-view.tsx`, related titles, library lists)
+
+**How to handle dual clients:**
+
+- Use existing TV detection (`isTvClient()`, `html`/`.tv-ui`, spatial nav hooks) — do not assume desktop-only behavior.
+- Prefer TV-specific styles or branches over “desktop polish” that breaks WebView (blur, inset shadows, lazy images, heavy `:has()`).
+- If a shared component change is desktop-only, confirm TV still works or add an explicit TV-safe path.
+- Mention TV impact in summaries when a change touches shared UI, playback, or CSS.
+
+## Android TV WebView constraints
+
+When a change affects TV (including shared web code above):
+
+- Use **solid 2px borders** for focus/selection — inset `box-shadow` rings render poorly on Android TV WebView.
+- Avoid **`backdrop-blur`** on TV menus and controls (expensive compositing, visual glitches).
+- Use **`loading="eager"`** for TV poster images — `loading="lazy"` often never loads in horizontal rows/grids.
+- Avoid CSS **`contain: layout style paint`** on poster tiles (can hide content).
+- Prefer lightweight focus transitions (background + border only; no transform/glow on menu items).
+- Avoid expensive **`:has()`** selectors that re-evaluate on every focus move.
+
+## Playback and native TV
+
+- Prefer **native direct play** on TV; use HLS remux/transcode as fallback on error, not by default for all MKV.
+- Preserve scrubber position and menu focus when closing subtitle/quality panels.
+- `com.reel.tv` (v1.2.x) and `com.media.app` (v1.3+) are both in use — confirm which package the user cares about before APK-related work.
+
+## General workflow
+
+- Minimize diff scope; match existing patterns in surrounding code.
+- Run builds/tests yourself when fixing issues — do not ask the user to run commands you can run.
+- Summarize what changed and what remains; do not proactively cut releases or launch devices.
+- Never write passwords, API keys, SSH credentials, or private host details into tracked files (rules, skills, code comments).
