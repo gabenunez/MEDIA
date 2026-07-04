@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { eq, and, or } from "drizzle-orm";
-import { isSubtitleFile } from "@reel/shared";
-import type { AppConfig } from "@reel/shared";
+import { isSubtitleFile } from "@media-app/shared";
+import type { AppConfig } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import { subtitles, movieFiles, tvEpisodes } from "../db/schema.js";
 import {

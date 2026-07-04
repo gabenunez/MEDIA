@@ -102,7 +102,7 @@ export function UpdateManager() {
                   Update in progress
                 </div>
                 <p className="mt-1 text-muted-foreground">
-                  Reel is downloading, building, and restarting. This page may disconnect for a
+                  MEDIA! is downloading, building, and restarting. This page may disconnect for a
                   minute.
                 </p>
               </div>

@@ -293,7 +293,7 @@
     background: transparent;
   }
 
-  video.reel-subtitles::cue {
+  video.media-subtitles::cue {
     color: var(--subtitle-cue-color, rgb(255 255 255));
     background-color: var(--subtitle-cue-background, rgba(0, 0, 0, 0.75));
     font-size: var(--subtitle-cue-size, 1.05em);
@@ -302,7 +302,7 @@
     line-height: 1.35;
   }
 
-  .tv-ui video.reel-subtitles::cue {
+  .tv-ui video.media-subtitles::cue {
     font-size: 1.45em;
     line-height: 1.4;
   }

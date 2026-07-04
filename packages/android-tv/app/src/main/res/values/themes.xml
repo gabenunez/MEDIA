@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.ReelTV" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">@color/reel_background</item>
-        <item name="android:colorBackground">@color/reel_background</item>
-        <item name="colorPrimary">@color/reel_primary</item>
-        <item name="colorAccent">@color/reel_primary</item>
-        <item name="android:textColor">@color/reel_text</item>
-        <item name="android:textColorPrimary">@color/reel_text</item>
-        <item name="android:textColorSecondary">@color/reel_text_muted</item>
+    <style name="Theme.MediaTV" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/media_background</item>
+        <item name="android:colorBackground">@color/media_background</item>
+        <item name="colorPrimary">@color/media_primary</item>
+        <item name="colorAccent">@color/media_primary</item>
+        <item name="android:textColor">@color/media_text</item>
+        <item name="android:textColorPrimary">@color/media_text</item>
+        <item name="android:textColorSecondary">@color/media_text_muted</item>
     </style>
 
-    <style name="Theme.ReelTV.Fullscreen" parent="Theme.ReelTV">
+    <style name="Theme.MediaTV.Fullscreen" parent="Theme.MediaTV">
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>
     </style>

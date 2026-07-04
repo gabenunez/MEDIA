@@ -7,7 +7,7 @@ import {
   normalizeCodecName,
   pickTranscodeQualityForPlayback,
   resolveOriginalPlaybackMode,
-} from "@reel/shared";
+} from "@media-app/shared";
 
 export const PROGRESS_SAVE_MS = 10_000;
 
@@ -15,8 +15,8 @@ export type PlaybackHlsQuality = StreamQuality | "remux";
 
 export function isTvClient(): boolean {
   if (typeof window === "undefined") return false;
-  if (sessionStorage.getItem("reel-client") === "android-tv") return true;
-  return navigator.userAgent.includes("ReelAndroidTV");
+  if (sessionStorage.getItem("media-client") === "android-tv") return true;
+  return navigator.userAgent.includes("MediaAndroidTV");
 }
 
 function browserSupportsHevcPlayback(): boolean {

@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/reel_background"
+    android:background="@color/media_background"
     android:fillViewport="true">
 
     <LinearLayout
@@ -17,7 +17,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             android:text="@string/setup_heading"
-            android:textColor="@color/reel_text"
+            android:textColor="@color/media_text"
             android:textSize="32sp"
             android:textStyle="bold" />
 
@@ -27,7 +27,7 @@
             android:layout_marginBottom="32dp"
             android:gravity="center"
             android:text="@string/setup_subheading"
-            android:textColor="@color/reel_text_muted"
+            android:textColor="@color/media_text_muted"
             android:textSize="16sp" />
 
         <LinearLayout
@@ -59,7 +59,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:gravity="center"
-                    android:textColor="@color/reel_text_muted"
+                    android:textColor="@color/media_text_muted"
                     android:textSize="14sp" />
 
                 <TextView
@@ -70,7 +70,7 @@
                     android:gravity="center"
                     android:minHeight="24dp"
                     android:text="@string/pairing_waiting"
-                    android:textColor="@color/reel_primary"
+                    android:textColor="@color/media_primary"
                     android:textSize="15sp" />
             </LinearLayout>
 
@@ -86,7 +86,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
                     android:text="@string/manual_setup_heading"
-                    android:textColor="@color/reel_text"
+                    android:textColor="@color/media_text"
                     android:textSize="20sp"
                     android:textStyle="bold" />
 
@@ -108,20 +108,20 @@
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="8dp"
                             android:text="@string/host_label"
-                            android:textColor="@color/reel_text_muted"
+                            android:textColor="@color/media_text_muted"
                             android:textSize="14sp" />
 
                         <EditText
                             android:id="@+id/hostInput"
                             android:layout_width="match_parent"
                             android:layout_height="56dp"
-                            android:background="@color/reel_surface"
+                            android:background="@color/media_surface"
                             android:hint="@string/host_hint"
                             android:imeOptions="actionNext"
                             android:inputType="textUri"
                             android:paddingHorizontal="16dp"
-                            android:textColor="@color/reel_text"
-                            android:textColorHint="@color/reel_text_muted"
+                            android:textColor="@color/media_text"
+                            android:textColorHint="@color/media_text_muted"
                             android:textSize="18sp" />
                     </LinearLayout>
 
@@ -135,21 +135,21 @@
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="8dp"
                             android:text="@string/port_label"
-                            android:textColor="@color/reel_text_muted"
+                            android:textColor="@color/media_text_muted"
                             android:textSize="14sp" />
 
                         <EditText
                             android:id="@+id/portInput"
                             android:layout_width="match_parent"
                             android:layout_height="56dp"
-                            android:background="@color/reel_surface"
+                            android:background="@color/media_surface"
                             android:hint="@string/port_hint"
                             android:imeOptions="actionDone"
                             android:inputType="number"
                             android:paddingHorizontal="16dp"
                             android:text="8096"
-                            android:textColor="@color/reel_text"
-                            android:textColorHint="@color/reel_text_muted"
+                            android:textColor="@color/media_text"
+                            android:textColorHint="@color/media_text_muted"
                             android:textSize="18sp" />
                     </LinearLayout>
                 </LinearLayout>
@@ -160,16 +160,16 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
                     android:minHeight="24dp"
-                    android:textColor="@color/reel_error"
+                    android:textColor="@color/media_error"
                     android:textSize="15sp" />
 
                 <Button
                     android:id="@+id/connectButton"
                     android:layout_width="220dp"
                     android:layout_height="56dp"
-                    android:backgroundTint="@color/reel_primary"
+                    android:backgroundTint="@color/media_primary"
                     android:text="@string/connect"
-                    android:textColor="@color/reel_on_primary"
+                    android:textColor="@color/media_on_primary"
                     android:textSize="18sp"
                     android:textStyle="bold" />
             </LinearLayout>

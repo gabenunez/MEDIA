@@ -1,12 +1,12 @@
 [Unit]
-Description=Reel Media Server
+Description=MEDIA! Media Server
 After=network.target
 
 [Service]
 Type=simple
 User=reel
 Group=reel
-WorkingDirectory=/opt/reel
+WorkingDirectory=/opt/media-app
 ExecStart=/usr/bin/node packages/server/dist/index.js
 Restart=on-failure
 RestartSec=10

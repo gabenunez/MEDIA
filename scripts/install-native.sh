@@ -7,7 +7,7 @@ cd "$ROOT"
 echo "==> Installing dependencies..."
 pnpm install
 
-echo "==> Building Reel..."
+echo "==> Building MEDIA!..."
 pnpm build
 
 if [ ! -f "$ROOT/config.yaml" ]; then
@@ -17,7 +17,7 @@ if [ ! -f "$ROOT/config.yaml" ]; then
 fi
 
 echo ""
-echo "✓ Reel installed successfully!"
+echo "✓ MEDIA! installed successfully!"
 echo ""
 echo "  Start:  pnpm start"
 echo "  Open:   http://localhost:8096"

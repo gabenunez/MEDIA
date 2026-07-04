@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.46 — 2026-07-04
+
+### Branding
+- **Renamed to MEDIA!** — app title, Android TV launcher, install/update scripts, and in-app copy now use MEDIA! branding
+- **Package scope** — npm workspace packages moved from `@reel/*` to `@media-app/*` (GitHub repo URL unchanged)
+- **Session cookie** — new installs use `media_session`; existing `reel_session` cookies still work
+
 ## 0.1.45 — 2026-07-04
 
 ### Playback

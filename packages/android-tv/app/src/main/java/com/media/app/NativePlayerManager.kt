@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import android.os.Handler
 import android.os.Looper
@@ -80,7 +80,7 @@ class NativePlayerManager(
 
                         Player.STATE_ENDED -> {
                             saveProgress(exoPlayer.duration, ended = true)
-                            emitJs("window.__reelNativePlayer?.onEnded?.()")
+                            emitJs("window.__mediaNativePlayer?.onEnded?.()")
                             stop()
                         }
 
@@ -93,7 +93,7 @@ class NativePlayerManager(
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
-                    emitJs("window.__reelNativePlayer?.onError?.()")
+                    emitJs("window.__mediaNativePlayer?.onError?.()")
                     emitState()
                 }
             },
@@ -181,7 +181,7 @@ class NativePlayerManager(
             )
             .put("ready", exoPlayer.playbackState == Player.STATE_READY)
 
-        emitJs("window.__reelNativePlayer?.onState?.($payload)")
+        emitJs("window.__mediaNativePlayer?.onState?.($payload)")
     }
 
     private fun saveProgress(positionMs: Long, ended: Boolean) {

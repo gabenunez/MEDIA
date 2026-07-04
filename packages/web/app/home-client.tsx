@@ -363,7 +363,7 @@ function HomeDesktopClient() {
           <HardDrive className="mx-auto mb-4 h-14 w-14 text-primary" />
           <h2 className="mb-2 text-2xl font-semibold">No media yet</h2>
           <p className="mb-6 text-muted-foreground">
-            Add movie and TV folders in Settings, then scan them into Reel.
+            Add movie and TV folders in Settings, then scan them into MEDIA!.
           </p>
           <Button asChild>
             <Link href="/settings">

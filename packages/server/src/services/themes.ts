@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import { THEME_FILENAMES, resolveShowDirectory } from "@reel/shared";
+import { THEME_FILENAMES, resolveShowDirectory } from "@media-app/shared";
 import type { ConfigManager } from "../config.js";
 import type { DatabaseInstance } from "../db/index.js";
 import {

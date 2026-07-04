@@ -57,13 +57,13 @@ export function UpdateModal() {
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold">
-              {showProgress ? "Updating Reel" : "Update available"}
+              {showProgress ? "Updating MEDIA!" : "Update available"}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {showProgress
-                ? "Hang tight while Reel upgrades and restarts."
+                ? "Hang tight while MEDIA! upgrades and restarts."
                 : status?.latestVersion
-                  ? `Reel v${status.latestVersion} is ready to install`
+                  ? `MEDIA! v${status.latestVersion} is ready to install`
                   : "Checking for the latest release..."}
             </p>
           </div>

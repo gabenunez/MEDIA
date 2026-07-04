@@ -10,7 +10,7 @@ import {
   isSubtitleFile,
   isExcludedFromVideoProbe,
   SKIP_SCAN_DIR_NAMES,
-} from "@reel/shared";
+} from "@media-app/shared";
 import type { ConfigManager } from "../config.js";
 import type { DatabaseInstance } from "../db/index.js";
 import {

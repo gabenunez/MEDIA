@@ -2,11 +2,11 @@ import { execFile, execSync, spawn, type ChildProcess } from "node:child_process
 import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
-import type { HlsQuality, TranscodeQuality } from "@reel/shared";
+import type { HlsQuality, TranscodeQuality } from "@media-app/shared";
 import {
   TRANSCODE_PRESETS,
   effectiveTranscodeHeight,
-} from "@reel/shared";
+} from "@media-app/shared";
 import { createStreamFilePrefix } from "./stream-session.js";
 
 const execFileAsync = promisify(execFile);

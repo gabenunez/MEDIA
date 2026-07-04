@@ -4,7 +4,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { GITHUB_REPO, compareVersions, isNewerVersion, normalizeVersion } from "@reel/shared";
+import { GITHUB_REPO, compareVersions, isNewerVersion, normalizeVersion } from "@media-app/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,7 +80,7 @@ function findInstallDirFrom(startDir: string): string | null {
     if (fs.existsSync(pkgPath)) {
       try {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { name?: string };
-        if (pkg.name === "reel" && fs.existsSync(updateScript)) {
+        if ((pkg.name === "media-app" || pkg.name === "reel") && fs.existsSync(updateScript)) {
           return dir;
         }
       } catch {
@@ -97,6 +97,9 @@ function findInstallDirFrom(startDir: string): string | null {
 }
 
 export function detectInstallDir(): string {
+  if (process.env.MEDIA_INSTALL_DIR?.trim()) {
+    return process.env.MEDIA_INSTALL_DIR.trim();
+  }
   if (process.env.REEL_INSTALL_DIR?.trim()) {
     return process.env.REEL_INSTALL_DIR.trim();
   }
@@ -107,6 +110,9 @@ export function detectInstallDir(): string {
   const fromModule = findInstallDirFrom(__dirname);
   if (fromModule) return fromModule;
 
+  if (fs.existsSync("/opt/media-app/scripts/update.sh")) {
+    return "/opt/media-app";
+  }
   if (fs.existsSync("/opt/reel/scripts/update.sh")) {
     return "/opt/reel";
   }
@@ -129,7 +135,11 @@ export function getCurrentVersion(installDir = detectInstallDir()): string {
 }
 
 function getConfigDir(): string {
-  return path.join(os.homedir(), ".config/reel");
+  const mediaAppDir = path.join(os.homedir(), ".config/media-app");
+  if (fs.existsSync(mediaAppDir)) return mediaAppDir;
+  const legacyDir = path.join(os.homedir(), ".config/reel");
+  if (fs.existsSync(legacyDir)) return legacyDir;
+  return mediaAppDir;
 }
 
 function getUpdateLogPath(): string {
@@ -217,17 +227,17 @@ function buildUpdateSteps(phase: UpdatePhase): UpdateStep[] {
 }
 
 const LOG_PHASE_PATTERNS: { phase: UpdatePhase; pattern: RegExp }[] = [
-  { phase: "failed", pattern: /Update failed|reel_progress "failed"|✗ Update failed/i },
+  { phase: "failed", pattern: /Update failed|media_progress "failed"|✗ Update failed/i },
   { phase: "complete", pattern: /Update complete|Update finished|upgraded to/i },
   {
     phase: "restarting",
     pattern:
-      /\[4\] Restarting|Restarting via|Restarting reel service|Restarting Reel process|Stopping Reel/i,
+      /\[4\] Restarting|Restarting via|Restarting media-app service|Restarting MEDIA! process|Stopping MEDIA!/i,
   },
   {
     phase: "building",
     pattern:
-      /\[3\] Building|Installing dependencies and building|pnpm install|pnpm build|Tasks:\s+\d+ successful|Compiled successfully|next build|@reel\/.*:build/i,
+      /\[3\] Building|Installing dependencies and building|pnpm install|pnpm build|Tasks:\s+\d+ successful|Compiled successfully|next build|@media-app\/.*:build/i,
   },
   {
     phase: "downloading",
@@ -310,7 +320,7 @@ function readLogTail(maxLines = 40): string[] {
       .filter(
         (line) =>
           !/^━+$/.test(line) &&
-          line !== "Reel — Update" &&
+          line !== "MEDIA! — Update" &&
           line !== "Pull latest, rebuild, and restart",
       )
       .slice(-maxLines);
@@ -445,7 +455,7 @@ export function getUpdateProgress(): UpdateProgress | null {
 }
 
 function getUpdateLockPath(): string {
-  return path.join(os.homedir(), ".config/reel/updating.lock");
+  return path.join(os.homedir(), ".config/media-app/updating.lock");
 }
 
 export function isUpdateInProgress(): boolean {
@@ -460,7 +470,7 @@ function isUpdateSupported(installDir: string): boolean {
 async function fetchLatestReleaseFromGitHubApi(): Promise<GitHubRelease | null> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
-    "User-Agent": `Reel/${getCurrentVersion()}`,
+    "User-Agent": `MEDIA/${getCurrentVersion()}`,
   };
   const token = process.env.GITHUB_TOKEN?.trim();
   if (token) {
@@ -568,7 +578,7 @@ async function fetchReleaseNotesFromChangelog(version: string): Promise<string |
   for (const url of urls) {
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": `Reel/${getCurrentVersion()}` },
+        headers: { "User-Agent": `MEDIA/${getCurrentVersion()}` },
       });
       if (!res.ok) continue;
 
@@ -693,7 +703,7 @@ export function triggerUpdate(releaseTag: string, installDir = detectInstallDir(
     throw new Error("Update script not found on this server");
   }
 
-  const configDir = path.join(os.homedir(), ".config/reel");
+  const configDir = getConfigDir();
   fs.mkdirSync(configDir, { recursive: true });
   const logPath = path.join(configDir, "update.log");
   const startedMs = Date.now();
@@ -715,9 +725,13 @@ export function triggerUpdate(releaseTag: string, installDir = detectInstallDir(
     stdio: ["ignore", logFd, logFd],
     env: {
       ...process.env,
+      MEDIA_NONINTERACTIVE: "1",
       REEL_NONINTERACTIVE: "1",
+      MEDIA_RELEASE_TAG: releaseTag,
       REEL_RELEASE_TAG: releaseTag,
+      MEDIA_INSTALL_DIR: installDir,
       REEL_INSTALL_DIR: installDir,
+      MEDIA_REPO: `https://github.com/${GITHUB_REPO}.git`,
       REEL_REPO: `https://github.com/${GITHUB_REPO}.git`,
       GIT_TERMINAL_PROMPT: "0",
       HOME: home,

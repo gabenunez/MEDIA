@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-const TV_MODE_KEY = "reel-client";
+const TV_MODE_KEY = "media-client";
 const TV_MODE_VALUE = "android-tv";
 
 const TvModeContext = createContext(false);
@@ -29,7 +29,7 @@ export function initTvMode(): boolean {
   }
 
   if (sessionStorage.getItem(TV_MODE_KEY) === TV_MODE_VALUE) return true;
-  return navigator.userAgent.includes("ReelAndroidTV");
+  return navigator.userAgent.includes("MediaAndroidTV");
 }
 
 export function TvModeProvider({ children }: { children: ReactNode }) {

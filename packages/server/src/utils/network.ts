@@ -1,6 +1,6 @@
 import os from "node:os";
 import type { FastifyRequest } from "fastify";
-import type { AppConfig } from "@reel/shared";
+import type { AppConfig } from "@media-app/shared";
 
 function isPrivateIpv4(address: string): boolean {
   return (

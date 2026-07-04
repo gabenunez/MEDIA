@@ -83,7 +83,7 @@ export function LibraryManager({
   const handleDelete = async (lib: SettingsLibrary) => {
     if (
       !confirm(
-        `Remove "${lib.name}"? Media in this library will be removed from Reel (your files stay on disk).`,
+        `Remove "${lib.name}"? Media in this library will be removed from MEDIA! (your files stay on disk).`,
       )
     ) {
       return;
@@ -106,7 +106,7 @@ export function LibraryManager({
         <div>
           <h2 className="text-base font-semibold">Media Libraries</h2>
           <p className="text-sm text-muted-foreground">
-            Movie and TV folders to scan into Reel.
+            Movie and TV folders to scan into MEDIA!.
           </p>
         </div>
         {!showForm && (

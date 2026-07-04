@@ -145,7 +145,7 @@ async function main() {
   const { port, host } = config.server;
   await app.listen({ port, host });
 
-  console.log(`\n🎬 Reel media server running at http://localhost:${port}\n`);
+  console.log(`\n🎬 MEDIA! media server running at http://localhost:${port}\n`);
 }
 
 main().catch((err) => {

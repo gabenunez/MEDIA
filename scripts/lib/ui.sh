@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared terminal UI helpers for Reel scripts
+# Shared terminal UI helpers for MEDIA! scripts
 
 if [[ -t 1 ]]; then
   REEL_BOLD='\033[1m'
@@ -14,21 +14,21 @@ else
   REEL_YELLOW='' REEL_RED='' REEL_RESET=''
 fi
 
-reel_step=0
-reel_step() {
-  reel_step=$((reel_step + 1))
+media_step=0
+media_step() {
+  media_step=$((media_step + 1))
   echo ""
-  echo -e "${REEL_BOLD}${REEL_CYAN}[$reel_step]${REEL_RESET} ${REEL_BOLD}$1${REEL_RESET}"
+  echo -e "${REEL_BOLD}${REEL_CYAN}[$media_step]${REEL_RESET} ${REEL_BOLD}$1${REEL_RESET}"
   echo -e "${REEL_DIM}$(printf '%.0s─' {1..60})${REEL_RESET}"
 }
 
-reel_ok()   { echo -e "  ${REEL_GREEN}✓${REEL_RESET} $1"; }
-reel_warn() { echo -e "  ${REEL_YELLOW}!${REEL_RESET} $1"; }
-reel_fail() { echo -e "  ${REEL_RED}✗${REEL_RESET} $1"; exit 1; }
+media_ok()   { echo -e "  ${REEL_GREEN}✓${REEL_RESET} $1"; }
+media_warn() { echo -e "  ${REEL_YELLOW}!${REEL_RESET} $1"; }
+media_fail() { echo -e "  ${REEL_RED}✗${REEL_RESET} $1"; exit 1; }
 
-reel_confirm() {
+media_confirm() {
   local __question="$1"
-  if [[ "${REEL_NONINTERACTIVE:-}" == "1" ]]; then
+  if [[ "${MEDIA_NONINTERACTIVE:-}" == "1" ]]; then
     return 0
   fi
   local __answer
@@ -38,15 +38,15 @@ reel_confirm() {
 
 reel_need_sudo() {
   if [[ "$EUID" -eq 0 ]]; then
-    REEL_SUDO=""
+    MEDIA_SUDO=""
   elif command -v sudo >/dev/null 2>&1; then
-    REEL_SUDO="sudo"
+    MEDIA_SUDO="sudo"
   else
-    reel_fail "Root or sudo access is required."
+    media_fail "Root or sudo access is required."
   fi
 }
 
-reel_version_label() {
+media_version_label() {
   local dir="$1"
   if [[ -f "$dir/package.json" ]]; then
     local version
@@ -63,11 +63,11 @@ reel_version_label() {
   fi
 }
 
-reel_progress() {
+media_progress() {
   local phase="$1"
   local message="$2"
   local progress_dir="${HOME}/.config/reel"
-  local tag="${REEL_RELEASE_TAG:-}"
+  local tag="${MEDIA_RELEASE_TAG:-}"
   local lock_file="$progress_dir/updating.lock"
   local started_ms=""
   if [[ -f "$lock_file" ]]; then

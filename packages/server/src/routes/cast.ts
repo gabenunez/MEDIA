@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import type { AppConfig } from "@reel/shared";
+import type { AppConfig } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import { eq } from "drizzle-orm";
 import { movieFiles, tvEpisodes } from "../db/schema.js";

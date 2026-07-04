@@ -1,9 +1,9 @@
-package com.reel.tv
+package com.media.app
 
 import android.content.Context
 
 object ServerPreferences {
-    private const val PREFS_NAME = "reel_tv"
+    private const val PREFS_NAME = "media_tv"
     private const val KEY_SERVER_URL = "server_url"
 
     fun getServerUrl(context: Context): String? {

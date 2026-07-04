@@ -28,7 +28,7 @@ fail() { echo -e "  ${RED}✗${RESET} $1"; exit 1; }
 
 prompt() {
   local __var="$1" __question="$2" __default="$3"
-  if [[ "${REEL_NONINTERACTIVE:-}" == "1" ]]; then
+  if [[ "${MEDIA_NONINTERACTIVE:-}" == "1" ]]; then
     printf -v "$__var" '%s' "$__default"
     echo -e "  ${DIM}$__question${RESET} ${BOLD}$__default${RESET} ${DIM}(auto)${RESET}"
     return 0
@@ -40,7 +40,7 @@ prompt() {
 
 confirm() {
   local __question="$1"
-  if [[ "${REEL_NONINTERACTIVE:-}" == "1" ]]; then
+  if [[ "${MEDIA_NONINTERACTIVE:-}" == "1" ]]; then
     return 0
   fi
   local __answer
@@ -125,48 +125,48 @@ enable_pnpm() {
 prepare_install_dir() {
   step "Preparing install directory"
 
-  prompt REEL_INSTALL_DIR "Install directory" "${REEL_INSTALL_DIR:-/opt/reel}"
-  prompt REEL_USER "Linux user to run Reel" "${REEL_USER:-reel}"
+  prompt MEDIA_INSTALL_DIR "Install directory" "${MEDIA_INSTALL_DIR:-/opt/media-app}"
+  prompt MEDIA_USER "Linux user to run MEDIA!" "${MEDIA_USER:-reel}"
   prompt REEL_PORT "Port" "${REEL_PORT:-8096}"
 
-  if [[ ! -d "$REEL_INSTALL_DIR" ]]; then
-    $SUDO mkdir -p "$REEL_INSTALL_DIR"
-    ok "Created $REEL_INSTALL_DIR"
+  if [[ ! -d "$MEDIA_INSTALL_DIR" ]]; then
+    $SUDO mkdir -p "$MEDIA_INSTALL_DIR"
+    ok "Created $MEDIA_INSTALL_DIR"
   fi
 
-  if ! id "$REEL_USER" &>/dev/null; then
-    $SUDO useradd --system --home-dir "$REEL_INSTALL_DIR" --shell /usr/sbin/nologin "$REEL_USER" 2>/dev/null \
-      || $SUDO useradd --system --home-dir "$REEL_INSTALL_DIR" --shell /bin/false "$REEL_USER"
-    ok "Created system user '$REEL_USER'"
+  if ! id "$MEDIA_USER" &>/dev/null; then
+    $SUDO useradd --system --home-dir "$MEDIA_INSTALL_DIR" --shell /usr/sbin/nologin "$MEDIA_USER" 2>/dev/null \
+      || $SUDO useradd --system --home-dir "$MEDIA_INSTALL_DIR" --shell /bin/false "$MEDIA_USER"
+    ok "Created system user '$MEDIA_USER'"
   else
-    ok "Using existing user '$REEL_USER'"
+    ok "Using existing user '$MEDIA_USER'"
   fi
 }
 
 sync_source() {
-  step "Installing Reel"
+  step "Installing MEDIA!"
 
-  REEL_REPO="${REEL_REPO:-https://github.com/gabenunez/reel.git}"
-  REEL_BRANCH="${REEL_BRANCH:-main}"
+  MEDIA_REPO="${MEDIA_REPO:-https://github.com/gabenunez/reel.git}"
+  MEDIA_BRANCH="${MEDIA_BRANCH:-main}"
   local source_dir="${REEL_SOURCE_DIR:-}"
 
-  if [[ -n "$source_dir" ]] && [[ "$(cd "$source_dir" && pwd)" == "$(cd "$REEL_INSTALL_DIR" && pwd)" ]]; then
-    ok "Using existing source at $REEL_INSTALL_DIR"
-  elif [[ -d "$REEL_INSTALL_DIR/.git" ]]; then
-    ok "Using existing git clone at $REEL_INSTALL_DIR"
+  if [[ -n "$source_dir" ]] && [[ "$(cd "$source_dir" && pwd)" == "$(cd "$MEDIA_INSTALL_DIR" && pwd)" ]]; then
+    ok "Using existing source at $MEDIA_INSTALL_DIR"
+  elif [[ -d "$MEDIA_INSTALL_DIR/.git" ]]; then
+    ok "Using existing git clone at $MEDIA_INSTALL_DIR"
   else
-    ok "Cloning Reel to $REEL_INSTALL_DIR"
-    $SUDO rm -rf "$REEL_INSTALL_DIR"
-    $SUDO git clone --depth 1 --branch "$REEL_BRANCH" "$REEL_REPO" "$REEL_INSTALL_DIR"
+    ok "Cloning MEDIA! to $MEDIA_INSTALL_DIR"
+    $SUDO rm -rf "$MEDIA_INSTALL_DIR"
+    $SUDO git clone --depth 1 --branch "$MEDIA_BRANCH" "$MEDIA_REPO" "$MEDIA_INSTALL_DIR"
   fi
 
-  $SUDO chown -R "$REEL_USER:$REEL_USER" "$REEL_INSTALL_DIR"
+  $SUDO chown -R "$MEDIA_USER:$MEDIA_USER" "$MEDIA_INSTALL_DIR"
 }
 
 write_config() {
   step "Creating config"
 
-  if [[ -f "$REEL_INSTALL_DIR/config.yaml" ]]; then
+  if [[ -f "$MEDIA_INSTALL_DIR/config.yaml" ]]; then
     ok "Keeping existing config.yaml"
     return 0
   fi
@@ -177,7 +177,7 @@ write_config() {
   [[ "$movies_path" == "skip" ]] && movies_path=""
   [[ "$tv_path" == "skip" ]] && tv_path=""
 
-  $SUDO -u "$REEL_USER" bash -c "cat > '$REEL_INSTALL_DIR/config.yaml'" <<EOF
+  $SUDO -u "$MEDIA_USER" bash -c "cat > '$MEDIA_INSTALL_DIR/config.yaml'" <<EOF
 server:
   port: ${REEL_PORT}
   host: 0.0.0.0
@@ -187,8 +187,8 @@ EOF
 
   if [[ -n "$movies_path" ]]; then
     $SUDO mkdir -p "$movies_path"
-    $SUDO chown -R "$REEL_USER:$REEL_USER" "$movies_path"
-    $SUDO -u "$REEL_USER" bash -c "cat >> '$REEL_INSTALL_DIR/config.yaml'" <<EOF
+    $SUDO chown -R "$MEDIA_USER:$MEDIA_USER" "$movies_path"
+    $SUDO -u "$MEDIA_USER" bash -c "cat >> '$MEDIA_INSTALL_DIR/config.yaml'" <<EOF
   - name: Movies
     type: movies
     path: ${movies_path}
@@ -198,8 +198,8 @@ EOF
 
   if [[ -n "$tv_path" ]]; then
     $SUDO mkdir -p "$tv_path"
-    $SUDO chown -R "$REEL_USER:$REEL_USER" "$tv_path"
-    $SUDO -u "$REEL_USER" bash -c "cat >> '$REEL_INSTALL_DIR/config.yaml'" <<EOF
+    $SUDO chown -R "$MEDIA_USER:$MEDIA_USER" "$tv_path"
+    $SUDO -u "$MEDIA_USER" bash -c "cat >> '$MEDIA_INSTALL_DIR/config.yaml'" <<EOF
   - name: TV Shows
     type: tv
     path: ${tv_path}
@@ -207,7 +207,7 @@ EOF
     ok "TV library → $tv_path"
   fi
 
-  $SUDO -u "$REEL_USER" bash -c "cat >> '$REEL_INSTALL_DIR/config.yaml'" <<EOF
+  $SUDO -u "$MEDIA_USER" bash -c "cat >> '$MEDIA_INSTALL_DIR/config.yaml'" <<EOF
 
 metadata:
   tmdb_api_key: ""
@@ -221,15 +221,15 @@ transcoding:
 data_dir: ./data
 EOF
 
-  ok "Config written to $REEL_INSTALL_DIR/config.yaml"
+  ok "Config written to $MEDIA_INSTALL_DIR/config.yaml"
 }
 
 build_app() {
-  step "Building Reel (this may take a few minutes)"
+  step "Building MEDIA! (this may take a few minutes)"
 
-  $SUDO -u "$REEL_USER" bash <<EOF
+  $SUDO -u "$MEDIA_USER" bash <<EOF
 set -euo pipefail
-cd "$REEL_INSTALL_DIR"
+cd "$MEDIA_INSTALL_DIR"
 export CI=1
 pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 pnpm build
@@ -246,14 +246,14 @@ install_systemd_service() {
 
   $SUDO tee /etc/systemd/system/reel.service >/dev/null <<EOF
 [Unit]
-Description=Reel Media Server
+Description=MEDIA! Media Server
 After=network.target
 
 [Service]
 Type=simple
-User=${REEL_USER}
-Group=${REEL_USER}
-WorkingDirectory=${REEL_INSTALL_DIR}
+User=${MEDIA_USER}
+Group=${MEDIA_USER}
+WorkingDirectory=${MEDIA_INSTALL_DIR}
 ExecStart=${node_bin} packages/server/dist/index.js
 Restart=on-failure
 RestartSec=10
@@ -295,7 +295,7 @@ print_success() {
 
   echo ""
   echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-  echo -e "${GREEN}${BOLD}  Reel is live!${RESET}"
+  echo -e "${GREEN}${BOLD}  MEDIA! is live!${RESET}"
   echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo ""
   echo -e "  ${BOLD}Open in your browser:${RESET}"
@@ -310,7 +310,7 @@ print_success() {
   echo -e "    3. Upload movies/TV and trigger a library scan"
   echo ""
   echo -e "  ${BOLD}Useful commands:${RESET}"
-  echo -e "    ${DIM}curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/update.sh | bash${RESET}  — update Reel"
+  echo -e "    ${DIM}curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/update.sh | bash${RESET}  — update MEDIA!"
   echo -e "    ${DIM}sudo systemctl status reel${RESET}   — check status"
   echo -e "    ${DIM}sudo systemctl restart reel${RESET}  — restart after config changes"
   echo -e "    ${DIM}sudo journalctl -u reel -f${RESET}  — live logs"
@@ -319,7 +319,7 @@ print_success() {
 
 main() {
   echo ""
-  echo -e "${BOLD}  Reel — VPS Setup${RESET}"
+  echo -e "${BOLD}  MEDIA! — VPS Setup${RESET}"
   echo -e "${DIM}  Self-hosted media server in one guided install${RESET}"
   echo ""
 

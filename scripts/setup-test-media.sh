@@ -54,7 +54,7 @@ ffmpeg -y -loglevel error \
 cat > "$MOVIES/Big Buck Bunny (2008).en.srt" << 'EOF'
 1
 00:00:01,000 --> 00:00:06,000
-Reel test subtitle — direct play check
+MEDIA! test subtitle — direct play check
 
 2
 00:00:07,000 --> 00:00:12,000

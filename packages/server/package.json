@@ -1,6 +1,6 @@
 {
-  "name": "@reel/server",
-  "version": "0.1.45",
+  "name": "@media-app/server",
+  "version": "0.1.46",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -15,7 +15,7 @@
   "dependencies": {
     "@fastify/cors": "^10.0.1",
     "@fastify/static": "^8.0.3",
-    "@reel/shared": "workspace:*",
+    "@media-app/shared": "workspace:*",
     "better-sqlite3": "^11.7.0",
     "chokidar": "^4.0.3",
     "drizzle-orm": "^0.38.3",

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Home, Heart, LogOut, Search } from "lucide-react";
 import { useAuth } from "@/components/auth-gate";
-import { ReelIcon } from "@/components/reel-icon";
+import { MediaIcon } from "@/components/media-icon";
 import { TvSpatialNav } from "@/components/tv/tv-spatial-nav";
 import { tvNavItemClassName } from "@/components/tv/tv-focus-link";
 import { routes } from "@/lib/routes";
@@ -79,7 +79,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
         {!hideNav && (
           <aside className="flex w-[4.25rem] shrink-0 flex-col items-center border-r border-border/50 bg-background/95 py-5 min-h-screen">
             <div className="mb-6 flex h-9 w-9 items-center justify-center" aria-hidden="true">
-              <ReelIcon className="h-9 w-9 opacity-90" />
+              <MediaIcon className="h-9 w-9 opacity-90" />
             </div>
 
             <nav

@@ -375,7 +375,7 @@ export async function previewPlexImport(
     reelMovieFiles: movies.length,
     reelEpisodes: episodes.length,
     warning:
-      "Stop Plex Media Server before importing for the most consistent read. Reel only updates progress for files already in your libraries.",
+      "Stop Plex Media Server before importing for the most consistent read. MEDIA! only updates progress for files already in your libraries.",
   };
 }
 

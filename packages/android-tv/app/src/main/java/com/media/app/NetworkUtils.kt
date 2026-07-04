@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import java.net.Inet4Address
 import java.net.NetworkInterface

@@ -2,9 +2,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { FastifyRequest } from "fastify";
+import { LEGACY_SESSION_COOKIE, SESSION_COOKIE } from "@media-app/shared";
 import type { ConfigManager } from "../config.js";
 
-export const SESSION_COOKIE = "reel_session";
+export { SESSION_COOKIE };
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const CAST_TOKEN_TTL_MS = 4 * 60 * 60 * 1000;
 
@@ -124,7 +125,7 @@ export class AuthService {
 
     for (const part of cookieHeader.split(";")) {
       const [name, ...rest] = part.trim().split("=");
-      if (name === SESSION_COOKIE) {
+      if (name === SESSION_COOKIE || name === LEGACY_SESSION_COOKIE) {
         return decodeURIComponent(rest.join("="));
       }
     }

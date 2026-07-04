@@ -227,7 +227,7 @@ export function SettingsClient() {
       setCurrentPassword("");
       setPasswordMessage(
         result.passwordConfigured
-          ? "Password saved. You'll need it to access Reel."
+          ? "Password saved. You'll need it to access MEDIA!."
           : "Password removed.",
       );
       await refreshAuth();
@@ -298,7 +298,7 @@ export function SettingsClient() {
       <SettingsSection
         icon={History}
         title="Import from Plex"
-        description="Detect a local Plex Media Server library database and copy resume points and watched state into Reel."
+        description="Detect a local Plex Media Server library database and copy resume points and watched state into MEDIA!."
       >
         {initialLoad ? (
           <SettingsCardSkeleton lines={4} />
@@ -351,7 +351,7 @@ export function SettingsClient() {
                 <StatusRow
                   label="Can import"
                   ok={plexPreview.matchableEntries > 0}
-                  okText={`${plexPreview.matchableEntries} matched in Reel`}
+                  okText={`${plexPreview.matchableEntries} matched in MEDIA!`}
                   failText="No matching files yet — scan libraries first"
                 />
                 <StatusRow
@@ -361,7 +361,7 @@ export function SettingsClient() {
                   failText="None found"
                 />
                 <StatusRow
-                  label="Reel library"
+                  label="MEDIA! library"
                   ok={plexPreview.reelMovieFiles + plexPreview.reelEpisodes > 0}
                   okText={`${plexPreview.reelMovieFiles} movies / ${plexPreview.reelEpisodes} episodes`}
                   failText="No scanned media yet"
@@ -376,7 +376,7 @@ export function SettingsClient() {
                 onChange={(e) => setPlexOverwrite(e.target.checked)}
                 className="rounded border-border"
               />
-              Overwrite existing Reel progress when Plex is newer or further along
+              Overwrite existing MEDIA! progress when Plex is newer or further along
             </label>
 
             <div className="flex flex-wrap gap-2">
@@ -427,7 +427,7 @@ export function SettingsClient() {
       <SettingsSection
         icon={Lock}
         title="Password"
-        description="Protect Reel with a password. When enabled, all pages and API routes require sign-in."
+        description="Protect MEDIA! with a password. When enabled, all pages and API routes require sign-in."
       >
           {initialLoad ? (
             <SettingsCardSkeleton lines={4} />

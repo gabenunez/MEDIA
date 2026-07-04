@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Remove Reel transcode and build caches. Safe to run while Reel is stopped;
-# if Reel is running, only stale transcode dirs (>6h, not active) are removed
+# Remove MEDIA! transcode and build caches. Safe to run while MEDIA! is stopped;
+# if MEDIA! is running, only stale transcode dirs (>6h, not active) are removed
 # when using --live mode.
 set -euo pipefail
 

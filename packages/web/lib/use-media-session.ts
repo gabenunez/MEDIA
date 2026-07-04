@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { APP_NAME } from "@media-app/shared";
 
 interface MediaSessionOptions {
   title: string;
@@ -31,7 +32,7 @@ export function useMediaSession(options: MediaSessionOptions): void {
     }
 
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: title || "Reel",
+      title: title || APP_NAME,
       artwork: posterUrl ? [{ src: posterUrl, sizes: "512x512", type: "image/jpeg" }] : [],
     });
 

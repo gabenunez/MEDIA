@@ -7,7 +7,7 @@ import type { ConfigManager } from "../config.js";
 import { subtitleHasContent } from "../utils/subtitle-content.js";
 
 const API_BASE = "https://api.opensubtitles.com/api/v1";
-const USER_AGENT = "Reel/0.1.0";
+const USER_AGENT = "MEDIA/0.1.0";
 
 export interface OpenSubtitleSearchResult {
   id: string;
@@ -209,7 +209,7 @@ export class OpenSubtitlesService {
   private extractFromZip(buffer: Buffer): Buffer {
     const tmpIn = path.join(
       os.tmpdir(),
-      `reel-sub-${Date.now()}-${Math.random().toString(36).slice(2)}.zip`,
+      `media-sub-${Date.now()}-${Math.random().toString(36).slice(2)}.zip`,
     );
     fs.writeFileSync(tmpIn, buffer);
     try {

@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import android.content.Intent
 import android.os.Bundle
@@ -122,10 +122,10 @@ class SetupActivity : AppCompatActivity() {
                 if (result.success) {
                     completeConnection(serverUrl, result.sessionToken, fromPairing = false)
                 } else if (result.passwordRequired) {
-                    statusText.setTextColor(ContextCompat.getColor(this, R.color.reel_error))
+                    statusText.setTextColor(ContextCompat.getColor(this, R.color.media_error))
                     statusText.text = getString(R.string.password_use_phone)
                 } else {
-                    statusText.setTextColor(ContextCompat.getColor(this, R.color.reel_error))
+                    statusText.setTextColor(ContextCompat.getColor(this, R.color.media_error))
                     statusText.text = getString(R.string.connection_failed)
                 }
             }
@@ -141,10 +141,10 @@ class SetupActivity : AppCompatActivity() {
         SessionPreferences.saveSessionToken(this, sessionToken)
 
         if (fromPairing) {
-            pairingStatusText.setTextColor(ContextCompat.getColor(this, R.color.reel_primary))
+            pairingStatusText.setTextColor(ContextCompat.getColor(this, R.color.media_primary))
             pairingStatusText.setText(R.string.connected)
         } else {
-            statusText.setTextColor(ContextCompat.getColor(this, R.color.reel_primary))
+            statusText.setTextColor(ContextCompat.getColor(this, R.color.media_primary))
             statusText.setText(R.string.connected)
         }
 

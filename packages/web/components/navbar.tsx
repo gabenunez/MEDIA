@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Film, Heart, Home, Settings, Tv } from "lucide-react";
-import { ReelIcon } from "@/components/reel-icon";
+import { MediaIcon } from "@/components/media-icon";
 import type { LucideIcon } from "lucide-react";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { SearchPopover } from "@/components/search-popover";
@@ -65,9 +65,9 @@ export function Navbar() {
           href="/"
           className="group flex shrink-0 items-center gap-2.5 rounded-lg outline-none ring-primary/40 focus-visible:ring-2"
         >
-          <ReelIcon className="h-9 w-9 transition-transform group-hover:-rotate-6" />
+          <MediaIcon className="h-9 w-9 transition-transform group-hover:-rotate-6" />
           <div className="leading-none">
-            <span className="block text-base font-semibold tracking-tight">Reel</span>
+            <span className="block text-base font-semibold tracking-tight">MEDIA!</span>
           </div>
         </Link>
 

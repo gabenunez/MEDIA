@@ -1,4 +1,4 @@
-import type { HlsQuality } from "@reel/shared";
+import type { HlsQuality } from "@media-app/shared";
 
 export function createStreamSessionId(
   type: "movie" | "episode",

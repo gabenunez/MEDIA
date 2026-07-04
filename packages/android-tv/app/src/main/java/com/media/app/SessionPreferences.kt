@@ -1,9 +1,9 @@
-package com.reel.tv
+package com.media.app
 
 import android.content.Context
 
 object SessionPreferences {
-    private const val PREFS_NAME = "reel_tv"
+    private const val PREFS_NAME = "media_tv"
     private const val KEY_SESSION_TOKEN = "session_token"
 
     fun getSessionToken(context: Context): String? {

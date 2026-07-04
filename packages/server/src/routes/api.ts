@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { eq, like, or, desc, sql, and, ne } from "drizzle-orm";
-import type { AppConfig } from "@reel/shared";
+import type { AppConfig } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import type { ScannerService } from "../services/scanner.js";
 import type { MetadataService } from "../services/metadata.js";

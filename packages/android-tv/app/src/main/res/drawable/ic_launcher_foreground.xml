@@ -5,9 +5,9 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="@color/reel_primary"
+        android:fillColor="@color/media_primary"
         android:pathData="M24,30h60v48H24z" />
     <path
-        android:fillColor="@color/reel_on_primary"
+        android:fillColor="@color/media_on_primary"
         android:pathData="M44,42 L68,54 44,66z" />
 </vector>

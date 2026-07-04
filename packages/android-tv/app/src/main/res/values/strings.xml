@@ -1,26 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Reel</string>
-    <string name="setup_title">Connect to Reel</string>
-    <string name="setup_heading">Connect your TV</string>
-    <string name="setup_subheading">Scan the QR code with your phone to enter your server address and password. Your phone must be on the same Wi‑Fi as this TV.</string>
-    <string name="manual_setup_heading">Or enter manually</string>
-    <string name="host_hint">185.162.184.10</string>
-    <string name="port_hint">8096</string>
-    <string name="host_label">Server address</string>
-    <string name="port_label">Port</string>
+    <string name="app_name">MEDIA!</string>
+    <string name="setup_title">Connect to MEDIA!</string>
+    <string name="setup_subtitle">Enter your server address and sign in</string>
+    <string name="server_url_label">Server address</string>
+    <string name="server_url_hint">http://192.168.1.10:8096</string>
+    <string name="password_label">Password</string>
+    <string name="password_hint">Optional</string>
     <string name="connect">Connect</string>
-    <string name="change_server">Change server</string>
     <string name="connecting">Connecting…</string>
-    <string name="connection_failed">Could not reach Reel at that address.</string>
-    <string name="invalid_host">Enter a server address.</string>
-    <string name="connected">Connected to Reel</string>
-    <string name="qr_code_description">QR code to connect Reel on your phone</string>
-    <string name="pairing_waiting">Waiting for your phone…</string>
-    <string name="pairing_unavailable">QR setup unavailable. Use manual entry on the right.</string>
-    <string name="password_use_phone">This server requires a password. Scan the QR code with your phone to sign in.</string>
-    <string name="account_menu_title">Account</string>
-    <string name="log_out">Sign out</string>
-    <string name="playback_failed">Playback failed. Try a lower quality.</string>
-    <string name="playback_auth_required">Sign in again from the Reel home screen.</string>
+    <string name="invalid_url">Enter a valid server address.</string>
+    <string name="auth_failed">Sign-in failed. Check your password.</string>
+    <string name="connection_failed">Could not reach MEDIA! at that address.</string>
+    <string name="network_error">Network error. Check the address and try again.</string>
+    <string name="connected">Connected to MEDIA!</string>
+    <string name="qr_code_description">QR code to connect MEDIA! on your phone</string>
+    <string name="scan_qr_title">Scan with your phone</string>
+    <string name="scan_qr_subtitle">Open the camera app and scan to pair this TV</string>
+    <string name="manual_setup">Enter server manually</string>
+    <string name="back">Back</string>
+    <string name="playback_auth_required">Sign in again from the MEDIA! home screen.</string>
 </resources>

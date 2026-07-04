@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="reel_background">#0A0A0B</color>
-    <color name="reel_surface">#141416</color>
-    <color name="reel_primary">#E5A00D</color>
-    <color name="reel_on_primary">#1A1200</color>
-    <color name="reel_text">#F5F5F5</color>
-    <color name="reel_text_muted">#A1A1AA</color>
-    <color name="reel_error">#F87171</color>
+    <color name="media_background">#0A0A0B</color>
+    <color name="media_surface">#141416</color>
+    <color name="media_primary">#E5A00D</color>
+    <color name="media_on_primary">#1A1200</color>
+    <color name="media_text">#F5F5F5</color>
+    <color name="media_text_muted">#A1A1AA</color>
+    <color name="media_error">#F87171</color>
 </resources>

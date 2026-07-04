@@ -78,7 +78,7 @@ function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): str
   return quality.toUpperCase();
 }
 
-const VOLUME_STORAGE_KEY = "reel:volume";
+const VOLUME_STORAGE_KEY = "media:volume";
 const PROGRESS_SAVE_MS = 10_000;
 
 interface MediaDetail extends PlaybackMediaDetail {}
@@ -870,7 +870,7 @@ function WatchDesktopClient() {
     >
       <video
         ref={videoRef}
-        className="reel-subtitles absolute inset-0 h-full w-full object-contain"
+        className="media-subtitles absolute inset-0 h-full w-full object-contain"
         controls={false}
         playsInline
         poster={posterUrl ?? undefined}

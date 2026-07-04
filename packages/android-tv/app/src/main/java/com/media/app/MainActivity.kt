@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
             userAgentString = buildUserAgent(userAgentString)
         }
 
-        webView.addJavascriptInterface(ReelAndroidBridge(), "ReelAndroid")
+        webView.addJavascriptInterface(MediaAndroidBridge(), "MediaAndroid")
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity() {
         CookieManager.getInstance().setAcceptCookie(true)
         val token = AuthSession.resolveSessionToken(this, serverUrl) ?: return
         val cookieManager = CookieManager.getInstance()
-        cookieManager.setCookie(serverUrl, "reel_session=$token")
+        cookieManager.setCookie(serverUrl, "media_session=$token")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             cookieManager.flush()
         }
@@ -124,7 +124,7 @@ class MainActivity : AppCompatActivity() {
     private fun clearSessionCookie() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
-        cookieManager.setCookie(serverUrl, "reel_session=; Max-Age=0")
+        cookieManager.setCookie(serverUrl, "media_session=; Max-Age=0")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             cookieManager.flush()
         }
@@ -230,7 +230,7 @@ class MainActivity : AppCompatActivity() {
         finish()
     }
 
-    private inner class ReelAndroidBridge {
+    private inner class MediaAndroidBridge {
         @JavascriptInterface
         fun logout() {
             runOnUiThread {
@@ -248,13 +248,13 @@ class MainActivity : AppCompatActivity() {
                         R.string.playback_auth_required,
                         Toast.LENGTH_LONG,
                     ).show()
-                    webView.evaluateJavascript("window.__reelNativePlayer?.onError?.()", null)
+                    webView.evaluateJavascript("window.__mediaNativePlayer?.onError?.()", null)
                     return@runOnUiThread
                 }
 
                 val parsed = PlaybackPayload.parse(payload)
                 if (parsed == null) {
-                    webView.evaluateJavascript("window.__reelNativePlayer?.onError?.()", null)
+                    webView.evaluateJavascript("window.__mediaNativePlayer?.onError?.()", null)
                     return@runOnUiThread
                 }
 
@@ -289,6 +289,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_SERVER_URL = "server_url"
-        private const val USER_AGENT_TOKEN = "ReelAndroidTV"
+        private const val USER_AGENT_TOKEN = "MediaAndroidTV"
     }
 }

@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Reel one-line VPS installer
+# MEDIA! one-line VPS installer
 #
 #   curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/install.sh | bash
 #
 # Options (env vars):
-#   REEL_REPO=https://github.com/gabenunez/reel.git
-#   REEL_BRANCH=main
-#   REEL_INSTALL_DIR=/opt/reel
+#   MEDIA_REPO=https://github.com/gabenunez/reel.git
+#   MEDIA_BRANCH=main
+#   MEDIA_INSTALL_DIR=/opt/media-app
 #   REEL_PORT=8096
-#   REEL_USER=reel
-#   REEL_NONINTERACTIVE=1
+#   MEDIA_USER=reel
+#   MEDIA_NONINTERACTIVE=1
 
 set -euo pipefail
 
-REEL_REPO="${REEL_REPO:-https://github.com/gabenunez/reel.git}"
-REEL_BRANCH="${REEL_BRANCH:-main}"
-REEL_INSTALL_DIR="${REEL_INSTALL_DIR:-/opt/reel}"
+MEDIA_REPO="${MEDIA_REPO:-https://github.com/gabenunez/reel.git}"
+MEDIA_BRANCH="${MEDIA_BRANCH:-main}"
+MEDIA_INSTALL_DIR="${MEDIA_INSTALL_DIR:-/opt/media-app}"
 
 resolve_source_dir() {
   if [[ -n "${REEL_SOURCE_DIR:-}" ]] && [[ -f "${REEL_SOURCE_DIR}/scripts/install-vps.sh" ]]; then
@@ -55,9 +55,9 @@ TMP_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
-echo "Downloading Reel..."
-git clone --depth 1 --branch "$REEL_BRANCH" "$REEL_REPO" "$TMP_DIR/reel"
+echo "Downloading MEDIA!..."
+git clone --depth 1 --branch "$MEDIA_BRANCH" "$MEDIA_REPO" "$TMP_DIR/reel"
 
 export REEL_SOURCE_DIR="$TMP_DIR/reel"
-export REEL_INSTALL_DIR
+export MEDIA_INSTALL_DIR
 exec bash "$TMP_DIR/reel/scripts/install-vps.sh" "$@"

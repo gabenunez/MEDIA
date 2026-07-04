@@ -20,7 +20,7 @@ export interface NativePlaybackState {
 
 export function nativeTvPlayerAvailable(): boolean {
   if (typeof window === "undefined") return false;
-  return typeof window.ReelAndroid?.play === "function";
+  return typeof window.MediaAndroid?.play === "function";
 }
 
 export function toAbsoluteMediaUrl(path: string): string {
@@ -32,23 +32,23 @@ export function toAbsoluteMediaUrl(path: string): string {
 }
 
 export function startNativePlayback(request: NativePlaybackRequest): void {
-  window.ReelAndroid?.play?.(JSON.stringify(request));
+  window.MediaAndroid?.play?.(JSON.stringify(request));
 }
 
 export function pauseNativePlayback(): void {
-  window.ReelAndroid?.pause?.();
+  window.MediaAndroid?.pause?.();
 }
 
 export function resumeNativePlayback(): void {
-  window.ReelAndroid?.resume?.();
+  window.MediaAndroid?.resume?.();
 }
 
 export function seekNativePlayback(positionMs: number): void {
-  window.ReelAndroid?.seekTo?.(positionMs);
+  window.MediaAndroid?.seekTo?.(positionMs);
 }
 
 export function stopNativePlayback(): void {
-  window.ReelAndroid?.stop?.();
+  window.MediaAndroid?.stop?.();
 }
 
 export function registerNativePlayerHandlers(handlers: {
@@ -56,25 +56,25 @@ export function registerNativePlayerHandlers(handlers: {
   onError?: () => void;
   onEnded?: () => void;
 }): () => void {
-  window.__reelNativePlayer = {
+  window.__mediaNativePlayer = {
     onState: (state: NativePlaybackState) => handlers.onState?.(state),
     onError: () => handlers.onError?.(),
     onEnded: () => handlers.onEnded?.(),
   };
 
   return () => {
-    delete window.__reelNativePlayer;
+    delete window.__mediaNativePlayer;
   };
 }
 
 export function notifyAndroidLogout() {
   if (typeof window === "undefined") return;
-  window.ReelAndroid?.logout();
+  window.MediaAndroid?.logout();
 }
 
 declare global {
   interface Window {
-    ReelAndroid?: {
+    MediaAndroid?: {
       logout: () => void;
       play: (payload: string) => void;
       pause: () => void;
@@ -82,7 +82,7 @@ declare global {
       seekTo: (positionMs: number) => void;
       stop: () => void;
     };
-    __reelNativePlayer?: {
+    __mediaNativePlayer?: {
       onState?: (state: NativePlaybackState) => void;
       onError?: () => void;
       onEnded?: () => void;

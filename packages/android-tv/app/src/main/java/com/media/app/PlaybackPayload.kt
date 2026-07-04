@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import org.json.JSONObject
 
@@ -18,7 +18,7 @@ data class PlaybackPayload(
                 val obj = JSONObject(json)
                 PlaybackPayload(
                     url = obj.getString("url"),
-                    title = obj.optString("title", "Reel"),
+                    title = obj.optString("title", "MEDIA!"),
                     fileId = obj.getInt("fileId"),
                     itemType = obj.getString("itemType"),
                     startSeconds = obj.optDouble("startSeconds", 0.0),

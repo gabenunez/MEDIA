@@ -4,7 +4,7 @@ import Link from "next/link";
 export function HomeHeroStatic() {
   return (
     <div>
-      <h1 className="mb-4 text-5xl font-black sm:text-7xl">Reel</h1>
+      <h1 className="mb-4 text-5xl font-black sm:text-7xl">MEDIA!</h1>
       <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
         Your personal library for movies and TV, played locally on your network.
       </p>

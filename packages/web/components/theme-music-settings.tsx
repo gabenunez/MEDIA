@@ -11,8 +11,8 @@ import {
 import { Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const THEME_MUSIC_ENABLED_KEY = "reel-theme-music-enabled";
-const THEME_MUSIC_CHANGED_EVENT = "reel-theme-music-changed";
+export const THEME_MUSIC_ENABLED_KEY = "media-theme-music-enabled";
+const THEME_MUSIC_CHANGED_EVENT = "media-theme-music-changed";
 
 function readEnabled(): boolean {
   if (typeof window === "undefined") return true;

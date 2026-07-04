@@ -413,7 +413,7 @@ export function TvWatchView() {
 
       startNativePlayback({
         url: toAbsoluteMediaUrl(relativeUrl),
-        title: title || "Reel",
+        title: title || "MEDIA!",
         fileId,
         itemType: type === "movie" ? "movie" : "episode",
         startSeconds: usingHls ? 0 : startAt,
@@ -900,7 +900,7 @@ export function TvWatchView() {
       {!usesNativePlayer && (
       <video
         ref={videoRef}
-        className="reel-subtitles absolute inset-0 h-full w-full object-contain"
+        className="media-subtitles absolute inset-0 h-full w-full object-contain"
         controls={false}
         playsInline
         poster={posterUrl ?? undefined}

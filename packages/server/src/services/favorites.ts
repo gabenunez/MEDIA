@@ -1,5 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import type { MediaType } from "@reel/shared";
+import type { MediaType } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import { favorites, mediaItems } from "../db/schema.js";
 

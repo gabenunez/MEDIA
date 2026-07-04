@@ -24,8 +24,8 @@ export interface SubtitleStyles {
   edge: SubtitleEdge;
 }
 
-export const SUBTITLE_STYLES_KEY = "reel-subtitle-styles";
-export const SUBTITLE_STYLES_CHANGED_EVENT = "reel-subtitle-styles-changed";
+export const SUBTITLE_STYLES_KEY = "media-subtitle-styles";
+export const SUBTITLE_STYLES_CHANGED_EVENT = "media-subtitle-styles-changed";
 
 export const DEFAULT_SUBTITLE_STYLES: SubtitleStyles = {
   size: "medium",

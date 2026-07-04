@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
-import type { AppConfig, LibraryConfig } from "@reel/shared";
+import type { AppConfig, LibraryConfig } from "@media-app/shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,7 +98,7 @@ export function ensureConfigExists(): string {
   if (existing) return existing;
 
   const configPath = path.join(getProjectRoot(), "config.yaml");
-  const defaultConfig = `# Reel media server — settings can be managed in the web UI at /settings
+  const defaultConfig = `# MEDIA! media server — settings can be managed in the web UI at /settings
 server:
   port: 8096
   host: 0.0.0.0

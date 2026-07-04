@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -12,12 +12,12 @@ class AuthenticatedHttpDataSourceFactory(
         .setAllowCrossProtocolRedirects(true)
         .setConnectTimeoutMs(20_000)
         .setReadTimeoutMs(20_000)
-        .setUserAgent("ReelAndroidTV/1.1 ExoPlayer")
+        .setUserAgent("MediaAndroidTV/1.1 ExoPlayer")
 
     override fun createDataSource(): HttpDataSource {
         val dataSource = upstream.createDataSource()
         if (!sessionToken.isNullOrBlank()) {
-            dataSource.setRequestProperty("Cookie", "reel_session=$sessionToken")
+            dataSource.setRequestProperty("Cookie", "media_session=$sessionToken")
         }
         return dataSource
     }

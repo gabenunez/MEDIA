@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import android.content.Context
 import fi.iki.elonen.NanoHTTPD

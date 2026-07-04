@@ -1,3 +1,8 @@
+export const APP_NAME = "MEDIA!";
+export const APP_SLUG = "media-app";
+export const SESSION_COOKIE = "media_session";
+export const LEGACY_SESSION_COOKIE = "reel_session";
+
 export const VIDEO_EXTENSIONS = new Set([
   // Common containers
   ".mkv",

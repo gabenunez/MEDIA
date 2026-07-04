@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Reel one-line updater
+# MEDIA! one-line updater
 #
 #   curl -fsSL https://raw.githubusercontent.com/gabenunez/reel/main/update.sh | bash
 #
 # Options (env vars):
-#   REEL_INSTALL_DIR=/opt/reel
-#   REEL_BRANCH=main
-#   REEL_NONINTERACTIVE=1
+#   MEDIA_INSTALL_DIR=/opt/media-app
+#   MEDIA_BRANCH=main
+#   MEDIA_NONINTERACTIVE=1
 
 set -euo pipefail
 
-REEL_REPO="${REEL_REPO:-https://github.com/gabenunez/reel.git}"
-REEL_BRANCH="${REEL_BRANCH:-main}"
-REEL_INSTALL_DIR="${REEL_INSTALL_DIR:-/opt/reel}"
+MEDIA_REPO="${MEDIA_REPO:-https://github.com/gabenunez/reel.git}"
+MEDIA_BRANCH="${MEDIA_BRANCH:-main}"
+MEDIA_INSTALL_DIR="${MEDIA_INSTALL_DIR:-/opt/media-app}"
 
 resolve_source_dir() {
   if [[ -n "${REEL_SOURCE_DIR:-}" ]] && [[ -f "${REEL_SOURCE_DIR}/scripts/update.sh" ]]; then
@@ -52,8 +52,8 @@ TMP_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
-git clone --depth 1 --branch "$REEL_BRANCH" "$REEL_REPO" "$TMP_DIR/reel"
+git clone --depth 1 --branch "$MEDIA_BRANCH" "$MEDIA_REPO" "$TMP_DIR/reel"
 
 export REEL_SOURCE_DIR="$TMP_DIR/reel"
-export REEL_INSTALL_DIR
+export MEDIA_INSTALL_DIR
 exec bash "$TMP_DIR/reel/scripts/update.sh" "$@"

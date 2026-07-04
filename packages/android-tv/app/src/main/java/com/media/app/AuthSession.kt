@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import android.content.Context
 import android.webkit.CookieManager
@@ -19,7 +19,7 @@ object AuthSession {
 
     fun requestHeaders(token: String?): Map<String, String> {
         if (token.isNullOrBlank()) return emptyMap()
-        return mapOf("Cookie" to "reel_session=$token")
+        return mapOf("Cookie" to "media_session=$token")
     }
 
     private fun parseSessionFromCookie(cookieHeader: String?): String? {
@@ -27,8 +27,8 @@ object AuthSession {
 
         for (part in cookieHeader.split(";")) {
             val trimmed = part.trim()
-            if (trimmed.startsWith("reel_session=")) {
-                val value = trimmed.removePrefix("reel_session=").trim()
+            if (trimmed.startsWith("media_session=")) {
+                val value = trimmed.removePrefix("media_session=").trim()
                 if (value.isNotEmpty() && value != "deleted") {
                     return value
                 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replace regular video files in Reel media libraries with symlinks to duplicates."""
+"""Replace regular video files in MEDIA! media libraries with symlinks to duplicates."""
 
 from __future__ import annotations
 

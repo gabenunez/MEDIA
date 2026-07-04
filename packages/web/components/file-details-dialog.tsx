@@ -64,7 +64,7 @@ export function FileDetailsDialog({
                 <div className="mb-4 mt-2 rounded-md border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
                   <p className="font-medium">Symbolic link</p>
                   <p className="mt-1 text-amber-100/90">
-                    This file is a symlink. Reel plays from the target on disk
+                    This file is a symlink. MEDIA! plays from the target on disk
                     {streamInfo.symlinkTarget ? (
                       <>
                         {": "}

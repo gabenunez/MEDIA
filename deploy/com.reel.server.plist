@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.reel.server</string>
+  <string>com.media-app.server</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/pnpm</string>

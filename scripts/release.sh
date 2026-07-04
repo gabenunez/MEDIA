@@ -21,42 +21,42 @@ if [[ -z "$TAG" ]]; then
 fi
 
 if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  reel_fail "Tag must look like v0.1.45 (got: $TAG)"
+  media_fail "Tag must look like v0.1.45 (got: $TAG)"
 fi
 
 if ! command -v gh >/dev/null 2>&1; then
-  reel_fail "GitHub CLI (gh) is required. Install: https://cli.github.com/"
+  media_fail "GitHub CLI (gh) is required. Install: https://cli.github.com/"
 fi
 
 if ! gh auth status >/dev/null 2>&1; then
-  reel_fail "gh is not authenticated. Run: gh auth login"
+  media_fail "gh is not authenticated. Run: gh auth login"
 fi
 
-reel_step "Validating CHANGELOG for $TAG"
+media_step "Validating CHANGELOG for $TAG"
 NOTES_FILE="$(mktemp)"
 trap 'rm -f "$NOTES_FILE"' EXIT
 node scripts/extract-changelog.mjs "$TAG" > "$NOTES_FILE"
 
 if git rev-parse "$TAG" >/dev/null 2>&1; then
-  reel_ok "Tag $TAG already exists locally"
+  media_ok "Tag $TAG already exists locally"
 else
-  reel_step "Creating annotated tag $TAG"
+  media_step "Creating annotated tag $TAG"
   git tag -a "$TAG" -m "Release $TAG"
-  reel_ok "Created tag $TAG"
+  media_ok "Created tag $TAG"
 fi
 
-reel_step "Pushing main and $TAG to origin"
+media_step "Pushing main and $TAG to origin"
 git push origin main
 git push origin "$TAG"
-reel_ok "Pushed to GitHub"
+media_ok "Pushed to GitHub"
 
-reel_step "Publishing GitHub release for $TAG"
+media_step "Publishing GitHub release for $TAG"
 if gh release view "$TAG" >/dev/null 2>&1; then
-  gh release edit "$TAG" --title "Reel $TAG" --notes-file "$NOTES_FILE"
-  reel_ok "Updated existing release $TAG"
+  gh release edit "$TAG" --title "MEDIA! $TAG" --notes-file "$NOTES_FILE"
+  media_ok "Updated existing release $TAG"
 else
-  gh release create "$TAG" --title "Reel $TAG" --notes-file "$NOTES_FILE" --verify-tag
-  reel_ok "Created release $TAG"
+  gh release create "$TAG" --title "MEDIA! $TAG" --notes-file "$NOTES_FILE" --verify-tag
+  media_ok "Created release $TAG"
 fi
 
-reel_ok "Done. Installs can update with: REEL_RELEASE_TAG=$TAG bash scripts/update.sh"
+media_ok "Done. Installs can update with: MEDIA_RELEASE_TAG=$TAG bash scripts/update.sh"

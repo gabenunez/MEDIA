@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Loader2 } from "lucide-react";
-import { ReelIcon } from "@/components/reel-icon";
+import { MediaIcon } from "@/components/media-icon";
 import { api } from "@/lib/api";
 import { notifyAndroidLogout } from "@/lib/android-bridge";
 import { Button } from "@/components/ui/button";
@@ -100,9 +100,9 @@ function LoginGate({ onLogin }: { onLogin: (password: string) => Promise<void> }
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 px-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-md border border-border/80 bg-card p-8 shadow-2xl">
         <div className="mb-6 flex items-center gap-3">
-          <ReelIcon className="h-12 w-12" />
+          <MediaIcon className="h-12 w-12" />
           <div>
-            <h1 className="text-2xl font-bold">Reel</h1>
+            <h1 className="text-2xl font-bold">MEDIA!</h1>
             <p className="text-sm text-muted-foreground">Enter your password to continue</p>
           </div>
         </div>

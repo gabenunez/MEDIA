@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -17,7 +17,7 @@ data class ConnectResult(
 object ServerConnector {
     fun connect(serverUrl: String, password: String?): ConnectResult {
         val authStatus = fetchAuthStatus(serverUrl)
-            ?: return ConnectResult(success = false, error = "Could not reach Reel at that address.")
+            ?: return ConnectResult(success = false, error = "Could not reach MEDIA! at that address.")
 
         if (!authStatus.required) {
             return ConnectResult(success = true, passwordRequired = false)
@@ -89,8 +89,8 @@ object ServerConnector {
 
         for (part in setCookie.split(";")) {
             val trimmed = part.trim()
-            if (trimmed.startsWith("reel_session=")) {
-                return trimmed.removePrefix("reel_session=").trim()
+            if (trimmed.startsWith("media_session=")) {
+                return trimmed.removePrefix("media_session=").trim()
             }
         }
 
@@ -125,7 +125,7 @@ object ServerConnector {
         try {
             val connection = openPost("$serverUrl/api/auth/logout")
             if (!sessionToken.isNullOrBlank()) {
-                connection.setRequestProperty("Cookie", "reel_session=$sessionToken")
+                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
             }
             try {
                 connection.responseCode
@@ -148,7 +148,7 @@ object ServerConnector {
         try {
             val connection = openPost("$serverUrl/api/watch-progress")
             if (!sessionToken.isNullOrBlank()) {
-                connection.setRequestProperty("Cookie", "reel_session=$sessionToken")
+                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
             }
             try {
                 val body = JSONObject()

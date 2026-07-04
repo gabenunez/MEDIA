@@ -4,8 +4,8 @@ import {
   TMDB_IMAGE_BASE,
   TMDB_POSTER_SIZE,
   TMDB_BACKDROP_SIZE,
-} from "@reel/shared";
-import type { AppConfig } from "@reel/shared";
+} from "@media-app/shared";
+import type { AppConfig } from "@media-app/shared";
 import PQueue from "p-queue";
 import type { ConfigManager } from "../config.js";
 

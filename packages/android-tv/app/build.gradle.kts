@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.reel.tv"
+    namespace = "com.media.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.reel.tv"
+        applicationId = "com.media.app"
         minSdk = 21
         targetSdk = 34
         versionCode = 4

@@ -1,4 +1,4 @@
-package com.reel.tv
+package com.media.app
 
 import android.graphics.Bitmap
 import android.graphics.Color
