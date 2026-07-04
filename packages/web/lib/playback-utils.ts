@@ -2,7 +2,6 @@ import type { StreamQuality } from "@/lib/api";
 import type { StreamInfo } from "@/lib/api";
 import { nativeTvPlayerAvailable } from "@/lib/android-bridge";
 import {
-  containerPrefersHlsRemux,
   isBrowserDirectPlayVideoSupported,
   isHlsVideoCopySupported,
   normalizeCodecName,
@@ -74,16 +73,7 @@ function effectiveOriginalPlaybackMode(
       return "remux";
     }
 
-    // MKV/WebM/etc. remux to HLS plays more smoothly than progressive HTTP on TV.
-    if (
-      nativeMode === "direct" &&
-      containerPrefersHlsRemux(streamInfo.fileName) &&
-      streamInfo.transcodingEnabled &&
-      isHlsVideoCopySupported(streamInfo.videoCodec)
-    ) {
-      return "remux";
-    }
-
+    // MKV/WebM remux is available as a native error fallback — direct play is preferred.
     return nativeMode;
   }
 

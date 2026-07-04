@@ -6,6 +6,7 @@ import { routes } from "@/lib/routes";
 import { TvFocusLink } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
 import { Clapperboard, Tv } from "lucide-react";
+import { isTvClient } from "@/lib/tv-mode-detect";
 
 interface TvPosterProps {
   item: MediaItem;
@@ -29,6 +30,8 @@ export const TvPoster = memo(function TvPoster({
 }: TvPosterProps) {
   const imageUrl = api.imageUrl(item.posterPath);
   const linkHref = href ?? routes.media(item.id);
+  // Android TV WebView often never loads lazy images inside horizontal rows/grids.
+  const loadImmediately = isTvClient() || priority;
 
   return (
     <div className={cn("tv-poster-tile shrink-0 snap-center", className)}>
@@ -45,9 +48,9 @@ export const TvPoster = memo(function TvPoster({
               <img
                 src={imageUrl}
                 alt=""
-                loading={priority ? "eager" : "lazy"}
+                loading={loadImmediately ? "eager" : "lazy"}
                 decoding="async"
-                fetchPriority={priority ? "high" : "auto"}
+                {...(loadImmediately ? { fetchPriority: "high" as const } : {})}
                 className="h-full w-full object-cover"
               />
             ) : (
