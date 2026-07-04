@@ -86,7 +86,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               data-tv-row=""
               data-tv-nav-row=""
               data-tv-vertical=""
-              className="flex flex-1 flex-col items-center gap-1.5"
+              className="flex flex-col items-center gap-1.5"
             >
               <TvNavButton href={routes.home()} label="Home" active={homeActive}>
                 <Home className="h-5 w-5" />
@@ -101,12 +101,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               <TvNavButton href={routes.search()} label="Search" active={searchActive}>
                 <Search className="h-5 w-5" />
               </TvNavButton>
-              {showLogout && (
-                <>
-                  <div className="min-h-4 flex-1" aria-hidden="true" />
-                  <TvLogoutButton onLogout={handleLogout} />
-                </>
-              )}
+              {showLogout && <TvLogoutButton onLogout={handleLogout} />}
             </nav>
           </aside>
         )}

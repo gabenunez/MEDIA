@@ -27,6 +27,7 @@ import {
   getVideoSeekableEnd,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
+  createPlaybackHls,
   startDirectPlaybackWithResume,
 } from "@/lib/playback-utils";
 import { cn, formatDuration } from "@/lib/utils";
@@ -38,6 +39,7 @@ import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvWatchView } from "@/components/tv/views/watch-view";
+import { nextFallbackQuality } from "@/lib/watch-helpers";
 
 interface SubtitleTrack {
   id: number;
@@ -154,6 +156,7 @@ function WatchDesktopClient() {
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveProgressRef = useRef<() => void>(() => {});
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
+  const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const volumeBeforeMuteRef = useRef(1);
 
   const [quality, setQuality] = useState<StreamQuality>("original");
@@ -282,6 +285,34 @@ function WatchDesktopClient() {
   }, [fileId, type, usingHlsPlayback, hlsStartOffset, sourceDurationMs]);
 
   saveProgressRef.current = saveProgress;
+
+  const changeQuality = useCallback(
+    (nextQuality: StreamQuality) => {
+      const video = videoRef.current;
+      if (video) {
+        const absoluteTime = usingHlsPlayback
+          ? hlsStartOffset + video.currentTime
+          : video.currentTime;
+        if (absoluteTime > 0) {
+          setStreamStartSeconds(absoluteTime);
+        }
+      }
+      setQuality(nextQuality);
+      setQualityMenuOpen(false);
+      setError(null);
+      revealControls(true);
+    },
+    [revealControls, usingHlsPlayback, hlsStartOffset],
+  );
+
+  const tryFallbackQuality = useCallback(() => {
+    const next = nextFallbackQuality(quality, availableQualities);
+    if (!next || next === quality) return false;
+    changeQuality(next);
+    return true;
+  }, [quality, availableQualities, changeQuality]);
+
+  tryFallbackQualityRef.current = tryFallbackQuality;
 
   useEffect(() => {
     setStreamStartSeconds(null);
@@ -439,13 +470,15 @@ function WatchDesktopClient() {
 
     let stopDirectPlayback: (() => void) | null = null;
 
+    const onVideoError = () => {
+      setBuffering(false);
+      if (tryFallbackQualityRef.current()) return;
+      setError("Playback failed. Try a lower quality or Original.");
+    };
+
     if (usingHls) {
       if (Hls.isSupported()) {
-        const hls = new Hls({
-          backBufferLength: 90,
-          maxBufferHole: 0.5,
-          nudgeOnVideoHole: true,
-        });
+        const hls = createPlaybackHls(Hls);
         hls.loadSource(url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -455,6 +488,7 @@ function WatchDesktopClient() {
         hls.on(Hls.Events.ERROR, (_, data) => {
           if (data.fatal) {
             setBuffering(false);
+            if (tryFallbackQualityRef.current()) return;
             setError("Playback failed. Try a lower quality or Original.");
           }
         });
@@ -463,13 +497,16 @@ function WatchDesktopClient() {
         hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = url;
+        video.addEventListener("error", onVideoError);
         video.play().catch(() => {});
       } else {
         setBuffering(false);
+        if (tryFallbackQualityRef.current()) return;
         setError("HLS not supported in this browser");
       }
     } else {
       video.src = url;
+      video.addEventListener("error", onVideoError);
       stopDirectPlayback = startDirectPlaybackWithResume(video, startAt, {
         onSeekComplete: (seconds) => setCurrentTime(seconds),
       });
@@ -478,6 +515,7 @@ function WatchDesktopClient() {
     progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
 
     return () => {
+      video.removeEventListener("error", onVideoError);
       stopDirectPlayback?.();
       if (hlsRef.current) hlsRef.current.destroy();
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -490,24 +528,6 @@ function WatchDesktopClient() {
     window.addEventListener("pagehide", onPageHide);
     return () => window.removeEventListener("pagehide", onPageHide);
   }, [saveProgress]);
-
-  const changeQuality = useCallback(
-    (nextQuality: StreamQuality) => {
-      const video = videoRef.current;
-      if (video) {
-        const absoluteTime = usingHlsPlayback
-          ? hlsStartOffset + video.currentTime
-          : video.currentTime;
-        if (absoluteTime > 0) {
-          setStreamStartSeconds(absoluteTime);
-        }
-      }
-      setQuality(nextQuality);
-      setQualityMenuOpen(false);
-      revealControls(true);
-    },
-    [revealControls, usingHlsPlayback, hlsStartOffset],
-  );
 
   useEffect(() => {
     const video = videoRef.current;

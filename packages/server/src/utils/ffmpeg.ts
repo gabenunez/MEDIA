@@ -335,7 +335,11 @@ export function startHlsTranscode(
     "-pix_fmt",
     "yuv420p",
     "-preset",
-    "veryfast",
+    "ultrafast",
+    "-tune",
+    "zerolatency",
+    "-threads",
+    "0",
     "-crf",
     String(preset.crf),
     "-maxrate",
@@ -562,7 +566,7 @@ export function generateHlsPlaylist(
   const targetDuration = Math.max(segmentDuration + 1, 6);
   const lines = [
     "#EXTM3U",
-    "#EXT-X-VERSION:6",
+    "#EXT-X-VERSION:3",
     `#EXT-X-TARGETDURATION:${targetDuration}`,
     "#EXT-X-MEDIA-SEQUENCE:0",
     "#EXT-X-PLAYLIST-TYPE:EVENT",

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.43 — 2026-07-04
+
+### Android TV
+- **Native video player** — ExoPlayer (Media3) decodes behind the Reel TV UI; keeps timeline, skip, quality, and subtitle controls
+- **Session auth** — pass login cookies on all HLS/direct stream requests from the native player
+- **Original quality** — play source resolution on TV (direct or remux); no 1080p cap when using native playback
+- **Controls** — overlay fades out 3s after playback starts; Down on the remote brings it back
+
+### Playback
+- **HLS auth** — send session cookies on hls.js segment requests; auto-fallback to lower quality on fatal errors
+- **Live transcode** — faster FFmpeg preset (ultrafast/zerolatency) for smoother HLS on the server
+
+### TV
+- **Episode list scroll** — keep focused row in view on long seasons
+- **Logout** — move sign-out directly under Search in the side rail
+
 ## 0.1.42 — 2026-07-04
 
 ### Playback

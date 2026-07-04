@@ -21,4 +21,6 @@
     <string name="password_use_phone">This server requires a password. Scan the QR code with your phone to sign in.</string>
     <string name="account_menu_title">Account</string>
     <string name="log_out">Sign out</string>
+    <string name="playback_failed">Playback failed. Try a lower quality.</string>
+    <string name="playback_auth_required">Sign in again from the Reel home screen.</string>
 </resources>

@@ -2,6 +2,7 @@ package com.reel.tv
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -18,11 +19,14 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.ui.PlayerView
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var webView: WebView
+    private lateinit var nativePlayerView: PlayerView
+    private lateinit var nativePlayer: NativePlayerManager
     private var serverUrl: String = ""
     private var keepScreenOn = false
 
@@ -39,6 +43,11 @@ class MainActivity : AppCompatActivity() {
             }
 
         webView = findViewById(R.id.webView)
+        nativePlayerView = findViewById(R.id.nativePlayerView)
+        nativePlayer = NativePlayerManager(nativePlayerView) { script ->
+            webView.post { webView.evaluateJavascript(script, null) }
+        }
+
         configureWebView()
         applySessionCookie()
         webView.loadUrl(buildLaunchUrl(serverUrl))
@@ -46,6 +55,11 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
+        webView.setBackgroundColor(Color.TRANSPARENT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
+
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -78,11 +92,7 @@ class MainActivity : AppCompatActivity() {
                 val target = request?.url ?: return false
                 val host = target.host ?: return false
                 val allowedHost = serverHost()
-                return if (host.equals(allowedHost, ignoreCase = true)) {
-                    false
-                } else {
-                    true
-                }
+                return !host.equals(allowedHost, ignoreCase = true)
             }
 
             override fun onReceivedError(
@@ -102,9 +112,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applySessionCookie() {
-        val token = SessionPreferences.getSessionToken(this) ?: return
+        CookieManager.getInstance().setAcceptCookie(true)
+        val token = AuthSession.resolveSessionToken(this, serverUrl) ?: return
         val cookieManager = CookieManager.getInstance()
-        cookieManager.setAcceptCookie(true)
         cookieManager.setCookie(serverUrl, "reel_session=$token")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             cookieManager.flush()
@@ -121,6 +131,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun performLogout(reload: Boolean = true) {
+        nativePlayer.stop()
         val sessionToken = SessionPreferences.getSessionToken(this)
         executor.execute {
             ServerConnector.logout(serverUrl, sessionToken)
@@ -185,6 +196,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         executor.shutdownNow()
+        nativePlayer.release()
         webView.destroy()
         super.onDestroy()
     }
@@ -210,6 +222,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSetup(resetServer: Boolean) {
+        nativePlayer.stop()
         if (resetServer) {
             ServerPreferences.clearServerUrl(this)
         }
@@ -222,6 +235,54 @@ class MainActivity : AppCompatActivity() {
         fun logout() {
             runOnUiThread {
                 performLogout(reload = false)
+            }
+        }
+
+        @JavascriptInterface
+        fun play(payload: String) {
+            runOnUiThread {
+                val sessionToken = AuthSession.resolveSessionToken(this@MainActivity, serverUrl)
+                if (sessionToken.isNullOrBlank()) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        R.string.playback_auth_required,
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    webView.evaluateJavascript("window.__reelNativePlayer?.onError?.()", null)
+                    return@runOnUiThread
+                }
+
+                val parsed = PlaybackPayload.parse(payload)
+                if (parsed == null) {
+                    webView.evaluateJavascript("window.__reelNativePlayer?.onError?.()", null)
+                    return@runOnUiThread
+                }
+
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                nativePlayer.play(serverUrl, sessionToken, parsed)
+            }
+        }
+
+        @JavascriptInterface
+        fun pause() {
+            runOnUiThread { nativePlayer.pause() }
+        }
+
+        @JavascriptInterface
+        fun resume() {
+            runOnUiThread { nativePlayer.resume() }
+        }
+
+        @JavascriptInterface
+        fun seekTo(positionMs: Double) {
+            runOnUiThread { nativePlayer.seekTo(positionMs.toLong()) }
+        }
+
+        @JavascriptInterface
+        fun stop() {
+            runOnUiThread {
+                nativePlayer.stop()
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
     }
