@@ -48,7 +48,7 @@ import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvWatchView } from "@/components/tv/views/watch-view";
-import { nextFallbackQuality } from "@/lib/watch-helpers";
+import { nextFallbackQuality, qualityLabel } from "@/lib/watch-helpers";
 
 interface SubtitleTrack {
   id: number;
@@ -66,16 +66,6 @@ function formatSubtitleLabel(sub: SubtitleTrack): string {
         : "File";
   const detail = sub.label ? sub.label.slice(0, 48) : sourceLabel;
   return `${sub.language} · ${detail}`;
-}
-
-function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): string {
-  if (quality === "original") {
-    if (sourceHeight && sourceHeight >= 2160) return "Original (4K)";
-    if (sourceHeight && sourceHeight >= 1080) return "Original (1080p)";
-    if (sourceHeight && sourceHeight >= 720) return "Original (720p)";
-    return "Original";
-  }
-  return quality.toUpperCase();
 }
 
 const VOLUME_STORAGE_KEY = "media:volume";

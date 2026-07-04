@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.47 — 2026-07-04
+
+### Playback
+- **4K quality option** — add a 4K transcode tier for 2160p sources so 4K movies and shows always offer full-resolution playback when transcoding is enabled
+
 ## 0.1.46 — 2026-07-04
 
 ### Branding

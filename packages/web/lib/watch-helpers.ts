@@ -1,4 +1,5 @@
 import type { StreamQuality } from "@/lib/api";
+import { qualityLabel as sharedQualityLabel } from "@media-app/shared";
 
 export interface SubtitleTrack {
   id: number;
@@ -9,6 +10,7 @@ export interface SubtitleTrack {
 
 export const QUALITY_FALLBACK_ORDER: StreamQuality[] = [
   "original",
+  "2160p",
   "1080p",
   "720p",
   "480p",
@@ -25,14 +27,11 @@ export function formatSubtitleLabel(sub: SubtitleTrack): string {
   return `${sub.language} · ${detail}`;
 }
 
-export function qualityLabel(quality: StreamQuality, sourceHeight?: number | null): string {
-  if (quality === "original") {
-    if (sourceHeight && sourceHeight >= 2160) return "Original (4K)";
-    if (sourceHeight && sourceHeight >= 1080) return "Original (1080p)";
-    if (sourceHeight && sourceHeight >= 720) return "Original (720p)";
-    return "Original";
-  }
-  return quality.toUpperCase();
+export function qualityLabel(
+  quality: StreamQuality,
+  sourceHeight?: number | null,
+): string {
+  return sharedQualityLabel(quality, sourceHeight);
 }
 
 export function nextFallbackQuality(

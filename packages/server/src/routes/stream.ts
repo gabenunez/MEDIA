@@ -219,7 +219,7 @@ export async function streamRoutes(
         videoCodec: metadata.videoCodec,
         audioCodec: metadata.audioCodec,
         bitrate: metadata.bitrate,
-        availableQualities: getAvailableQualities(metadata.height),
+        availableQualities: getAvailableQualities(metadata.height, metadata.width),
         transcodingEnabled: config.transcoding.enabled,
         directPlayAudioSupported: isBrowserDirectPlayAudioSupported(
           metadata.audioCodec,
