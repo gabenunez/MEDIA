@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.51 — 2026-07-04
+
+### TV
+- **Startup flash** — bootstrap TV mode before first paint so the desktop web shell no longer flashes on launch
+
 ## 0.1.50 — 2026-07-04
 
 ### TV
