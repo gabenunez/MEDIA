@@ -48,6 +48,15 @@
     background: hsl(var(--primary) / 0.3);
     color: hsl(var(--foreground));
   }
+
+  /* Hide desktop shell until TV mode hydrates (see tv-mode-detect.ts). */
+  html.tv-mode:not(.tv-ready) body {
+    visibility: hidden;
+  }
+
+  html.tv-mode [data-web-only] {
+    display: none !important;
+  }
 }
 
 @layer utilities {

@@ -13,11 +13,9 @@ export const PROGRESS_SAVE_MS = 10_000;
 
 export type PlaybackHlsQuality = StreamQuality | "remux";
 
-export function isTvClient(): boolean {
-  if (typeof window === "undefined") return false;
-  if (sessionStorage.getItem("media-client") === "android-tv") return true;
-  return navigator.userAgent.includes("MediaAndroidTV");
-}
+import { isTvClient } from "@/lib/tv-mode-detect";
+
+export { isTvClient };
 
 function browserSupportsHevcPlayback(): boolean {
   if (typeof document === "undefined") return false;
