@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.65 — 2026-07-04
+
+### UI
+- **Homepage hero** — stacked “This is your MEDIA!” headline with gradient wordmark and simplified subtitle
+- **Navbar** — logo-only header with larger mark, inset icon tile, and compact bar height
+- **Copy** — replace em dashes with commas and plain punctuation across settings and UI messages
+
+### Tooling
+- **Cursor** — project agent rules and `/version` release skill
+
 ## 0.1.64 — 2026-07-04
 
 ### Fix
