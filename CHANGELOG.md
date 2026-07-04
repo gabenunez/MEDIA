@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.49 — 2026-07-04
+
+### Fix
+- **Update status crash** — wrap TV and desktop layouts in `UpdateStatusProvider` so settings and other pages no longer throw when not in desktop mode
+
 ## 0.1.48 — 2026-07-04
 
 ### Performance

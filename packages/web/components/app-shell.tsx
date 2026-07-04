@@ -15,32 +15,23 @@ import { TvModeProvider, useTvMode } from "@/lib/tv-mode";
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const isTvMode = useTvMode();
 
-  if (isTvMode) {
-    return (
-      <AuthProvider>
-        <SubtitleStylesProvider>
-          <ThemeMusicSettingsProvider>
-            <AudioUnlock />
-            <TvShell>{children}</TvShell>
-          </ThemeMusicSettingsProvider>
-        </SubtitleStylesProvider>
-      </AuthProvider>
-    );
-  }
-
   return (
     <AuthProvider>
       <SubtitleStylesProvider>
         <ThemeMusicSettingsProvider>
           <AudioUnlock />
-          <ScanStatusProvider>
-            <UpdateStatusProvider>
-              <Navbar />
-              <ScanStatusBar />
-              <UpdateModal />
-              <main>{children}</main>
-            </UpdateStatusProvider>
-          </ScanStatusProvider>
+          <UpdateStatusProvider>
+            {isTvMode ? (
+              <TvShell>{children}</TvShell>
+            ) : (
+              <ScanStatusProvider>
+                <Navbar />
+                <ScanStatusBar />
+                <UpdateModal />
+                <main>{children}</main>
+              </ScanStatusProvider>
+            )}
+          </UpdateStatusProvider>
         </ThemeMusicSettingsProvider>
       </SubtitleStylesProvider>
     </AuthProvider>
