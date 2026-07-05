@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.69 — 2026-07-05
+
+### Fix
+- **Home rows** — hide the left scroll arrow on collection rows until you’ve scrolled right (fixes false “scroll back” affordance on initial load)
+
 ## 0.1.68 — 2026-07-05
 
 ### Android TV (app 1.4.6)
