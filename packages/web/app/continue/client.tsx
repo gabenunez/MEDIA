@@ -83,15 +83,13 @@ function ContinueWatchingDesktopClient() {
         <>
           <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {items.map((item) => (
-              <Link
-                key={item.id}
-                href={
-                  item.itemType === "movie"
-                    ? routes.watch("movie", item.itemId, item.mediaId, item.posterPath)
-                    : routes.watch("episode", item.itemId, item.mediaId, item.posterPath)
-                }
-              >
+              <div key={item.id}>
                 <PosterCard
+                  href={
+                    item.itemType === "movie"
+                      ? routes.watch("movie", item.itemId, item.mediaId, item.posterPath)
+                      : routes.watch("episode", item.itemId, item.mediaId, item.posterPath)
+                  }
                   item={{
                     id: item.mediaId,
                     libraryId: 0,
@@ -106,7 +104,7 @@ function ContinueWatchingDesktopClient() {
                     {item.subtitle}
                   </p>
                 )}
-              </Link>
+              </div>
             ))}
           </div>
 

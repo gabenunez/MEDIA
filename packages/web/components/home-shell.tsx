@@ -4,11 +4,11 @@ import Link from "next/link";
 export function HomeHeroStatic() {
   return (
     <div className="max-w-3xl">
-      <h1 className="flex flex-col items-start gap-1 sm:gap-1.5">
-        <span className="text-lg font-medium text-primary/65 sm:text-xl">
+      <h1 className="flex flex-col items-start gap-0 leading-none">
+        <span className="text-lg font-medium leading-none text-primary/65 sm:text-xl">
           This is your
         </span>
-        <span className="text-[2.65rem] font-black leading-none tracking-tight sm:text-6xl lg:text-[4.5rem] bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+        <span className="-mt-0.5 text-[2.65rem] font-black leading-[0.92] tracking-tight sm:-mt-1 sm:text-6xl lg:text-[4.5rem] bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
           MEDIA!
         </span>
       </h1>
