@@ -22,14 +22,15 @@ export async function authRoutes(
         return { success: true };
       }
 
-      const password = request.body?.password ?? "";
+      const password = (request.body?.password ?? "").trim();
       if (!password || !auth.verifyPassword(password)) {
         return reply.status(401).send({ error: "Invalid password" });
       }
 
       const token = auth.createSessionToken();
       reply.header("Set-Cookie", auth.allSessionCookies(token));
-      return { success: true };
+      // Native TV pairing reads this when HttpURLConnection drops Set-Cookie headers.
+      return { success: true, token };
     },
   );
 

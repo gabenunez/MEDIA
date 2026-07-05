@@ -47,6 +47,10 @@ export function toAbsoluteMediaUrl(path: string): string {
   return new URL(path, window.location.origin).toString();
 }
 
+export function prepareNativeVideoOverlay(): void {
+  getAndroidBridge()?.prepareNativeVideo?.();
+}
+
 export function startNativePlayback(request: NativePlaybackRequest): void {
   getAndroidBridge()?.play?.(JSON.stringify(request));
 }
@@ -87,6 +91,15 @@ export function registerNativePlayerHandlers(handlers: {
   };
 }
 
+/** TV shell calls this before default WebView/history back navigation. */
+export function registerWatchBackHandler(handler: (() => boolean) | undefined): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.__mediaWatchHandleBack = handler;
+  return () => {
+    delete window.__mediaWatchHandleBack;
+  };
+}
+
 export function notifyAndroidLogout() {
   if (typeof window === "undefined") return;
   getAndroidBridge()?.logout();
@@ -96,6 +109,7 @@ declare global {
   interface Window {
     MediaAndroid?: {
       logout: () => void;
+      prepareNativeVideo?: () => void;
       play: (payload: string) => void;
       pause: () => void;
       resume: () => void;
@@ -107,6 +121,8 @@ declare global {
     /** Legacy callback target for older TV APKs. */
     __reelNativePlayer?: NativePlayerBridge;
     __mediaNativePlayer?: NativePlayerBridge;
+    /** Watch view back handler for Android TV remote. Return true when consumed. */
+    __mediaWatchHandleBack?: () => boolean;
   }
 }
 

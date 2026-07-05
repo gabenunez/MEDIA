@@ -1,5 +1,6 @@
 package com.media.app
 
+import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -17,6 +18,7 @@ import org.json.JSONObject
 class NativePlayerManager(
     private val playerView: PlayerView,
     private val emitJs: (String) -> Unit,
+    private val onPlaybackStopped: () -> Unit = {},
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var player: ExoPlayer? = null
@@ -62,6 +64,7 @@ class NativePlayerManager(
         player = exoPlayer
         playerView.player = exoPlayer
         playerView.useController = false
+        playerView.setShutterBackgroundColor(Color.TRANSPARENT)
         mediaSessionManager?.release()
         mediaSessionManager = PlaybackMediaSessionManager(playerView.context, exoPlayer)
 
@@ -143,6 +146,7 @@ class NativePlayerManager(
         releasePlayer()
         playerView.visibility = View.GONE
         currentPayload = null
+        onPlaybackStopped()
     }
 
     fun release() {

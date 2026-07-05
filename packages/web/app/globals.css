@@ -446,5 +446,20 @@
   html[data-native-video="true"] body,
   html[data-native-video="true"] .tv-ui {
     background: transparent !important;
+    background-image: none !important;
+  }
+
+  html[data-native-video="true"] [data-tv-watch-player] {
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  html[data-native-video="true"] [data-tv-watch-player] > .relative.min-h-0 {
+    background: transparent !important;
+  }
+
+  html[data-native-video="true"] .tv-ui > main {
+    background: transparent !important;
+    background-image: none !important;
   }
 }

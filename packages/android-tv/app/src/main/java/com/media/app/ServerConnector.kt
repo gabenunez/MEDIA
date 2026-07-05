@@ -6,6 +6,7 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
 
 data class ConnectResult(
     val success: Boolean,
@@ -31,18 +32,27 @@ object ServerConnector {
             )
         }
 
-        val sessionToken = login(serverUrl, password)
-            ?: return ConnectResult(
-                success = false,
-                error = "Invalid password",
-                passwordRequired = true,
-            )
+        when (val login = login(serverUrl, password)) {
+            is LoginResult.Success -> {
+                return ConnectResult(
+                    success = true,
+                    sessionToken = login.token,
+                    passwordRequired = true,
+                )
+            }
+            is LoginResult.Failure -> {
+                return ConnectResult(
+                    success = false,
+                    error = login.error,
+                    passwordRequired = true,
+                )
+            }
+        }
+    }
 
-        return ConnectResult(
-            success = true,
-            sessionToken = sessionToken,
-            passwordRequired = true,
-        )
+    private sealed class LoginResult {
+        data class Success(val token: String) : LoginResult()
+        data class Failure(val error: String) : LoginResult()
     }
 
     private data class AuthStatus(val required: Boolean, val authenticated: Boolean)
@@ -66,7 +76,7 @@ object ServerConnector {
         }
     }
 
-    private fun login(serverUrl: String, password: String): String? {
+    private fun login(serverUrl: String, password: String): LoginResult {
         return try {
             val connection = openPost("$serverUrl/api/auth/login")
             try {
@@ -74,23 +84,73 @@ object ServerConnector {
                     writer.write(JSONObject().put("password", password).toString())
                 }
 
-                if (connection.responseCode !in 200..299) return null
-                parseSessionToken(connection.getHeaderField("Set-Cookie"))
+                val code = connection.responseCode
+                val body = readStream(
+                    if (code in 200..299) {
+                        connection.inputStream
+                    } else {
+                        connection.errorStream ?: connection.inputStream
+                    },
+                )
+
+                if (code !in 200..299) {
+                    return LoginResult.Failure(parseErrorMessage(body) ?: "Invalid password")
+                }
+
+                val token = parseSessionToken(connection) ?: parseSessionTokenFromBody(body)
+                    ?: return LoginResult.Failure("Sign-in succeeded but no session was returned")
+
+                LoginResult.Success(token)
             } finally {
                 connection.disconnect()
             }
+        } catch (_: Exception) {
+            LoginResult.Failure("Network error. Check the address and try again.")
+        }
+    }
+
+    private fun parseErrorMessage(body: String): String? {
+        return try {
+            JSONObject(body).optString("error", "").trim().ifEmpty { null }
         } catch (_: Exception) {
             null
         }
     }
 
-    private fun parseSessionToken(setCookie: String?): String? {
+    private fun parseSessionTokenFromBody(body: String): String? {
+        return try {
+            JSONObject(body).optString("token", "").trim().ifEmpty { null }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseSessionToken(connection: HttpURLConnection): String? {
+        val headerFields = connection.headerFields ?: return null
+        for ((name, values) in headerFields) {
+            if (!name.equals("Set-Cookie", ignoreCase = true)) continue
+            for (value in values) {
+                parseSessionFromCookieHeader(value)?.let { return it }
+            }
+        }
+
+        return parseSessionFromCookieHeader(connection.getHeaderField("Set-Cookie"))
+    }
+
+    private fun parseSessionFromCookieHeader(setCookie: String?): String? {
         if (setCookie.isNullOrBlank()) return null
 
         for (part in setCookie.split(";")) {
             val trimmed = part.trim()
-            if (trimmed.startsWith("media_session=")) {
-                return trimmed.removePrefix("media_session=").trim()
+            for (prefix in listOf("media_session=", "reel_session=")) {
+                if (!trimmed.startsWith(prefix)) continue
+                val raw = trimmed.removePrefix(prefix).trim()
+                if (raw.isEmpty() || raw == "deleted") continue
+                return try {
+                    URLDecoder.decode(raw, Charsets.UTF_8.name())
+                } catch (_: Exception) {
+                    raw
+                }
             }
         }
 
@@ -117,7 +177,8 @@ object ServerConnector {
         }
     }
 
-    private fun readStream(stream: java.io.InputStream): String {
+    private fun readStream(stream: java.io.InputStream?): String {
+        if (stream == null) return ""
         return BufferedReader(InputStreamReader(stream)).use { it.readText() }
     }
 
@@ -125,10 +186,20 @@ object ServerConnector {
         try {
             val connection = openPost("$serverUrl/api/auth/logout")
             if (!sessionToken.isNullOrBlank()) {
-                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
+                connection.setRequestProperty(
+                    "Cookie",
+                    "media_session=$sessionToken; reel_session=$sessionToken",
+                )
             }
             try {
                 connection.responseCode
+                readStream(
+                    if (connection.responseCode in 200..299) {
+                        connection.inputStream
+                    } else {
+                        connection.errorStream
+                    },
+                )
             } finally {
                 connection.disconnect()
             }
@@ -148,7 +219,10 @@ object ServerConnector {
         try {
             val connection = openPost("$serverUrl/api/watch-progress")
             if (!sessionToken.isNullOrBlank()) {
-                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
+                connection.setRequestProperty(
+                    "Cookie",
+                    "media_session=$sessionToken; reel_session=$sessionToken",
+                )
             }
             try {
                 val body = JSONObject()
@@ -172,7 +246,10 @@ object ServerConnector {
         return try {
             val connection = openGet(url)
             if (!sessionToken.isNullOrBlank()) {
-                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
+                connection.setRequestProperty(
+                    "Cookie",
+                    "media_session=$sessionToken; reel_session=$sessionToken",
+                )
             }
             try {
                 if (connection.responseCode !in 200..299) return null
@@ -189,7 +266,10 @@ object ServerConnector {
         return try {
             val connection = openPost(url)
             if (!sessionToken.isNullOrBlank()) {
-                connection.setRequestProperty("Cookie", "media_session=$sessionToken")
+                connection.setRequestProperty(
+                    "Cookie",
+                    "media_session=$sessionToken; reel_session=$sessionToken",
+                )
             }
             try {
                 OutputStreamWriter(connection.outputStream).use { writer ->

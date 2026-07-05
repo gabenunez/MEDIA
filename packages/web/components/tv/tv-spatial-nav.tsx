@@ -357,6 +357,10 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         ) {
           return;
         }
+        // Watch view handles Up/Down on the control bar (menus, play focus).
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          return;
+        }
       }
 
       const row = active.closest("[data-tv-row]");

@@ -51,8 +51,10 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webView)
         nativePlayerView = findViewById(R.id.nativePlayerView)
-        nativePlayer = NativePlayerManager(nativePlayerView) { script ->
+        nativePlayer = NativePlayerManager(nativePlayerView, emitJs = { script ->
             webView.post { webView.evaluateJavascript(script, null) }
+        }) {
+            runOnUiThread { setNativeVideoOverlayActive(false) }
         }
 
         configureWebView()
@@ -141,17 +143,57 @@ class MainActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    when {
-                        nativePlayer.isActive() -> {
-                            nativePlayer.stop()
-                            updateKeepScreenOn()
+                    webView.evaluateJavascript(
+                        """
+                        (function() {
+                          if (typeof window.__mediaWatchHandleBack === 'function') {
+                            return window.__mediaWatchHandleBack();
+                          }
+                          return false;
+                        })();
+                        """.trimIndent(),
+                    ) { result ->
+                        runOnUiThread {
+                            val consumed = result?.trim()?.equals("true", ignoreCase = true) == true
+                            if (!consumed) {
+                                performDefaultBackNavigation()
+                            }
                         }
-                        webView.canGoBack() -> webView.goBack()
-                        else -> finishAffinity()
                     }
                 }
             },
         )
+    }
+
+    private fun performDefaultBackNavigation() {
+        when {
+            nativePlayer.isActive() -> stopNativeVideoPlayback()
+            webView.canGoBack() -> webView.goBack()
+            else -> finishAffinity()
+        }
+    }
+
+    private fun setNativeVideoOverlayActive(active: Boolean) {
+        if (active) {
+            webView.setBackgroundColor(Color.TRANSPARENT)
+            webView.background?.mutate()?.alpha = 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                // Hardware layers stay opaque on many Android TV WebViews and hide ExoPlayer below.
+                webView.setLayerType(View.LAYER_TYPE_NONE, null)
+            }
+        } else {
+            webView.setBackgroundColor(Color.BLACK)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            }
+        }
+        webView.invalidate()
+    }
+
+    private fun stopNativeVideoPlayback() {
+        nativePlayer.stop()
+        setNativeVideoOverlayActive(false)
+        updateKeepScreenOn()
     }
 
     private fun applySessionCookie() {
@@ -308,30 +350,6 @@ class MainActivity : AppCompatActivity() {
                     dispatchMediaKeyToWeb(event.keyCode)
                     return true
                 }
-                KeyEvent.KEYCODE_DPAD_CENTER,
-                KeyEvent.KEYCODE_ENTER,
-                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                    if (nativePlayer.isActive()) {
-                        nativePlayer.togglePlayPause()
-                        return true
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_LEFT,
-                KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (nativePlayer.isActive()) {
-                        val position = nativePlayer.currentPositionMs()
-                        nativePlayer.seekTo((position - 10_000).coerceAtLeast(0L))
-                        return true
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_RIGHT,
-                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (nativePlayer.isActive()) {
-                        val position = nativePlayer.currentPositionMs()
-                        nativePlayer.seekTo(position + 10_000)
-                        return true
-                    }
-                }
                 KeyEvent.KEYCODE_SEARCH -> {
                     startVoiceSearch()
                     return true
@@ -351,7 +369,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSetup(resetServer: Boolean) {
-        nativePlayer.stop()
+        stopNativeVideoPlayback()
         if (resetServer) {
             ServerPreferences.clearServerUrl(this)
         }
@@ -420,7 +438,7 @@ class MainActivity : AppCompatActivity() {
                 if (startMs > 0) append("&start=${startMs / 1000}")
             }
 
-        nativePlayer.stop()
+        stopNativeVideoPlayback()
         webView.loadUrl("${serverUrl.trimEnd('/')}/watch/?$params")
     }
 
@@ -430,6 +448,11 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 performLogout(reload = true)
             }
+        }
+
+        @JavascriptInterface
+        fun prepareNativeVideo() {
+            runOnUiThread { setNativeVideoOverlayActive(true) }
         }
 
         @JavascriptInterface
@@ -453,6 +476,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                setNativeVideoOverlayActive(true)
                 nativePlayer.play(serverUrl, sessionToken, parsed)
             }
         }
@@ -474,10 +498,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun stop() {
-            runOnUiThread {
-                nativePlayer.stop()
-                updateKeepScreenOn()
-            }
+            runOnUiThread { stopNativeVideoPlayback() }
         }
     }
 

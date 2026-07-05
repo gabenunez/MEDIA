@@ -2,9 +2,7 @@ import type { StreamQuality } from "@/lib/api";
 import type { StreamInfo } from "@/lib/api";
 import { nativeTvPlayerAvailable } from "@/lib/android-bridge";
 import {
-  containerPrefersHlsRemux,
   isBrowserDirectPlayVideoSupported,
-  is4KSource,
   isHlsVideoCopySupported,
   normalizeCodecName,
   pickTranscodeQualityForPlayback,
@@ -75,18 +73,7 @@ function effectiveOriginalPlaybackMode(
       return "remux";
     }
 
-    // MKV/WebM progressive streams stutter on ExoPlayer for SD/HD — HLS remux is smoother.
-    // Keep 4K on direct play; remux would add server work without benefit when direct works.
-    if (
-      nativeMode === "direct" &&
-      streamInfo.transcodingEnabled &&
-      containerPrefersHlsRemux(streamInfo.fileName) &&
-      !is4KSource(streamInfo.height, streamInfo.width) &&
-      isHlsVideoCopySupported(streamInfo.videoCodec)
-    ) {
-      return "remux";
-    }
-
+    // MKV/WebM remux is available as a native error fallback — direct play is preferred.
     return nativeMode;
   }
 
