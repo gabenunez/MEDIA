@@ -21,8 +21,8 @@ import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import {
   formatSubtitleLabel,
-  nextFallbackQuality,
   qualityLabel,
+  resolveFallbackQuality,
 } from "@/lib/watch-helpers";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
@@ -70,6 +70,11 @@ export function TvWatchView() {
   const currentTimeRef = useRef(0);
   const nativeSubtitleInitializedRef = useRef(false);
   const activeSubtitleRef = useRef<number | null>(null);
+  const streamInfoRef = useRef<StreamInfo | null>(null);
+  const titleRef = useRef("");
+  const playbackStreamRef = useRef<ReturnType<typeof resolvePlaybackStream> | null>(null);
+  const nativePlaySessionRef = useRef(0);
+  const nativeErrorHandledSessionRef = useRef(0);
 
   const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
 
@@ -144,6 +149,9 @@ export function TvWatchView() {
   );
   const usingHlsPlayback = playbackStream.usingHls;
   usingHlsRef.current = usingHlsPlayback;
+  playbackStreamRef.current = playbackStream;
+  titleRef.current = title;
+  streamInfoRef.current = streamInfo;
   const posterUrl = api.imageUrl(posterPath);
 
   const backHref =
@@ -222,6 +230,14 @@ export function TvWatchView() {
     [panelOpen, usesNativePlayer, isPlaying, scheduleControlsAutoHide],
   );
 
+  const openQualityMenu = useCallback(() => {
+    setSubtitleMenuOpen(false);
+    setSubtitleSearchOpen(false);
+    if (!qualityMenuOpen) rememberMenuFocus();
+    setQualityMenuOpen(true);
+    revealControls(false);
+  }, [qualityMenuOpen, rememberMenuFocus, revealControls]);
+
   const updateBufferedPosition = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -288,7 +304,11 @@ export function TvWatchView() {
   );
 
   const tryFallbackQuality = useCallback(() => {
-    const next = nextFallbackQuality(quality, availableQualities);
+    const next = resolveFallbackQuality(
+      quality,
+      availableQualities,
+      playbackStreamRef.current?.hlsQuality,
+    );
     if (!next || next === quality) return false;
     changeQuality(next);
     return true;
@@ -315,20 +335,23 @@ export function TvWatchView() {
         }
       },
       onError: () => {
+        const session = nativePlaySessionRef.current;
+        if (nativeErrorHandledSessionRef.current >= session) return;
+        nativeErrorHandledSessionRef.current = session;
+
         setBuffering(false);
         if (
-          usesNativePlayer &&
           !nativeRemuxFallbackRef.current &&
           !usingHlsRef.current &&
-          streamInfo?.transcodingEnabled
+          streamInfoRef.current?.transcodingEnabled
         ) {
           nativeRemuxFallbackRef.current = true;
           setForceRemux(true);
           setStreamGeneration((g) => g + 1);
           return;
         }
-        if (tryFallbackQualityRef.current()) return;
-        setError("Playback failed. Try a lower quality from the settings menu.");
+        // Keep the user's quality choice on TV — don't silently downgrade to 1080p.
+        setError("Playback failed. Try Original again or pick a lower quality from the settings menu.");
       },
       onEnded: () => {
         setIsPlaying(false);
@@ -351,6 +374,8 @@ export function TvWatchView() {
     setStreamGeneration(0);
     setForceRemux(false);
     nativeRemuxFallbackRef.current = false;
+    nativePlaySessionRef.current = 0;
+    nativeErrorHandledSessionRef.current = 0;
     nativeSubtitleInitializedRef.current = false;
     activeSubtitleRef.current = null;
     menuReturnFocusRef.current = null;
@@ -482,9 +507,12 @@ export function TvWatchView() {
         stream.hlsQuality,
       );
 
+      nativePlaySessionRef.current += 1;
+      nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
+
       startNativePlayback({
         url: toAbsoluteMediaUrl(relativeUrl),
-        title: title || "MEDIA!",
+        title: titleRef.current || "MEDIA!",
         fileId,
         itemType: type === "movie" ? "movie" : "episode",
         startSeconds: usingHls ? 0 : startAt,
@@ -596,7 +624,6 @@ export function TvWatchView() {
     initialResumeSeconds,
     streamInfo,
     updateBufferedPosition,
-    title,
     sourceDurationMs,
     usesNativePlayer,
     forceRemux,
@@ -632,9 +659,12 @@ export function TvWatchView() {
       stream.hlsQuality,
     );
 
+    nativePlaySessionRef.current += 1;
+    nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
+
     startNativePlayback({
       url: toAbsoluteMediaUrl(relativeUrl),
-      title: title || "MEDIA!",
+      title: titleRef.current || "MEDIA!",
       fileId,
       itemType: type === "movie" ? "movie" : "episode",
       startSeconds: usingHls ? 0 : absoluteTime,
@@ -659,7 +689,6 @@ export function TvWatchView() {
     quality,
     forceRemux,
     streamGeneration,
-    title,
     sourceDurationMs,
   ]);
 
@@ -1000,12 +1029,30 @@ export function TvWatchView() {
         return;
       }
 
-      if (e.key === "ArrowUp") {
+      const isNavigationKey =
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown" ||
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight" ||
+        e.key === "MediaRewind" ||
+        e.key === "MediaFastForward";
+
+      const canOpenSettingsFromNav =
+        showTransportControls &&
+        !panelOpen &&
+        !subtitleSearchOpen &&
+        !active?.hasAttribute("data-tv-watch-scrub") &&
+        isNavigationKey;
+
+      if (canOpenSettingsFromNav && !controlsVisible) {
         e.preventDefault();
-        if (controlsVisible) {
-          setShowControls(false);
-          closeMenus();
-        }
+        openQualityMenu();
+        return;
+      }
+
+      if (canOpenSettingsFromNav && e.key === "ArrowUp") {
+        e.preventDefault();
+        openQualityMenu();
         return;
       }
 
@@ -1041,6 +1088,8 @@ export function TvWatchView() {
     closeMenus,
     revealControls,
     controlsVisible,
+    showTransportControls,
+    openQualityMenu,
     countdown,
     cancelCountdown,
     totalDurationSeconds,
@@ -1140,15 +1189,31 @@ export function TvWatchView() {
               <p className="mb-6 text-lg text-red-400">{error}</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {transcodingEnabled &&
-                  nextFallbackQuality(quality, availableQualities) && (
+                  resolveFallbackQuality(
+                    quality,
+                    availableQualities,
+                    playbackStream.hlsQuality,
+                  ) && (
                     <TvFocusButton
                       onClick={() => {
-                        const next = nextFallbackQuality(quality, availableQualities);
+                        const next = resolveFallbackQuality(
+                          quality,
+                          availableQualities,
+                          playbackStream.hlsQuality,
+                        );
                         if (next) changeQuality(next);
                       }}
                       className="rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground"
                     >
-                      Try {qualityLabel(nextFallbackQuality(quality, availableQualities)!, sourceHeight)}
+                      Try{" "}
+                      {qualityLabel(
+                        resolveFallbackQuality(
+                          quality,
+                          availableQualities,
+                          playbackStream.hlsQuality,
+                        )!,
+                        sourceHeight,
+                      )}
                     </TvFocusButton>
                   )}
                 <TvFocusLink
@@ -1214,9 +1279,9 @@ export function TvWatchView() {
             data-tv-watch-controls=""
             className="mb-3 py-1"
           >
-            <div className="relative">
+            <div className="relative overflow-hidden">
               {showScrubPreview && (
-                <div className="mb-3 flex h-[92px] items-end justify-center">
+                <div className="mb-3 flex h-[92px] w-full max-w-full items-end justify-center overflow-hidden">
                   <SeekPreviewTooltip
                     variant="inline"
                     percent={timelinePreviewPercent}
@@ -1233,32 +1298,34 @@ export function TvWatchView() {
                 onClick={() => revealControls(false)}
                 onFocus={() => setScrubPreviewPercent(progress)}
                 onBlur={() => setScrubPreviewPercent(null)}
-                className="relative h-2 w-full overflow-visible rounded-full bg-white/20 p-0"
+                className="relative h-8 w-full overflow-hidden rounded-lg border-2 border-transparent bg-transparent p-0"
               >
-                {bufferedRanges.map((range, index) => {
-                  const left = toTimelinePercent(range.start);
-                  const width = Math.max(0, toTimelinePercent(range.end) - left);
-                  if (width <= 0) return null;
-                  return (
-                    <div
-                      key={index}
-                      className="pointer-events-none absolute inset-y-0 rounded-full bg-white/45"
-                      style={{ left: `${left}%`, width: `${width}%` }}
-                    />
-                  );
-                })}
-                <div
-                  className={cn(
-                    "pointer-events-none absolute inset-y-0 left-0 bg-primary",
-                    progress >= 99.5 ? "rounded-full" : "rounded-l-full",
-                    optimisticAbsoluteSeconds === null && "transition-[width] duration-150",
-                  )}
-                  style={{ width: `${Math.min(100, progress)}%` }}
-                />
-                <div
-                  className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary"
-                  style={{ left: `${Math.min(100, progress)}%` }}
-                />
+                <div className="absolute inset-x-1.5 top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full bg-white/20">
+                  {bufferedRanges.map((range, index) => {
+                    const left = toTimelinePercent(range.start);
+                    const width = Math.max(0, toTimelinePercent(range.end) - left);
+                    if (width <= 0) return null;
+                    return (
+                      <div
+                        key={index}
+                        className="pointer-events-none absolute inset-y-0 rounded-full bg-white/45"
+                        style={{ left: `${left}%`, width: `${width}%` }}
+                      />
+                    );
+                  })}
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-y-0 left-0 bg-primary",
+                      progress >= 99.5 ? "rounded-full" : "rounded-l-full",
+                      optimisticAbsoluteSeconds === null && "transition-[width] duration-150",
+                    )}
+                    style={{ width: `${Math.min(100, progress)}%` }}
+                  />
+                  <div
+                    className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary"
+                    style={{ left: `${Math.min(100, Math.max(0, progress))}%` }}
+                  />
+                </div>
               </TvFocusButton>
             </div>
           </div>
