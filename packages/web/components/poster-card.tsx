@@ -12,6 +12,7 @@ interface PosterCardProps {
   className?: string;
   showTitle?: boolean;
   progress?: number;
+  href?: string;
 }
 
 export const PosterCard = memo(function PosterCard({
@@ -19,12 +20,14 @@ export const PosterCard = memo(function PosterCard({
   className,
   showTitle = true,
   progress,
+  href,
 }: PosterCardProps) {
   const imageUrl = api.imageUrl(item.posterPath);
+  const targetHref = href ?? routes.media(item.id);
 
   return (
     <Link
-      href={routes.media(item.id)}
+      href={targetHref}
       className={cn("group block", className)}
       aria-label={item.title}
     >

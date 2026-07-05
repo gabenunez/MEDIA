@@ -66,16 +66,13 @@ export function ContinueWatchingRow({ items, hideHeader = false }: ContinueWatch
       )}
       <ScrollRow className="mx-auto max-w-7xl" contentClassName="px-4 sm:px-6">
         {items.map((item) => (
-          <Link
-            key={item.id}
-            href={
-              item.itemType === "movie"
-                ? routes.watch("movie", item.itemId, item.mediaId, item.posterPath)
-                : routes.watch("episode", item.itemId, item.mediaId, item.posterPath)
-            }
-            className="w-44 shrink-0 snap-start sm:w-56"
-          >
+          <div key={item.id} className="w-44 shrink-0 snap-start sm:w-56">
             <PosterCard
+              href={
+                item.itemType === "movie"
+                  ? routes.watch("movie", item.itemId, item.mediaId, item.posterPath)
+                  : routes.watch("episode", item.itemId, item.mediaId, item.posterPath)
+              }
               item={{
                 id: item.mediaId,
                 libraryId: 0,
@@ -90,7 +87,7 @@ export function ContinueWatchingRow({ items, hideHeader = false }: ContinueWatch
                 {item.subtitle}
               </p>
             )}
-          </Link>
+          </div>
         ))}
       </ScrollRow>
     </section>
