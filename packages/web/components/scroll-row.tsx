@@ -19,22 +19,58 @@ export function ScrollRow({ children, className, contentClassName }: ScrollRowPr
     const node = scrollerRef.current;
     if (!node) return;
 
-    const maxScroll = node.scrollWidth - node.clientWidth;
-    setCanScrollLeft(node.scrollLeft > 4);
-    setCanScrollRight(maxScroll - node.scrollLeft > 4);
+    const maxScroll = Math.max(0, node.scrollWidth - node.clientWidth);
+    if (maxScroll <= 1) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+
+    const containerRect = node.getBoundingClientRect();
+    const first = node.firstElementChild as HTMLElement | null;
+    const last = node.lastElementChild as HTMLElement | null;
+    const atStart = first
+      ? first.getBoundingClientRect().left >= containerRect.left - 1
+      : true;
+    const atEnd = last
+      ? last.getBoundingClientRect().right <= containerRect.right + 1
+      : true;
+
+    setCanScrollLeft(!atStart);
+    setCanScrollRight(!atEnd);
   }, []);
 
   useEffect(() => {
     const node = scrollerRef.current;
     if (!node) return;
 
+    node.scrollLeft = 0;
     updateScrollState();
+  }, [updateScrollState]);
 
-    const observer = new ResizeObserver(updateScrollState);
+  useEffect(() => {
+    const node = scrollerRef.current;
+    if (!node) return;
+
+    const runUpdate = () => {
+      updateScrollState();
+    };
+
+    runUpdate();
+    const frame = requestAnimationFrame(runUpdate);
+
+    const observer = new ResizeObserver(runUpdate);
     observer.observe(node);
+    node.addEventListener("scroll", runUpdate, { passive: true });
+    node.addEventListener("load", runUpdate, true);
 
-    return () => observer.disconnect();
-  }, [updateScrollState, children]);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      node.removeEventListener("scroll", runUpdate);
+      node.removeEventListener("load", runUpdate, true);
+    };
+  }, [updateScrollState]);
 
   const scrollBy = (direction: "left" | "right") => {
     const node = scrollerRef.current;
@@ -58,7 +94,6 @@ export function ScrollRow({ children, className, contentClassName }: ScrollRowPr
 
       <div
         ref={scrollerRef}
-        onScroll={updateScrollState}
         className={cn(
           "scrollbar-hide flex snap-x gap-4 overflow-x-auto pb-3",
           contentClassName,
