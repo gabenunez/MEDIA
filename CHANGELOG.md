@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.66 — 2026-07-05
+
+### Fix
+- **Continue Watching** — fix nested links on poster cards that caused React hydration errors; resume rows link straight to playback
+- **Homepage hero** — tighten line spacing between “This is your” and “MEDIA!”
+
 ## 0.1.65 — 2026-07-04
 
 ### UI
