@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.67 — 2026-07-05
+
+### Playback
+- **Native TV** — HLS remux for SD/HD MKV/WebM on ExoPlayer to reduce stutter; keep 4K on direct play
+- **Quality fallback** — skip redundant original→2160p when already transcoding at 2160p; fix stale stream info on native playback errors
+- **Playback start** — stop restarting native session when title metadata loads
+
+### TV
+- **Watch player** — any D-pad direction while controls are hidden opens Quality settings; Up no longer hides controls
+- **Watch scrubber** — contain seek preview and progress track inside the control bar; solid focus border instead of glow
+- **Poster cards** — clip Continue Watching progress bar inside poster bounds
+
 ## 0.1.66 — 2026-07-05
 
 ### Fix
