@@ -50,7 +50,7 @@ import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvWatchView } from "@/components/tv/views/watch-view";
-import { nextFallbackQuality, qualityLabel } from "@/lib/watch-helpers";
+import { resolveFallbackQuality, qualityLabel } from "@/lib/watch-helpers";
 
 interface SubtitleTrack {
   id: number;
@@ -109,6 +109,7 @@ function WatchDesktopClient() {
   const saveProgressRef = useRef<() => void>(() => {});
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
+  const playbackStreamRef = useRef<ReturnType<typeof resolvePlaybackStream> | null>(null);
   const volumeBeforeMuteRef = useRef(1);
 
   const [quality, setQuality] = useState<StreamQuality>("original");
@@ -162,6 +163,7 @@ function WatchDesktopClient() {
     [quality, streamInfo],
   );
   const usingHlsPlayback = playbackStream.usingHls;
+  playbackStreamRef.current = playbackStream;
   const posterUrl = api.imageUrl(posterPath);
   const { thumbnails, lookupCue } = useSeekThumbnails(
     fileId,
@@ -294,7 +296,11 @@ function WatchDesktopClient() {
   );
 
   const tryFallbackQuality = useCallback(() => {
-    const next = nextFallbackQuality(quality, availableQualities);
+    const next = resolveFallbackQuality(
+      quality,
+      availableQualities,
+      playbackStreamRef.current?.hlsQuality,
+    );
     if (!next || next === quality) return false;
     changeQuality(next);
     return true;

@@ -388,7 +388,7 @@
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-watch-scrub] {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: transparent;
     border-color: transparent;
   }
 
@@ -438,7 +438,8 @@
   }
 
   .tv-ui [data-tv-watch-scrub][data-tv-focused] {
-    box-shadow: var(--tv-focus-glow-strong);
+    border-color: hsl(var(--primary));
+    box-shadow: none;
   }
 
   html[data-native-video="true"],

@@ -41,33 +41,34 @@ export const TvPoster = memo(function TvPoster({
         aria-label={item.title}
         className={cn("group w-[7.5rem]", linkClassName)}
       >
-        <div className="tv-poster-art poster-shadow relative aspect-[2/3] rounded-lg bg-muted">
-          <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
-            {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imageUrl}
-                alt=""
-                loading={loadImmediately ? "eager" : "lazy"}
-                decoding="async"
-                {...(loadImmediately ? { fetchPriority: "high" as const } : {})}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="signal-grid flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-sm text-muted-foreground">
-                {item.type === "movie" ? (
-                  <Clapperboard className="h-8 w-8 text-primary" />
-                ) : (
-                  <Tv className="h-8 w-8 text-primary" />
-                )}
-              </div>
-            )}
-          </div>
+        <div className="tv-poster-art poster-shadow relative aspect-[2/3] overflow-hidden rounded-lg bg-muted">
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt=""
+              loading={loadImmediately ? "eager" : "lazy"}
+              decoding="async"
+              {...(loadImmediately ? { fetchPriority: "high" as const } : {})}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="signal-grid flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-sm text-muted-foreground">
+              {item.type === "movie" ? (
+                <Clapperboard className="h-8 w-8 text-primary" />
+              ) : (
+                <Tv className="h-8 w-8 text-primary" />
+              )}
+            </div>
+          )}
 
           {progress !== undefined && progress > 0 && (
-            <div className="absolute bottom-0 left-0 right-0 z-10 h-1 bg-white/25">
+            <div className="absolute inset-x-0 bottom-0 z-10 h-1 bg-white/25">
               <div
-                className="h-full bg-accent"
+                className={cn(
+                  "h-full bg-accent",
+                  progress >= 99.5 ? "w-full" : "rounded-r-full",
+                )}
                 style={{ width: `${Math.min(100, progress)}%` }}
               />
             </div>

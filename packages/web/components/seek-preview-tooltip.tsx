@@ -21,20 +21,36 @@ export function SeekPreviewTooltip({
 }: SeekPreviewTooltipProps) {
   const previewBody =
     cue && spriteUrl ? (
-      <div className="overflow-hidden rounded border border-white/20 bg-black shadow-lg">
-        <div
-          style={{
-            width: cue.width,
-            height: cue.height,
-            backgroundImage: `url(${spriteUrl})`,
-            backgroundPosition: `-${cue.x}px -${cue.y}px`,
-            backgroundRepeat: "no-repeat",
-          }}
-        />
-        <p className="px-2 py-1 text-center font-mono text-xs tabular-nums text-white">
-          {formatDuration(timeMs)}
-        </p>
-      </div>
+      (() => {
+        const maxThumbWidth = 224;
+        const scale = Math.min(1, maxThumbWidth / cue.width);
+        const displayWidth = Math.round(cue.width * scale);
+        const displayHeight = Math.round(cue.height * scale);
+
+        return (
+          <div className="max-w-full overflow-hidden rounded border border-white/20 bg-black shadow-lg">
+            <div
+              className="overflow-hidden"
+              style={{ width: displayWidth, height: displayHeight, maxWidth: "100%" }}
+            >
+              <div
+                style={{
+                  width: cue.width,
+                  height: cue.height,
+                  transform: `scale(${scale})`,
+                  transformOrigin: "top left",
+                  backgroundImage: `url(${spriteUrl})`,
+                  backgroundPosition: `-${cue.x}px -${cue.y}px`,
+                  backgroundRepeat: "no-repeat",
+                }}
+              />
+            </div>
+            <p className="px-2 py-1 text-center font-mono text-xs tabular-nums text-white">
+              {formatDuration(timeMs)}
+            </p>
+          </div>
+        );
+      })()
     ) : (
       <div className="rounded border border-white/20 bg-background/95 px-2 py-1 font-mono text-xs tabular-nums text-white shadow-lg">
         {formatDuration(timeMs)}
@@ -42,7 +58,11 @@ export function SeekPreviewTooltip({
     );
 
   if (variant === "inline") {
-    return <div className="pointer-events-none flex justify-center">{previewBody}</div>;
+    return (
+      <div className="pointer-events-none flex w-full max-w-full justify-center overflow-hidden">
+        {previewBody}
+      </div>
+    );
   }
 
   return (

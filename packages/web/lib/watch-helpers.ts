@@ -48,3 +48,20 @@ export function nextFallbackQuality(
 
   return null;
 }
+
+/** Skip redundant original→2160p when Original already transcodes at 2160p. */
+export function resolveFallbackQuality(
+  current: StreamQuality,
+  available: StreamQuality[],
+  activeHlsQuality?: StreamQuality | "remux" | null,
+): StreamQuality | null {
+  let next = nextFallbackQuality(current, available);
+  if (
+    current === "original" &&
+    next === "2160p" &&
+    activeHlsQuality === "2160p"
+  ) {
+    next = nextFallbackQuality("2160p", available);
+  }
+  return next;
+}
