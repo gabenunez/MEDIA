@@ -1,6 +1,13 @@
 import { cn } from "@/lib/utils";
 
-export function MediaIcon({ className }: { className?: string }) {
+export function MediaIcon({
+  className,
+  background = true,
+}: {
+  className?: string;
+  /** Rounded tile behind the mark — off for TV sidebar where the rail is the backdrop. */
+  background?: boolean;
+}) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -9,7 +16,7 @@ export function MediaIcon({ className }: { className?: string }) {
       className={cn("shrink-0", className)}
       aria-hidden
     >
-      <rect x="6" y="6" width="20" height="20" rx="5" fill="#0c1415" />
+      {background ? <rect x="6" y="6" width="20" height="20" rx="5" fill="#0c1415" /> : null}
       <text
         x="12.5"
         y="19.5"

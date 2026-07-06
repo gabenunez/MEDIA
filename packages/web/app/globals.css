@@ -746,6 +746,16 @@
     --tv-poster-width: 8.25rem;
   }
 
+  html.tv-mode.tv-4k .tv-ui [data-tv-logo] {
+    height: 4.5rem;
+    width: 4.5rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui [data-tv-logo] svg {
+    height: 4.5rem;
+    width: 4.5rem;
+  }
+
   html.tv-mode.tv-4k .tv-media-hero {
     min-height: 260px;
     max-height: 400px;
