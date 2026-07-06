@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.73 — 2026-07-06
+
+### Fix
+
+- **Updater** — show full release notes with scroll instead of truncating long changelogs
+
+### TV
+
+- **Playback** — hide player controls while center-screen messages are shown (errors, loading, next-episode countdown) so overlay buttons stay focusable
+- **Updates** — update modal available in TV mode, not only desktop
+
+### UI
+
+- **Updater** — pin action buttons below a scrollable release-notes area in the update modal
+
+### Tooling
+
+- **README** — document all integrations (TMDB, fanart.tv, ThemerrDB, OpenSubtitles, Plex import, Chromecast, cast-to-TV, GitHub updates)
+
 ## 0.1.72 — 2026-07-05
 
 ### Fix
