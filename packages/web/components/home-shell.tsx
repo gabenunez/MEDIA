@@ -3,19 +3,47 @@ import Link from "next/link";
 /** Prerendered static hero copy — baked into the static export shell. */
 export function HomeHeroStatic() {
   return (
-    <div className="max-w-3xl">
-      <h1 className="flex flex-col items-start gap-0 leading-none">
-        <span className="text-lg font-medium leading-none text-primary/65 sm:text-xl">
+    <div className="relative max-w-xl">
+      <h1 className="leading-none">
+        <span className="mb-3 block font-mono text-[0.72rem] uppercase tracking-[0.24em] text-muted-foreground sm:text-xs">
           This is your
         </span>
-        <span className="-mt-0.5 text-[2.65rem] font-black leading-[0.92] tracking-tight sm:-mt-1 sm:text-6xl lg:text-[4.5rem] bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          MEDIA!
+        <span className="home-hero-title relative block text-[3.25rem] font-black tracking-[-0.045em] sm:text-[4.25rem] lg:text-[5.25rem]">
+          <span className="home-hero-title-ghost" aria-hidden>
+            MEDIA!
+          </span>
+          <span className="home-hero-title-fill">MEDIA</span>
+          <span className="home-hero-title-bang text-accent">!</span>
         </span>
       </h1>
 
-      <p className="mt-4 max-w-lg text-base leading-relaxed text-muted-foreground sm:mt-5 sm:text-lg">
+      <p className="mt-5 max-w-md text-[0.95rem] leading-relaxed text-muted-foreground sm:mt-6 sm:text-base">
         Your movies and TV, streamed from your own drives on your network.
       </p>
+    </div>
+  );
+}
+
+export function HomeHeroWatermark() {
+  return (
+    <div className="home-hero-watermark pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      <span className="home-hero-watermark-text">MEDIA!</span>
+      <div className="home-hero-rings">
+        <span />
+        <span />
+        <span />
+      </div>
+    </div>
+  );
+}
+
+export function HomeHeroMonitorFrame() {
+  return (
+    <div className="home-hero-monitor-frame pointer-events-none absolute inset-3 sm:inset-4" aria-hidden>
+      <span className="home-hero-corner home-hero-corner-tl" />
+      <span className="home-hero-corner home-hero-corner-tr" />
+      <span className="home-hero-corner home-hero-corner-bl" />
+      <span className="home-hero-corner home-hero-corner-br" />
     </div>
   );
 }

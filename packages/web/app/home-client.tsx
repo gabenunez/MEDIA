@@ -17,7 +17,7 @@ import { useScanStatus } from "@/components/scan-status-provider";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { ContinueWatchingRow, MediaRow } from "@/components/media-row";
 import { ScanProgressBanner } from "@/components/scan-progress";
-import { HomeHeroStatic, HomeSectionHeading } from "@/components/home-shell";
+import { HomeHeroStatic, HomeHeroWatermark, HomeHeroMonitorFrame, HomeSectionHeading } from "@/components/home-shell";
 import { PosterRowSkeleton } from "@/components/poster-row-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,7 @@ function HomeDesktopClient() {
           continueTarget.posterPath,
         )
       : null;
-  const featuredImage = api.imageUrl(featured?.posterPath ?? featured?.backdropPath);
+  const featuredImage = api.imageUrl(featured?.backdropPath ?? featured?.posterPath);
   const tmdbConfigured = data?.tmdbConfigured;
   const totalItems = libraries.reduce(
     (sum, library) => sum + (library.itemCount ?? 0),
@@ -103,45 +103,67 @@ function HomeDesktopClient() {
 
   return (
     <div className="pb-16">
-      <section className="relative mb-12 overflow-hidden border-b border-border/70 px-4 py-12 sm:px-6 sm:py-14">
-        <div className="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.7fr)] lg:items-center">
-          <div>
-            {isScanning && (
-              <div className="mb-5 inline-flex items-center gap-2 border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Scan in progress
-              </div>
-            )}
+      <section className="home-hero relative mb-14 overflow-hidden border-b border-border/70 px-4 pb-14 pt-10 sm:px-6 sm:pb-16 sm:pt-12">
+        <HomeHeroWatermark />
 
-            <HomeHeroStatic />
+        <div className="relative z-10 mx-auto max-w-7xl">
+          <div className="grid items-end gap-10 lg:grid-cols-12 lg:gap-8 xl:gap-10">
+            <div className="lg:col-span-5 xl:col-span-5">
+              {isScanning && (
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/35 bg-background/60 px-3.5 py-1.5 font-mono text-xs uppercase tracking-wider text-primary backdrop-blur-sm">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Scan in progress
+                </div>
+              )}
 
-            <div className={cn("mt-6", !loaded && "min-h-11")}>
-              {!loaded ? (
-                <Skeleton className="h-11 w-52 max-w-full rounded-md" />
-              ) : continueTarget && continueHref ? (
-                <Button size="lg" asChild>
-                  <Link href={continueHref}>
-                    <Play className="h-5 w-5 fill-current" />
-                    Continue {continueTarget.title}
+              <HomeHeroStatic />
+
+              <div className={cn("mt-8", !loaded && "min-h-12")}>
+                {!loaded ? (
+                  <Skeleton className="h-12 w-60 max-w-full rounded-md" />
+                ) : continueTarget && continueHref ? (
+                  <Link
+                    href={continueHref}
+                    className="home-hero-resume group inline-flex min-h-12 items-center gap-3 rounded-md px-4 py-3 text-sm font-semibold text-foreground sm:px-5"
+                  >
+                    <span className="font-mono text-[0.62rem] uppercase tracking-[0.22em] text-primary/70">
+                      Resume
+                    </span>
+                    <span className="h-4 w-px bg-primary/25" aria-hidden />
+                    <Play className="h-4 w-4 fill-primary text-primary transition-transform group-hover:scale-110" />
+                    <span className="truncate">{continueTarget.title}</span>
                   </Link>
-                </Button>
-              ) : null}
-            </div>
+                ) : null}
+              </div>
 
-            <div className="mt-8 grid max-w-2xl grid-cols-3 divide-x divide-border/70 border-y border-border/70">
-              <StatCell label="Libraries" value={loaded ? libraries.length : null} />
-              <StatCell label="Titles" value={loaded ? totalItems : null} />
-              <StatCell
-                label="Metadata"
-                value={
-                  loaded && tmdbConfigured !== undefined
-                    ? tmdbConfigured
-                      ? "On"
-                      : "Off"
-                    : null
-                }
-              />
-            </div>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <TelemCell
+                  code="LIB"
+                  label="Libraries"
+                  value={loaded ? libraries.length : null}
+                  fill={loaded ? Math.min(libraries.length / 8, 1) : 0}
+                />
+                <TelemCell
+                  code="TTL"
+                  label="Titles"
+                  value={loaded ? totalItems : null}
+                  fill={loaded ? Math.min(totalItems / 400, 1) : 0}
+                />
+                <TelemCell
+                  code="META"
+                  label="Metadata"
+                  value={
+                    loaded && tmdbConfigured !== undefined
+                      ? tmdbConfigured
+                        ? "On"
+                        : "Off"
+                      : null
+                  }
+                  fill={
+                    loaded && tmdbConfigured !== undefined ? (tmdbConfigured ? 1 : 0.18) : 0
+                  }
+                />
+              </div>
 
             {activeScan && (
               <ScanProgressBanner scan={activeScan} className="mt-6 max-w-2xl" />
@@ -158,72 +180,91 @@ function HomeDesktopClient() {
                 </p>
               </div>
             )}
-          </div>
+            </div>
 
-          <div className="relative min-h-[320px] overflow-hidden rounded-md border border-border/80 bg-card poster-shadow">
-            {(!loaded || (featuredImage && !featuredImageReady)) && (
-              <Skeleton className="absolute inset-0 rounded-none" />
-            )}
-            {loaded && featuredImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={featuredImage}
-                alt={featured?.title ?? ""}
-                onLoad={handleFeaturedImageLoad}
-                ref={(node) => {
-                  if (node?.complete && node.naturalWidth > 0) {
-                    setFeaturedImageReady(true);
-                  }
-                }}
+            <div className="home-hero-monitor relative lg:col-span-7 xl:col-span-7">
+              <div
                 className={cn(
-                  "absolute inset-0 h-full w-full object-cover transition-opacity duration-200",
-                  featuredImageReady ? "opacity-100" : "opacity-0",
+                  "home-hero-monitor-shell group relative min-h-[360px] overflow-hidden rounded-lg border border-primary/20 bg-card sm:min-h-[400px]",
+                  loaded && featured && "cursor-pointer transition-colors hover:border-primary/40",
                 )}
-              />
-            ) : loaded ? (
-              <div className="signal-grid absolute inset-0" />
-            ) : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-            <div className="absolute left-0 top-0 h-full w-1 bg-primary" />
-            <div className="absolute bottom-0 left-0 right-0 p-5">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">
-                Recently added
-              </p>
-              {!loaded ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-8 w-3/4 max-w-xs" />
-                  <Skeleton className="h-9 w-24" />
+              >
+                {loaded && featured ? (
+                  <Link
+                    href={routes.media(featured.id)}
+                    className="absolute inset-0 z-30 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    aria-label={`Open ${featured.title}`}
+                  />
+                ) : null}
+                {(!loaded || (featuredImage && !featuredImageReady)) && (
+                  <Skeleton className="absolute inset-0 rounded-none" />
+                )}
+                {loaded && featuredImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={featuredImage}
+                    alt={featured?.title ?? ""}
+                    onLoad={handleFeaturedImageLoad}
+                    ref={(node) => {
+                      if (node?.complete && node.naturalWidth > 0) {
+                        setFeaturedImageReady(true);
+                      }
+                    }}
+                    className={cn(
+                      "absolute inset-0 h-full w-full object-cover transition-opacity duration-500",
+                      featuredImageReady ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                ) : loaded ? (
+                  <div className="signal-grid absolute inset-0" />
+                ) : null}
+
+                <div className="home-hero-scanlines pointer-events-none absolute inset-0 z-10 opacity-70" />
+                <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/72 to-background/15" />
+                <div className="absolute inset-0 z-10 bg-gradient-to-r from-background/45 via-transparent to-transparent" />
+                <HomeHeroMonitorFrame />
+
+                <div className="absolute bottom-0 left-0 right-0 z-20 p-5 sm:p-6">
+                  <p className="mb-2 font-mono text-[0.62rem] uppercase tracking-[0.24em] text-primary">
+                    Recently added
+                  </p>
+                  {!loaded ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-8 w-3/4 max-w-xs" />
+                      <Skeleton className="h-9 w-24" />
+                    </div>
+                  ) : featured ? (
+                    <>
+                      <h2 className="line-clamp-2 text-2xl font-bold sm:text-3xl">
+                        {featured.title}
+                      </h2>
+                      <div className="mt-4 flex items-center gap-3">
+                        <span className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background/80 px-3 text-sm font-medium transition-colors group-hover:border-primary/50 group-hover:text-primary">
+                          Open
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        </span>
+                        <span className="font-mono text-[0.68rem] uppercase text-muted-foreground">
+                          {featured.type === "movie" ? "Film" : "Series"}
+                          {featured.year ? ` / ${featured.year}` : ""}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-end justify-between gap-4">
+                      <div>
+                        <Clapperboard className="mb-4 h-12 w-12 text-primary" />
+                        <h2 className="text-2xl font-bold">Library waiting</h2>
+                      </div>
+                      <Button size="sm" asChild>
+                        <Link href="/settings">
+                          Add source
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              ) : featured ? (
-                <>
-                  <h2 className="line-clamp-2 text-2xl font-bold">{featured.title}</h2>
-                  <div className="mt-4 flex items-center gap-3">
-                    <Button size="sm" variant="outline" asChild>
-                      <Link href={routes.media(featured.id)}>
-                        Open
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <span className="font-mono text-[0.68rem] uppercase text-muted-foreground">
-                      {featured.type === "movie" ? "Film" : "Series"}
-                      {featured.year ? ` / ${featured.year}` : ""}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <Clapperboard className="mb-4 h-12 w-12 text-primary" />
-                    <h2 className="text-2xl font-bold">Library waiting</h2>
-                  </div>
-                  <Button size="sm" asChild>
-                    <Link href="/settings">
-                      Add source
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -377,21 +418,38 @@ function HomeDesktopClient() {
   );
 }
 
-function StatCell({
+function TelemCell({
+  code,
   label,
   value,
+  fill,
 }: {
+  code: string;
   label: string;
   value: string | number | null;
+  fill: number;
 }) {
   return (
-    <div className="px-3 py-4 sm:px-5">
-      <p className="font-mono text-[0.68rem] uppercase text-muted-foreground">{label}</p>
+    <div className="home-hero-telem-cell min-w-[6.75rem] flex-1 rounded-md px-3.5 py-3 sm:min-w-[7.25rem] sm:px-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-mono text-[0.58rem] uppercase tracking-[0.24em] text-primary/65">
+          {code}
+        </span>
+        <span className="font-mono text-[0.52rem] uppercase tracking-widest text-muted-foreground/70">
+          {label}
+        </span>
+      </div>
       {value === null ? (
-        <Skeleton className="mt-2 h-8 w-12" />
+        <Skeleton className="mt-2 h-8 w-14" />
       ) : (
         <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
       )}
+      <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-primary/10">
+        <div
+          className="home-hero-telem-bar h-full rounded-full bg-gradient-to-r from-primary to-accent"
+          style={{ width: `${Math.round(Math.max(0, Math.min(fill, 1)) * 100)}%` }}
+        />
+      </div>
     </div>
   );
 }
