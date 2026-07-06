@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.71 — 2026-07-05
+
+### Fix
+
+- **In-app updates** — faster apply path without a slow GitHub round-trip before starting the update; fetch timeouts and clearer errors
+- **Scrubber** — fix misaligned playhead on desktop and TV by centering the range overlay, hiding the native thumb, and unclipping the custom playhead
+
+### TV
+
+- **Native playback** — remove poster and loading dimming over ExoPlayer; prefer direct play for 4K MKV; lighter control chrome during playback
+- **Navigation** — match desktop top header with shared tab styling (Home, Favorites, Settings)
+- **Scrubber focus** — highlight the track bar instead of solid nav fill when selected on D-pad
+
+### Android TV
+
+- **WebView compositing** — transparent WebView background for clearer native video (`isOpaque = false`; rebuild APK to pick up)
+
+### UI
+
+- **Navigation** — shared `NavTab` component for desktop and TV headers
+
 ## 0.1.70 — 2026-07-05
 
 ### Fix
