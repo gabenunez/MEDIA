@@ -1186,7 +1186,7 @@ export function TvWatchView() {
     totalDurationSeconds > 0;
 
   const controlButtonClassName =
-    "tv-watch-control flex min-h-14 items-center justify-center rounded-lg text-white";
+    "tv-watch-control flex min-h-11 items-center justify-center rounded-lg text-white";
 
   const handleWatchBack = useCallback((): boolean => {
     if (countdown) {
@@ -1446,7 +1446,7 @@ export function TvWatchView() {
       data-tv-watch-player=""
       data-native-video={usesNativePlayer ? "" : undefined}
       className={cn(
-        "fixed inset-0 z-40 flex flex-col",
+        "fixed inset-0 z-40",
         usesNativePlayer ? "bg-transparent" : "bg-black",
       )}
       onMouseMove={() => {
@@ -1456,10 +1456,10 @@ export function TvWatchView() {
         if (!centerMessageVisible) revealControls(true, true);
       }}
     >
-      {/* Video stage — poster and video stay above the control dock */}
+      {/* Video stage — full-screen picture; controls overlay top/bottom */}
       <div
         data-tv-watch-video-stage=""
-        className="relative min-h-0 flex-1 bg-transparent"
+        className="relative h-full w-full bg-transparent"
       >
         <PlaybackPosterBackdrop
           posterUrl={posterUrl}
@@ -1505,11 +1505,11 @@ export function TvWatchView() {
           >
             <div
               className={cn(
-                "flex items-center gap-3 rounded-xl border border-white/10 px-5 py-4 text-lg text-white",
+                "flex items-center gap-2.5 rounded-xl border border-white/10 px-4 py-3 text-base text-white",
                 usesNativePlayer ? "bg-black/75" : "bg-background/80",
               )}
             >
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
               {loadingMessage}
             </div>
           </div>
@@ -1586,12 +1586,12 @@ export function TvWatchView() {
           </div>
         )}
 
-        {/* Top chrome overlays the video stage only while controls are visible */}
+        {/* Top chrome overlays the video while controls are visible */}
         {controlsVisible && (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
             <div
               className={cn(
-                "pointer-events-auto px-6 pb-6 pt-6",
+                "pointer-events-auto px-5 pb-4 pt-5",
                 usesNativePlayer
                   ? "bg-transparent"
                   : "watch-chrome-top",
@@ -1601,12 +1601,12 @@ export function TvWatchView() {
                 data-tv-row=""
                 data-tv-content-row=""
                 data-tv-watch-controls=""
-                className="flex items-center gap-3 py-1"
+                className="flex items-center gap-2 py-0.5"
               >
                 <div className="min-w-0">
                   <p
                     className={cn(
-                      "truncate text-lg font-bold text-white",
+                      "truncate text-base font-semibold text-white",
                       usesNativePlayer && "drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]",
                     )}
                   >
@@ -1629,176 +1629,185 @@ export function TvWatchView() {
             </div>
           </div>
         )}
-      </div>
 
-      {/* Bottom dock — scrub, preview, and transport sit below the video stage */}
-      {showTransportControls && controlsVisible && (
-      <div className="relative z-20 shrink-0 overflow-hidden">
-        <div
-          className={cn(
-            "pointer-events-auto border-t border-white/10 px-6 pb-6 pt-4",
-            usesNativePlayer ? "bg-transparent" : "watch-chrome-bottom",
-          )}
-        >
-          <div className="mb-3 flex items-end justify-between gap-3">
+        {/* Bottom chrome overlays the video — keeps the picture full-screen */}
+        {showTransportControls && controlsVisible && (
+          <div
+            data-tv-watch-bottom-chrome=""
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
+          >
             <div
-              data-tv-row=""
-              data-tv-content-row=""
-              data-tv-watch-controls=""
-              data-tv-watch-scrub-row=""
-              className="group/watch-scrub min-w-0 flex-1 py-2.5"
+              className={cn(
+                "pointer-events-auto px-5 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-8",
+                usesNativePlayer ? "bg-transparent" : "watch-chrome-bottom",
+              )}
             >
-              <div className="relative">
-                {showScrubPreview && (
-                  <div className="mb-3 flex h-[92px] w-full max-w-full items-end justify-center overflow-hidden">
-                    <SeekPreviewTooltip
-                      variant="inline"
-                      percent={timelinePreviewPercent}
-                      timeMs={timelinePreviewMs}
-                      cue={lookupCue(timelinePreviewMs)}
-                      spriteUrl={thumbnails?.spriteUrl ?? null}
-                    />
-                  </div>
-                )}
-                <TvFocusButton
-                  ref={scrubButtonRef}
-                  data-tv-watch-scrub=""
-                  aria-label="Progress"
-                  onClick={() => revealControls(false)}
-                  onFocus={() => setScrubPreviewPercent(progress)}
-                  onBlur={() => setScrubPreviewPercent(null)}
-                  className="tv-watch-scrub relative flex h-8 w-full items-center overflow-visible border-2 border-transparent bg-transparent p-0 px-1.5"
+              <div className="mb-2 flex items-end justify-between gap-3">
+                <div
+                  data-tv-row=""
+                  data-tv-content-row=""
+                  data-tv-watch-controls=""
+                  data-tv-watch-scrub-row=""
+                  className="group/watch-scrub min-w-0 flex-1 py-1.5"
                 >
-                  <div className="watch-scrub-track w-full">
-                    {bufferedRanges.map((range, index) => {
-                      const left = toTimelinePercent(range.start);
-                      const width = Math.max(0, toTimelinePercent(range.end) - left);
-                      if (width <= 0) return null;
-                      return (
-                        <div
-                          key={index}
-                          className="watch-scrub-buffer"
-                          style={{ left: `${left}%`, width: `${width}%` }}
+                  <div className="relative">
+                    {showScrubPreview && (
+                      <div className="mb-2 flex w-full max-w-full items-end justify-center">
+                        <SeekPreviewTooltip
+                          variant="inline"
+                          maxThumbWidth={160}
+                          percent={timelinePreviewPercent}
+                          timeMs={timelinePreviewMs}
+                          cue={lookupCue(timelinePreviewMs)}
+                          spriteUrl={thumbnails?.spriteUrl ?? null}
                         />
-                      );
-                    })}
-                    <div
-                      className={cn(
-                        "watch-scrub-progress",
-                        progress >= 99.5 ? "rounded-full" : "rounded-l-full",
-                        optimisticAbsoluteSeconds === null && "transition-[width] duration-150",
-                      )}
-                      style={{ width: `${Math.min(100, progress)}%` }}
-                    />
-                    <div
-                      className="watch-scrub-playhead"
-                      style={{ left: `${Math.min(100, Math.max(0, progress))}%` }}
-                    />
+                      </div>
+                    )}
+                    <TvFocusButton
+                      ref={scrubButtonRef}
+                      data-tv-watch-scrub=""
+                      aria-label="Progress"
+                      onClick={() => revealControls(false)}
+                      onFocus={() => setScrubPreviewPercent(progress)}
+                      onBlur={() => setScrubPreviewPercent(null)}
+                      className="tv-watch-scrub relative flex h-7 w-full items-center overflow-visible border-2 border-transparent bg-transparent p-0 px-1.5"
+                    >
+                      <div className="watch-scrub-track w-full">
+                        {bufferedRanges.map((range, index) => {
+                          const left = toTimelinePercent(range.start);
+                          const width = Math.max(0, toTimelinePercent(range.end) - left);
+                          if (width <= 0) return null;
+                          return (
+                            <div
+                              key={index}
+                              className="watch-scrub-buffer"
+                              style={{ left: `${left}%`, width: `${width}%` }}
+                            />
+                          );
+                        })}
+                        <div
+                          className={cn(
+                            "watch-scrub-progress",
+                            progress >= 99.5 ? "rounded-full" : "rounded-l-full",
+                            optimisticAbsoluteSeconds === null && "transition-[width] duration-150",
+                          )}
+                          style={{ width: `${Math.min(100, progress)}%` }}
+                        />
+                        <div
+                          className="watch-scrub-playhead"
+                          style={{ left: `${Math.min(100, Math.max(0, progress))}%` }}
+                        />
+                      </div>
+                    </TvFocusButton>
                   </div>
+                </div>
+
+                <span
+                  className={cn(
+                    "shrink-0 font-mono text-xs tabular-nums text-white/90",
+                    usesNativePlayer && "drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]",
+                  )}
+                >
+                  {formatDuration(displayedAbsoluteTime * 1000)}
+                  {totalDurationSeconds > 0 && (
+                    <> / {formatDuration(totalDurationSeconds * 1000)}</>
+                  )}
+                </span>
+              </div>
+
+              <div
+                data-tv-row=""
+                data-tv-content-row=""
+                data-tv-watch-controls=""
+                data-tv-watch-transport-row=""
+                className="flex items-center gap-2 py-0.5"
+              >
+                <TvFocusButton
+                  variant="nav"
+                  onClick={() => skipRelative(-10)}
+                  aria-label="Back 10 seconds"
+                  className={cn("h-12 w-12", controlButtonClassName)}
+                >
+                  <SkipBack className="h-5 w-5" />
+                </TvFocusButton>
+
+                <TvFocusButton
+                  ref={playButtonRef}
+                  variant="nav"
+                  onClick={togglePlay}
+                  className={cn("h-14 w-14", controlButtonClassName)}
+                  aria-label={isPlaying ? "Pause" : "Play"}
+                >
+                  {isPlaying ? (
+                    <Pause className="h-6 w-6" />
+                  ) : (
+                    <Play className="h-6 w-6 fill-current" />
+                  )}
+                </TvFocusButton>
+
+                <TvFocusButton
+                  variant="nav"
+                  onClick={() => skipRelative(30)}
+                  aria-label="Forward 30 seconds"
+                  className={cn("h-12 w-12", controlButtonClassName)}
+                >
+                  <SkipForward className="h-5 w-5" />
+                </TvFocusButton>
+
+                <VideoDisplayModeButton
+                  variant="tv"
+                  mode={videoDisplayMode}
+                  onCycle={cycleVideoDisplayModeSetting}
+                  className={cn("h-12 w-12", controlButtonClassName)}
+                />
+
+                <TvFocusButton
+                  variant="nav"
+                  aria-label={activeSubtitle === null ? "Subtitles off" : "Subtitles on"}
+                  onClick={() => {
+                    setQualityMenuOpen(false);
+                    setSubtitleAppearanceOpen(false);
+                    setSubtitleMenuOpen((open) => {
+                      if (!open) rememberMenuFocus();
+                      return !open;
+                    });
+                    revealControls(false);
+                  }}
+                  className={cn(
+                    "h-12 min-w-[5.5rem] gap-1.5 px-3",
+                    controlButtonClassName,
+                    activeSubtitle !== null && "text-primary",
+                  )}
+                >
+                  <Subtitles className="h-4 w-4" />
+                  <span className="text-xs font-medium">Subs</span>
+                </TvFocusButton>
+
+                <TvFocusButton
+                  variant="nav"
+                  aria-label={`Quality: ${qualityLabel(quality, sourceHeight, sourceWidth)}`}
+                  onClick={() => {
+                    setSubtitleMenuOpen(false);
+                    setSubtitleAppearanceOpen(false);
+                    setQualityMenuOpen((open) => {
+                      if (!open) rememberMenuFocus();
+                      return !open;
+                    });
+                    revealControls(false);
+                  }}
+                  disabled={!transcodingEnabled && quality === "original"}
+                  className={cn("h-12 min-w-[7rem] gap-1.5 px-3", controlButtonClassName)}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  <span className="max-w-32 truncate text-xs font-medium">
+                    {qualityLabel(quality, sourceHeight, sourceWidth)}
+                  </span>
                 </TvFocusButton>
               </div>
             </div>
-
-            <span className="shrink-0 font-mono text-sm tabular-nums text-white/90">
-              {formatDuration(displayedAbsoluteTime * 1000)}
-              {totalDurationSeconds > 0 && (
-                <> / {formatDuration(totalDurationSeconds * 1000)}</>
-              )}
-            </span>
           </div>
-
-          <div
-            data-tv-row=""
-            data-tv-content-row=""
-            data-tv-watch-controls=""
-            data-tv-watch-transport-row=""
-            className="flex items-center gap-3 py-1"
-          >
-            <TvFocusButton
-              variant="nav"
-              onClick={() => skipRelative(-10)}
-              aria-label="Back 10 seconds"
-              className={cn("h-14 w-14", controlButtonClassName)}
-            >
-              <SkipBack className="h-6 w-6" />
-            </TvFocusButton>
-
-            <TvFocusButton
-              ref={playButtonRef}
-              variant="nav"
-              onClick={togglePlay}
-              className={cn("h-16 w-16", controlButtonClassName)}
-              aria-label={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? (
-                <Pause className="h-7 w-7" />
-              ) : (
-                <Play className="h-7 w-7 fill-current" />
-              )}
-            </TvFocusButton>
-
-            <TvFocusButton
-              variant="nav"
-              onClick={() => skipRelative(30)}
-              aria-label="Forward 30 seconds"
-              className={cn("h-14 w-14", controlButtonClassName)}
-            >
-              <SkipForward className="h-6 w-6" />
-            </TvFocusButton>
-
-            <VideoDisplayModeButton
-              variant="tv"
-              mode={videoDisplayMode}
-              onCycle={cycleVideoDisplayModeSetting}
-              className={cn("h-14 w-14", controlButtonClassName)}
-            />
-
-            <TvFocusButton
-              variant="nav"
-              aria-label={activeSubtitle === null ? "Subtitles off" : "Subtitles on"}
-              onClick={() => {
-                setQualityMenuOpen(false);
-                setSubtitleAppearanceOpen(false);
-                setSubtitleMenuOpen((open) => {
-                  if (!open) rememberMenuFocus();
-                  return !open;
-                });
-                revealControls(false);
-              }}
-              className={cn(
-                "h-14 min-w-24 gap-2 px-4",
-                controlButtonClassName,
-                activeSubtitle !== null && "text-primary",
-              )}
-            >
-              <Subtitles className="h-5 w-5" />
-              <span className="text-sm font-medium">Subs</span>
-            </TvFocusButton>
-
-            <TvFocusButton
-              variant="nav"
-              aria-label={`Quality: ${qualityLabel(quality, sourceHeight, sourceWidth)}`}
-              onClick={() => {
-                setSubtitleMenuOpen(false);
-                setSubtitleAppearanceOpen(false);
-                setQualityMenuOpen((open) => {
-                  if (!open) rememberMenuFocus();
-                  return !open;
-                });
-                revealControls(false);
-              }}
-              disabled={!transcodingEnabled && quality === "original"}
-              className={cn("h-14 min-w-32 gap-2 px-4", controlButtonClassName)}
-            >
-              <Settings2 className="h-5 w-5" />
-              <span className="max-w-40 truncate text-sm font-medium">
-                {qualityLabel(quality, sourceHeight, sourceWidth)}
-              </span>
-            </TvFocusButton>
-          </div>
-        </div>
+        )}
       </div>
-      )}
 
       {subtitleMenuOpen && (
         <div

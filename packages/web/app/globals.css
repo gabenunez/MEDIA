@@ -691,7 +691,7 @@
     background-image: none !important;
   }
 
-  html[data-native-video="true"] [data-tv-watch-player] > .relative.min-h-0,
+  html[data-native-video="true"] [data-tv-watch-player] > .relative.h-full,
   html[data-native-video="true"] [data-tv-watch-video-stage] {
     background: transparent !important;
   }
@@ -713,5 +713,24 @@
   html[data-native-video="true"] [data-tv-watch-player] .watch-chrome-bottom {
     background: transparent !important;
     background-image: none !important;
+  }
+
+  /* TV watch — compact overlay chrome; video stays full-screen behind controls */
+  .tv-ui [data-tv-watch-bottom-chrome] .watch-chrome-bottom {
+    background: linear-gradient(
+      to top,
+      rgb(0 0 0 / 0.92) 0%,
+      rgb(0 0 0 / 0.5) 38%,
+      transparent 100%
+    );
+  }
+
+  .tv-ui [data-tv-watch-player] .watch-chrome-top {
+    background: linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.72) 0%,
+      rgb(0 0 0 / 0.28) 50%,
+      transparent 100%
+    );
   }
 }

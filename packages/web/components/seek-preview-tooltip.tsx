@@ -10,6 +10,8 @@ interface SeekPreviewTooltipProps {
   spriteUrl: string | null;
   /** inline = centered in a dock slot; floating = above a timeline (default) */
   variant?: "inline" | "floating";
+  /** Cap thumbnail width (desktop default 224px; TV inline uses ~160px) */
+  maxThumbWidth?: number;
 }
 
 export function SeekPreviewTooltip({
@@ -18,11 +20,11 @@ export function SeekPreviewTooltip({
   cue,
   spriteUrl,
   variant = "floating",
+  maxThumbWidth = 224,
 }: SeekPreviewTooltipProps) {
   const previewBody =
     cue && spriteUrl ? (
       (() => {
-        const maxThumbWidth = 224;
         const scale = Math.min(1, maxThumbWidth / cue.width);
         const displayWidth = Math.round(cue.width * scale);
         const displayHeight = Math.round(cue.height * scale);
