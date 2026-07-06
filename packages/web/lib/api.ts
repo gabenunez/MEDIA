@@ -256,6 +256,12 @@ export interface StreamInfo {
   directPlayVideoSupported?: boolean;
   originalPlaybackMode?: "direct" | "remux" | "transcode" | "unsupported";
   nativeTvPlaybackMode?: "direct" | "remux" | "transcode" | "unsupported";
+  dynamicRange?: {
+    dolbyVision: boolean;
+    dolbyVisionProfile: number | null;
+    hdr10: boolean;
+    hlg: boolean;
+  } | null;
   thumbnailsReady?: boolean;
   posterPath?: string | null;
   mediaId?: number | null;

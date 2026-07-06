@@ -6,6 +6,9 @@ import type { HlsQuality, TranscodeQuality } from "@media-app/shared";
 import {
   TRANSCODE_PRESETS,
   effectiveTranscodeHeight,
+  buildTranscodeVideoFilter,
+  parseVideoDynamicRangeFromStream,
+  type VideoDynamicRange,
 } from "@media-app/shared";
 import { createStreamFilePrefix } from "./stream-session.js";
 
@@ -26,6 +29,7 @@ export interface ProbeResult {
   width?: number;
   height?: number;
   bitrate?: number;
+  dynamicRange: VideoDynamicRange;
   subtitleStreams: Array<{
     index: number;
     language?: string;
@@ -41,8 +45,15 @@ type FfprobeStream = {
   width?: number;
   height?: number;
   sample_aspect_ratio?: string;
+  color_space?: string;
+  color_transfer?: string;
+  color_primaries?: string;
   disposition?: { default?: number; original?: number };
   tags?: { language?: string; title?: string };
+  side_data_list?: Array<{
+    side_data_type?: string;
+    dv_profile?: number;
+  }>;
 };
 
 function parseSampleAspectRatio(value?: string): number | null {
@@ -172,6 +183,7 @@ export async function probeFile(filePath: string): Promise<ProbeResult | null> {
       bitrate: data.format?.bit_rate
         ? parseInt(data.format.bit_rate, 10)
         : undefined,
+      dynamicRange: parseVideoDynamicRangeFromStream(videoStream),
       subtitleStreams,
     };
   } catch {
@@ -342,6 +354,7 @@ export function startHlsTranscode(
   sourceHeight?: number | null,
   startSeconds = 0,
   audioStreamIndex?: number | null,
+  dynamicRange?: VideoDynamicRange | null,
 ): HlsSession {
   enforceTranscodeCapacity(sessionId);
   stopHlsSession(sessionId);
@@ -376,7 +389,7 @@ export function startHlsTranscode(
     "-fflags",
     "+genpts",
     "-vf",
-    `scale=-2:${height}`,
+    buildTranscodeVideoFilter(height, dynamicRange),
     "-c:v",
     "libx264",
     "-profile:v",

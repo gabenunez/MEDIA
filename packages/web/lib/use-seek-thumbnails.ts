@@ -83,15 +83,17 @@ export function useSeekThumbnails(
 
     let cancelled = false;
     let attempts = 0;
+    const maxAttempts = 40;
+    const retryDelayMs = 3_000;
 
     const load = async () => {
       try {
         const vttUrl = api.thumbnailVttUrl(fileId, type);
         const res = await fetch(vttUrl, { credentials: "include" });
         if (!res.ok) {
-          if (!cancelled && attempts < 8) {
+          if (!cancelled && attempts < maxAttempts) {
             attempts += 1;
-            window.setTimeout(load, 15_000);
+            window.setTimeout(load, retryDelayMs);
           }
           return;
         }
@@ -100,14 +102,24 @@ export function useSeekThumbnails(
         const cues = parseVttSpriteCues(vtt);
         if (!cues.length || cancelled) return;
 
+        const spriteUrl = api.thumbnailSpriteUrl(fileId, type);
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = spriteUrl;
+        });
+
+        if (cancelled) return;
+
         setThumbnails({
-          spriteUrl: api.thumbnailSpriteUrl(fileId, type),
+          spriteUrl,
           cues,
         });
       } catch {
-        if (!cancelled && attempts < 8) {
+        if (!cancelled && attempts < maxAttempts) {
           attempts += 1;
-          window.setTimeout(load, 15_000);
+          window.setTimeout(load, retryDelayMs);
         }
       }
     };

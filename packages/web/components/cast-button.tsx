@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Cast, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { WatchControlHint } from "@/components/watch-control-hint";
 import {
   castMedia,
   formatCastError,
@@ -81,23 +82,24 @@ export function CastButton({ disabled, className, onCast }: CastButtonProps) {
 
   return (
     <div className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={disabled || loading}
-        onClick={handleCast}
-        title={
-          contextHint ??
-          (connected ? "Cast to connected device" : "Cast to TV")
-        }
-        className={className}
+      <WatchControlHint
+        label={contextHint ?? (connected ? "Cast to connected device" : "Cast to Chromecast")}
       >
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Cast className={`h-4 w-4 ${connected ? "text-primary" : ""}`} />
-        )}
-      </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled || loading}
+          onClick={handleCast}
+          aria-label={contextHint ?? (connected ? "Cast to connected device" : "Cast to Chromecast")}
+          className={className}
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Cast className={`h-4 w-4 ${connected ? "text-primary" : ""}`} />
+          )}
+        </Button>
+      </WatchControlHint>
       {error && (
         <div className="absolute bottom-full right-0 mb-2 w-64 rounded-lg border border-border bg-card p-2 text-xs text-red-400">
           {error}

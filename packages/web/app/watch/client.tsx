@@ -37,9 +37,11 @@ import { useMediaSession } from "@/lib/use-media-session";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
+import { WatchControlHint } from "@/components/watch-control-hint";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { cn, formatDuration } from "@/lib/utils";
+import { formatDynamicRangeShort } from "@media-app/shared";
 import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
@@ -769,7 +771,10 @@ function WatchDesktopClient() {
         ? optimisticAbsoluteSeconds
         : absoluteCurrentTime;
   const timelinePreviewPercent =
-    scrubPreview ?? optimisticProgressPercent ?? timelineHoverPercent;
+    scrubPreview ?? timelineHoverPercent ?? optimisticProgressPercent;
+  const showTimelinePreview =
+    timelinePreviewPercent !== null &&
+    (scrubPreview !== null || timelineHoverPercent !== null || optimisticAbsoluteSeconds !== null);
   const timelinePreviewMs =
     timelinePreviewPercent !== null && absoluteDurationMs > 0
       ? (timelinePreviewPercent / 100) * absoluteDurationMs
@@ -982,6 +987,18 @@ function WatchDesktopClient() {
     [totalDurationSeconds],
   );
 
+  const handleTimelinePointerMove = useCallback(
+    (clientX: number) => {
+      updateTimelineHover(clientX);
+      revealControls(true);
+    },
+    [updateTimelineHover, revealControls],
+  );
+
+  const clearTimelineHover = useCallback(() => {
+    setTimelineHoverPercent(null);
+  }, []);
+
   const handleScrubCommit = (value: number) => {
     setScrubPreview(null);
     setTimelineHoverPercent(null);
@@ -1062,73 +1079,90 @@ function WatchDesktopClient() {
       >
         <div className="watch-chrome-top pointer-events-auto px-4 pb-12 pt-4 sm:px-6 sm:pt-5">
           <div className="mx-auto flex max-w-7xl items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="watch-control-btn shrink-0"
-              asChild
+            <WatchControlHint
+              label={mediaId ? "Back to details" : "Back home"}
+              placement="below"
             >
-              <Link href={mediaId ? routes.media(parseInt(mediaId, 10)) : "/"}>
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="watch-control-btn shrink-0"
+                asChild
+              >
+                <Link
+                  href={mediaId ? routes.media(parseInt(mediaId, 10)) : "/"}
+                  aria-label={mediaId ? "Back to details" : "Back home"}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Link>
+              </Button>
+            </WatchControlHint>
             <div className="min-w-0 flex-1">
               <p className="truncate text-base font-semibold text-white drop-shadow-sm sm:text-lg">
                 {title}
               </p>
               <p className="truncate text-xs text-white/60">
                 {qualityLabel(quality, streamInfo?.height ?? null, streamInfo?.width ?? null)}
+                {streamInfo?.dynamicRange
+                  ? ` · ${formatDynamicRangeShort(streamInfo.dynamicRange)}`
+                  : null}
                 {activeSubtitle !== null && " · Subtitles on"}
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="watch-control-btn shrink-0"
-              onClick={() => {
-                setDetailsOpen(true);
-                setSubtitleMenuOpen(false);
-                setQualityMenuOpen(false);
-                setVolumeMenuOpen(false);
-              }}
-            >
-              <Info className="h-4 w-4" />
-              <span className="hidden sm:inline">Details</span>
-            </Button>
+            <WatchControlHint label="Details" placement="below">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="watch-control-btn shrink-0"
+                onClick={() => {
+                  setDetailsOpen(true);
+                  setSubtitleMenuOpen(false);
+                  setQualityMenuOpen(false);
+                  setVolumeMenuOpen(false);
+                }}
+                aria-label="Details"
+              >
+                <Info className="h-4 w-4" />
+                <span className="hidden sm:inline">Details</span>
+              </Button>
+            </WatchControlHint>
           </div>
         </div>
 
         {showControls && !isPlaying && playbackHasBegun && !error && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="watch-control-btn pointer-events-auto h-16 w-16 rounded-full bg-black/55 hover:bg-black/70"
-              onClick={togglePlay}
-              aria-label="Play"
-            >
-              <Play className="ml-0.5 h-9 w-9 fill-current" />
-            </Button>
+            <WatchControlHint label="Play">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="watch-control-btn pointer-events-auto h-16 w-16 rounded-full bg-black/55 hover:bg-black/70"
+                onClick={togglePlay}
+                aria-label="Play"
+              >
+                <Play className="ml-0.5 h-9 w-9 fill-current" />
+              </Button>
+            </WatchControlHint>
           </div>
         )}
 
         <div className="watch-chrome-bottom pointer-events-auto px-4 pb-4 pt-16 sm:px-6 sm:pb-5">
           <div className="mx-auto max-w-7xl">
-            <div className="group/watch-scrub mb-3 flex items-center gap-3 sm:mb-4">
+            <div className="group/watch-scrub relative mb-3 flex items-center gap-3 overflow-visible sm:mb-4">
               <div
                 ref={timelineRef}
-                className="relative h-5 flex-1"
-                onPointerMove={(e) => updateTimelineHover(e.clientX)}
-                onPointerLeave={() => setTimelineHoverPercent(null)}
+                className="relative flex-1 overflow-visible"
+                onPointerMove={(e) => handleTimelinePointerMove(e.clientX)}
+                onPointerLeave={clearTimelineHover}
               >
-                {timelinePreviewPercent !== null && timelinePreviewMs !== null && (
+                {showTimelinePreview && timelinePreviewMs !== null && (
                   <SeekPreviewTooltip
-                    percent={timelinePreviewPercent}
+                    percent={timelinePreviewPercent ?? 0}
                     timeMs={timelinePreviewMs}
                     cue={lookupCue(timelinePreviewMs)}
                     spriteUrl={thumbnails?.spriteUrl ?? null}
                   />
                 )}
+                <div className="relative h-5">
                 <div className="watch-scrub-track absolute inset-x-0 top-1/2 -translate-y-1/2">
                   {bufferedRanges.map((range, index) => {
                     const left = toTimelinePercent(range.start);
@@ -1154,6 +1188,12 @@ function WatchDesktopClient() {
                     className="watch-scrub-playhead"
                     style={{ left: `${Math.min(100, Math.max(0, displayedProgress))}%` }}
                   />
+                  {timelineHoverPercent !== null && scrubPreview === null && (
+                    <div
+                      className="watch-scrub-playhead watch-scrub-hover-playhead"
+                      style={{ left: `${Math.min(100, Math.max(0, timelineHoverPercent))}%` }}
+                    />
+                  )}
                 </div>
                 <input
                   type="range"
@@ -1162,6 +1202,9 @@ function WatchDesktopClient() {
                   step={0.1}
                   value={displayedProgress}
                   onChange={(e) => handleScrubChange(parseFloat(e.target.value))}
+                  onPointerMove={(e) => handleTimelinePointerMove(e.clientX)}
+                  onPointerDown={(e) => handleTimelinePointerMove(e.clientX)}
+                  onPointerLeave={clearTimelineHover}
                   onPointerUp={(e) =>
                     handleScrubCommit(parseFloat((e.currentTarget as HTMLInputElement).value))
                   }
@@ -1174,6 +1217,7 @@ function WatchDesktopClient() {
                   aria-label="Progress"
                   className="range-signal range-signal-overlay absolute inset-x-0 top-1/2 z-[3] w-full -translate-y-1/2 cursor-pointer appearance-none bg-transparent"
                 />
+                </div>
               </div>
               <span className="hidden shrink-0 font-mono text-xs tabular-nums text-white/85 sm:inline">
                 {formatDuration(displayedAbsoluteTime * 1000)}
@@ -1185,66 +1229,76 @@ function WatchDesktopClient() {
 
             <div className="flex items-center justify-between gap-2 sm:gap-4">
               <div className="flex items-center gap-1 sm:gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="watch-control-btn"
-                  onClick={() => skipRelative(-10)}
-                  title="Back 10 seconds"
-                >
-                  <SkipBack className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="watch-control-btn"
-                  onClick={togglePlay}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                >
-                  {isPlaying ? (
-                    <Pause className="h-5 w-5" />
-                  ) : (
-                    <Play className="h-5 w-5 fill-current" />
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="watch-control-btn"
-                  onClick={() => skipRelative(30)}
-                  title="Forward 30 seconds"
-                >
-                  <SkipForward className="h-5 w-5" />
-                </Button>
+                <WatchControlHint label="Back 10 seconds">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="watch-control-btn"
+                    onClick={() => skipRelative(-10)}
+                    aria-label="Back 10 seconds"
+                  >
+                    <SkipBack className="h-5 w-5" />
+                  </Button>
+                </WatchControlHint>
+                <WatchControlHint label={isPlaying ? "Pause" : "Play"}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="watch-control-btn"
+                    onClick={togglePlay}
+                    aria-label={isPlaying ? "Pause" : "Play"}
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-5 w-5" />
+                    ) : (
+                      <Play className="h-5 w-5 fill-current" />
+                    )}
+                  </Button>
+                </WatchControlHint>
+                <WatchControlHint label="Forward 30 seconds">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="watch-control-btn"
+                    onClick={() => skipRelative(30)}
+                    aria-label="Forward 30 seconds"
+                  >
+                    <SkipForward className="h-5 w-5" />
+                  </Button>
+                </WatchControlHint>
 
                 <span className="ml-1 min-w-[4.5rem] font-mono text-xs tabular-nums text-white/75 sm:hidden">
                   {formatDuration(displayedAbsoluteTime * 1000)}
                 </span>
 
                 <div
-                  className="relative hidden items-center sm:flex"
+                  className="relative hidden h-10 items-center sm:flex"
                   onMouseEnter={() => setVolumeMenuOpen(true)}
                   onMouseLeave={() => setVolumeMenuOpen(false)}
                 >
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="watch-control-btn"
-                    onClick={toggleMute}
-                    aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
-                  >
-                    {muted || volume === 0 ? (
-                      <VolumeX className="h-5 w-5" />
-                    ) : volume < 0.5 ? (
-                      <Volume1 className="h-5 w-5" />
-                    ) : (
-                      <Volume2 className="h-5 w-5" />
-                    )}
-                  </Button>
+                  <WatchControlHint label={muted || volume === 0 ? "Unmute" : "Mute"}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="watch-control-btn"
+                      onClick={toggleMute}
+                      aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
+                    >
+                      {muted || volume === 0 ? (
+                        <VolumeX className="h-5 w-5" />
+                      ) : volume < 0.5 ? (
+                        <Volume1 className="h-5 w-5" />
+                      ) : (
+                        <Volume2 className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </WatchControlHint>
                   <div
                     className={cn(
-                      "flex items-center overflow-hidden transition-all duration-200",
-                      volumeMenuOpen ? "ml-1 w-24 opacity-100" : "w-0 opacity-0",
+                      "flex h-10 items-center overflow-x-clip transition-[max-width,opacity,margin] duration-200",
+                      volumeMenuOpen
+                        ? "ml-1 max-w-24 opacity-100"
+                        : "pointer-events-none max-w-0 opacity-0",
                     )}
                   >
                     <input
@@ -1257,27 +1311,29 @@ function WatchDesktopClient() {
                         setVolumeLevel(parseFloat(e.target.value) / 100)
                       }
                       aria-label="Volume"
-                      className="range-signal h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/20 accent-primary"
+                      className="range-signal range-signal-volume w-24 shrink-0 cursor-pointer appearance-none accent-primary"
                     />
                   </div>
                 </div>
 
                 <div className="relative sm:hidden">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="watch-control-btn"
-                    onClick={() => setVolumeMenuOpen((open) => !open)}
-                    aria-label={muted || volume === 0 ? "Unmute" : "Volume"}
-                  >
-                    {muted || volume === 0 ? (
-                      <VolumeX className="h-5 w-5" />
-                    ) : volume < 0.5 ? (
-                      <Volume1 className="h-5 w-5" />
-                    ) : (
-                      <Volume2 className="h-5 w-5" />
-                    )}
-                  </Button>
+                  <WatchControlHint label={muted || volume === 0 ? "Unmute" : "Volume"}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="watch-control-btn"
+                      onClick={() => setVolumeMenuOpen((open) => !open)}
+                      aria-label={muted || volume === 0 ? "Unmute" : "Volume"}
+                    >
+                      {muted || volume === 0 ? (
+                        <VolumeX className="h-5 w-5" />
+                      ) : volume < 0.5 ? (
+                        <Volume1 className="h-5 w-5" />
+                      ) : (
+                        <Volume2 className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </WatchControlHint>
                   {volumeMenuOpen && (
                     <div className="absolute bottom-full left-0 z-50 mb-2 rounded-md border border-border bg-card p-3 shadow-xl">
                       <input
@@ -1290,7 +1346,7 @@ function WatchDesktopClient() {
                           setVolumeLevel(parseFloat(e.target.value) / 100)
                         }
                         aria-label="Volume"
-                        className="range-signal h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-white/20 accent-primary"
+                        className="range-signal range-signal-volume w-28 cursor-pointer appearance-none accent-primary"
                       />
                       <button
                         type="button"
@@ -1314,21 +1370,26 @@ function WatchDesktopClient() {
                 />
 
                 <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "watch-control-btn",
-                      activeSubtitle !== null && "text-primary",
-                    )}
-                    onClick={() => {
-                      setSubtitleMenuOpen((open) => !open);
-                      setQualityMenuOpen(false);
-                      setVolumeMenuOpen(false);
-                    }}
+                  <WatchControlHint
+                    label={activeSubtitle !== null ? "Subtitles on" : "Subtitles"}
                   >
-                    <Subtitles className="h-4 w-4" />
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "watch-control-btn",
+                        activeSubtitle !== null && "text-primary",
+                      )}
+                      onClick={() => {
+                        setSubtitleMenuOpen((open) => !open);
+                        setQualityMenuOpen(false);
+                        setVolumeMenuOpen(false);
+                      }}
+                      aria-label={activeSubtitle !== null ? "Subtitles on" : "Subtitles"}
+                    >
+                      <Subtitles className="h-4 w-4" />
+                    </Button>
+                  </WatchControlHint>
                   {subtitleMenuOpen && (
                     <div className="absolute bottom-full right-0 z-50 mb-2 min-w-56 rounded-md border border-border bg-card p-1 shadow-xl">
                       {subtitles.length === 0 ? (
@@ -1404,22 +1465,27 @@ function WatchDesktopClient() {
                 </div>
 
                 <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="watch-control-btn"
-                    onClick={() => {
-                      setQualityMenuOpen((open) => !open);
-                      setSubtitleMenuOpen(false);
-                      setVolumeMenuOpen(false);
-                    }}
-                    disabled={!transcodingEnabled && quality === "original"}
+                  <WatchControlHint
+                    label={`Quality: ${qualityLabel(quality, sourceHeight, sourceWidth)}`}
                   >
-                    <Settings2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">
-                      {qualityLabel(quality, sourceHeight, sourceWidth)}
-                    </span>
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="watch-control-btn"
+                      onClick={() => {
+                        setQualityMenuOpen((open) => !open);
+                        setSubtitleMenuOpen(false);
+                        setVolumeMenuOpen(false);
+                      }}
+                      disabled={!transcodingEnabled && quality === "original"}
+                      aria-label={`Quality: ${qualityLabel(quality, sourceHeight, sourceWidth)}`}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">
+                        {qualityLabel(quality, sourceHeight, sourceWidth)}
+                      </span>
+                    </Button>
+                  </WatchControlHint>
                   {qualityMenuOpen && (
                     <div className="absolute bottom-full right-0 z-50 mb-2 min-w-40 rounded-md border border-border bg-card p-1 shadow-xl">
                       {availableQualities.map((option) => (
@@ -1446,18 +1512,21 @@ function WatchDesktopClient() {
 
                 <TvCastButton onCast={handleTvCast} className="watch-control-btn" />
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="watch-control-btn"
-                  onClick={toggleFullscreen}
-                >
-                  {isFullscreen ? (
-                    <Minimize className="h-5 w-5" />
-                  ) : (
-                    <Maximize className="h-5 w-5" />
-                  )}
-                </Button>
+                <WatchControlHint label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="watch-control-btn"
+                    onClick={toggleFullscreen}
+                    aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                  >
+                    {isFullscreen ? (
+                      <Minimize className="h-5 w-5" />
+                    ) : (
+                      <Maximize className="h-5 w-5" />
+                    )}
+                  </Button>
+                </WatchControlHint>
               </div>
             </div>
           </div>
