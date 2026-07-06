@@ -79,7 +79,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               className="mb-6 flex h-16 w-16 items-center justify-center"
               aria-hidden="true"
             >
-              <MediaIcon background={false} className="h-16 w-16" />
+              <MediaIcon background={false} className="h-16 w-auto" />
             </div>
 
             <nav
