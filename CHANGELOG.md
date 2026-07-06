@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.76 — 2026-07-06
+
+### Fix
+
+- **Updates** — reload the browser automatically when an in-app server update finishes so fresh JS assets load
+- **Playback** — recover from stale chunk errors after deploys instead of hanging on the watch-page loader
+- **Playback** — reload if the watch route spinner is still showing after 12 seconds
+
 ## 0.1.75 — 2026-07-06
 
 ### TV
