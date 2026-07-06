@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.75 — 2026-07-06
+
+### TV
+
+- **Subtitles** — customize appearance from the player (size, font, color, opacity, background, edge style) with live preview, matching desktop Settings
+- **Subtitles** — appearance settings share the same device preferences as desktop
+- **Navigation** — spatial nav stays scoped inside watch menus (subtitles, quality, appearance)
+- **Subtitles** — online search dialog focuses the first actionable control on open
+- **Controls** — larger transport buttons, clearer aria labels, and dialog roles on player menus
+- **Remote** — dedicated MediaPlay/MediaPause handling; rewind/forward keys seek when controls are hidden
+
+### Fix
+
+- **Playback** — clear buffering state when the video reaches `canplay`
+- **Subtitles** — TV cue size respects user appearance settings instead of a fixed size
+
 ## 0.1.74 — 2026-07-06
 
 ### Playback
