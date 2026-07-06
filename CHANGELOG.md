@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.85 — 2026-07-06
+
+### UI
+
+- **Desktop nav** — logo without the dark tile background, tighter crop, and sizing aligned with the search bar
+
 ## 0.1.84 — 2026-07-06
 
 ### UI
