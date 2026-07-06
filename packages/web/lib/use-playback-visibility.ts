@@ -15,6 +15,7 @@ interface PlaybackVisibilityOptions {
   usingHlsPlayback: boolean;
   usesNativePlayer?: boolean;
   onSaveProgress: () => void;
+  onResumeStoppedHls?: () => void;
 }
 
 export function usePlaybackVisibility(options: PlaybackVisibilityOptions): void {
@@ -27,11 +28,15 @@ export function usePlaybackVisibility(options: PlaybackVisibilityOptions): void 
     usingHlsPlayback,
     usesNativePlayer = false,
     onSaveProgress,
+    onResumeStoppedHls,
   } = options;
 
   const wasPlayingRef = useRef(false);
+  const stoppedHlsForHiddenRef = useRef(false);
   const onSaveProgressRef = useRef(onSaveProgress);
   onSaveProgressRef.current = onSaveProgress;
+  const onResumeStoppedHlsRef = useRef(onResumeStoppedHls);
+  onResumeStoppedHlsRef.current = onResumeStoppedHls;
 
   useEffect(() => {
     if (!enabled || typeof document === "undefined") return;
@@ -53,7 +58,8 @@ export function usePlaybackVisibility(options: PlaybackVisibilityOptions): void 
           video.pause();
         }
 
-        if (usingHlsPlayback && !usesNativePlayer) {
+        if (usingHlsPlayback && !usesNativePlayer && wasPlayingRef.current) {
+          stoppedHlsForHiddenRef.current = true;
           hlsRef.current?.stopLoad();
           void api.stopStream(fileId, type).catch(() => {});
         }
@@ -66,6 +72,11 @@ export function usePlaybackVisibility(options: PlaybackVisibilityOptions): void 
       }
 
       if (wasPlayingRef.current && video) {
+        if (usingHlsPlayback && stoppedHlsForHiddenRef.current) {
+          stoppedHlsForHiddenRef.current = false;
+          onResumeStoppedHlsRef.current?.();
+          return;
+        }
         void video.play().catch(() => {});
       }
     };

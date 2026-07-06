@@ -49,6 +49,8 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
 
   let hls: Hls | null = null;
   let stopDirectPlayback: (() => void) | null = null;
+  let hlsRecoveryAttempts = 0;
+  const maxHlsRecoveryAttempts = 2;
 
   const onVideoError = () => {
     onFatalError();
@@ -63,12 +65,27 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       hls = createPlaybackHls(HlsConstructor, { tv });
       hls.loadSource(url);
       hls.attachMedia(video);
+      video.addEventListener("error", onVideoError);
       hls.on(HlsConstructor.Events.MANIFEST_PARSED, () => {
         hls?.startLoad(0);
         video.play().catch(() => {});
       });
       hls.on(HlsConstructor.Events.ERROR, (_, data) => {
-        if (data.fatal) onFatalError();
+        if (!data.fatal) return;
+
+        if (hls && hlsRecoveryAttempts < maxHlsRecoveryAttempts) {
+          hlsRecoveryAttempts += 1;
+          if (data.type === HlsConstructor.ErrorTypes.NETWORK_ERROR) {
+            hls.startLoad();
+            return;
+          }
+          if (data.type === HlsConstructor.ErrorTypes.MEDIA_ERROR) {
+            hls.recoverMediaError();
+            return;
+          }
+        }
+
+        onFatalError();
       });
       hls.on(HlsConstructor.Events.FRAG_BUFFERED, onBufferUpdate);
       hls.on(HlsConstructor.Events.BUFFER_APPENDED, onBufferUpdate);

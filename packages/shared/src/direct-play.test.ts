@@ -58,6 +58,28 @@ describe("resolveOriginalPlaybackMode", () => {
     ).toBe("direct");
   });
 
+  it("remuxes browser-safe codecs in non-progressive-friendly containers", () => {
+    expect(
+      resolveOriginalPlaybackMode({
+        audioCodec: "aac",
+        videoCodec: "h264",
+        transcodingEnabled: true,
+        fileName: "movie.mkv",
+      }),
+    ).toBe("remux");
+  });
+
+  it("marks non-progressive-friendly containers unsupported when remuxing is disabled", () => {
+    expect(
+      resolveOriginalPlaybackMode({
+        audioCodec: "aac",
+        videoCodec: "h264",
+        transcodingEnabled: false,
+        fileName: "movie.mkv",
+      }),
+    ).toBe("unsupported");
+  });
+
   it("remuxes unsupported audio with H.264 when transcoding is enabled", () => {
     expect(
       resolveOriginalPlaybackMode({

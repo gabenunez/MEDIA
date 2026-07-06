@@ -604,6 +604,18 @@ export function listHlsSegments(outputDir: string): string[] {
     });
 }
 
+function hasCompleteHlsPlaylist(outputDir: string): boolean {
+  const playlistPath = path.join(outputDir, "master.m3u8");
+  if (!fs.existsSync(playlistPath)) return false;
+
+  try {
+    const content = fs.readFileSync(playlistPath, "utf-8");
+    return content.includes("#EXTINF") && content.includes("#EXT-X-ENDLIST");
+  } catch {
+    return false;
+  }
+}
+
 export function pruneOldHlsSegments(
   outputDir: string,
   keepCount = HLS_PLAYLIST_WINDOW_SEGMENTS,
@@ -806,13 +818,14 @@ export function pruneStaleTranscodeCache(
   return removed;
 }
 
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   try {
     cleanupIdleSessions();
   } catch (err) {
     console.warn("Idle transcode session cleanup failed:", err);
   }
 }, 60_000);
+cleanupTimer.unref?.();
 
 export async function waitForFirstSegment(
   outputDir: string,
@@ -830,7 +843,10 @@ export async function waitForFirstSegment(
       }
     });
 
-    if (segments.length >= minSegments) {
+    if (
+      segments.length >= minSegments ||
+      (segments.length > 0 && hasCompleteHlsPlaylist(outputDir))
+    ) {
       return true;
     }
 

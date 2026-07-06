@@ -17,6 +17,7 @@ const BROWSER_VIDEO = new Set(["h264", "avc1"]);
 const NATIVE_TV_AUDIO = new Set(["aac", "mp3", "mp4a", "ac3", "eac3", "dts", "truehd"]);
 const NATIVE_TV_VIDEO = new Set(["h264", "avc1", "hevc", "h265", "vp9", "av1"]);
 const HLS_COPY_VIDEO = new Set(["h264", "avc1", "hevc", "h265"]);
+const FASTSTART_FRIENDLY_CONTAINER_EXTS = new Set([".mp4", ".m4v", ".mov"]);
 
 function normalizeCodec(codec) {
   if (!codec?.trim()) return null;
@@ -35,12 +36,22 @@ function normalizeCodec(codec) {
   return name.split(/[._-]/)[0] ?? name;
 }
 
-function browserMode(video, audio, transcoding = true) {
+function containerPrefersHlsRemux(filePath) {
+  if (!filePath?.trim()) return false;
+  const ext = filePath.toLowerCase().slice(filePath.lastIndexOf("."));
+  return ext.length > 1 && !FASTSTART_FRIENDLY_CONTAINER_EXTS.has(ext);
+}
+
+function browserMode(video, audio, transcoding = true, filePath = null) {
   const v = normalizeCodec(video);
   const a = normalizeCodec(audio);
   const audioOk = a && BROWSER_AUDIO.has(a);
   const videoOk = v && BROWSER_VIDEO.has(v);
-  if (audioOk && videoOk) return "direct";
+  const shouldRemuxContainer = containerPrefersHlsRemux(filePath) && v && HLS_COPY_VIDEO.has(v);
+  if (audioOk && videoOk) {
+    if (!shouldRemuxContainer) return "direct";
+    return transcoding ? "remux" : "unsupported";
+  }
   if (!transcoding) return "unsupported";
   if (v && HLS_COPY_VIDEO.has(v)) return "remux";
   return "transcode";
@@ -57,12 +68,12 @@ function tvNativeMode(video, audio, transcoding = true) {
   return "transcode";
 }
 
-function tvWebMode(video, audio, transcoding = true) {
+function tvWebMode(video, audio, transcoding = true, filePath = null) {
   // TV WebView: HEVC remux when canPlayType empty; native bridge for direct when available
   const native = tvNativeMode(video, audio, transcoding);
   if (native === "direct") return "direct-native";
   if (native === "remux") return "remux-hevc-ok";
-  return browserMode(video, audio, transcoding);
+  return browserMode(video, audio, transcoding, filePath);
 }
 
 function riskFlags(file, modes) {
@@ -159,9 +170,9 @@ async function main() {
     }
 
     const modes = {
-      browser: browserMode(entry.video_codec, entry.audio_codec),
+      browser: browserMode(entry.video_codec, entry.audio_codec, true, entry.file_path),
       tvNative: tvNativeMode(entry.video_codec, entry.audio_codec),
-      tvWeb: tvWebMode(entry.video_codec, entry.audio_codec),
+      tvWeb: tvWebMode(entry.video_codec, entry.audio_codec, true, entry.file_path),
     };
     const flags = riskFlags(entry, modes);
     const row = {

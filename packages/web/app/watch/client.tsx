@@ -826,6 +826,15 @@ function WatchDesktopClient() {
 
   seekToAbsoluteRef.current = seekToAbsolute;
 
+  const resumeStoppedHlsPlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setStreamStartSeconds(hlsStartOffsetRef.current + video.currentTime);
+    setStreamGeneration((current) => current + 1);
+    setBuffering(true);
+  }, []);
+
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),
     videoRef,
@@ -834,6 +843,7 @@ function WatchDesktopClient() {
     type: type === "movie" ? "movie" : "episode",
     usingHlsPlayback,
     onSaveProgress: saveProgress,
+    onResumeStoppedHls: resumeStoppedHlsPlayback,
   });
 
   const seekToPercent = useCallback(
