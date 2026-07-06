@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import mime from "mime-types";
 import type { AppConfig } from "@media-app/shared";
 import { getAvailableQualities, isBrowserDirectPlayAudioSupported, isBrowserDirectPlayVideoSupported, isHlsVideoCopySupported, parseHlsQuality, parseTranscodeQuality, resolveNativeTvPlaybackMode, resolveOriginalPlaybackMode } from "@media-app/shared";
@@ -73,6 +73,68 @@ function parseStartSeconds(value?: string): number {
   const parsed = parseFloat(value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return parsed;
+}
+
+function parseRangeNumber(value: string): number | null {
+  if (!/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function parseHttpRange(
+  range: string | undefined,
+  size: number,
+): { start: number; end: number } | null {
+  if (!range?.startsWith("bytes=") || size <= 0) return null;
+
+  const spec = range.slice("bytes=".length).split(",")[0]?.trim();
+  if (!spec) return null;
+
+  const separator = spec.indexOf("-");
+  if (separator === -1) return null;
+
+  const startRaw = spec.slice(0, separator).trim();
+  const endRaw = spec.slice(separator + 1).trim();
+
+  if (!startRaw) {
+    const suffixLength = parseRangeNumber(endRaw);
+    if (suffixLength == null || suffixLength <= 0) return null;
+    return {
+      start: Math.max(size - suffixLength, 0),
+      end: size - 1,
+    };
+  }
+
+  const start = parseRangeNumber(startRaw);
+  const end = endRaw ? parseRangeNumber(endRaw) : size - 1;
+
+  if (
+    start == null ||
+    end == null ||
+    start < 0 ||
+    start >= size ||
+    end < start
+  ) {
+    return null;
+  }
+
+  return {
+    start,
+    end: Math.min(end, size - 1),
+  };
+}
+
+function setMediaCorsHeaders(request: FastifyRequest, reply: FastifyReply): void {
+  const origin = request.headers.origin;
+  if (origin) {
+    reply
+      .header("Access-Control-Allow-Origin", origin)
+      .header("Access-Control-Allow-Credentials", "true")
+      .header("Vary", "Origin");
+    return;
+  }
+
+  reply.header("Access-Control-Allow-Origin", "*");
 }
 
 export async function streamRoutes(
@@ -281,6 +343,7 @@ export async function streamRoutes(
           audioCodec: metadata.audioCodec,
           videoCodec: metadata.videoCodec,
           transcodingEnabled: config.transcoding.enabled,
+          fileName: path.basename(file.filePath),
         }),
         nativeTvPlaybackMode: resolveNativeTvPlaybackMode({
           audioCodec: metadata.audioCodec,
@@ -387,30 +450,26 @@ export async function streamRoutes(
       const range = request.headers.range;
 
       if (range) {
-        const parts = range.replace(/bytes=/, "").split("-");
-        const start = parseInt(parts[0], 10);
-        let end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+        const parsed = parseHttpRange(range, stats.size);
 
-        if (
-          !Number.isFinite(start) ||
-          start < 0 ||
-          start >= stats.size ||
-          !Number.isFinite(end) ||
-          end < start
-        ) {
-          return reply.status(416).send({ error: "Invalid range" });
+        if (!parsed) {
+          setMediaCorsHeaders(request, reply);
+          return reply
+            .status(416)
+            .header("Content-Range", `bytes */${stats.size}`)
+            .send({ error: "Invalid range" });
         }
 
-        end = Math.min(end, stats.size - 1);
+        const { start, end } = parsed;
         const chunkSize = end - start + 1;
 
+        setMediaCorsHeaders(request, reply);
         reply
           .status(206)
           .header("Content-Range", `bytes ${start}-${end}/${stats.size}`)
           .header("Accept-Ranges", "bytes")
           .header("Content-Length", chunkSize)
-          .header("Content-Type", mimeType)
-          .header("Access-Control-Allow-Origin", "*");
+          .header("Content-Type", mimeType);
 
         return reply.send(
           fs.createReadStream(file.filePath, {
@@ -421,11 +480,11 @@ export async function streamRoutes(
         );
       }
 
+      setMediaCorsHeaders(request, reply);
       reply
         .header("Content-Length", stats.size)
         .header("Content-Type", mimeType)
-        .header("Accept-Ranges", "bytes")
-        .header("Access-Control-Allow-Origin", "*");
+        .header("Accept-Ranges", "bytes");
 
       return reply.send(
         fs.createReadStream(file.filePath, {
@@ -550,8 +609,8 @@ export async function streamRoutes(
         },
       );
 
+      setMediaCorsHeaders(request, reply);
       reply.header("Content-Type", "application/vnd.apple.mpegurl");
-      reply.header("Access-Control-Allow-Origin", "*");
       if (inProgress) {
         reply.header("Cache-Control", "no-store");
       }
@@ -586,8 +645,8 @@ export async function streamRoutes(
         return reply.status(404).send({ error: "Segment not found" });
       }
 
+      setMediaCorsHeaders(request, reply);
       reply.header("Content-Type", "video/mp2t");
-      reply.header("Access-Control-Allow-Origin", "*");
       if (!isTranscodeInProgress(sessionId)) {
         reply.header("Cache-Control", "public, max-age=31536000, immutable");
       }
@@ -619,8 +678,8 @@ export async function subtitleRoutes(
           await subtitleService.deleteSubtitle(id);
           return reply.status(404).send({ error: "Subtitle has no content" });
         }
+        setMediaCorsHeaders(request, reply);
         reply.header("Content-Type", "text/vtt");
-        reply.header("Access-Control-Allow-Origin", "*");
         return content;
       } catch {
         return reply.status(500).send({ error: "Failed to read subtitle" });

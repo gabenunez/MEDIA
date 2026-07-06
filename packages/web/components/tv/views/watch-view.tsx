@@ -1004,6 +1004,12 @@ export function TvWatchView() {
     }
   }, [absoluteCurrentTime, optimisticAbsoluteSeconds]);
 
+  const resumeStoppedHlsPlayback = useCallback(() => {
+    captureStreamRestartPosition();
+    setStreamGeneration((generation) => generation + 1);
+    setBuffering(true);
+  }, [captureStreamRestartPosition]);
+
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),
     videoRef,
@@ -1013,6 +1019,7 @@ export function TvWatchView() {
     usingHlsPlayback,
     usesNativePlayer,
     onSaveProgress: saveProgress,
+    onResumeStoppedHls: resumeStoppedHlsPlayback,
   });
 
   useVideoPlaybackEvents({

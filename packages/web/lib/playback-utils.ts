@@ -3,6 +3,7 @@ import type { StreamInfo } from "@/lib/api";
 import { nativeTvPlayerAvailable } from "@/lib/android-bridge";
 import {
   containerPrefersHlsRemux,
+  isBrowserDirectPlayAudioSupported,
   isBrowserDirectPlayVideoSupported,
   is4KSource,
   isHlsVideoCopySupported,
@@ -56,6 +57,7 @@ function effectiveOriginalPlaybackMode(
     audioCodec: streamInfo.audioCodec,
     videoCodec: streamInfo.videoCodec,
     transcodingEnabled: streamInfo.transcodingEnabled,
+    fileName: streamInfo.fileName,
   });
 
   // Native ExoPlayer decodes HEVC, AC3, DTS, etc. — direct play at source resolution.
@@ -157,6 +159,10 @@ export function resolvePlaybackStream(
   const codec = streamInfo.audioCodec?.toUpperCase() ?? "this format";
   const videoCodec = streamInfo.videoCodec?.toUpperCase() ?? "this format";
   const videoSupported = isBrowserDirectPlayVideoSupported(streamInfo.videoCodec);
+  const audioSupported = isBrowserDirectPlayAudioSupported(streamInfo.audioCodec);
+  const containerNeedsRemux =
+    containerPrefersHlsRemux(streamInfo.fileName) &&
+    isHlsVideoCopySupported(streamInfo.videoCodec);
 
   if (mode === "remux") {
     return {
@@ -182,7 +188,11 @@ export function resolvePlaybackStream(
     usingHls: false,
     audioCompatNotice: !videoSupported
       ? `${videoCodec} video can't play in the browser. Enable transcoding on the server or choose a lower quality.`
-      : `${codec} audio can't play in the browser. Enable transcoding on the server or choose a lower quality.`,
+      : !audioSupported
+        ? `${codec} audio can't play in the browser. Enable transcoding on the server or choose a lower quality.`
+        : containerNeedsRemux
+          ? "This video container can't play directly in the browser. Enable transcoding on the server so it can be remuxed."
+          : "This video can't play directly in the browser. Enable transcoding on the server or choose a lower quality.",
   };
 }
 

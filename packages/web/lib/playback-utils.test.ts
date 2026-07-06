@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamInfo } from "./api.js";
-import { resolveInitialStreamQuality } from "./playback-utils.js";
+import {
+  resolveInitialStreamQuality,
+  resolvePlaybackStream,
+} from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
   nativeTvPlayerAvailable: () => false,
@@ -60,5 +63,42 @@ describe("resolveInitialStreamQuality", () => {
       }),
     );
     expect(result).toEqual({ quality: "original", error: null });
+  });
+});
+
+describe("resolvePlaybackStream", () => {
+  it("uses HLS remux for browser-safe codecs in MKV containers", () => {
+    expect(
+      resolvePlaybackStream(
+        "original",
+        makeStreamInfo({
+          fileName: "movie.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "h264",
+          audioCodec: "aac",
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: true,
+      hlsQuality: "remux",
+      audioCompatNotice: null,
+    });
+  });
+
+  it("surfaces a container compatibility message when remuxing is disabled", () => {
+    const result = resolvePlaybackStream(
+      "original",
+      makeStreamInfo({
+        fileName: "movie.mkv",
+        mimeType: "video/x-matroska",
+        videoCodec: "h264",
+        audioCodec: "aac",
+        transcodingEnabled: false,
+      }),
+    );
+
+    expect(result.usingHls).toBe(false);
+    expect(result.audioCompatNotice).toMatch(/container/i);
   });
 });

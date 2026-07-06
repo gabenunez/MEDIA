@@ -133,16 +133,30 @@ export function isHlsVideoCopySupported(videoCodec?: string | null): boolean {
   return HLS_VIDEO_COPY_CODECS.has(normalized);
 }
 
+/** Containers that stream reliably as progressive HTTP without remux. */
+const FASTSTART_FRIENDLY_CONTAINER_EXTS = new Set([".mp4", ".m4v", ".mov"]);
+
+export function containerPrefersHlsRemux(fileName?: string | null): boolean {
+  if (!fileName?.trim()) return false;
+  const ext = fileName.toLowerCase().slice(fileName.lastIndexOf("."));
+  return ext.length > 1 && !FASTSTART_FRIENDLY_CONTAINER_EXTS.has(ext);
+}
+
 export function resolveOriginalPlaybackMode(options: {
   audioCodec?: string | null;
   videoCodec?: string | null;
   transcodingEnabled: boolean;
+  fileName?: string | null;
 }): OriginalPlaybackMode {
   const audioOk = isBrowserDirectPlayAudioSupported(options.audioCodec);
   const videoOk = isBrowserDirectPlayVideoSupported(options.videoCodec);
+  const shouldRemuxContainer =
+    containerPrefersHlsRemux(options.fileName) &&
+    isHlsVideoCopySupported(options.videoCodec);
 
   if (audioOk && videoOk) {
-    return "direct";
+    if (!shouldRemuxContainer) return "direct";
+    return options.transcodingEnabled ? "remux" : "unsupported";
   }
   if (!options.transcodingEnabled) {
     return "unsupported";
@@ -151,15 +165,6 @@ export function resolveOriginalPlaybackMode(options: {
     return "remux";
   }
   return "transcode";
-}
-
-/** Containers that stream reliably as progressive HTTP without remux. */
-const FASTSTART_FRIENDLY_CONTAINER_EXTS = new Set([".mp4", ".m4v", ".mov"]);
-
-export function containerPrefersHlsRemux(fileName?: string | null): boolean {
-  if (!fileName?.trim()) return false;
-  const ext = fileName.toLowerCase().slice(fileName.lastIndexOf("."));
-  return ext.length > 1 && !FASTSTART_FRIENDLY_CONTAINER_EXTS.has(ext);
 }
 
 export function pickTranscodeQualityForPlayback(
