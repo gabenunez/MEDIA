@@ -7,9 +7,14 @@ export function formatReleaseDate(value: string | null): string | null {
   });
 }
 
-export function previewReleaseNotes(notes: string | null, maxLines = 6): string | null {
+export function previewReleaseNotes(
+  notes: string | null,
+  maxLines?: number,
+): string | null {
   if (!notes?.trim()) return null;
-  return notes.trim().split("\n").slice(0, maxLines).join("\n");
+  const trimmed = notes.trim();
+  if (maxLines === undefined) return trimmed;
+  return trimmed.split("\n").slice(0, maxLines).join("\n");
 }
 
 export function formatElapsed(ms: number): string {

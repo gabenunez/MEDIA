@@ -219,6 +219,15 @@ export function TvWatchView() {
   });
   startNextEpisodeCountdownRef.current = startNextEpisodeCountdown;
 
+  const isPreparing = initialResumeSeconds === null;
+  const showLoadingOverlay =
+    !error &&
+    !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null) &&
+    (usesNativePlayer
+      ? isPreparing
+      : isPreparing || (buffering && !playbackHasBegun));
+  const centerMessageVisible = Boolean(error || countdown || showLoadingOverlay);
+
   const captureStreamRestartPosition = useCallback(() => {
     const absoluteTime = usingHlsRef.current
       ? hlsStartOffsetRef.current + currentTimeRef.current
@@ -277,6 +286,7 @@ export function TvWatchView() {
 
   const revealControls = useCallback(
     (autoHide = true, focusPlay = false) => {
+      if (centerMessageVisible) return;
       setShowControls(true);
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
       const video = videoRef.current;
@@ -295,7 +305,7 @@ export function TvWatchView() {
         });
       }
     },
-    [panelOpen, usesNativePlayer, isPlaying, scheduleControlsAutoHide],
+    [centerMessageVisible, panelOpen, usesNativePlayer, isPlaying, scheduleControlsAutoHide],
   );
 
   const updateBufferedPosition = useCallback(() => {
@@ -502,6 +512,10 @@ export function TvWatchView() {
 
   useEffect(() => {
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+    if (centerMessageVisible) {
+      setShowControls(false);
+      return;
+    }
     if (!isPlaying) {
       setShowControls(true);
       return;
@@ -512,7 +526,7 @@ export function TvWatchView() {
     return () => {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     };
-  }, [isPlaying, panelOpen, scheduleControlsAutoHide]);
+  }, [centerMessageVisible, isPlaying, panelOpen, scheduleControlsAutoHide]);
 
   useEffect(() => {
     setPosterPath(posterFromUrl);
@@ -1079,15 +1093,8 @@ export function TvWatchView() {
     });
   }, [error]);
 
-  const isPreparing = initialResumeSeconds === null;
   const showPosterBackdrop =
     Boolean(posterUrl) && !playbackHasBegun && !error;
-  const showLoadingOverlay =
-    !error &&
-    !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null) &&
-    (usesNativePlayer
-      ? isPreparing
-      : isPreparing || (buffering && !playbackHasBegun));
   const showBufferingBar =
     !usesNativePlayer && bufferingMidPlayback && playbackHasBegun && !error;
   const loadingMessage = isPreparing
@@ -1099,8 +1106,15 @@ export function TvWatchView() {
         : usingHlsPlayback
           ? `Starting ${(playbackStream.hlsQuality ?? quality).toUpperCase()} stream...`
           : "Loading video...";
-  const controlsVisible = showControls || panelOpen;
+  const controlsVisible = (showControls || panelOpen) && !centerMessageVisible;
   const showTransportControls = playbackHasBegun && !showPosterBackdrop;
+
+  useEffect(() => {
+    if (!centerMessageVisible) return;
+    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+    setShowControls(false);
+    releaseWatchFocus();
+  }, [centerMessageVisible, releaseWatchFocus]);
 
   useEffect(() => {
     if (!usesNativePlayer) return;
@@ -1181,6 +1195,8 @@ export function TvWatchView() {
       if (subtitleSearchOpen) return;
 
       if (panelOpen) return;
+
+      if (centerMessageVisible) return;
 
       if (
         e.key === "Enter" ||
@@ -1305,6 +1321,7 @@ export function TvWatchView() {
     subtitleSearchOpen,
     closeMenus,
     revealControls,
+    centerMessageVisible,
     controlsVisible,
     showTransportControls,
     totalDurationSeconds,
@@ -1342,8 +1359,12 @@ export function TvWatchView() {
         "fixed inset-0 z-40 flex flex-col",
         usesNativePlayer ? "bg-transparent" : "bg-black",
       )}
-      onMouseMove={() => revealControls(true, true)}
-      onClick={() => revealControls(true, true)}
+      onMouseMove={() => {
+        if (!centerMessageVisible) revealControls(true, true);
+      }}
+      onClick={() => {
+        if (!centerMessageVisible) revealControls(true, true);
+      }}
     >
       {/* Video stage — poster and video stay above the control dock */}
       <div

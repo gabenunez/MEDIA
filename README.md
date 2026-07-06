@@ -31,7 +31,22 @@ Dev with hot reload: `./scripts/dev.sh`
 2. Add a [TMDB API key](https://www.themoviedb.org/settings/api) (posters & metadata)
 3. Scan libraries, then browse
 
-Optional: FFmpeg for transcoding and Chromecast; OpenSubtitles API key in Settings for online subtitles.
+## Integrations
+
+MEDIA! connects to a few external services. All API keys are optional except TMDB if you want posters and metadata.
+
+| Integration | What it does | Setup |
+|-------------|--------------|-------|
+| **[TMDB](https://www.themoviedb.org/)** | Posters, descriptions, cast, and library matching | **Settings → API keys** — free key at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
+| **[fanart.tv](https://fanart.tv/)** | TV show theme music on detail pages | **Settings → API keys** — free key at [fanart.tv/get-an-api-key](https://fanart.tv/get-an-api-key/) |
+| **[ThemerrDB](https://app.lizardbyte.dev/ThemerrDB)** | Movie theme music (and TV fallback when fanart.tv has none) | Automatic via yt-dlp — no key needed |
+| **[OpenSubtitles](https://www.opensubtitles.com/)** | Search and download subtitles during playback | **Settings → API keys** — free key at [opensubtitles.com/en/consumers](https://www.opensubtitles.com/en/consumers) |
+| **Plex** | Import resume points and watched state from a local Plex library database | **Settings → Import from Plex** — reads `com.plexapp.plugins.library.db` on the server host |
+| **Google Chromecast** | Cast from the web player to Chromecast devices | Built in — requires FFmpeg for formats Chromecast can't play directly |
+| **Cast to TV** | Send playback from a phone/browser to the Android TV app on the same LAN | Use the cast button on the watch page when a TV receiver is online |
+| **GitHub** | In-app update checks and one-click upgrades | Automatic — uses git tags and `CHANGELOG.md` from [github.com/gabenunez/media-app](https://github.com/gabenunez/media-app) |
+
+**Also built in:** FFmpeg transcoding (HLS remux/transcode), embedded subtitle tracks, local `theme.mp3` files in media folders, and TV-mode web UI for browsers and the Android TV shell.
 
 ## Android TV app
 
@@ -52,7 +67,7 @@ APK output: `packages/android-tv/app/build/outputs/apk/debug/app-debug.apk`
 3. Open **MEDIA!** from the Android TV launcher.
 4. Enter your server address (e.g. `192.168.1.50` port `8096`).
 
-The app validates the connection via `/api/status`, then opens your server at `/?tv=1` with D-pad-friendly navigation. Press **Menu** on the remote to change servers.
+The app validates the connection via `/api/status`, then opens your server at `/?tv=1` with D-pad-friendly navigation. Press **Menu** on the remote to change servers. Native **ExoPlayer** handles video behind the web UI; voice search is supported on Google TV / Android TV.
 
 ## License
 

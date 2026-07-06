@@ -7,17 +7,26 @@ import { cn } from "@/lib/utils";
 interface ReleaseNotesProps {
   notes: string | null;
   maxLines?: number;
+  scrollable?: boolean;
   className?: string;
 }
 
-export function ReleaseNotes({ notes, maxLines, className }: ReleaseNotesProps) {
+export function ReleaseNotes({
+  notes,
+  maxLines,
+  scrollable = false,
+  className,
+}: ReleaseNotesProps) {
   const content = previewReleaseNotes(notes, maxLines);
   if (!content) return null;
 
   return (
     <div
+      tabIndex={scrollable ? 0 : undefined}
       className={cn(
         "rounded-md bg-muted/50 p-3 text-xs text-muted-foreground",
+        scrollable &&
+          "max-h-[min(40vh,16rem)] overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]",
         className,
       )}
     >

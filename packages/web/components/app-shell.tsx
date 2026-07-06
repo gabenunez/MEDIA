@@ -21,6 +21,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <ThemeMusicSettingsProvider>
           <AudioUnlock />
           <UpdateStatusProvider>
+            <UpdateModal />
             {isTvMode ? (
               <TvShell>{children}</TvShell>
             ) : (
@@ -28,7 +29,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 <ScanStatusProvider>
                   <Navbar />
                   <ScanStatusBar />
-                  <UpdateModal />
                   <main>{children}</main>
                 </ScanStatusProvider>
               </div>

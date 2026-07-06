@@ -120,7 +120,11 @@ export function UpdateManager() {
                   Update available: v{status.latestVersion}
                   {status.latestReleaseName ? `: ${status.latestReleaseName}` : ""}
                 </p>
-                <ReleaseNotes notes={status.releaseNotes ?? null} maxLines={4} className="mt-3 bg-background/60" />
+                <ReleaseNotes
+                  notes={status.releaseNotes ?? null}
+                  scrollable
+                  className="mt-3 bg-background/60"
+                />
                 <div className="mt-4 flex flex-wrap gap-2">
                   {status.updateSupported ? (
                     <Button onClick={handleApply} disabled={applying}>

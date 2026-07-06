@@ -60,7 +60,7 @@ export function UpdateModal() {
         className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+        <div className="shrink-0 flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold">
               {showProgress ? "Updating MEDIA!" : "Update available"}
@@ -80,11 +80,13 @@ export function UpdateModal() {
           ) : null}
         </div>
 
-        <div className="space-y-4 overflow-y-auto px-5 py-4">
-          {showProgress && status?.updateProgress ? (
+        {showProgress && status?.updateProgress ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             <UpdateProgressPanel progress={status.updateProgress} />
-          ) : (
-            <>
+          </div>
+        ) : (
+          <>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="font-medium">
@@ -117,8 +119,10 @@ export function UpdateModal() {
                 <p className="text-sm font-medium">{status.latestReleaseName}</p>
               )}
 
-              <ReleaseNotes notes={status?.releaseNotes ?? null} />
+              <ReleaseNotes notes={status?.releaseNotes ?? null} scrollable />
+            </div>
 
+            <div className="shrink-0 space-y-3 border-t border-border px-5 py-4">
               {status?.updateAvailable && !status.updateInProgress && (
                 <div className="flex flex-wrap gap-2">
                   {status.updateSupported ? (
@@ -149,9 +153,9 @@ export function UpdateModal() {
 
               {message && <p className={cn("text-sm text-muted-foreground")}>{message}</p>}
               {error && <p className="text-sm text-red-400">{error}</p>}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
