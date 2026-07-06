@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.77 — 2026-07-06
+
+### Playback
+
+- **Dolby Vision / HDR** — detect dynamic range from ffprobe (Dolby Vision profile, HDR10, HLG) and expose it in stream info
+- **Dolby Vision / HDR** — tone-map HDR and Dolby Vision sources when transcoding for SDR browsers
+- **Dolby Vision / HDR** — show dynamic range in file details and the watch player chrome (desktop and TV)
+- **Dolby Vision / HDR** — note Android TV direct-play passthrough for Dolby Vision in file details
+- **Scrubber** — hover preview with faster thumbnail polling and a playhead marker on desktop
+- **Controls** — fix volume slider clipping on desktop
+
+### UI
+
+- **Desktop player** — keyboard shortcut hints on hover for transport, quality, subtitles, cast, and display mode controls
+
+### TV
+
+- **Controls** — remove redundant on-screen Back button (remote Back still exits playback)
+- **Playback** — show dynamic range alongside quality in the watch chrome
+
 ## 0.1.76 — 2026-07-06
 
 ### Fix
