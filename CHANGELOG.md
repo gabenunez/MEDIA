@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.72 — 2026-07-05
+
+### Fix
+
+- **Native 4K playback** — stop WebView alpha-blending from dimming ExoPlayer (SurfaceView + hide overlay while controls are hidden; transparent control chrome)
+
+### TV
+
+- **Navigation** — restore left sidebar rail (Home, Favorites, Search) instead of the desktop top header
+- **Native playback** — hide the WebView layer during playback so video is not darkened under transparent pixels
+
+### Android TV
+
+- **Video surface** — switch ExoPlayer from TextureView to SurfaceView for correct compositing behind the WebView shell
+
 ## 0.1.71 — 2026-07-05
 
 ### Fix
