@@ -100,8 +100,11 @@ export function TvWatchView() {
   const nativePausedAtRef = useRef<number | null>(null);
   const nativeHlsRecoveryAttemptsRef = useRef(0);
   const startNextEpisodeCountdownRef = useRef<() => void>(() => {});
+  const controlsRevealedAtRef = useRef<number | null>(null);
 
   const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
+  /** Only hide transport chrome on Back if the user opened it within this window. */
+  const TV_CONTROLS_BACK_DISMISS_MS = 4_000;
 
   const scheduleControlsAutoHide = useCallback(() => {
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
@@ -205,9 +208,13 @@ export function TvWatchView() {
       ? routes.media(parseInt(mediaId, 10))
       : routes.home();
 
-  const handlePlaybackFinished = useCallback(() => {
-    router.push(backHref);
+  const exitWatch = useCallback(() => {
+    router.replace(backHref);
   }, [router, backHref]);
+
+  const handlePlaybackFinished = useCallback(() => {
+    exitWatch();
+  }, [exitWatch]);
 
   const {
     countdown,
@@ -308,6 +315,7 @@ export function TvWatchView() {
   const revealControls = useCallback(
     (autoHide = true, focusPlay = false) => {
       if (centerMessageVisible) return;
+      controlsRevealedAtRef.current = Date.now();
       setShowControls(true);
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
       const video = videoRef.current;
@@ -438,7 +446,7 @@ export function TvWatchView() {
         setIsPlaying(state.isPlaying);
         setBuffering(state.isBuffering && !state.ready);
         setBufferingMidPlayback(state.isBuffering && state.ready);
-        if (state.ready || state.isPlaying) {
+        if (state.ready || state.isPlaying || state.buffered > 0.5) {
           setPlaybackHasBegun(true);
         }
         const offset = hlsStartOffsetRef.current;
@@ -1200,7 +1208,7 @@ export function TvWatchView() {
   const handleWatchBack = useCallback((): boolean => {
     if (countdown) {
       cancelCountdown();
-      router.push(backHref);
+      exitWatch();
       return true;
     }
     if (subtitleSearchOpen) {
@@ -1218,19 +1226,23 @@ export function TvWatchView() {
       revealControls(false);
       return true;
     }
-    if (showControls) {
+    const controlsRecentlyRevealed =
+      showControls &&
+      controlsRevealedAtRef.current !== null &&
+      Date.now() - controlsRevealedAtRef.current < TV_CONTROLS_BACK_DISMISS_MS;
+    if (controlsRecentlyRevealed) {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
       setShowControls(false);
+      controlsRevealedAtRef.current = null;
       releaseWatchFocus();
       return true;
     }
-    router.push(backHref);
+    exitWatch();
     return true;
   }, [
     countdown,
     cancelCountdown,
-    router,
-    backHref,
+    exitWatch,
     subtitleSearchOpen,
     subtitleAppearanceOpen,
     panelOpen,
@@ -1536,7 +1548,7 @@ export function TvWatchView() {
             tv
             onCancel={() => {
               cancelCountdown();
-              router.push(backHref);
+              exitWatch();
             }}
             onPlayNow={playNextEpisodeNow}
           />

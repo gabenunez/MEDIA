@@ -15,7 +15,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.effect.Presentation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
@@ -63,15 +62,10 @@ class NativePlayerManager(
                 )
                 .setBackBuffer(60_000, true)
                 .build()
-        val trackSelector = DefaultTrackSelector(playerView.context)
-        trackSelector.setParameters(
-            trackSelector.buildUponParameters().setTunnelingEnabled(true),
-        )
         val exoPlayer =
             ExoPlayer.Builder(playerView.context)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
-                .setTrackSelector(trackSelector)
                 .build()
 
         player = exoPlayer
@@ -80,8 +74,6 @@ class NativePlayerManager(
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
         mediaSessionManager?.release()
         mediaSessionManager = PlaybackMediaSessionManager(playerView.context, exoPlayer)
-
-        setHdrContentActive(payload.isHdr)
 
         exoPlayer.setMediaItem(buildMediaItem(payload))
         exoPlayer.prepare()
@@ -283,6 +275,7 @@ class NativePlayerManager(
     }
 
     private fun updateHdrOutput(exoPlayer: ExoPlayer) {
+        if (exoPlayer.playbackState != Player.STATE_READY) return
         setHdrContentActive(isHdrFormat(exoPlayer))
     }
 

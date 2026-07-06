@@ -74,8 +74,12 @@ export function TvShell({ children }: { children: React.ReactNode }) {
       <div className="tv-ui flex h-screen max-h-screen overflow-hidden">
         {!hideNav && (
           <aside className="flex w-[4.25rem] shrink-0 flex-col items-center border-r border-border/50 bg-background/95 py-5 min-h-screen">
-            <div className="mb-6 flex h-9 w-9 items-center justify-center" aria-hidden="true">
-              <MediaIcon className="h-9 w-9 opacity-90" />
+            <div
+              data-tv-logo=""
+              className="mb-6 flex h-16 w-16 items-center justify-center"
+              aria-hidden="true"
+            >
+              <MediaIcon background={false} className="h-16 w-16" />
             </div>
 
             <nav
