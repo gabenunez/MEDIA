@@ -57,7 +57,8 @@
             android:exported="true"
             android:label="@string/app_name"
             android:screenOrientation="landscape"
-            android:theme="@style/Theme.MediaTV">
+            android:theme="@style/Theme.MediaTV"
+            android:windowSoftInputMode="stateHidden|adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />

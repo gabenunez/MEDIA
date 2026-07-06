@@ -3,6 +3,8 @@ package com.media.app
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
@@ -27,6 +29,8 @@ class SetupActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN)
 
         ServerPreferences.getServerUrl(this)?.let { savedUrl ->
             startMainActivity(savedUrl)
@@ -53,14 +57,41 @@ class SetupActivity : AppCompatActivity() {
             true
         }
 
+        hostInput.showSoftInputOnFocus = false
+        portInput.showSoftInputOnFocus = false
+        prepareManualInput(hostInput)
+        prepareManualInput(portInput)
+
         startPairingServer()
-        hostInput.requestFocus()
+        connectButton.post { connectButton.requestFocus() }
     }
 
     override fun onDestroy() {
         stopPairingServer()
         executor.shutdownNow()
         super.onDestroy()
+    }
+
+    private fun prepareManualInput(field: EditText) {
+        val openKeyboard = {
+            field.requestFocus()
+            field.post {
+                val imm = getSystemService(InputMethodManager::class.java)
+                imm.showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
+        field.setOnClickListener { openKeyboard() }
+        field.setOnKeyListener { _, keyCode, event ->
+            if (
+                event.action == KeyEvent.ACTION_DOWN &&
+                (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
+            ) {
+                openKeyboard()
+                true
+            } else {
+                false
+            }
+        }
     }
 
     private fun startPairingServer() {
