@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.82 — 2026-07-06
+
+### Fix
+
+- **Android TV HDR** — pass HDR through to the panel on native direct play; enable tunneling, HDR window mode, and stop the WebView overlay from dimming video during playback or buffering
+
+### TV
+
+- **4K SD content** — softer upscaling on 4K panels (native GPU upscale for SD, WebView soften fallback, Lanczos when transcoding)
+
+### Playback
+
+- **Transcode** — use Lanczos scaling when upscaling during transcode
+
 ## 0.1.81 — 2026-07-06
 
 ### Fix
