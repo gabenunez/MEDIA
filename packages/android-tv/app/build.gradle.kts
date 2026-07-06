@@ -11,8 +11,8 @@ android {
         applicationId = "com.media.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.4.6"
+        versionCode = 13
+        versionName = "1.4.7"
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
@@ -62,5 +62,6 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-datasource:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
+    implementation("androidx.media3:media3-effect:$media3Version")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 }

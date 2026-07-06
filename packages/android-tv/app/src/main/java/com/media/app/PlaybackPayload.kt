@@ -11,6 +11,7 @@ data class PlaybackPayload(
     val durationMs: Long,
     val isHls: Boolean,
     val subtitleUrl: String?,
+    val isHdr: Boolean,
 ) {
     companion object {
         fun parse(json: String): PlaybackPayload? {
@@ -25,6 +26,7 @@ data class PlaybackPayload(
                     durationMs = obj.optLong("durationMs", 0L),
                     isHls = obj.optBoolean("isHls", false),
                     subtitleUrl = obj.optString("subtitleUrl").takeIf { it.isNotBlank() },
+                    isHdr = obj.optBoolean("isHdr", false),
                 )
             } catch (_: Exception) {
                 null

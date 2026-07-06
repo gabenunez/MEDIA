@@ -754,4 +754,9 @@
   html.tv-mode.tv-4k .tv-ui video.media-subtitles::cue {
     font-size: calc(var(--subtitle-cue-size, 1.05em) * 1.35);
   }
+
+  /* WebView fallback — very light soften when SD is upscaled to 4K */
+  html.tv-mode.tv-4k .tv-sd-upscale-soften {
+    filter: blur(0.45px) contrast(1.03);
+  }
 }

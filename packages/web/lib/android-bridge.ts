@@ -7,6 +7,8 @@ export interface NativePlaybackRequest {
   durationMs: number;
   isHls: boolean;
   subtitleUrl?: string;
+  /** Server-reported HDR metadata — native player passes HDR through to the panel. */
+  isHdr?: boolean;
 }
 
 export interface NativePlaybackState {

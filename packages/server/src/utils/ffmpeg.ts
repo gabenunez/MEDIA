@@ -389,7 +389,7 @@ export function startHlsTranscode(
     "-fflags",
     "+genpts",
     "-vf",
-    buildTranscodeVideoFilter(height, dynamicRange),
+    buildTranscodeVideoFilter(height, dynamicRange, sourceHeight),
     "-c:v",
     "libx264",
     "-profile:v",

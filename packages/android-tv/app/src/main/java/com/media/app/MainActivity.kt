@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.SearchManager
 import android.content.ComponentCallbacks2
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -51,11 +52,23 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webView)
         nativePlayerView = findViewById(R.id.nativePlayerView)
-        nativePlayer = NativePlayerManager(nativePlayerView, emitJs = { script ->
-            webView.post { webView.evaluateJavascript(script, null) }
-        }) {
-            runOnUiThread { setNativeVideoOverlayActive(false) }
+        nativePlayerView.apply {
+            isFocusable = false
+            isFocusableInTouchMode = false
+            isClickable = false
         }
+        nativePlayer = NativePlayerManager(
+            nativePlayerView,
+            emitJs = { script ->
+                webView.post { webView.evaluateJavascript(script, null) }
+            },
+            onPlaybackStopped = {
+                runOnUiThread { setNativeVideoOverlayActive(false) }
+            },
+            onHdrContentChanged = { active ->
+                runOnUiThread { setHdrPlaybackActive(active) }
+            },
+        )
 
         configureWebView()
         configureBackNavigation()
@@ -197,7 +210,30 @@ class MainActivity : AppCompatActivity() {
     private fun stopNativeVideoPlayback() {
         nativePlayer.stop()
         setNativeVideoOverlayActive(false)
+        setHdrPlaybackActive(false)
         updateKeepScreenOn()
+    }
+
+    private fun setHdrPlaybackActive(active: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.colorMode =
+                if (active) {
+                    ActivityInfo.COLOR_MODE_HDR
+                } else {
+                    ActivityInfo.COLOR_MODE_DEFAULT
+                }
+        }
+    }
+
+    private fun applyNativeWebOverlayAlpha(alpha: Float) {
+        val clamped = alpha.coerceIn(0f, 1f)
+        webView.alpha = clamped
+        if (clamped <= 0f) {
+            // Keep the WebView from compositing over ExoPlayer while controls are hidden.
+            nativePlayerView.bringToFront()
+        } else {
+            webView.bringToFront()
+        }
     }
 
     private fun applySessionCookie() {
@@ -522,7 +558,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun setWebOverlayAlpha(alpha: Double) {
             runOnUiThread {
-                webView.alpha = alpha.toFloat().coerceIn(0f, 1f)
+                applyNativeWebOverlayAlpha(alpha.toFloat())
             }
         }
     }

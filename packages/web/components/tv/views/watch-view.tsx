@@ -24,7 +24,7 @@ import {
   qualityLabel,
   resolveFallbackQuality,
 } from "@/lib/watch-helpers";
-import { is4KSource, isHlsVideoCopySupported } from "@media-app/shared";
+import { is4KSource, isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
@@ -32,7 +32,7 @@ import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { focusTvItem } from "@/lib/tv-focus";
-import { tvImageUrl } from "@/lib/tv-image";
+import { needsTvSdUpscaleSoftening, tvImageUrl } from "@/lib/tv-image";
 import { isTv4KClient } from "@/lib/tv-mode-detect";
 import { cn, formatDuration } from "@/lib/utils";
 import { formatDynamicRangeChromeSuffix } from "@media-app/shared";
@@ -673,6 +673,7 @@ export function TvWatchView() {
         startSeconds: usingHls ? 0 : startAt,
         durationMs: sourceDurationMs || streamInfo.durationMs || 0,
         isHls: usingHls,
+        isHdr: needsHdrToneMap(streamInfo.dynamicRange),
         subtitleUrl:
           activeSubtitle != null
             ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle))
@@ -843,6 +844,7 @@ export function TvWatchView() {
       startSeconds: usingHls ? 0 : absoluteTime,
       durationMs: sourceDurationMs || streamInfo.durationMs || 0,
       isHls: usingHls,
+      isHdr: needsHdrToneMap(streamInfo.dynamicRange),
       subtitleUrl:
         activeSubtitle != null
           ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle))
@@ -1172,10 +1174,12 @@ export function TvWatchView() {
 
   useEffect(() => {
     if (!usesNativePlayer) return;
+    // Only raise the WebView layer when controls/messages need it — not during
+    // mid-playback buffering, which was dimming HDR video on Android TV.
     setNativeWebOverlayAlpha(
-      controlsVisible || centerMessageVisible || bufferingMidPlayback ? 1 : 0,
+      controlsVisible || centerMessageVisible ? 1 : 0,
     );
-  }, [usesNativePlayer, controlsVisible, centerMessageVisible, bufferingMidPlayback]);
+  }, [usesNativePlayer, controlsVisible, centerMessageVisible]);
 
   const timelinePreviewPercent = scrubPreviewPercent ?? progress;
   const timelinePreviewMs =
@@ -1484,6 +1488,9 @@ export function TvWatchView() {
             className={cn(
               "media-subtitles absolute inset-0 z-[2] h-full w-full outline-none focus:outline-none",
               videoDisplayModeClass(videoDisplayMode),
+              !usesNativePlayer &&
+                needsTvSdUpscaleSoftening(sourceHeight, sourceWidth) &&
+                "tv-sd-upscale-soften",
             )}
             controls={false}
             playsInline

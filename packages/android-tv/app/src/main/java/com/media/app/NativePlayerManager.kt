@@ -5,13 +5,17 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import androidx.media3.common.C
+import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
+import androidx.media3.effect.Presentation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
@@ -20,6 +24,7 @@ class NativePlayerManager(
     private val playerView: PlayerView,
     private val emitJs: (String) -> Unit,
     private val onPlaybackStopped: () -> Unit = {},
+    private val onHdrContentChanged: (Boolean) -> Unit = {},
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var player: ExoPlayer? = null
@@ -29,6 +34,7 @@ class NativePlayerManager(
     private var currentPayload: PlaybackPayload? = null
     private var mediaSessionManager: PlaybackMediaSessionManager? = null
     private var displayMode: String = "fit"
+    private var hdrContentActive = false
 
     private val progressRunnable = object : Runnable {
         override fun run() {
@@ -57,10 +63,15 @@ class NativePlayerManager(
                 )
                 .setBackBuffer(60_000, true)
                 .build()
+        val trackSelector = DefaultTrackSelector(playerView.context)
+        trackSelector.setParameters(
+            trackSelector.buildUponParameters().setTunnelingEnabled(true),
+        )
         val exoPlayer =
             ExoPlayer.Builder(playerView.context)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
+                .setTrackSelector(trackSelector)
                 .build()
 
         player = exoPlayer
@@ -69,6 +80,8 @@ class NativePlayerManager(
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
         mediaSessionManager?.release()
         mediaSessionManager = PlaybackMediaSessionManager(playerView.context, exoPlayer)
+
+        setHdrContentActive(payload.isHdr)
 
         exoPlayer.setMediaItem(buildMediaItem(payload))
         exoPlayer.prepare()
@@ -83,6 +96,8 @@ class NativePlayerManager(
                                 exoPlayer.seekTo((payload.startSeconds * 1000).toLong())
                                 seekApplied = true
                             }
+                            updateHdrOutput(exoPlayer)
+                            applySdUpscaleEffect(exoPlayer)
                             applyDisplayMode()
                             emitState()
                         }
@@ -99,6 +114,12 @@ class NativePlayerManager(
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     emitState()
+                }
+
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    updateHdrOutput(exoPlayer)
+                    applySdUpscaleEffect(exoPlayer)
+                    applyDisplayMode()
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
@@ -150,6 +171,7 @@ class NativePlayerManager(
     fun stop() {
         handler.removeCallbacks(progressRunnable)
         saveProgress(player?.currentPosition ?: 0L, ended = false)
+        setHdrContentActive(false)
         releasePlayer()
         playerView.visibility = View.GONE
         playerView.scaleX = 1f
@@ -165,6 +187,32 @@ class NativePlayerManager(
                 else -> "fit"
             }
         applyDisplayMode()
+    }
+
+    private fun applySdUpscaleEffect(exoPlayer: ExoPlayer) {
+        if (hdrContentActive) {
+            exoPlayer.setVideoEffects(emptyList())
+            return
+        }
+
+        val sourceH = exoPlayer.videoSize.height
+        if (sourceH <= 0) return
+
+        val metrics = playerView.context.resources.displayMetrics
+        val screenMax = maxOf(metrics.widthPixels, metrics.heightPixels)
+        if (screenMax < 2160 || sourceH > 576) {
+            exoPlayer.setVideoEffects(emptyList<Effect>())
+            return
+        }
+
+        // Upscale SD to 720p in the GPU pipeline before the display scaler — softer on 4K TVs.
+        val targetH = 720
+        if (sourceH >= targetH) {
+            exoPlayer.setVideoEffects(emptyList<Effect>())
+            return
+        }
+
+        exoPlayer.setVideoEffects(listOf(Presentation.createForHeight(targetH)))
     }
 
     private fun applyDisplayMode() {
@@ -220,8 +268,31 @@ class NativePlayerManager(
         mediaSessionManager?.release()
         mediaSessionManager = null
         playerView.player = null
+        player?.setVideoEffects(emptyList())
         player?.release()
         player = null
+    }
+
+    private fun isHdrFormat(exoPlayer: ExoPlayer): Boolean {
+        val format = exoPlayer.videoFormat ?: return hdrContentActive
+        val colorInfo = format.colorInfo ?: return hdrContentActive
+        return when (colorInfo.colorTransfer) {
+            C.COLOR_TRANSFER_ST2084, C.COLOR_TRANSFER_HLG -> true
+            else -> false
+        }
+    }
+
+    private fun updateHdrOutput(exoPlayer: ExoPlayer) {
+        setHdrContentActive(isHdrFormat(exoPlayer))
+    }
+
+    private fun setHdrContentActive(active: Boolean) {
+        if (hdrContentActive == active) return
+        hdrContentActive = active
+        onHdrContentChanged(active)
+        if (active) {
+            player?.setVideoEffects(emptyList())
+        }
     }
 
     private fun buildMediaItem(request: PlaybackPayload): MediaItem {

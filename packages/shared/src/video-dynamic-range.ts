@@ -102,8 +102,11 @@ export function formatDynamicRangeChromeSuffix(
 export function buildTranscodeVideoFilter(
   height: number,
   dynamicRange: VideoDynamicRange | null | undefined,
+  sourceHeight?: number | null,
 ): string {
-  const scale = `scale=-2:${height}`;
+  const upscale = sourceHeight != null && sourceHeight > 0 && height > sourceHeight;
+  const scaleFlags = upscale ? ":flags=lanczos" : "";
+  const scale = `scale=-2:${height}${scaleFlags}`;
   if (!needsHdrToneMap(dynamicRange)) {
     return scale;
   }

@@ -114,4 +114,8 @@ describe("buildTranscodeVideoFilter", () => {
     expect(buildTranscodeVideoFilter(720, null)).toBe("scale=-2:720");
     expect(needsHdrToneMap(null)).toBe(false);
   });
+
+  it("uses lanczos when upscaling during transcode", () => {
+    expect(buildTranscodeVideoFilter(720, null, 480)).toBe("scale=-2:720:flags=lanczos");
+  });
 });
