@@ -11,6 +11,7 @@ import {
   formatFileSize,
   formatResolution,
 } from "@/lib/utils";
+import { formatDynamicRangeLabel } from "@media-app/shared";
 
 interface FileDetailsDialogProps {
   open: boolean;
@@ -101,6 +102,19 @@ export function FileDetailsDialog({
                 label="Video codec"
                 value={streamInfo.videoCodec ?? "Unknown"}
               />
+              {streamInfo.dynamicRange ? (
+                <DetailRow
+                  label="Dynamic range"
+                  value={formatDynamicRangeLabel(streamInfo.dynamicRange) ?? "SDR"}
+                />
+              ) : null}
+              {streamInfo.dynamicRange?.dolbyVision &&
+              streamInfo.nativeTvPlaybackMode === "direct" ? (
+                <DetailRow
+                  label="Dolby Vision"
+                  value="Passthrough on Android TV when using direct play"
+                />
+              ) : null}
               <DetailRow
                 label="Audio codec"
                 value={streamInfo.audioCodec ?? "Unknown"}

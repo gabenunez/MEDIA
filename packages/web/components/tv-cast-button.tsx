@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { WatchControlHint } from "@/components/watch-control-hint";
 import { api } from "@/lib/api";
 
 export interface TvCastPayload {
@@ -71,20 +72,22 @@ export function TvCastButton({ disabled, className, onCast }: TvCastButtonProps)
 
   return (
     <div className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={disabled || loading}
-        onClick={handleCast}
-        title={label ? `Play on ${label}` : "Play on MEDIA! TV"}
-        className={className}
-      >
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Tv className="h-4 w-4 text-primary" />
-        )}
-      </Button>
+      <WatchControlHint label={label ? `Play on ${label}` : "Play on MEDIA! TV"}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled || loading}
+          onClick={handleCast}
+          aria-label={label ? `Play on ${label}` : "Play on MEDIA! TV"}
+          className={className}
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Tv className="h-4 w-4 text-primary" />
+          )}
+        </Button>
+      </WatchControlHint>
       {error && (
         <div className="absolute bottom-full right-0 mb-2 w-64 rounded-lg border border-border bg-card p-2 text-xs text-red-400">
           {error}

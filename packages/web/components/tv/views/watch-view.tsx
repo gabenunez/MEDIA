@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type Hls from "hls.js";
-import { ChevronLeft, Loader2, Pause, Play, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
+import { Loader2, Pause, Play, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import {
@@ -33,6 +33,7 @@ import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { focusTvItem } from "@/lib/tv-focus";
 import { cn, formatDuration } from "@/lib/utils";
+import { formatDynamicRangeShort } from "@media-app/shared";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import {
   nativeTvPlayerAvailable,
@@ -1602,14 +1603,6 @@ export function TvWatchView() {
                 data-tv-watch-controls=""
                 className="flex items-center gap-3 py-1"
               >
-                <TvFocusLink
-                  href={backHref}
-                  variant="nav"
-                  className={cn("h-12 w-12", controlButtonClassName)}
-                  aria-label="Back"
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </TvFocusLink>
                 <div className="min-w-0">
                   <p
                     className={cn(
@@ -1626,6 +1619,9 @@ export function TvWatchView() {
                     )}
                   >
                     {qualityLabel(quality, sourceHeight, sourceWidth)}
+                    {streamInfo?.dynamicRange
+                      ? ` · ${formatDynamicRangeShort(streamInfo.dynamicRange)}`
+                      : null}
                     {activeSubtitle !== null && " · Subtitles on"}
                   </p>
                 </div>

@@ -184,6 +184,8 @@ export async function castRoutes(
           castQuality,
           sourceHeight,
           startSeconds,
+          probe?.audioStreamIndex,
+          probe?.dynamicRange,
         );
       }
 

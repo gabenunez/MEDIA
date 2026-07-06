@@ -297,6 +297,7 @@ export async function streamRoutes(
       const ext = path.extname(file.filePath);
       const mimeType = mime.lookup(ext) || "application/octet-stream";
       const metadata = await resolveStreamMetadata(file);
+      const probe = await probeFile(file.filePath);
       const artwork = await resolvePlaybackArtwork(fileId, type);
       const progress = await db.query.watchProgress.findFirst({
         where: and(
@@ -350,6 +351,7 @@ export async function streamRoutes(
           videoCodec: metadata.videoCodec,
           transcodingEnabled: config.transcoding.enabled,
         }),
+        dynamicRange: probe?.dynamicRange ?? null,
         thumbnailsReady: Boolean(thumbCached),
         posterPath: artwork.posterPath,
         mediaId: artwork.mediaId,
@@ -564,6 +566,7 @@ export async function streamRoutes(
                 sourceHeight,
                 startSeconds,
                 probe?.audioStreamIndex,
+                probe?.dynamicRange,
               );
 
         const ready = await waitForFirstSegment(outputDir);

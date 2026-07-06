@@ -3,6 +3,7 @@
 import { Expand, Proportions, StretchHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
+import { WatchControlHint } from "@/components/watch-control-hint";
 import { cn } from "@/lib/utils";
 import {
   type VideoDisplayMode,
@@ -52,16 +53,17 @@ export function VideoDisplayModeButton({
   }
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className={cn("watch-control-btn", className)}
-      onClick={onCycle}
-      aria-label={`Display: ${label}. ${hint}`}
-      title={hint}
-    >
-      <DisplayModeIcon mode={mode} className="h-4 w-4" />
-    </Button>
+    <WatchControlHint label={hint}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={cn("watch-control-btn", className)}
+        onClick={onCycle}
+        aria-label={`Display: ${label}. ${hint}`}
+      >
+        <DisplayModeIcon mode={mode} className="h-4 w-4" />
+      </Button>
+    </WatchControlHint>
   );
 }

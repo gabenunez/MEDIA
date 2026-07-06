@@ -349,6 +349,28 @@
     box-shadow: none;
   }
 
+  .range-signal-volume {
+    height: 1rem;
+    background: transparent;
+  }
+
+  .range-signal-volume::-webkit-slider-runnable-track {
+    height: 0.25rem;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.2);
+  }
+
+  .range-signal-volume::-moz-range-track {
+    height: 0.25rem;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.2);
+    border: none;
+  }
+
+  .range-signal-volume::-webkit-slider-thumb {
+    margin-top: -0.25rem;
+  }
+
   .range-signal-overlay {
     top: 50%;
     height: 0.75rem;
@@ -498,6 +520,14 @@
     width: 0.875rem;
   }
 
+  .watch-scrub-hover-playhead {
+    opacity: 0.85;
+    background: rgb(255 255 255 / 0.95);
+    box-shadow: 0 0 0 2px rgb(0 217 255 / 0.55);
+    pointer-events: none;
+    z-index: 2;
+  }
+
   .watch-control-btn {
     color: white;
     transition: background-color 150ms ease-out, color 150ms ease-out;
@@ -505,6 +535,48 @@
 
   .watch-control-btn:hover {
     background-color: rgb(255 255 255 / 0.12);
+  }
+
+  .watch-control-hint {
+    pointer-events: none;
+    position: absolute;
+    left: 50%;
+    z-index: 30;
+    white-space: nowrap;
+    border-radius: 0.375rem;
+    border: 1px solid rgb(255 255 255 / 0.12);
+    background: rgb(0 0 0 / 0.88);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.25;
+    color: rgb(255 255 255 / 0.92);
+    opacity: 0;
+    transition:
+      opacity 120ms ease-out,
+      transform 120ms ease-out;
+  }
+
+  .watch-control-hint-above {
+    bottom: calc(100% + 0.5rem);
+    transform: translate(-50%, 0.25rem);
+  }
+
+  .watch-control-hint-below {
+    top: calc(100% + 0.5rem);
+    transform: translate(-50%, -0.25rem);
+  }
+
+  .group\/watch-hint:hover .watch-control-hint-above,
+  .group\/watch-hint:focus-within .watch-control-hint-above {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .group\/watch-hint:hover .watch-control-hint-below,
+  .group\/watch-hint:focus-within .watch-control-hint-below {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 
   .watch-controls-overlay {
