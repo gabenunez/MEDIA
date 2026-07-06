@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.81 — 2026-07-06
+
+### Fix
+
+- **Watch player** — hide dynamic range on SDR streams instead of showing "Original · null"
+
+### TV
+
+- **4K displays** — serve HD poster and backdrop tiers, detect 4K panels for sharper imagery and slightly larger UI
+- **4K displays** — improve WebView viewport scaling on Android TV
+
 ## 0.1.80 — 2026-07-06
 
 ### TV
