@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.89 — 2026-07-07
+
+### UI
+
+- **URLs** — path-based routes (`/media/7/`, `/watch/movie/42/`, `/deck/5/`) with legacy query-param redirects
+- **Watch player** — compact subtitle appearance submenu in the subtitles popover on desktop
+
+### Fix
+
+- **Subtitles** — apply appearance changes live on web and restore tracks after tab switch or navigation
+
+### TV
+
+- **ExoPlayer** — subtitle appearance styling via `setSubtitleStyles` bridge and smoother track hot-swap
+- **ExoPlayer** — enable HDR window mode earlier when stream metadata reports HDR
+
 ## 0.1.88 — 2026-07-07
 
 ### Fix
