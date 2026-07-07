@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useLibraryRouteContext } from "@/lib/use-route-params";
 import { LibraryBig, Loader2 } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -13,9 +13,7 @@ import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
 
 export function TvLibraryView() {
-  const searchParams = useSearchParams();
-  const libraryId = parseInt(searchParams.get("id") ?? "", 10);
-  const deckId = parseInt(searchParams.get("deck") ?? "", 10);
+  const { libraryId, deckId } = useLibraryRouteContext();
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);

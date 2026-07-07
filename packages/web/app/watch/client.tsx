@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useWatchRouteParams } from "@/lib/use-route-params";
 import Link from "next/link";
 import type Hls from "hls.js";
 import {
@@ -48,7 +49,7 @@ import { CastButton } from "@/components/cast-button";
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { TvCastButton, type TvCastPayload } from "@/components/tv-cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
-import { SubtitleAppearanceDialog } from "@/components/subtitle-style-settings";
+import { DesktopSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { formatSubtitleLabel } from "@/lib/watch-helpers";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
@@ -87,12 +88,7 @@ export function WatchClient() {
 
 function WatchDesktopClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const type = (searchParams.get("type") ?? "movie") as "movie" | "episode";
-  const fileId = parseInt(searchParams.get("id") ?? "", 10);
-  const mediaId = searchParams.get("media");
-  const posterFromUrl = searchParams.get("poster");
-  const castStartSeconds = parseInt(searchParams.get("start") ?? "", 10);
+  const { type, fileId, mediaId, castStartSeconds } = useWatchRouteParams();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -144,7 +140,7 @@ function WatchDesktopClient() {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
-  const [posterPath, setPosterPath] = useState<string | null>(posterFromUrl);
+  const [posterPath, setPosterPath] = useState<string | null>(null);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [volumeMenuOpen, setVolumeMenuOpen] = useState(false);
@@ -354,8 +350,8 @@ function WatchDesktopClient() {
   }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
 
   useEffect(() => {
-    setPosterPath(posterFromUrl);
-  }, [fileId, type, posterFromUrl]);
+    setPosterPath(null);
+  }, [fileId, type]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
@@ -992,11 +988,6 @@ function WatchDesktopClient() {
         </div>
       )}
 
-      <SubtitleAppearanceDialog
-        open={subtitleAppearanceOpen}
-        onClose={() => setSubtitleAppearanceOpen(false)}
-      />
-
       <div
         className={cn(
           "watch-controls-overlay absolute inset-0 z-20 flex flex-col justify-between",
@@ -1305,8 +1296,9 @@ function WatchDesktopClient() {
                         activeSubtitle !== null && "text-primary",
                       )}
                       onClick={() => {
-                        setSubtitleMenuOpen((open) => !open);
-                        setSubtitleAppearanceOpen(false);
+                        const opening = !subtitleMenuOpen;
+                        setSubtitleMenuOpen(opening);
+                        if (!opening) setSubtitleAppearanceOpen(false);
                         setQualityMenuOpen(false);
                         setVolumeMenuOpen(false);
                       }}
@@ -1316,77 +1308,82 @@ function WatchDesktopClient() {
                     </Button>
                   </WatchControlHint>
                   {subtitleMenuOpen && (
-                    <div className="absolute bottom-full right-0 z-50 mb-2 min-w-56 rounded-md border border-border bg-card p-1 shadow-xl">
-                      {subtitles.length === 0 ? (
-                        <p className="px-3 py-1.5 text-sm text-muted-foreground">
-                          None available
-                        </p>
+                    <div className="absolute bottom-full right-0 z-50 mb-2 rounded-md border border-border bg-card p-1 shadow-xl">
+                      {subtitleAppearanceOpen ? (
+                        <DesktopSubtitleAppearancePanel
+                          onBack={() => setSubtitleAppearanceOpen(false)}
+                        />
                       ) : (
-                        <button
-                          className={cn(
-                            "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted",
-                            activeSubtitle === null && "bg-primary/10 text-primary",
-                          )}
-                          onClick={() => {
-                            setActiveSubtitle(null);
-                            setSubtitleMenuOpen(false);
-                          }}
-                        >
-                          Off
-                        </button>
-                      )}
-                      {subtitles.map((sub) => (
-                        <div
-                          key={sub.id}
-                          className={cn(
-                            "flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted",
-                            activeSubtitle === sub.id && "bg-primary/10",
-                          )}
-                        >
-                          <button
-                            className={cn(
-                              "min-w-0 flex-1 rounded px-2 py-1.5 text-left text-sm",
-                              activeSubtitle === sub.id && "text-primary",
-                            )}
-                            onClick={() => {
-                              setActiveSubtitle(sub.id);
-                              setSubtitleMenuOpen(false);
-                            }}
-                          >
-                            {formatSubtitleLabel(sub)}
-                          </button>
-                          {sub.source === "opensubtitles" && (
+                        <div className="min-w-56">
+                          {subtitles.length === 0 ? (
+                            <p className="px-3 py-1.5 text-sm text-muted-foreground">
+                              None available
+                            </p>
+                          ) : (
                             <button
-                              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-red-400"
+                              className={cn(
+                                "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted",
+                                activeSubtitle === null && "bg-primary/10 text-primary",
+                              )}
                               onClick={() => {
-                                void removeSubtitleTrack(sub.id);
+                                setActiveSubtitle(null);
+                                setSubtitleMenuOpen(false);
                               }}
                             >
-                              Remove
+                              Off
                             </button>
                           )}
+                          {subtitles.map((sub) => (
+                            <div
+                              key={sub.id}
+                              className={cn(
+                                "flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted",
+                                activeSubtitle === sub.id && "bg-primary/10",
+                              )}
+                            >
+                              <button
+                                className={cn(
+                                  "min-w-0 flex-1 rounded px-2 py-1.5 text-left text-sm",
+                                  activeSubtitle === sub.id && "text-primary",
+                                )}
+                                onClick={() => {
+                                  setActiveSubtitle(sub.id);
+                                  setSubtitleMenuOpen(false);
+                                }}
+                              >
+                                {formatSubtitleLabel(sub)}
+                              </button>
+                              {sub.source === "opensubtitles" && (
+                                <button
+                                  className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-red-400"
+                                  onClick={() => {
+                                    void removeSubtitleTrack(sub.id);
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <div className="my-1 border-t border-border" />
+                          <button
+                            className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted"
+                            onClick={() => setSubtitleAppearanceOpen(true)}
+                          >
+                            Customize appearance…
+                          </button>
+                          <div className="my-1 border-t border-border" />
+                          <button
+                            className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
+                            onClick={() => {
+                              setSubtitleMenuOpen(false);
+                              setSubtitleSearchOpen(true);
+                            }}
+                          >
+                            Search online…
+                          </button>
                         </div>
-                      ))}
-                      <div className="my-1 border-t border-border" />
-                      <button
-                        className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
-                        onClick={() => {
-                          setSubtitleMenuOpen(false);
-                          setSubtitleAppearanceOpen(true);
-                        }}
-                      >
-                        Customize appearance...
-                      </button>
-                      <div className="my-1 border-t border-border" />
-                      <button
-                        className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
-                        onClick={() => {
-                          setSubtitleMenuOpen(false);
-                          setSubtitleSearchOpen(true);
-                        }}
-                      >
-                        Search online...
-                      </button>
+                      )}
                     </div>
                   )}
                 </div>

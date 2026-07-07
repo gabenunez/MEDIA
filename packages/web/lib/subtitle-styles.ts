@@ -14,6 +14,11 @@ export type SubtitleBackground = "none" | "black" | "white";
 export type SubtitleBackgroundOpacity = "0" | "25" | "50" | "75" | "100";
 export type SubtitleEdge = "none" | "drop-shadow" | "outline";
 
+import {
+  nativeTvPlayerAvailable,
+  setNativeSubtitleStyles,
+} from "@/lib/android-bridge";
+
 export interface SubtitleStyles {
   size: SubtitleSize;
   font: SubtitleFont;
@@ -26,6 +31,7 @@ export interface SubtitleStyles {
 
 export const SUBTITLE_STYLES_KEY = "media-subtitle-styles";
 export const SUBTITLE_STYLES_CHANGED_EVENT = "media-subtitle-styles-changed";
+const SUBTITLE_CUE_STYLE_ID = "media-subtitle-cue-styles";
 
 export const DEFAULT_SUBTITLE_STYLES: SubtitleStyles = {
   size: "medium",
@@ -111,18 +117,54 @@ export function readSubtitleStyles(): SubtitleStyles {
 
 export function writeSubtitleStyles(styles: SubtitleStyles): void {
   localStorage.setItem(SUBTITLE_STYLES_KEY, JSON.stringify(styles));
-  window.dispatchEvent(new Event(SUBTITLE_STYLES_CHANGED_EVENT));
 }
 
 export function applySubtitleStyles(styles: SubtitleStyles): void {
   if (typeof document === "undefined") return;
 
   const root = document.documentElement;
-  root.style.setProperty("--subtitle-cue-size", SIZE_EM[styles.size]);
-  root.style.setProperty("--subtitle-cue-font", FONT_FAMILY[styles.font]);
-  root.style.setProperty("--subtitle-cue-color", rgba(styles.color, styles.opacity));
-  root.style.setProperty("--subtitle-cue-background", cueBackground(styles));
-  root.style.setProperty("--subtitle-cue-shadow", EDGE_SHADOW[styles.edge]);
+  const color = rgba(styles.color, styles.opacity);
+  const background = cueBackground(styles);
+  const size = SIZE_EM[styles.size];
+  const font = FONT_FAMILY[styles.font];
+  const shadow = EDGE_SHADOW[styles.edge];
+
+  root.style.setProperty("--subtitle-cue-size", size);
+  root.style.setProperty("--subtitle-cue-font", font);
+  root.style.setProperty("--subtitle-cue-color", color);
+  root.style.setProperty("--subtitle-cue-background", background);
+  root.style.setProperty("--subtitle-cue-shadow", shadow);
+
+  // Browsers often cache ::cue styling and ignore live CSS variable updates.
+  // Inject concrete rules so appearance changes apply immediately.
+  let styleEl = document.getElementById(SUBTITLE_CUE_STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = SUBTITLE_CUE_STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+
+  styleEl.textContent = `
+    video.media-subtitles::cue {
+      color: ${color};
+      background-color: ${background};
+      font-size: ${size};
+      font-family: ${font};
+      text-shadow: ${shadow};
+      line-height: 1.35;
+    }
+    .tv-ui video.media-subtitles::cue {
+      font-size: calc(${size} * 1.25);
+      line-height: 1.4;
+    }
+    html.tv-mode.tv-4k .tv-ui video.media-subtitles::cue {
+      font-size: calc(${size} * 1.35);
+    }
+  `;
+
+  if (nativeTvPlayerAvailable()) {
+    setNativeSubtitleStyles(styles);
+  }
 }
 
 export function previewSubtitleStyles(styles: SubtitleStyles): {

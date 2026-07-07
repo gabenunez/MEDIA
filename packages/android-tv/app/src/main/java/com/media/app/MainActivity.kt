@@ -471,13 +471,13 @@ class MainActivity : AppCompatActivity() {
         val startMs = pending.optLong("startTimeMs", 0L)
         val params =
             buildString {
-                append("type=$type&id=$fileId&tv=1")
+                append("tv=1")
                 if (mediaId > 0) append("&media=$mediaId")
                 if (startMs > 0) append("&start=${startMs / 1000}")
             }
 
         stopNativeVideoPlayback()
-        webView.loadUrl("${serverUrl.trimEnd('/')}/watch/?$params")
+        webView.loadUrl("${serverUrl.trimEnd('/')}/watch/$type/$fileId/?$params")
     }
 
     private inner class MediaAndroidBridge {
@@ -550,6 +550,14 @@ class MainActivity : AppCompatActivity() {
             if (!nativePlayer.isActive()) return false
             runOnUiThread {
                 nativePlayer.updateSubtitles(subtitleUrl.takeIf { it.isNotBlank() })
+            }
+            return true
+        }
+
+        @JavascriptInterface
+        fun setSubtitleStyles(json: String): Boolean {
+            runOnUiThread {
+                nativePlayer.applySubtitleStyles(json)
             }
             return true
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useMediaRouteId } from "@/lib/use-route-params";
 import Link from "next/link";
 import { Calendar, ChevronLeft, Clock3, Layers3, Play, Star } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
@@ -65,8 +65,7 @@ export function MediaClient() {
 }
 
 function MediaDesktopClient() {
-  const searchParams = useSearchParams();
-  const mediaId = parseInt(searchParams.get("id") ?? "", 10);
+  const mediaId = useMediaRouteId();
   const [media, setMedia] = useState<MediaDetail | null>(null);
   const [related, setRelated] = useState<MediaItem[]>([]);
   const [selectedSeason, setSelectedSeason] = useState(0);
@@ -226,7 +225,7 @@ function MediaDesktopClient() {
               {media.type === "movie" && movieFile && (
                 <div className="flex flex-wrap items-center gap-3">
                   <Button size="lg" asChild>
-                    <Link href={routes.watch("movie", movieFile.id, media.id, media.posterPath)}>
+                    <Link href={routes.watch("movie", movieFile.id, media.id)}>
                       <Play className="h-5 w-5 fill-current" /> {moviePlaybackLabel}
                     </Link>
                   </Button>
@@ -275,12 +274,7 @@ function MediaDesktopClient() {
               return (
               <Link
                 key={ep.id}
-                href={routes.watch(
-                  "episode",
-                  ep.id,
-                  media.id,
-                  ep.stillPath ?? media.posterPath,
-                )}
+                href={routes.watch("episode", ep.id, media.id)}
                 className="group relative flex items-center gap-4 overflow-hidden rounded-md border border-border/80 bg-card/70 p-3 transition-all hover:border-primary/50 hover:bg-card sm:p-4"
               >
                 <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />

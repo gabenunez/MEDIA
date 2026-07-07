@@ -195,3 +195,12 @@ export function installWebSubtitleVideoListeners(
 export function clearWebSubtitleTracksFromVideo(video: HTMLVideoElement) {
   clearWebSubtitleTracks(video);
 }
+
+/** Force the browser to repaint active ::cue subtitles after style changes. */
+export function refreshWebSubtitleCues(video: HTMLVideoElement): void {
+  for (const track of Array.from(video.textTracks)) {
+    if (track.kind !== "subtitles" || track.mode !== "showing") continue;
+    track.mode = "hidden";
+    track.mode = "showing";
+  }
+}

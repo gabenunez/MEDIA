@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useWatchRouteParams } from "@/lib/use-route-params";
 import type Hls from "hls.js";
 import { Loader2, Pause, Play, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
@@ -73,11 +74,7 @@ import {
 
 export function TvWatchView() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const type = (searchParams.get("type") ?? "movie") as "movie" | "episode";
-  const fileId = parseInt(searchParams.get("id") ?? "", 10);
-  const mediaId = searchParams.get("media");
-  const posterFromUrl = searchParams.get("poster");
+  const { type, fileId, mediaId } = useWatchRouteParams();
   const usesNativePlayer = nativeTvPlayerAvailable();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -156,7 +153,7 @@ export function TvWatchView() {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [posterPath, setPosterPath] = useState<string | null>(posterFromUrl);
+  const [posterPath, setPosterPath] = useState<string | null>(null);
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
@@ -215,6 +212,7 @@ export function TvWatchView() {
     videoRef,
     streamGeneration,
     usingHlsPlayback ? hlsStartOffset : 0,
+    { attachToVideo: !usesNativePlayer },
   );
 
   const selectSubtitle = useCallback(
@@ -618,8 +616,8 @@ export function TvWatchView() {
   }, [centerMessageVisible, isPlaying, panelOpen, scheduleControlsAutoHide]);
 
   useEffect(() => {
-    setPosterPath(posterFromUrl);
-  }, [fileId, type, posterFromUrl]);
+    setPosterPath(null);
+  }, [fileId, type]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;

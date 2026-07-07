@@ -1,3 +1,5 @@
+import type { SubtitleStyles } from "@/lib/subtitle-styles";
+
 export interface NativePlaybackRequest {
   url: string;
   title: string;
@@ -96,6 +98,17 @@ export function setNativeWebOverlayAlpha(alpha: number): void {
   getAndroidBridge()?.setWebOverlayAlpha?.(alpha);
 }
 
+/** Apply user subtitle appearance settings to ExoPlayer's SubtitleView. */
+export function setNativeSubtitleStyles(styles: SubtitleStyles): void {
+  const bridge = getAndroidBridge();
+  if (typeof bridge?.setSubtitleStyles !== "function") return;
+  bridge.setSubtitleStyles(JSON.stringify(styles));
+}
+
+export function nativeSubtitleStylesAvailable(): boolean {
+  return typeof getAndroidBridge()?.setSubtitleStyles === "function";
+}
+
 export function registerNativePlayerHandlers(handlers: {
   onState?: (state: NativePlaybackState) => void;
   onError?: () => void;
@@ -141,6 +154,7 @@ declare global {
       seekTo: (positionMs: number) => void;
       stop: () => void;
       setSubtitles?: (subtitleUrl: string) => boolean;
+      setSubtitleStyles?: (json: string) => boolean;
       setVideoDisplayMode?: (mode: NativeVideoDisplayMode) => void;
       syncPlaybackState?: () => void;
       setWebOverlayAlpha?: (alpha: number) => void;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useMediaRouteId } from "@/lib/use-route-params";
 import { Loader2, Play } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { tvImageUrl } from "@/lib/tv-image";
@@ -51,8 +51,7 @@ interface MediaDetail {
 }
 
 export function TvMediaView() {
-  const searchParams = useSearchParams();
-  const mediaId = parseInt(searchParams.get("id") ?? "", 10);
+  const mediaId = useMediaRouteId();
   const [media, setMedia] = useState<MediaDetail | null>(null);
   const [related, setRelated] = useState<MediaItem[]>([]);
   const [selectedSeason, setSelectedSeason] = useState(0);
@@ -214,7 +213,7 @@ export function TvMediaView() {
                   className="flex flex-wrap items-center gap-2 py-0.5"
                 >
                   <TvFocusLink
-                    href={routes.watch("movie", movieFile.id, media.id, media.posterPath)}
+                    href={routes.watch("movie", movieFile.id, media.id)}
                     className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
                   >
                     <Play className="h-4 w-4 fill-current" />
@@ -290,12 +289,7 @@ export function TvMediaView() {
               return (
                 <TvFocusLink
                   key={ep.id}
-                  href={routes.watch(
-                    "episode",
-                    ep.id,
-                    media.id,
-                    ep.stillPath ?? media.posterPath,
-                  )}
+                  href={routes.watch("episode", ep.id, media.id)}
                   variant="card"
                   data-tv-episode-id={ep.id}
                   className="flex items-center gap-3 px-3 py-2.5"

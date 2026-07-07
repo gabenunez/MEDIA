@@ -78,7 +78,6 @@ function HomeDesktopClient() {
           continueTarget.itemType,
           continueTarget.itemId,
           continueTarget.mediaId,
-          continueTarget.posterPath,
         )
       : null;
   const featuredImage = api.imageUrl(featured?.backdropPath ?? featured?.posterPath);

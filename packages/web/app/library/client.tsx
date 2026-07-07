@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useLibraryRouteContext } from "@/lib/use-route-params";
 import { api, type MediaItem } from "@/lib/api";
 import { PosterCard } from "@/components/poster-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,9 +19,7 @@ export function LibraryClient() {
 }
 
 function LibraryDesktopClient() {
-  const searchParams = useSearchParams();
-  const libraryId = parseInt(searchParams.get("id") ?? "", 10);
-  const deckId = parseInt(searchParams.get("deck") ?? "", 10);
+  const { libraryId, deckId } = useLibraryRouteContext();
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);

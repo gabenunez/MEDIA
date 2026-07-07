@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useFavoritesRouteFilter } from "@/lib/use-route-params";
 import { Loader2 } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -13,13 +13,8 @@ import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
 import { cn } from "@/lib/utils";
 
-type FavoriteFilter = "all" | "movie" | "tv";
-
 export function TvFavoritesView() {
-  const searchParams = useSearchParams();
-  const filterParam = searchParams.get("type");
-  const filter: FavoriteFilter =
-    filterParam === "movie" || filterParam === "tv" ? filterParam : "all";
+  const filter = useFavoritesRouteFilter();
 
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);

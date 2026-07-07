@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useFavoritesRouteFilter } from "@/lib/use-route-params";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { PosterCard } from "@/components/poster-card";
@@ -22,10 +22,8 @@ export function FavoritesClient() {
 }
 
 function FavoritesDesktopClient() {
-  const searchParams = useSearchParams();
-  const filterParam = searchParams.get("type");
-  const filter: FavoriteFilter =
-    filterParam === "movie" || filterParam === "tv" ? filterParam : "all";
+  const filterParam = useFavoritesRouteFilter();
+  const filter: FavoriteFilter = filterParam;
 
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);

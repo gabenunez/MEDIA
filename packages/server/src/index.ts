@@ -18,6 +18,7 @@ import { castRoutes } from "./routes/cast.js";
 import { AuthService, isCastMediaPath, isPublicPath } from "./services/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { updateRoutes } from "./routes/updates.js";
+import { resolveLegacyRouteRedirect, resolveSpaIndexFile } from "@media-app/shared";
 import { pruneStaleTranscodeCache, killOrphanFfmpegInCache } from "./utils/ffmpeg.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -65,32 +66,13 @@ async function main() {
     }
   });
 
-  // Redirect legacy /library/2 style URLs to query-param static pages
+  // Redirect legacy query-param URLs to path-based routes (bookmarks, TV cast).
   app.addHook("onRequest", async (request, reply) => {
     const url = new URL(request.url, "http://localhost");
-
-    const libraryMatch = url.pathname.match(/^\/library\/(\d+)\/?$/);
-    if (libraryMatch) {
-      url.pathname = "/library/";
-      url.searchParams.set("id", libraryMatch[1]);
-      return reply.redirect(`${url.pathname}?${url.searchParams.toString()}`);
+    const redirect = resolveLegacyRouteRedirect(url.pathname, url.search);
+    if (redirect) {
+      return reply.redirect(redirect);
     }
-
-    const mediaMatch = url.pathname.match(/^\/media\/(\d+)\/?$/);
-    if (mediaMatch) {
-      url.pathname = "/media/";
-      url.searchParams.set("id", mediaMatch[1]);
-      return reply.redirect(`${url.pathname}?${url.searchParams.toString()}`);
-    }
-
-    const watchMatch = url.pathname.match(/^\/watch\/(movie|episode)\/(\d+)\/?$/);
-    if (watchMatch) {
-      url.pathname = "/watch/";
-      url.searchParams.set("type", watchMatch[1]);
-      url.searchParams.set("id", watchMatch[2]);
-      return reply.redirect(`${url.pathname}?${url.searchParams.toString()}`);
-    }
-
   });
 
   await authRoutes(app, auth, configManager);
@@ -120,9 +102,16 @@ async function main() {
     });
 
     app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith("/api/")) {
+      const pathname = request.url.split("?")[0] ?? request.url;
+      if (pathname.startsWith("/api/")) {
         return reply.status(404).send({ error: "Not found" });
       }
+
+      const spaFile = resolveSpaIndexFile(pathname);
+      if (spaFile) {
+        return reply.sendFile(spaFile);
+      }
+
       return reply.sendFile("index.html");
     });
   }

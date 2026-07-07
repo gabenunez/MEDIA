@@ -34,6 +34,7 @@ class NativePlayerManager(
     private var mediaSessionManager: PlaybackMediaSessionManager? = null
     private var displayMode: String = "fit"
     private var hdrContentActive = false
+    private var subtitleStylesJson: String? = null
 
     private val progressRunnable = object : Runnable {
         override fun run() {
@@ -72,6 +73,10 @@ class NativePlayerManager(
         playerView.player = exoPlayer
         playerView.useController = false
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
+        applyStoredSubtitleStyles()
+        if (payload.isHdr) {
+            setHdrContentActive(true)
+        }
         mediaSessionManager?.release()
         mediaSessionManager = PlaybackMediaSessionManager(playerView.context, exoPlayer)
 
@@ -91,6 +96,7 @@ class NativePlayerManager(
                             updateHdrOutput(exoPlayer)
                             applySdUpscaleEffect(exoPlayer)
                             applyDisplayMode()
+                            applyStoredSubtitleStyles()
                             emitState()
                         }
 
@@ -178,11 +184,26 @@ class NativePlayerManager(
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, normalizedUrl == null)
                 .build()
 
-        exoPlayer.setMediaItem(buildMediaItem(currentPayload!!), position)
-        exoPlayer.prepare()
+        exoPlayer.replaceMediaItem(0, buildMediaItem(currentPayload!!))
+        if (exoPlayer.playbackState == Player.STATE_IDLE) {
+            exoPlayer.prepare()
+        }
+        exoPlayer.seekTo(position)
         exoPlayer.playWhenReady = wasPlaying
+        applyStoredSubtitleStyles()
         emitState()
         return true
+    }
+
+    fun applySubtitleStyles(json: String): Boolean {
+        subtitleStylesJson = json
+        applyStoredSubtitleStyles()
+        return true
+    }
+
+    private fun applyStoredSubtitleStyles(): Boolean {
+        val json = subtitleStylesJson ?: return false
+        return SubtitleStyleMapper.apply(playerView.subtitleView, json)
     }
 
     fun stop() {

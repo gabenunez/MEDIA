@@ -8,3 +8,4 @@ export * from "./image-cache.js";
 export * from "./vtt-timing.js";
 export * from "./parsers/movie.js";
 export * from "./parsers/tv.js";
+export * from "./routes.js";
