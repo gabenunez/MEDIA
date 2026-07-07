@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.86 — 2026-07-07
+
+### Fix
+
+- **TV playback** — stop audio when leaving watch for home by tearing down native/web playback before navigation
+
+### TV
+
+- **Subtitles** — hot-swap tracks without a full player restart via a new native `setSubtitles` bridge
+- **Subtitles** — full-screen settings menus with vertical D-pad navigation, section labels, and a back header
+- **Subtitles** — keep the track menu open after selection so the active track stays visible
+
 ## 0.1.85 — 2026-07-06
 
 ### UI
