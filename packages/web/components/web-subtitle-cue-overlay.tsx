@@ -1,7 +1,7 @@
 "use client";
 
 import { findActiveCueTexts, parseWebVttCues } from "@media-app/shared";
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useSubtitleStyles } from "@/components/subtitle-style-settings";
 import { playbackSubtitleAppearance } from "@/lib/subtitle-styles";
 import { cn } from "@/lib/utils";
@@ -9,15 +9,23 @@ import { cn } from "@/lib/utils";
 export function WebSubtitleCueOverlay({
   videoRef,
   vtt,
+  timelineOffsetSeconds = 0,
+  hidden = false,
   className,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   vtt: string | null;
+  /** Absolute media time (seconds) mapped to `video.currentTime` 0 for HLS resume. */
+  timelineOffsetSeconds?: number;
+  /** Hide while watch menus or dialogs cover the lower chrome. */
+  hidden?: boolean;
   className?: string;
 }) {
   const { styles } = useSubtitleStyles();
   const [lines, setLines] = useState<string[]>([]);
   const cues = useMemo(() => (vtt ? parseWebVttCues(vtt) : []), [vtt]);
+  const timelineOffsetRef = useRef(timelineOffsetSeconds);
+  timelineOffsetRef.current = timelineOffsetSeconds;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -27,7 +35,7 @@ export function WebSubtitleCueOverlay({
     }
 
     const update = () => {
-      setLines(findActiveCueTexts(cues, video.currentTime));
+      setLines(findActiveCueTexts(cues, timelineOffsetRef.current + video.currentTime));
     };
 
     video.addEventListener("timeupdate", update);
@@ -46,14 +54,14 @@ export function WebSubtitleCueOverlay({
     };
   }, [videoRef, cues]);
 
-  if (lines.length === 0) return null;
+  if (hidden || lines.length === 0) return null;
 
   const appearance = playbackSubtitleAppearance(styles);
 
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-20 z-[25] flex justify-center px-6 sm:bottom-24 sm:px-10",
+        "pointer-events-none absolute inset-x-0 bottom-20 z-[15] flex justify-center px-6 sm:bottom-24 sm:px-10",
         className,
       )}
       role="region"
