@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLibraryRouteContext } from "@/lib/use-route-params";
+import { useIsClient } from "@/lib/use-browser-pathname";
 import { LibraryBig, Loader2 } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -13,6 +14,7 @@ import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
 
 export function TvLibraryView() {
+  const isClient = useIsClient();
   const { libraryId, deckId } = useLibraryRouteContext();
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);
@@ -71,6 +73,14 @@ export function TvLibraryView() {
   }, [loading, page]);
 
   if (!isDeck && !isLibrary) {
+    if (!isClient) {
+      return (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 className="h-9 w-9 animate-spin text-primary" />
+        </div>
+      );
+    }
+
     return (
       <div className="px-6 py-16 text-center">
         <p className="mb-4 text-muted-foreground">Invalid library or deck</p>

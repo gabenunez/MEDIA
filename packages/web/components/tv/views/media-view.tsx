@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
+import { useIsClient } from "@/lib/use-browser-pathname";
 import { Loader2, Play } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { tvImageUrl } from "@/lib/tv-image";
@@ -51,6 +52,7 @@ interface MediaDetail {
 }
 
 export function TvMediaView() {
+  const isClient = useIsClient();
   const mediaId = useMediaRouteId();
   const [media, setMedia] = useState<MediaDetail | null>(null);
   const [related, setRelated] = useState<MediaItem[]>([]);
@@ -99,6 +101,14 @@ export function TvMediaView() {
   }, [loading, media]);
 
   if (!mediaId || Number.isNaN(mediaId)) {
+    if (!isClient) {
+      return (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 className="h-9 w-9 animate-spin text-primary" />
+        </div>
+      );
+    }
+
     return (
       <div className="px-6 py-16 text-center">
         <p className="mb-4 text-muted-foreground">Invalid media</p>

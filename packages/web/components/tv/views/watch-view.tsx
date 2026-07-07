@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWatchRouteParams } from "@/lib/use-route-params";
+import { useIsClient } from "@/lib/use-browser-pathname";
 import type Hls from "hls.js";
 import { Loader2, Pause, Play, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
@@ -73,6 +74,7 @@ import {
 } from "@/lib/video-display-mode";
 
 export function TvWatchView() {
+  const isClient = useIsClient();
   const router = useRouter();
   const { type, fileId, mediaId } = useWatchRouteParams();
   const usesNativePlayer = nativeTvPlayerAvailable();
@@ -1507,6 +1509,14 @@ export function TvWatchView() {
   }, [controlsVisible, panelOpen, releaseWatchFocus]);
 
   if (!fileId || Number.isNaN(fileId)) {
+    if (!isClient) {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-black">
+          <Loader2 className="h-9 w-9 animate-spin text-primary" />
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black">
         <div className="text-center">

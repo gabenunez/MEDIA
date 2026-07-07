@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLibraryRouteContext } from "@/lib/use-route-params";
+import { useIsClient } from "@/lib/use-browser-pathname";
 import { api, type MediaItem } from "@/lib/api";
 import { PosterCard } from "@/components/poster-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,7 @@ export function LibraryClient() {
 }
 
 function LibraryDesktopClient() {
+  const isClient = useIsClient();
   const { libraryId, deckId } = useLibraryRouteContext();
   const [items, setItems] = useState<MediaItem[]>([]);
   const [page, setPage] = useState(1);
@@ -76,6 +78,19 @@ function LibraryDesktopClient() {
   }, [libraryId, deckId, page, isDeck, isLibrary]);
 
   if (!isDeck && !isLibrary) {
+    if (!isClient) {
+      return (
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+          <Skeleton className="mb-8 h-10 w-48" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-[2/3] rounded-md" />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
         <p className="mb-4 text-muted-foreground">Invalid library or deck</p>

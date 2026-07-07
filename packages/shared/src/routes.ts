@@ -37,6 +37,49 @@ export function parseWatchRoute(
   return { type: match[1] as WatchType, fileId };
 }
 
+function parseSearchParams(search: string): URLSearchParams {
+  return new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+}
+
+/** Client-side fallback for `/media/?id=7` when the static shell route is `/media/`. */
+export function parseLegacyMediaId(pathname: string, search: string): number | null {
+  if (normalizePathname(pathname) !== "/media/") return null;
+  return parsePositiveInt(parseSearchParams(search).get("id") ?? undefined);
+}
+
+/** Client-side fallback for `/library/?id=3` and `/library/?deck=5`. */
+export function parseLegacyLibraryContext(
+  pathname: string,
+  search: string,
+): { libraryId: number | null; deckId: number | null } {
+  if (normalizePathname(pathname) !== "/library/") {
+    return { libraryId: null, deckId: null };
+  }
+
+  const params = parseSearchParams(search);
+  const deckId = parsePositiveInt(params.get("deck") ?? undefined);
+  if (deckId) return { libraryId: null, deckId };
+
+  const libraryId = parsePositiveInt(params.get("id") ?? undefined);
+  return { libraryId, deckId: null };
+}
+
+/** Client-side fallback for `/watch/?type=movie&id=42`. */
+export function parseLegacyWatchRoute(
+  pathname: string,
+  search: string,
+): { type: WatchType; fileId: number } | null {
+  if (normalizePathname(pathname) !== "/watch/") return null;
+
+  const params = parseSearchParams(search);
+  const type = params.get("type");
+  const fileId = parsePositiveInt(params.get("id") ?? undefined);
+  if ((type === "movie" || type === "episode") && fileId) {
+    return { type, fileId };
+  }
+  return null;
+}
+
 export function parseFavoritesFilter(pathname: string): FavoriteFilter {
   const path = normalizePathname(pathname);
   if (path === "/favorites/movie/") return "movie";

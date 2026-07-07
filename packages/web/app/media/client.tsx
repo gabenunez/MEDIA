@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
+import { useIsClient } from "@/lib/use-browser-pathname";
 import Link from "next/link";
 import { Calendar, ChevronLeft, Clock3, Layers3, Play, Star } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
@@ -65,6 +66,7 @@ export function MediaClient() {
 }
 
 function MediaDesktopClient() {
+  const isClient = useIsClient();
   const mediaId = useMediaRouteId();
   const [media, setMedia] = useState<MediaDetail | null>(null);
   const [related, setRelated] = useState<MediaItem[]>([]);
@@ -96,6 +98,18 @@ function MediaDesktopClient() {
   }, [mediaId]);
 
   if (!mediaId || Number.isNaN(mediaId)) {
+    if (!isClient) {
+      return (
+        <div>
+          <Skeleton className="h-80 w-full" />
+          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <Skeleton className="mb-4 h-10 w-64" />
+            <Skeleton className="h-24 w-full max-w-2xl" />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="py-20 text-center">
         <p>Invalid media</p>

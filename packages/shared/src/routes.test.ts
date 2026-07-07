@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   parseDeckId,
   parseFavoritesFilter,
+  parseLegacyLibraryContext,
+  parseLegacyMediaId,
+  parseLegacyWatchRoute,
   parseLibraryId,
   parseMediaId,
   parseWatchRoute,
@@ -36,6 +39,22 @@ describe("route parsers", () => {
     expect(parseFavoritesFilter("/favorites/")).toBe("all");
     expect(parseFavoritesFilter("/favorites/movie/")).toBe("movie");
     expect(parseFavoritesFilter("/favorites/tv/")).toBe("tv");
+  });
+
+  it("parses legacy query-param routes for static shells", () => {
+    expect(parseLegacyMediaId("/media/", "?id=7")).toBe(7);
+    expect(parseLegacyLibraryContext("/library/", "?id=3")).toEqual({
+      libraryId: 3,
+      deckId: null,
+    });
+    expect(parseLegacyLibraryContext("/library/", "?deck=5")).toEqual({
+      libraryId: null,
+      deckId: 5,
+    });
+    expect(parseLegacyWatchRoute("/watch/", "?type=movie&id=42")).toEqual({
+      type: "movie",
+      fileId: 42,
+    });
   });
 });
 

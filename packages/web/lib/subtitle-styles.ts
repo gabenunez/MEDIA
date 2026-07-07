@@ -190,6 +190,30 @@ export function previewSubtitleStyles(styles: SubtitleStyles): {
   };
 }
 
+/** Styles for the desktop watch DOM subtitle overlay (above player chrome). */
+export function playbackSubtitleAppearance(styles: SubtitleStyles): {
+  color: string;
+  backgroundColor: string;
+  fontSize: string;
+  fontFamily: string;
+  textShadow: string;
+} {
+  const playbackScale: Record<SubtitleSize, string> = {
+    small: "clamp(1rem, 2.2vmin, 1.35rem)",
+    medium: "clamp(1.15rem, 2.6vmin, 1.6rem)",
+    large: "clamp(1.35rem, 3.1vmin, 1.95rem)",
+    "extra-large": "clamp(1.55rem, 3.6vmin, 2.3rem)",
+  };
+
+  return {
+    color: rgba(styles.color, styles.opacity),
+    backgroundColor: cueBackground(styles),
+    fontSize: playbackScale[styles.size],
+    fontFamily: FONT_FAMILY[styles.font],
+    textShadow: EDGE_SHADOW[styles.edge],
+  };
+}
+
 export const SUBTITLE_SIZE_OPTIONS: Array<{ value: SubtitleSize; label: string }> = [
   { value: "small", label: "Small" },
   { value: "medium", label: "Medium" },

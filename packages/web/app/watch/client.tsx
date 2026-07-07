@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useWatchRouteParams } from "@/lib/use-route-params";
+import { useIsClient } from "@/lib/use-browser-pathname";
 import Link from "next/link";
 import type Hls from "hls.js";
 import {
@@ -50,6 +51,7 @@ import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { TvCastButton, type TvCastPayload } from "@/components/tv-cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { DesktopSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
+import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { formatSubtitleLabel } from "@/lib/watch-helpers";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
@@ -87,6 +89,7 @@ export function WatchClient() {
 }
 
 function WatchDesktopClient() {
+  const isClient = useIsClient();
   const router = useRouter();
   const { type, fileId, mediaId, castStartSeconds } = useWatchRouteParams();
 
@@ -183,6 +186,7 @@ function WatchDesktopClient() {
     videoRef,
     streamGeneration,
     usingHlsPlayback ? hlsStartOffset : 0,
+    { displayMode: "dom-overlay" },
   );
 
   useEffect(() => {
@@ -923,6 +927,14 @@ function WatchDesktopClient() {
   };
 
   if (!fileId || Number.isNaN(fileId)) {
+    if (!isClient) {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-black">
+          <Loader2 className="h-9 w-9 animate-spin text-primary" />
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black">
         <div className="text-center">
@@ -955,6 +967,12 @@ function WatchDesktopClient() {
         preload={streamInfo ? "auto" : "metadata"}
         onClick={togglePlay}
       />
+      {activeSubtitle !== null && (
+        <WebSubtitleCueOverlay
+          videoRef={videoRef}
+          trackKey={`${streamGeneration}:${activeSubtitle}`}
+        />
+      )}
 
       {showInitialLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
