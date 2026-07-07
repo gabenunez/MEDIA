@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.90 — 2026-07-07
+
+### Fix
+
+- **Subtitles** — stop clearing web subtitle tracks on every HLS buffer event and preserve stored selection on page load
+
 ## 0.1.89 — 2026-07-07
 
 ### UI
