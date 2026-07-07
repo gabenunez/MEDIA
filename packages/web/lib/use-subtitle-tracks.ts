@@ -72,6 +72,10 @@ export function useSubtitleTracks(
         });
         setOpensubtitlesConfigured(data.opensubtitlesConfigured);
         prefetchSubtitleTracks(tracks.map((track) => track.id));
+        const storedId = readStoredSubtitleSelection(fileId, type);
+        if (storedId && tracks.some((track) => track.id === storedId)) {
+          void prefetchSubtitleVtt(storedId);
+        }
       } catch (err) {
         console.warn("Failed to load subtitles", err);
       }
@@ -133,11 +137,6 @@ export function useSubtitleTracks(
     revokeObjectUrl();
     setActiveSubtitle(readStoredSubtitleSelection(fileId, type));
   }, [fileId, type, revokeObjectUrl]);
-
-  useEffect(() => {
-    if (!fileId || Number.isNaN(fileId)) return;
-    writeStoredSubtitleSelection(fileId, type, activeSubtitle);
-  }, [fileId, type, activeSubtitle]);
 
   useEffect(() => {
     refreshSubtitles();

@@ -175,20 +175,29 @@ export function installWebSubtitleVideoListeners(
     }
   };
 
+  const ensureSubtitlesVisible = () => {
+    const hasTrackElement = video.querySelector("track") != null;
+    if (!hasTrackElement) {
+      onReload();
+      return;
+    }
+    enableLatestSubtitleTrack(video);
+  };
+
   video.textTracks.addEventListener("addtrack", onAddTrack);
+  // Full re-attach only when the media element drops tracks (e.g. video.load()).
   video.addEventListener("loadeddata", onReload);
-  video.addEventListener("loadedmetadata", onReload);
-  video.addEventListener("canplay", onReload);
-  video.addEventListener("seeked", onReload);
   video.addEventListener("emptied", onReload);
+  // During HLS playback canplay/seeked fire often — only re-show existing tracks.
+  video.addEventListener("canplay", ensureSubtitlesVisible);
+  video.addEventListener("seeked", ensureSubtitlesVisible);
 
   return () => {
     video.textTracks.removeEventListener("addtrack", onAddTrack);
     video.removeEventListener("loadeddata", onReload);
-    video.removeEventListener("loadedmetadata", onReload);
-    video.removeEventListener("canplay", onReload);
-    video.removeEventListener("seeked", onReload);
     video.removeEventListener("emptied", onReload);
+    video.removeEventListener("canplay", ensureSubtitlesVisible);
+    video.removeEventListener("seeked", ensureSubtitlesVisible);
   };
 }
 
