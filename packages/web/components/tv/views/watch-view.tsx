@@ -22,6 +22,7 @@ import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
+import { resolveHlsSubtitleTimelineOffset } from "@/lib/subtitle-timeline";
 import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
 import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import {
@@ -203,6 +204,18 @@ export function TvWatchView() {
   titleRef.current = title;
   streamInfoRef.current = streamInfo;
 
+  const hlsSubtitleTimelineOffset = useMemo(
+    () =>
+      usingHlsPlayback
+        ? resolveHlsSubtitleTimelineOffset({
+            streamStartSeconds,
+            hlsStartOffset,
+            initialResumeSeconds,
+          })
+        : 0,
+    [usingHlsPlayback, streamStartSeconds, hlsStartOffset, initialResumeSeconds],
+  );
+
   const {
     subtitles,
     activeSubtitle,
@@ -219,7 +232,7 @@ export function TvWatchView() {
     type,
     videoRef,
     streamGeneration,
-    usingHlsPlayback ? hlsStartOffset : 0,
+    usesNativePlayer && usingHlsPlayback ? hlsStartOffset : 0,
     {
       attachToVideo: !usesNativePlayer,
       displayMode: usesNativePlayer ? "native" : "dom-overlay",
@@ -1241,6 +1254,7 @@ export function TvWatchView() {
           ? `Starting ${(playbackStream.hlsQuality ?? quality).toUpperCase()} stream...`
           : "Loading video...";
   const controlsVisible = (showControls || panelOpen) && !centerMessageVisible;
+  const playbackMenusOpen = panelOpen || subtitleSearchOpen;
   const showTransportControls = Boolean(
     streamInfo && initialResumeSeconds !== null && !error && !countdown,
   );
@@ -1597,7 +1611,12 @@ export function TvWatchView() {
           />
         )}
         {!usesNativePlayer && activeSubtitle !== null && activeVtt && (
-          <WebSubtitleCueOverlay videoRef={videoRef} vtt={activeVtt} />
+          <WebSubtitleCueOverlay
+            videoRef={videoRef}
+            vtt={activeVtt}
+            timelineOffsetSeconds={hlsSubtitleTimelineOffset}
+            hidden={playbackMenusOpen}
+          />
         )}
         {!usesNativePlayer && subtitleError && (
           <SubtitleLoadNotice

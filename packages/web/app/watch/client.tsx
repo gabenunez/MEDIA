@@ -54,6 +54,7 @@ import { DesktopSubtitleAppearancePanel } from "@/components/subtitle-style-sett
 import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
 import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
+import { resolveHlsSubtitleTimelineOffset } from "@/lib/subtitle-timeline";
 import { formatSubtitleLabel } from "@/lib/watch-helpers";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
@@ -173,6 +174,18 @@ function WatchDesktopClient() {
   const usingHlsPlayback = playbackStream.usingHls;
   playbackStreamRef.current = playbackStream;
 
+  const hlsSubtitleTimelineOffset = useMemo(
+    () =>
+      usingHlsPlayback
+        ? resolveHlsSubtitleTimelineOffset({
+            streamStartSeconds,
+            hlsStartOffset,
+            initialResumeSeconds,
+          })
+        : 0,
+    [usingHlsPlayback, streamStartSeconds, hlsStartOffset, initialResumeSeconds],
+  );
+
   const {
     subtitles,
     activeSubtitle,
@@ -190,7 +203,7 @@ function WatchDesktopClient() {
     type,
     videoRef,
     streamGeneration,
-    usingHlsPlayback ? hlsStartOffset : 0,
+    0,
     { displayMode: "dom-overlay" },
   );
 
@@ -799,6 +812,12 @@ function WatchDesktopClient() {
     !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null);
   const showBufferingBar =
     bufferingMidPlayback && playbackHasBegun && !error && !showInitialLoading;
+  const playbackMenusOpen =
+    subtitleMenuOpen ||
+    qualityMenuOpen ||
+    volumeMenuOpen ||
+    subtitleSearchOpen ||
+    detailsOpen;
   const loadingMessage = isPreparing
     ? "Preparing playback..."
     : bufferingMidPlayback
@@ -973,7 +992,12 @@ function WatchDesktopClient() {
         onClick={togglePlay}
       />
       {activeSubtitle !== null && activeVtt && (
-        <WebSubtitleCueOverlay videoRef={videoRef} vtt={activeVtt} />
+        <WebSubtitleCueOverlay
+          videoRef={videoRef}
+          vtt={activeVtt}
+          timelineOffsetSeconds={hlsSubtitleTimelineOffset}
+          hidden={playbackMenusOpen}
+        />
       )}
 
       {subtitleError && (

@@ -145,7 +145,10 @@ export function useSubtitleTracks(
       return;
     }
 
-    const prepared = await prepareWebSubtitleVtt(subtitleId, timelineOffsetRef.current);
+    const prepared = await prepareWebSubtitleVtt(
+      subtitleId,
+      usesDomOverlay ? 0 : timelineOffsetRef.current,
+    );
     if (!shouldApply()) return;
     if (!prepared.ok) {
       failSubtitleLoad(prepared.error);
