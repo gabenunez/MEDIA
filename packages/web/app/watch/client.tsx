@@ -47,7 +47,7 @@ import { CastButton } from "@/components/cast-button";
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { TvCastButton, type TvCastPayload } from "@/components/tv-cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
-import { SubtitleAppearanceSettingsLink } from "@/components/subtitle-style-settings";
+import { SubtitleAppearanceDialog } from "@/components/subtitle-style-settings";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -146,6 +146,7 @@ function WatchDesktopClient() {
   const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<number | null>(null);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const [subtitleAppearanceOpen, setSubtitleAppearanceOpen] = useState(false);
   const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
   const [opensubtitlesConfigured, setOpensubtitlesConfigured] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1071,6 +1072,11 @@ function WatchDesktopClient() {
         </div>
       )}
 
+      <SubtitleAppearanceDialog
+        open={subtitleAppearanceOpen}
+        onClose={() => setSubtitleAppearanceOpen(false)}
+      />
+
       <div
         className={cn(
           "watch-controls-overlay absolute inset-0 z-20 flex flex-col justify-between",
@@ -1380,6 +1386,7 @@ function WatchDesktopClient() {
                       )}
                       onClick={() => {
                         setSubtitleMenuOpen((open) => !open);
+                        setSubtitleAppearanceOpen(false);
                         setQualityMenuOpen(false);
                         setVolumeMenuOpen(false);
                       }}
@@ -1445,9 +1452,15 @@ function WatchDesktopClient() {
                         </div>
                       ))}
                       <div className="my-1 border-t border-border" />
-                      <SubtitleAppearanceSettingsLink
-                        onNavigate={() => setSubtitleMenuOpen(false)}
-                      />
+                      <button
+                        className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
+                        onClick={() => {
+                          setSubtitleMenuOpen(false);
+                          setSubtitleAppearanceOpen(true);
+                        }}
+                      >
+                        Customize appearance...
+                      </button>
                       <div className="my-1 border-t border-border" />
                       <button
                         className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
@@ -1473,6 +1486,7 @@ function WatchDesktopClient() {
                       onClick={() => {
                         setQualityMenuOpen((open) => !open);
                         setSubtitleMenuOpen(false);
+                        setSubtitleAppearanceOpen(false);
                         setVolumeMenuOpen(false);
                       }}
                       disabled={!transcodingEnabled && quality === "original"}
