@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.94 — 2026-07-07
+
+### Fix
+
+- **Subtitles** — sync web captions to live HLS playback time (not stale resume offset), reset offset on title change, and hide subtitles until the video actually starts playing
+
 ## 0.1.93 — 2026-07-07
 
 ### Fix
