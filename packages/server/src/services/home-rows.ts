@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { DatabaseInstance } from "../db/index.js";
 import {
   mediaItems,
@@ -190,6 +190,23 @@ async function resolveContinueWatchingEntry(
   return resolveEpisodeContinueWatchingEntry(db, progress);
 }
 
+async function isOrphanedWatchProgress(
+  db: DatabaseInstance,
+  progress: typeof watchProgress.$inferSelect,
+): Promise<boolean> {
+  if (progress.itemType === "movie") {
+    const file = await db.query.movieFiles.findFirst({
+      where: eq(movieFiles.id, progress.itemId),
+    });
+    return !file;
+  }
+
+  const episode = await db.query.tvEpisodes.findFirst({
+    where: eq(tvEpisodes.id, progress.itemId),
+  });
+  return !episode;
+}
+
 export async function listContinueWatching(
   db: DatabaseInstance,
   options: { page?: number; limit?: number } = {},
@@ -204,14 +221,26 @@ export async function listContinueWatching(
   const limit = Math.min(100, Math.max(1, options.limit ?? 48));
   const offset = (page - 1) * limit;
 
-  const progressItems = await db.query.watchProgress.findMany({
+  const allProgress = await db.query.watchProgress.findMany({
     orderBy: [desc(watchProgress.updatedAt)],
-    limit,
-    offset,
   });
 
+  const orphanIds: number[] = [];
+  for (const entry of allProgress) {
+    if (await isOrphanedWatchProgress(db, entry)) {
+      orphanIds.push(entry.id);
+    }
+  }
+  if (orphanIds.length > 0) {
+    await db.delete(watchProgress).where(inArray(watchProgress.id, orphanIds));
+  }
+
+  const activeProgress = allProgress.filter((entry) => !orphanIds.includes(entry.id));
+
   const items = (
-    await Promise.all(progressItems.map((entry) => resolveContinueWatchingEntry(db, entry)))
+    await Promise.all(
+      activeProgress.map((entry) => resolveContinueWatchingEntry(db, entry)),
+    )
   ).filter((item): item is ContinueWatchingEntry => item != null);
 
   const seenTvMediaIds = new Set<number>();
@@ -222,13 +251,10 @@ export async function listContinueWatching(
     return true;
   });
 
-  const totalResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(watchProgress);
-  const total = totalResult[0]?.count ?? 0;
+  const total = dedupedItems.length;
 
   return {
-    items: dedupedItems,
+    items: dedupedItems.slice(offset, offset + limit),
     page,
     limit,
     total,

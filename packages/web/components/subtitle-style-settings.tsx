@@ -28,7 +28,7 @@ import {
   SUBTITLE_SIZE_OPTIONS,
   SUBTITLE_STYLES_CHANGED_EVENT,
   applySubtitleStyles,
-  previewSubtitleStyles,
+  previewSubtitleAppearance,
   readSubtitleStyles,
   writeSubtitleStyles,
   type SubtitleColor,
@@ -192,28 +192,47 @@ function SettingRow({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-function SubtitlePreview({ styles }: { styles: SubtitleStyles }) {
-  const preview = previewSubtitleStyles(styles);
+function SubtitleStylePreview({
+  styles,
+  nativePlayback = false,
+  compact = false,
+}: {
+  styles: SubtitleStyles;
+  nativePlayback?: boolean;
+  compact?: boolean;
+}) {
+  const appearance = previewSubtitleAppearance(styles, { nativePlayback });
 
   return (
-    <div className="relative h-12 overflow-hidden rounded-md bg-black">
-      <div className="absolute inset-x-0 bottom-2 flex justify-center px-3">
+    <div
+      className={cn(
+        "relative w-full overflow-hidden rounded-md border border-white/10 bg-black",
+        "[container-type:size]",
+        compact ? "aspect-[2.4/1] max-h-24" : "aspect-video",
+      )}
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/70 to-black" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.07),transparent_58%)]" />
+      <div
+        className={cn(
+          "absolute inset-x-0 flex justify-center px-[8%]",
+          compact ? "bottom-[14%]" : "bottom-[18%]",
+        )}
+      >
         <p
-          className="max-w-full truncate text-center leading-tight"
+          className="max-w-[90%] text-center text-balance whitespace-pre-wrap"
           style={{
-            color: preview.color,
-            backgroundColor: preview.backgroundColor,
-            fontSize: "0.8rem",
-            fontFamily: preview.fontFamily,
-            textShadow: preview.textShadow,
-            padding:
-              styles.background === "none" || styles.backgroundOpacity === "0"
-                ? "0"
-                : "0.1em 0.4em",
-            borderRadius: "0.15em",
+            color: appearance.color,
+            backgroundColor: appearance.backgroundColor,
+            fontSize: appearance.fontSize,
+            fontFamily: appearance.fontFamily,
+            textShadow: appearance.textShadow,
+            lineHeight: appearance.lineHeight,
+            padding: appearance.padding,
+            borderRadius: appearance.borderRadius,
           }}
         >
-          Sample subtitle
+          {compact ? "Sample subtitle" : "Sample subtitle preview"}
         </p>
       </div>
     </div>
@@ -237,7 +256,7 @@ export function DesktopSubtitleAppearancePanel({ onBack }: { onBack: () => void 
       <div className="my-1 border-t border-border" />
 
       <div className="px-2 pb-1">
-        <SubtitlePreview styles={styles} />
+        <SubtitleStylePreview styles={styles} compact />
       </div>
 
       <div className="max-h-[min(50vh,20rem)] overflow-y-auto">
@@ -303,14 +322,15 @@ export function DesktopSubtitleAppearancePanel({ onBack }: { onBack: () => void 
           />
         </SettingRow>
 
-        <SettingRow label="BG opacity">
-          <SegmentedControl
-            options={BG_OPACITY_SEGMENTS}
-            value={styles.backgroundOpacity}
-            onChange={(value) => updateStyle("backgroundOpacity", value)}
-            disabled={styles.background === "none"}
-          />
-        </SettingRow>
+        {styles.background !== "none" ? (
+          <SettingRow label="BG opacity">
+            <SegmentedControl
+              options={BG_OPACITY_SEGMENTS}
+              value={styles.backgroundOpacity}
+              onChange={(value) => updateStyle("backgroundOpacity", value)}
+            />
+          </SettingRow>
+        ) : null}
 
         <SettingRow label="Edge">
           <SegmentedControl
@@ -372,34 +392,10 @@ export function TvSubtitleAppearancePanel({
   nativePlayback?: boolean;
 }) {
   const { styles, setStyles, updateStyle, resetStyles } = useSubtitleStyles();
-  const preview = previewSubtitleStyles(styles);
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
-        <div className="relative aspect-[16/5] bg-gradient-to-b from-zinc-900 to-black">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_55%)]" />
-          <div className="absolute inset-x-0 bottom-[18%] flex justify-center px-6">
-            <p
-              className="max-w-xl text-center leading-snug"
-              style={{
-                color: preview.color,
-                backgroundColor: preview.backgroundColor,
-                fontSize: preview.fontSize,
-                fontFamily: preview.fontFamily,
-                textShadow: preview.textShadow,
-                padding:
-                  styles.background === "none" || styles.backgroundOpacity === "0"
-                    ? "0"
-                    : "0.2em 0.55em",
-                borderRadius: "0.2em",
-              }}
-            >
-              Sample subtitle preview
-            </p>
-          </div>
-        </div>
-      </div>
+      <SubtitleStylePreview styles={styles} nativePlayback={nativePlayback} />
 
       {nativePlayback && !nativeSubtitleStylesAvailable() ? (
         <p className="px-1 text-sm leading-relaxed text-muted-foreground">
@@ -451,13 +447,14 @@ export function TvSubtitleAppearancePanel({
           }}
         />
 
-        <TvSubtitleVerticalOptions
-          label="Background opacity"
-          options={SUBTITLE_BACKGROUND_OPACITY_OPTIONS}
-          value={styles.backgroundOpacity}
-          onChange={(value) => updateStyle("backgroundOpacity", value)}
-          disabled={styles.background === "none"}
-        />
+        {styles.background !== "none" ? (
+          <TvSubtitleVerticalOptions
+            label="Background opacity"
+            options={SUBTITLE_BACKGROUND_OPACITY_OPTIONS}
+            value={styles.backgroundOpacity}
+            onChange={(value) => updateStyle("backgroundOpacity", value)}
+          />
+        ) : null}
 
         <TvSubtitleVerticalOptions
           label="Text edge style"

@@ -19,11 +19,11 @@
     --border: 184 17% 20%;
     --ring: 174 84% 52%;
     --radius: 0.5rem;
-    --subtitle-cue-size: 1.05em;
+    --subtitle-cue-size: 1.3em;
     --subtitle-cue-font: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --subtitle-cue-color: rgba(255, 255, 255, 1);
-    --subtitle-cue-background: rgba(0, 0, 0, 0.75);
-    --subtitle-cue-shadow: none;
+    --subtitle-cue-color: rgba(0, 0, 0, 1);
+    --subtitle-cue-background: transparent;
+    --subtitle-cue-shadow: rgb(0 0 0) -1px -1px 0, rgb(0 0 0) 1px -1px 0, rgb(0 0 0) -1px 1px 0, rgb(0 0 0) 1px 1px 0;
   }
 
   * {

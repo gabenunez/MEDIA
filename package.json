@@ -1,11 +1,11 @@
 {
   "name": "media-app",
-  "version": "0.1.94",
+  "version": "0.1.95",
   "private": true,
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "start": "pnpm --filter @media-app/server start",
+    "start": "bash scripts/start-prod.sh",
     "update": "bash scripts/update.sh",
     "release": "bash scripts/release.sh",
     "db:generate": "pnpm --filter @media-app/server db:generate",

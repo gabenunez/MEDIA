@@ -1,10 +1,19 @@
+const internalApiPort = process.env.MEDIA_INTERNAL_API_PORT ?? "8097";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Static export bakes Server Component shells at build time (PPR-like static
-  // layout). Runtime PPR requires removing output: "export" and a Next.js server.
-  output: "export",
+  output: "standalone",
   trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `http://127.0.0.1:${internalApiPort}/api/:path*`,
+      },
+    ];
+  },
   images: {
     unoptimized: true,
   },

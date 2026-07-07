@@ -5,7 +5,7 @@ import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import Link from "next/link";
 import { Calendar, ChevronLeft, Clock3, Layers3, Play, Star } from "lucide-react";
-import { api, type MediaItem } from "@/lib/api";
+import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,7 @@ import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvMediaView } from "@/components/tv/views/media-view";
+import { useMediaPageData } from "@/lib/use-media-page-data";
 
 interface MovieFile {
   id: number;
@@ -59,43 +60,47 @@ interface MediaDetail {
   seasons?: Season[];
 }
 
-export function MediaClient() {
+export function MediaClient({
+  mediaId: mediaIdProp,
+  initialMedia,
+}: {
+  mediaId?: number;
+  initialMedia?: Record<string, unknown>;
+} = {}) {
   const isTvMode = useTvMode();
-  if (isTvMode) return <TvMediaView />;
-  return <MediaDesktopClient />;
+  if (isTvMode) {
+    return <TvMediaView mediaId={mediaIdProp} initialMedia={initialMedia} />;
+  }
+  return <MediaDesktopClient mediaId={mediaIdProp} initialMedia={initialMedia} />;
 }
 
-function MediaDesktopClient() {
+function MediaDesktopClient({
+  mediaId: mediaIdProp,
+  initialMedia,
+}: {
+  mediaId?: number;
+  initialMedia?: Record<string, unknown>;
+}) {
   const isClient = useIsClient();
-  const mediaId = useMediaRouteId();
-  const [media, setMedia] = useState<MediaDetail | null>(null);
-  const [related, setRelated] = useState<MediaItem[]>([]);
+  const routeMediaId = useMediaRouteId();
+  const mediaId = mediaIdProp ?? routeMediaId;
+  const { media: mediaRecord, related, loading } = useMediaPageData(mediaId, initialMedia);
+  const media = mediaRecord as MediaDetail | null;
   const [selectedSeason, setSelectedSeason] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   useDocumentTitle(media?.title ?? null);
 
   useEffect(() => {
-    if (!mediaId || Number.isNaN(mediaId)) return;
-    setLoading(true);
-    setSelectedSeason(0);
-    setRelated([]);
-
-    Promise.all([
-      api.getMedia(mediaId).then((data) => {
-        const nextMedia = data as unknown as MediaDetail;
-        setMedia(nextMedia);
-        if (nextMedia.type === "tv" && nextMedia.seasons?.length) {
-          setSelectedSeason(resolveActiveSeasonIndex(nextMedia.seasons));
-        } else {
-          setSelectedSeason(0);
-        }
-      }),
-      api.getRelatedMedia(mediaId).then((data) => setRelated(data.items)),
-    ])
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [mediaId]);
+    if (!media) {
+      setSelectedSeason(0);
+      return;
+    }
+    if (media.type === "tv" && media.seasons?.length) {
+      setSelectedSeason(resolveActiveSeasonIndex(media.seasons));
+    } else {
+      setSelectedSeason(0);
+    }
+  }, [media]);
 
   if (!mediaId || Number.isNaN(mediaId)) {
     if (!isClient) {

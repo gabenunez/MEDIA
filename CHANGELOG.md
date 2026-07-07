@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.1.95 — 2026-07-07
+
+### Performance
+
+- **Media pages** — run Next.js in server mode with ISR (`revalidate` 5 min), prefetch on poster hover/focus, and split related-title loading so the hero renders without waiting
+- **Deploy** — serve the web UI from Next standalone; Fastify runs API-only on an internal port (`scripts/start-prod.sh`)
+
+### Fix
+
+- **API** — stop Next trailing-slash redirects from breaking `/api/stream` and other backend routes
+- **Continue watching** — prune orphaned watch-progress rows when episodes/files are gone; hide the home row when empty
+- **Subtitles** — fix appearance preview sizing, keep captions visible while the appearance panel is open, and only show background opacity when a background is selected
+
+### UI
+
+- **Subtitles** — new defaults: large sans-serif, black text, no background, outline edge
+
+### TV
+
+- **Android TV** — center the home-screen banner icon and wordmark
+- **Subtitles** — match new default appearance styles in ExoPlayer
+
 ## 0.1.94 — 2026-07-07
 
 ### Fix

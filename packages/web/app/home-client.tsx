@@ -25,6 +25,7 @@ import { LibraryIcon } from "@/components/navbar";
 import { cn } from "@/lib/utils";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvHomeView } from "@/components/tv/views/home-view";
+import { prefetchMediaPage } from "@/lib/use-media-page-data";
 
 export function HomeClient() {
   const isTvMode = useTvMode();
@@ -92,6 +93,11 @@ function HomeDesktopClient() {
   useEffect(() => {
     setFeaturedImageReady(false);
   }, [featuredImage]);
+
+  useEffect(() => {
+    if (!featured?.id) return;
+    prefetchMediaPage(featured.id);
+  }, [featured?.id]);
 
   const handleFeaturedImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
     const img = event.currentTarget;
@@ -193,6 +199,8 @@ function HomeDesktopClient() {
                     href={routes.media(featured.id)}
                     className="absolute inset-0 z-30 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     aria-label={`Open ${featured.title}`}
+                    onMouseEnter={() => prefetchMediaPage(featured.id)}
+                    onFocus={() => prefetchMediaPage(featured.id)}
                   />
                 ) : null}
                 {(!loaded || (featuredImage && !featuredImageReady)) && (
@@ -269,18 +277,20 @@ function HomeDesktopClient() {
         </div>
       </section>
 
-      <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
-        <HomeSectionHeading
-          title="Continue Watching"
-          accent="accent"
-          href={continueWatching.length > 0 ? routes.continueWatching() : undefined}
-        />
-        {!loaded ? (
-          <PosterRowSkeleton wide />
-        ) : (
-          <ContinueWatchingRow items={continueWatching} hideHeader />
-        )}
-      </section>
+      {(continueWatching.length > 0 || !loaded) && (
+        <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
+          <HomeSectionHeading
+            title="Continue Watching"
+            accent="accent"
+            href={continueWatching.length > 0 ? routes.continueWatching() : undefined}
+          />
+          {!loaded ? (
+            <PosterRowSkeleton wide />
+          ) : (
+            <ContinueWatchingRow items={continueWatching} hideHeader />
+          )}
+        </section>
+      )}
 
       {favorites.length > 0 && (
         <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">

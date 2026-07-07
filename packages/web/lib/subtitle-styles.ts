@@ -34,13 +34,13 @@ export const SUBTITLE_STYLES_CHANGED_EVENT = "media-subtitle-styles-changed";
 const SUBTITLE_CUE_STYLE_ID = "media-subtitle-cue-styles";
 
 export const DEFAULT_SUBTITLE_STYLES: SubtitleStyles = {
-  size: "medium",
+  size: "large",
   font: "default",
-  color: "white",
+  color: "black",
   opacity: "100",
-  background: "black",
-  backgroundOpacity: "75",
-  edge: "none",
+  background: "none",
+  backgroundOpacity: "0",
+  edge: "outline",
 };
 
 const COLOR_RGB: Record<SubtitleColor, [number, number, number]> = {
@@ -73,6 +73,45 @@ const EDGE_SHADOW: Record<SubtitleEdge, string> = {
   outline:
     "rgb(0 0 0) -1px -1px 0, rgb(0 0 0) 1px -1px 0, rgb(0 0 0) -1px 1px 0, rgb(0 0 0) 1px 1px 0",
 };
+
+const PLAYBACK_SIZE_CLAMP: Record<
+  SubtitleSize,
+  { min: string; fluid: number; max: string }
+> = {
+  small: { min: "1rem", fluid: 2.2, max: "1.35rem" },
+  medium: { min: "1.15rem", fluid: 2.6, max: "1.6rem" },
+  large: { min: "1.35rem", fluid: 3.1, max: "1.95rem" },
+  "extra-large": { min: "1.55rem", fluid: 3.6, max: "2.3rem" },
+};
+
+/** ExoPlayer fractional text height on native TV (fraction of viewport height). */
+const NATIVE_FRACTIONAL_SIZE: Record<SubtitleSize, number> = {
+  small: 0.045,
+  medium: 0.053,
+  large: 0.065,
+  "extra-large": 0.08,
+};
+
+export type SubtitleAppearanceSizeUnit = "vmin" | "cqmin" | "cqh";
+
+export interface SubtitleCueAppearance {
+  color: string;
+  backgroundColor: string;
+  fontSize: string;
+  fontFamily: string;
+  textShadow: string;
+  lineHeight: number;
+  padding: string | undefined;
+  borderRadius: string | undefined;
+}
+
+function subtitleSizeClamp(
+  size: SubtitleSize,
+  unit: Extract<SubtitleAppearanceSizeUnit, "vmin" | "cqmin">,
+): string {
+  const scale = PLAYBACK_SIZE_CLAMP[size];
+  return `clamp(${scale.min}, ${scale.fluid}${unit}, ${scale.max})`;
+}
 
 function rgba(color: SubtitleColor, opacityPercent: string): string {
   const [r, g, b] = COLOR_RGB[color];
@@ -167,6 +206,33 @@ export function applySubtitleStyles(styles: SubtitleStyles): void {
   }
 }
 
+export function subtitleCueAppearance(
+  styles: SubtitleStyles,
+  options?: {
+    sizeUnit?: Extract<SubtitleAppearanceSizeUnit, "vmin" | "cqmin">;
+    nativeFractional?: boolean;
+  },
+): SubtitleCueAppearance {
+  const backgroundColor = cueBackground(styles);
+  const transparentBg = backgroundColor === "transparent";
+
+  const fontSize = options?.nativeFractional
+    ? `${NATIVE_FRACTIONAL_SIZE[styles.size] * 100}cqh`
+    : subtitleSizeClamp(styles.size, options?.sizeUnit ?? "vmin");
+
+  return {
+    color: rgba(styles.color, styles.opacity),
+    backgroundColor,
+    fontSize,
+    fontFamily: FONT_FAMILY[styles.font],
+    textShadow: EDGE_SHADOW[styles.edge],
+    lineHeight: 1.35,
+    padding: transparentBg ? undefined : "0.2em 0.45em",
+    borderRadius: transparentBg ? undefined : "0.2em",
+  };
+}
+
+/** @deprecated Use subtitleCueAppearance or previewSubtitleAppearance */
 export function previewSubtitleStyles(styles: SubtitleStyles): {
   color: string;
   backgroundColor: string;
@@ -174,44 +240,44 @@ export function previewSubtitleStyles(styles: SubtitleStyles): {
   fontFamily: string;
   textShadow: string;
 } {
-  const previewScale: Record<SubtitleSize, string> = {
-    small: "0.85rem",
-    medium: "1rem",
-    large: "1.2rem",
-    "extra-large": "1.45rem",
-  };
-
+  const appearance = previewSubtitleAppearance(styles);
   return {
-    color: rgba(styles.color, styles.opacity),
-    backgroundColor: cueBackground(styles),
-    fontSize: previewScale[styles.size],
-    fontFamily: FONT_FAMILY[styles.font],
-    textShadow: EDGE_SHADOW[styles.edge],
+    color: appearance.color,
+    backgroundColor: appearance.backgroundColor,
+    fontSize: appearance.fontSize,
+    fontFamily: appearance.fontFamily,
+    textShadow: appearance.textShadow,
   };
 }
 
-/** Styles for the desktop watch DOM subtitle overlay (above player chrome). */
-export function playbackSubtitleAppearance(styles: SubtitleStyles): {
-  color: string;
-  backgroundColor: string;
-  fontSize: string;
-  fontFamily: string;
-  textShadow: string;
-} {
-  const playbackScale: Record<SubtitleSize, string> = {
-    small: "clamp(1rem, 2.2vmin, 1.35rem)",
-    medium: "clamp(1.15rem, 2.6vmin, 1.6rem)",
-    large: "clamp(1.35rem, 3.1vmin, 1.95rem)",
-    "extra-large": "clamp(1.55rem, 3.6vmin, 2.3rem)",
-  };
+/** Mini player-frame preview (uses container query units). */
+export function previewSubtitleAppearance(
+  styles: SubtitleStyles,
+  options?: { nativePlayback?: boolean },
+): SubtitleCueAppearance {
+  if (options?.nativePlayback) {
+    return subtitleCueAppearance(styles, { nativeFractional: true });
+  }
+
+  const fluid = PLAYBACK_SIZE_CLAMP[styles.size].fluid;
+  const backgroundColor = cueBackground(styles);
+  const transparentBg = backgroundColor === "transparent";
 
   return {
     color: rgba(styles.color, styles.opacity),
-    backgroundColor: cueBackground(styles),
-    fontSize: playbackScale[styles.size],
+    backgroundColor,
+    fontSize: `${fluid}cqmin`,
     fontFamily: FONT_FAMILY[styles.font],
     textShadow: EDGE_SHADOW[styles.edge],
+    lineHeight: 1.35,
+    padding: transparentBg ? undefined : "0.2em 0.45em",
+    borderRadius: transparentBg ? undefined : "0.2em",
   };
+}
+
+/** Live web playback overlay and ::cue variables. */
+export function playbackSubtitleAppearance(styles: SubtitleStyles): SubtitleCueAppearance {
+  return subtitleCueAppearance(styles, { sizeUnit: "vmin" });
 }
 
 export const SUBTITLE_SIZE_OPTIONS: Array<{ value: SubtitleSize; label: string }> = [

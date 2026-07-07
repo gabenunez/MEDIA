@@ -11,22 +11,23 @@ fi
 
 pnpm install
 
-# Run server and web dev in parallel
+API_PORT="${MEDIA_INTERNAL_API_PORT:-8096}"
+
 pnpm --filter @media-app/shared dev &
 SHARED_PID=$!
 
-pnpm --filter @media-app/server dev &
+MEDIA_API_ONLY=1 MEDIA_INTERNAL_API_PORT="$API_PORT" pnpm --filter @media-app/server dev &
 SERVER_PID=$!
 
-NEXT_PUBLIC_API_URL=http://localhost:8096 pnpm --filter @media-app/web dev &
+MEDIA_INTERNAL_API_PORT="$API_PORT" pnpm --filter @media-app/web dev &
 WEB_PID=$!
 
 trap "kill $SHARED_PID $SERVER_PID $WEB_PID 2>/dev/null" EXIT
 
 echo ""
 echo "Dev servers starting..."
-echo "  API + static: http://localhost:8096 (after server builds shared)"
-echo "  Web dev UI:   http://localhost:3000"
+echo "  Web (Next): http://localhost:3000"
+echo "  API:        http://127.0.0.1:${API_PORT}"
 echo ""
 
 wait

@@ -108,9 +108,9 @@ export function WebSubtitleCueOverlay({
           fontSize: appearance.fontSize,
           fontFamily: appearance.fontFamily,
           textShadow: appearance.textShadow,
-          lineHeight: 1.35,
-          padding: appearance.backgroundColor === "transparent" ? undefined : "0.2em 0.45em",
-          borderRadius: appearance.backgroundColor === "transparent" ? undefined : "0.2em",
+          lineHeight: appearance.lineHeight,
+          padding: appearance.padding,
+          borderRadius: appearance.borderRadius,
         }}
       >
         {lines.join("\n")}

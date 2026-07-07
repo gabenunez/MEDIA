@@ -254,7 +254,7 @@ Type=simple
 User=${MEDIA_USER}
 Group=${MEDIA_USER}
 WorkingDirectory=${MEDIA_INSTALL_DIR}
-ExecStart=${node_bin} packages/server/dist/index.js
+ExecStart=/bin/bash scripts/start-prod.sh
 Restart=on-failure
 RestartSec=10
 Environment=NODE_ENV=production

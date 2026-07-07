@@ -200,6 +200,8 @@ stop_running_reel() {
     sleep 2
   fi
   pkill -f "node packages/server/dist/index.js" 2>/dev/null || true
+  pkill -f "packages/web/.next/standalone/packages/web/server.js" 2>/dev/null || true
+  pkill -f "scripts/start-prod.sh" 2>/dev/null || true
   sleep 1
   rm -f "${HOME}/.config/media-app/reel.pid" "${HOME}/.config/reel/reel.pid"
 }
@@ -233,7 +235,7 @@ restart_service() {
       install_dir="$(detect_install_dir)"
       export PATH="${HOME}/node/bin:${PATH:-}"
       cd "$install_dir"
-      nohup node packages/server/dist/index.js >> "$config_dir/reel.log" 2>&1 &
+      nohup bash scripts/start-prod.sh >> "$config_dir/reel.log" 2>&1 &
       echo $! > "$pid_file"
       media_ok "MEDIA! restarted (pid $(cat "$pid_file"))"
     else

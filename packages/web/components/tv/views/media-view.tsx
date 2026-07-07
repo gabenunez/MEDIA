@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import { Loader2, Play } from "lucide-react";
-import { api, type MediaItem } from "@/lib/api";
+import { api } from "@/lib/api";
 import { tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
@@ -18,6 +18,7 @@ import { resolveNextEpisodeTarget } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusEpisodeItem, focusFirstContentItem } from "@/lib/tv-focus";
 import { cn } from "@/lib/utils";
+import { useMediaPageData } from "@/lib/use-media-page-data";
 
 interface Episode {
   id: number;
@@ -51,42 +52,38 @@ interface MediaDetail {
   seasons?: Season[];
 }
 
-export function TvMediaView() {
+export function TvMediaView({
+  mediaId: mediaIdProp,
+  initialMedia,
+}: {
+  mediaId?: number;
+  initialMedia?: Record<string, unknown>;
+} = {}) {
   const isClient = useIsClient();
-  const mediaId = useMediaRouteId();
-  const [media, setMedia] = useState<MediaDetail | null>(null);
-  const [related, setRelated] = useState<MediaItem[]>([]);
+  const routeMediaId = useMediaRouteId();
+  const mediaId = mediaIdProp ?? routeMediaId;
+  const { media: mediaRecord, related, loading } = useMediaPageData(mediaId, initialMedia);
+  const media = mediaRecord as MediaDetail | null;
   const [selectedSeason, setSelectedSeason] = useState(0);
-  const [loading, setLoading] = useState(true);
   const nextEpisodeIdRef = useRef<number | null>(null);
 
   useDocumentTitle(media?.title ?? null);
 
   useEffect(() => {
-    if (!mediaId || Number.isNaN(mediaId)) return;
-    setLoading(true);
-    setSelectedSeason(0);
-    setRelated([]);
-    nextEpisodeIdRef.current = null;
-
-    Promise.all([
-      api.getMedia(mediaId).then((data) => {
-        const nextMedia = data as unknown as MediaDetail;
-        setMedia(nextMedia);
-        if (nextMedia.type === "tv" && nextMedia.seasons?.length) {
-          const target = resolveNextEpisodeTarget(nextMedia.seasons);
-          setSelectedSeason(target?.seasonIndex ?? 0);
-          nextEpisodeIdRef.current = target?.episodeId ?? null;
-        } else {
-          setSelectedSeason(0);
-          nextEpisodeIdRef.current = null;
-        }
-      }),
-      api.getRelatedMedia(mediaId).then((data) => setRelated(data.items)),
-    ])
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [mediaId]);
+    if (!media) {
+      setSelectedSeason(0);
+      nextEpisodeIdRef.current = null;
+      return;
+    }
+    if (media.type === "tv" && media.seasons?.length) {
+      const target = resolveNextEpisodeTarget(media.seasons);
+      setSelectedSeason(target?.seasonIndex ?? 0);
+      nextEpisodeIdRef.current = target?.episodeId ?? null;
+    } else {
+      setSelectedSeason(0);
+      nextEpisodeIdRef.current = null;
+    }
+  }, [media]);
 
   useEffect(() => {
     if (loading || !media) return;

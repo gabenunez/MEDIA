@@ -63,3 +63,9 @@ export function invalidateApiCache(prefix?: string) {
     }
   }
 }
+
+export function peekApiCache<T>(key: string): T | undefined {
+  const hit = cache.get(key) as CacheEntry<T> | undefined;
+  if (!hit || hit.expiresAt <= Date.now()) return undefined;
+  return hit.data;
+}

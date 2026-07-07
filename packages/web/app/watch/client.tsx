@@ -821,8 +821,8 @@ function WatchDesktopClient() {
     !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null);
   const showBufferingBar =
     bufferingMidPlayback && playbackHasBegun && !error && !showInitialLoading;
-  const playbackMenusOpen =
-    subtitleMenuOpen ||
+  const hidePlaybackSubtitles =
+    (subtitleMenuOpen && !subtitleAppearanceOpen) ||
     qualityMenuOpen ||
     volumeMenuOpen ||
     subtitleSearchOpen ||
@@ -1006,7 +1006,7 @@ function WatchDesktopClient() {
           vtt={activeVtt}
           getPlaybackSeconds={getSubtitlePlaybackSeconds}
           streamEpoch={streamGeneration}
-          hidden={playbackMenusOpen}
+          hidden={hidePlaybackSubtitles}
         />
       )}
 

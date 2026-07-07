@@ -7,13 +7,13 @@
     <!-- M -->
     <path
         android:fillColor="@color/media_accent"
-        android:pathData="M26,32 L26,78 L35,78 L35,52 L43.5,67 L52,52 L52,78 L61,78 L61,32 L50,32 L43.5,45 L37,32 Z" />
+        android:pathData="M29.5,31 L29.5,77 L38.5,77 L38.5,51 L47,66 L55.5,51 L55.5,77 L64.5,77 L64.5,31 L53.5,31 L47,44 L40.5,31 Z" />
     <!-- ! stem -->
     <path
         android:fillColor="@color/media_primary"
-        android:pathData="M67,32 L67,59 L75,59 L75,32 Z" />
+        android:pathData="M70.5,31 L70.5,58 L78.5,58 L78.5,31 Z" />
     <!-- ! dot -->
     <path
         android:fillColor="@color/media_primary"
-        android:pathData="M71,67 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
+        android:pathData="M74.5,66 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
 </vector>

@@ -1263,7 +1263,10 @@ export function TvWatchView() {
           ? `Starting ${(playbackStream.hlsQuality ?? quality).toUpperCase()} stream...`
           : "Loading video...";
   const controlsVisible = (showControls || panelOpen) && !centerMessageVisible;
-  const playbackMenusOpen = panelOpen || subtitleSearchOpen;
+  const hidePlaybackSubtitles =
+    (subtitleMenuOpen && !subtitleAppearanceOpen) ||
+    qualityMenuOpen ||
+    subtitleSearchOpen;
   const showTransportControls = Boolean(
     streamInfo && initialResumeSeconds !== null && !error && !countdown,
   );
@@ -1625,7 +1628,7 @@ export function TvWatchView() {
             vtt={activeVtt}
             getPlaybackSeconds={getSubtitlePlaybackSeconds}
             streamEpoch={streamGeneration}
-            hidden={playbackMenusOpen}
+            hidden={hidePlaybackSubtitles}
           />
         )}
         {!usesNativePlayer && subtitleError && (

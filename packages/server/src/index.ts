@@ -84,8 +84,9 @@ async function main() {
   await subtitleSearchRoutes(app, db, configManager, subtitles);
   await subtitleRoutes(app, db, subtitles);
 
+  const apiOnly = process.env.MEDIA_API_ONLY === "1";
   const webOut = getWebOutPath();
-  if (webOut && fs.existsSync(webOut)) {
+  if (!apiOnly && webOut && fs.existsSync(webOut)) {
     await app.register(fastifyStatic, {
       root: webOut,
       prefix: "/",
@@ -140,10 +141,17 @@ async function main() {
     }
   }, 60 * 60 * 1000);
 
-  const { port, host } = config.server;
+  const { port: configPort, host } = config.server;
+  const port = apiOnly
+    ? parseInt(process.env.MEDIA_INTERNAL_API_PORT ?? String(configPort + 1), 10)
+    : configPort;
   await app.listen({ port, host });
 
-  console.log(`\n🎬 MEDIA! media server running at http://localhost:${port}\n`);
+  if (apiOnly) {
+    console.log(`\n🎬 MEDIA! API running at http://${host}:${port}\n`);
+  } else {
+    console.log(`\n🎬 MEDIA! media server running at http://localhost:${port}\n`);
+  }
 }
 
 main().catch((err) => {

@@ -1,8 +1,18 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { MediaClient } from "./client";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function MediaPage() {
+export default async function MediaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>;
+}) {
+  const { id } = await searchParams;
+  if (id && /^\d+$/.test(id) && parseInt(id, 10) > 0) {
+    redirect(`/media/${id}/`);
+  }
+
   return (
     <Suspense
       fallback={
