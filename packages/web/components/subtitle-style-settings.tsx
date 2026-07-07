@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import Link from "next/link";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import {
@@ -141,7 +141,7 @@ export function SubtitleAppearanceSettings() {
   const preview = previewSubtitleStyles(styles);
 
   return (
-    <div id="subtitle-appearance" className="space-y-5">
+    <div className="space-y-5">
       <div className="overflow-hidden rounded-lg border border-border bg-black">
         <div className="relative aspect-[16/5] bg-gradient-to-b from-zinc-900 to-black">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_55%)]" />
@@ -234,15 +234,56 @@ export function SubtitleAppearanceSettings() {
   );
 }
 
-export function SubtitleAppearanceSettingsLink({ onNavigate }: { onNavigate?: () => void }) {
+export function SubtitleAppearanceDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
   return (
-    <Link
-      href="/settings#subtitle-appearance"
-      className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
-      onClick={onNavigate}
+    <div
+      className="absolute inset-0 z-30 flex items-center justify-center bg-black/65 p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Subtitle appearance"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      Subtitle appearance...
-    </Link>
+      <div className="flex max-h-[min(85vh,100%)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-white/10 bg-card shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold">Subtitle appearance</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Customize how subtitles look during playback on this device.
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <SubtitleAppearanceSettings />
+        </div>
+      </div>
+    </div>
   );
 }
 
