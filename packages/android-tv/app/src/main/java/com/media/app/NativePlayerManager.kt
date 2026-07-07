@@ -160,6 +160,30 @@ class NativePlayerManager(
         emitState()
     }
 
+    fun updateSubtitles(subtitleUrl: String?) {
+        val exoPlayer = player ?: return
+        val payload = currentPayload ?: return
+
+        val normalizedUrl = subtitleUrl?.takeIf { it.isNotBlank() }
+        if (payload.subtitleUrl == normalizedUrl) return
+
+        val position = exoPlayer.currentPosition
+        val wasPlaying = exoPlayer.isPlaying
+
+        currentPayload = payload.copy(subtitleUrl = normalizedUrl)
+
+        exoPlayer.trackSelectionParameters =
+            exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, normalizedUrl == null)
+                .build()
+
+        exoPlayer.setMediaItem(buildMediaItem(currentPayload!!), position)
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = wasPlaying
+        emitState()
+    }
+
     fun stop() {
         handler.removeCallbacks(progressRunnable)
         saveProgress(player?.currentPosition ?: 0L, ended = false)

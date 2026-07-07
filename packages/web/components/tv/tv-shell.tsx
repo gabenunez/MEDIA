@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Home, Heart, LogOut, Search } from "lucide-react";
@@ -8,6 +9,11 @@ import { useAuth } from "@/components/auth-gate";
 import { MediaIcon } from "@/components/media-icon";
 import { TvSpatialNav } from "@/components/tv/tv-spatial-nav";
 import { tvNavItemClassName, TvFocusButton } from "@/components/tv/tv-focus-link";
+import {
+  nativeTvPlayerAvailable,
+  setNativeWebOverlayAlpha,
+  stopNativePlayback,
+} from "@/lib/android-bridge";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -58,12 +64,26 @@ function TvLogoutButton({ onLogout }: { onLogout: () => void }) {
 
 export function TvShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const wasOnWatchRef = useRef(false);
   const { required, authenticated, logout } = useAuth();
   const hideNav = pathname.startsWith("/watch");
   const homeActive = pathname === "/";
   const favoritesActive = pathname.startsWith("/favorites");
   const searchActive = pathname.startsWith("/search");
   const showLogout = required && authenticated;
+
+  useEffect(() => {
+    const onWatch = pathname.startsWith("/watch");
+    if (wasOnWatchRef.current && !onWatch) {
+      if (nativeTvPlayerAvailable()) {
+        document.documentElement.removeAttribute("data-native-video");
+        setNativeWebOverlayAlpha(1);
+        stopNativePlayback();
+      }
+      document.querySelector("video")?.pause();
+    }
+    wasOnWatchRef.current = onWatch;
+  }, [pathname]);
 
   const handleLogout = () => {
     void logout();

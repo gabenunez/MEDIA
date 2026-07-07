@@ -11,7 +11,11 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
-import { tvScrollRowClassName } from "@/components/tv/tv-row";
+import {
+  TvWatchMenuList,
+  TvWatchMenuSectionLabel,
+  tvWatchMenuOptionClassName,
+} from "@/components/tv/tv-watch-settings-menu";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_SUBTITLE_STYLES,
@@ -242,7 +246,7 @@ export function SubtitleAppearanceSettingsLink({ onNavigate }: { onNavigate?: ()
   );
 }
 
-function TvSubtitleOptionRow<T extends string>({
+function TvSubtitleVerticalOptions<T extends string>({
   label,
   options,
   value,
@@ -256,38 +260,35 @@ function TvSubtitleOptionRow<T extends string>({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <p className="px-1 text-sm font-medium text-muted-foreground">{label}</p>
-      <div
-        data-tv-row=""
-        data-tv-content-row=""
-        data-tv-scroll-row=""
-        className={cn(tvScrollRowClassName, "gap-2 px-0 py-1")}
-      >
-        {options.map((option) => (
-          <TvFocusButton
-            key={option.value}
-            variant="chip"
-            selected={value === option.value}
-            disabled={disabled}
-            onClick={() => onChange(option.value)}
-            className="px-4 py-2 text-sm font-semibold"
-          >
-            {option.label}
-          </TvFocusButton>
-        ))}
-      </div>
-    </div>
+    <>
+      <TvWatchMenuSectionLabel>{label}</TvWatchMenuSectionLabel>
+      {options.map((option) => (
+        <TvFocusButton
+          key={option.value}
+          variant="card"
+          selected={value === option.value}
+          disabled={disabled}
+          onClick={() => onChange(option.value)}
+          className={tvWatchMenuOptionClassName()}
+        >
+          {option.label}
+        </TvFocusButton>
+      ))}
+    </>
   );
 }
 
-export function TvSubtitleAppearancePanel() {
+export function TvSubtitleAppearancePanel({
+  nativePlayback = false,
+}: {
+  nativePlayback?: boolean;
+}) {
   const { styles, setStyles, updateStyle, resetStyles } = useSubtitleStyles();
   const preview = previewSubtitleStyles(styles);
 
   return (
-    <div className="space-y-5">
-      <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
         <div className="relative aspect-[16/5] bg-gradient-to-b from-zinc-900 to-black">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_55%)]" />
           <div className="absolute inset-x-0 bottom-[18%] flex justify-center px-6">
@@ -306,77 +307,87 @@ export function TvSubtitleAppearancePanel() {
                 borderRadius: "0.2em",
               }}
             >
-              These are sample subtitles for preview.
+              Sample subtitle preview
             </p>
           </div>
         </div>
       </div>
 
-      <TvSubtitleOptionRow
-        label="Text size"
-        options={SUBTITLE_SIZE_OPTIONS}
-        value={styles.size}
-        onChange={(value) => updateStyle("size", value)}
-      />
+      {nativePlayback ? (
+        <p className="px-1 text-sm leading-relaxed text-muted-foreground">
+          Styling applies to web-rendered subtitles. Native TV playback uses your device&apos;s
+          default subtitle appearance.
+        </p>
+      ) : null}
 
-      <TvSubtitleOptionRow
-        label="Font"
-        options={SUBTITLE_FONT_OPTIONS}
-        value={styles.font}
-        onChange={(value) => updateStyle("font", value)}
-      />
+      <TvWatchMenuList>
+        <TvSubtitleVerticalOptions
+          label="Text size"
+          options={SUBTITLE_SIZE_OPTIONS}
+          value={styles.size}
+          onChange={(value) => updateStyle("size", value)}
+        />
 
-      <TvSubtitleOptionRow
-        label="Text color"
-        options={SUBTITLE_COLOR_OPTIONS}
-        value={styles.color}
-        onChange={(value) => updateStyle("color", value)}
-      />
+        <TvSubtitleVerticalOptions
+          label="Font"
+          options={SUBTITLE_FONT_OPTIONS}
+          value={styles.font}
+          onChange={(value) => updateStyle("font", value)}
+        />
 
-      <TvSubtitleOptionRow
-        label="Text opacity"
-        options={SUBTITLE_OPACITY_OPTIONS}
-        value={styles.opacity}
-        onChange={(value) => updateStyle("opacity", value)}
-      />
+        <TvSubtitleVerticalOptions
+          label="Text color"
+          options={SUBTITLE_COLOR_OPTIONS}
+          value={styles.color}
+          onChange={(value) => updateStyle("color", value)}
+        />
 
-      <TvSubtitleOptionRow
-        label="Background"
-        options={SUBTITLE_BACKGROUND_OPTIONS}
-        value={styles.background}
-        onChange={(value) => {
-          const next = { ...styles, background: value };
-          if (value === "none") {
-            next.backgroundOpacity = "0";
-          } else if (styles.backgroundOpacity === "0") {
-            next.backgroundOpacity = "75";
-          }
-          setStyles(next);
-        }}
-      />
+        <TvSubtitleVerticalOptions
+          label="Text opacity"
+          options={SUBTITLE_OPACITY_OPTIONS}
+          value={styles.opacity}
+          onChange={(value) => updateStyle("opacity", value)}
+        />
 
-      <TvSubtitleOptionRow
-        label="Background opacity"
-        options={SUBTITLE_BACKGROUND_OPACITY_OPTIONS}
-        value={styles.backgroundOpacity}
-        onChange={(value) => updateStyle("backgroundOpacity", value)}
-        disabled={styles.background === "none"}
-      />
+        <TvSubtitleVerticalOptions
+          label="Background"
+          options={SUBTITLE_BACKGROUND_OPTIONS}
+          value={styles.background}
+          onChange={(value) => {
+            const next = { ...styles, background: value };
+            if (value === "none") {
+              next.backgroundOpacity = "0";
+            } else if (styles.backgroundOpacity === "0") {
+              next.backgroundOpacity = "75";
+            }
+            setStyles(next);
+          }}
+        />
 
-      <TvSubtitleOptionRow
-        label="Text edge style"
-        options={SUBTITLE_EDGE_OPTIONS}
-        value={styles.edge}
-        onChange={(value) => updateStyle("edge", value)}
-      />
+        <TvSubtitleVerticalOptions
+          label="Background opacity"
+          options={SUBTITLE_BACKGROUND_OPACITY_OPTIONS}
+          value={styles.backgroundOpacity}
+          onChange={(value) => updateStyle("backgroundOpacity", value)}
+          disabled={styles.background === "none"}
+        />
 
-      <TvFocusButton
-        variant="card"
-        onClick={resetStyles}
-        className="w-full rounded-xl px-4 py-3 text-left text-base"
-      >
-        Reset to defaults
-      </TvFocusButton>
+        <TvSubtitleVerticalOptions
+          label="Text edge style"
+          options={SUBTITLE_EDGE_OPTIONS}
+          value={styles.edge}
+          onChange={(value) => updateStyle("edge", value)}
+        />
+
+        <TvWatchMenuSectionLabel>Actions</TvWatchMenuSectionLabel>
+        <TvFocusButton
+          variant="card"
+          onClick={resetStyles}
+          className={tvWatchMenuOptionClassName()}
+        >
+          Reset to defaults
+        </TvFocusButton>
+      </TvWatchMenuList>
     </div>
   );
 }

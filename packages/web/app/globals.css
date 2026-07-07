@@ -908,6 +908,17 @@
     scroll-padding-block: 0.75rem;
   }
 
+  .tv-ui [data-tv-watch-menu] .tv-watch-menu-section-label {
+    scroll-margin-block: 0.5rem;
+    user-select: none;
+  }
+
+  .tv-ui [data-tv-watch-menu] > div:first-child [data-tv-item].tv-focus-nav[data-tv-focused] {
+    border-color: hsl(var(--primary));
+    box-shadow: none;
+    transform: none;
+  }
+
   .tv-ui [data-tv-watch-menu] [data-tv-item].tv-focus-card {
     background-color: hsl(var(--muted) / 0.35);
     color: white;

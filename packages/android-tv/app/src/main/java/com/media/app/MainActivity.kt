@@ -546,6 +546,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun setSubtitles(subtitleUrl: String) {
+            runOnUiThread {
+                nativePlayer.updateSubtitles(subtitleUrl.takeIf { it.isNotBlank() })
+            }
+        }
+
+        @JavascriptInterface
         fun setVideoDisplayMode(mode: String) {
             runOnUiThread { nativePlayer.setDisplayMode(mode) }
         }

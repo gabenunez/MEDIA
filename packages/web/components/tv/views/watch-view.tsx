@@ -31,6 +31,12 @@ import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
+import {
+  TvWatchMenuList,
+  TvWatchMenuPanel,
+  TvWatchMenuSectionLabel,
+  tvWatchMenuOptionClassName,
+} from "@/components/tv/tv-watch-settings-menu";
 import { focusTvItem } from "@/lib/tv-focus";
 import { needsTvSdUpscaleSoftening, tvImageUrl } from "@/lib/tv-image";
 import { isTv4KClient } from "@/lib/tv-mode-detect";
@@ -51,6 +57,7 @@ import {
   syncNativePlaybackState,
   setNativeWebOverlayAlpha,
   toAbsoluteMediaUrl,
+  updateNativeSubtitles,
 } from "@/lib/android-bridge";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
@@ -209,8 +216,28 @@ export function TvWatchView() {
       : routes.home();
 
   const exitWatch = useCallback(() => {
+    if (progressInterval.current) {
+      clearInterval(progressInterval.current);
+      progressInterval.current = null;
+    }
+    saveProgressRef.current();
+
+    if (usesNativePlayer) {
+      document.documentElement.removeAttribute("data-native-video");
+      setNativeWebOverlayAlpha(1);
+      stopNativePlayback();
+    } else {
+      videoRef.current?.pause();
+      destroyHlsInstance(hlsRef.current);
+      hlsRef.current = null;
+    }
+
+    if (usingHlsRef.current && !Number.isNaN(fileId)) {
+      void api.stopStream(fileId, type).catch(() => {});
+    }
+
     router.replace(backHref);
-  }, [router, backHref]);
+  }, [router, backHref, usesNativePlayer, fileId, type]);
 
   const handlePlaybackFinished = useCallback(() => {
     exitWatch();
@@ -787,6 +814,7 @@ export function TvWatchView() {
 
     return () => {
       cancelled = true;
+      video.pause();
       webPlayback?.cleanup();
       hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -823,14 +851,21 @@ export function TvWatchView() {
     if (activeSubtitleRef.current === activeSubtitle) return;
     activeSubtitleRef.current = activeSubtitle;
 
+    const subtitleUrl =
+      activeSubtitle != null
+        ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle))
+        : undefined;
+
+    if (updateNativeSubtitles(subtitleUrl)) {
+      return;
+    }
+
     const stream = resolvePlaybackStream(quality, streamInfo, { forceRemux });
     const usingHls = stream.usingHls;
     const relativeTime = currentTimeRef.current;
     const absoluteTime = usingHls
       ? hlsStartOffsetRef.current + relativeTime
       : relativeTime;
-
-    stopNativePlayback();
 
     const relativeUrl = api.streamUrl(
       fileId,
@@ -853,10 +888,7 @@ export function TvWatchView() {
       durationMs: sourceDurationMs || streamInfo.durationMs || 0,
       isHls: usingHls,
       isHdr: needsHdrToneMap(streamInfo.dynamicRange),
-      subtitleUrl:
-        activeSubtitle != null
-          ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle))
-          : undefined,
+      subtitleUrl,
     });
 
     if (usingHls && relativeTime > 0) {
@@ -1202,7 +1234,6 @@ export function TvWatchView() {
   const seekPreviewMaxWidth = isTv4KClient() ? 220 : 160;
 
   const controlButtonClassName =
-    "tv-watch-control flex min-h-11 items-center justify-center rounded-lg text-white";
     "tv-watch-control flex min-h-11 items-center justify-center rounded-lg text-white";
 
   const handleWatchBack = useCallback((): boolean => {
@@ -1601,6 +1632,10 @@ export function TvWatchView() {
                   )}
                 <TvFocusLink
                   href={backHref}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    exitWatch();
+                  }}
                   className="inline-flex rounded-xl border border-white/20 px-6 py-3 font-semibold text-white"
                 >
                   Go back
@@ -1832,27 +1867,27 @@ export function TvWatchView() {
       </div>
 
       {subtitleMenuOpen && (
-        <div
-          data-tv-watch-menu=""
-          role="dialog"
-          aria-label="Subtitles"
-          className="absolute inset-x-0 bottom-0 z-40 max-h-[50vh] overflow-y-auto border-t border-white/10 bg-background px-6 py-4"
+        <TvWatchMenuPanel
+          title="Subtitles"
+          description={
+            activeSubtitle !== null
+              ? "Subtitles on"
+              : subtitles.length > 0
+                ? `${subtitles.length} track${subtitles.length === 1 ? "" : "s"} available`
+                : undefined
+          }
+          onBack={() => {
+            closeMenus();
+            revealControls(false);
+          }}
         >
-          <h2 className="mb-3 text-base font-bold text-white">Subtitles</h2>
-          <div
-            data-tv-row=""
-            data-tv-content-row=""
-            data-tv-vertical=""
-            className="flex flex-col gap-1.5"
-          >
+          <TvWatchMenuList>
+            <TvWatchMenuSectionLabel>Track</TvWatchMenuSectionLabel>
             <TvFocusButton
               variant="card"
               selected={activeSubtitle === null}
-              onClick={() => {
-                setActiveSubtitle(null);
-                closeMenus();
-              }}
-              className="rounded-xl px-4 py-3 text-left text-base"
+              onClick={() => setActiveSubtitle(null)}
+              className={tvWatchMenuOptionClassName()}
             >
               Off
             </TvFocusButton>
@@ -1861,26 +1896,33 @@ export function TvWatchView() {
                 key={sub.id}
                 variant="card"
                 selected={activeSubtitle === sub.id}
-                onClick={() => {
-                  setActiveSubtitle(sub.id);
-                  closeMenus();
-                }}
-                className="rounded-xl px-4 py-3 text-left text-base"
+                onClick={() => setActiveSubtitle(sub.id)}
+                className={tvWatchMenuOptionClassName("flex items-center justify-between gap-3")}
               >
-                {formatSubtitleLabel(sub)}
+                <span className="min-w-0 truncate">{formatSubtitleLabel(sub)}</span>
+                {sub.source === "opensubtitles" ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">Online</span>
+                ) : null}
               </TvFocusButton>
             ))}
+            {subtitles.length === 0 && !opensubtitlesConfigured ? (
+              <p className="px-1 py-2 text-sm text-muted-foreground">
+                No subtitles found. Configure OpenSubtitles on the desktop site to search online.
+              </p>
+            ) : null}
+
+            <TvWatchMenuSectionLabel>More</TvWatchMenuSectionLabel>
             <TvFocusButton
               variant="card"
               onClick={() => {
                 setSubtitleMenuOpen(false);
                 setSubtitleAppearanceOpen(true);
               }}
-              className="rounded-xl bg-muted/40 px-4 py-3 text-left text-base text-primary"
+              className={tvWatchMenuOptionClassName("text-primary")}
             >
-              Customize appearance...
+              Customize appearance
             </TvFocusButton>
-            {opensubtitlesConfigured && (
+            {opensubtitlesConfigured ? (
               <TvFocusButton
                 variant="card"
                 onClick={() => {
@@ -1891,46 +1933,37 @@ export function TvWatchView() {
                   setPanelOpen(false);
                   setSubtitleSearchOpen(true);
                 }}
-                className="rounded-xl bg-muted/40 px-4 py-3 text-left text-base text-primary"
+                className={tvWatchMenuOptionClassName("text-primary")}
               >
-                Search online...
+                Search online
               </TvFocusButton>
-            )}
-            {subtitles.length === 0 && !opensubtitlesConfigured && (
-              <p className="px-1 py-2 text-sm text-muted-foreground">
-                No subtitles found. Configure OpenSubtitles on the desktop site to search online.
-              </p>
-            )}
-          </div>
-        </div>
+            ) : null}
+          </TvWatchMenuList>
+        </TvWatchMenuPanel>
       )}
 
       {subtitleAppearanceOpen && (
-        <div
-          data-tv-watch-menu=""
-          role="dialog"
-          aria-label="Subtitle appearance"
-          className="absolute inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-y-auto border-t border-white/10 bg-background px-6 py-4"
+        <TvWatchMenuPanel
+          title="Subtitle appearance"
+          onBack={() => {
+            setSubtitleAppearanceOpen(false);
+            setSubtitleMenuOpen(true);
+          }}
         >
-          <h2 className="mb-3 text-base font-bold text-white">Subtitle appearance</h2>
-          <TvSubtitleAppearancePanel />
-        </div>
+          <TvSubtitleAppearancePanel nativePlayback={usesNativePlayer} />
+        </TvWatchMenuPanel>
       )}
 
       {qualityMenuOpen && (
-        <div
-          data-tv-watch-menu=""
-          role="dialog"
-          aria-label="Quality"
-          className="absolute inset-x-0 bottom-0 z-40 border-t border-white/10 bg-background px-6 py-4"
+        <TvWatchMenuPanel
+          title="Quality"
+          description={qualityLabel(quality, sourceHeight, sourceWidth)}
+          onBack={() => {
+            closeMenus();
+            revealControls(false);
+          }}
         >
-          <h2 className="mb-3 text-base font-bold text-white">Quality</h2>
-          <div
-            data-tv-row=""
-            data-tv-content-row=""
-            data-tv-vertical=""
-            className="flex flex-col gap-1.5"
-          >
+          <TvWatchMenuList>
             {availableQualities.map((option) => (
               <TvFocusButton
                 key={option}
@@ -1938,13 +1971,15 @@ export function TvWatchView() {
                 selected={quality === option}
                 disabled={option !== "original" && !transcodingEnabled}
                 onClick={() => changeQuality(option)}
-                className="rounded-xl px-4 py-3 text-left text-base disabled:opacity-40"
+                className={tvWatchMenuOptionClassName(
+                  option !== "original" && !transcodingEnabled ? "opacity-40" : undefined,
+                )}
               >
                 {qualityLabel(option, sourceHeight, sourceWidth)}
               </TvFocusButton>
             ))}
-          </div>
-        </div>
+          </TvWatchMenuList>
+        </TvWatchMenuPanel>
       )}
 
       <SubtitleSearchDialog
