@@ -8,7 +8,6 @@ import {
   writeStoredSubtitleSelection,
 } from "@/lib/subtitle-selection-storage";
 import {
-  attachCachedWebSubtitle,
   attachPreparedWebSubtitle,
   clearSubtitleVttCache,
   clearWebSubtitleTracksFromVideo,
@@ -39,14 +38,17 @@ export function useSubtitleTracks(
 ) {
   const attachToVideo = options?.attachToVideo ?? true;
   const displayMode = options?.displayMode ?? "native";
+  const usesDomOverlay = displayMode === "dom-overlay";
   const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<number | null>(null);
+  const [activeVtt, setActiveVtt] = useState<string | null>(null);
+  const [subtitleError, setSubtitleError] = useState<string | null>(null);
+  const [subtitleListError, setSubtitleListError] = useState<string | null>(null);
   const [opensubtitlesConfigured, setOpensubtitlesConfigured] = useState(false);
   const subtitlesRef = useRef(subtitles);
   const activeSubtitleRef = useRef(activeSubtitle);
   const timelineOffsetRef = useRef(timelineOffsetSeconds);
   const displayModeRef = useRef(displayMode);
-  const syncRef = useRef<(() => void) | null>(null);
   const syncGenerationRef = useRef(0);
   const objectUrlRef = useRef<string | null>(null);
   subtitlesRef.current = subtitles;
@@ -58,6 +60,7 @@ export function useSubtitleTracks(
     async (ensureTrack?: SubtitleTrack) => {
       if (!fileId || Number.isNaN(fileId)) return;
       try {
+        setSubtitleListError(null);
         const data = await api.listSubtitles(
           fileId,
           type === "movie" ? "movie" : "episode",
@@ -83,6 +86,9 @@ export function useSubtitleTracks(
         }
       } catch (err) {
         console.warn("Failed to load subtitles", err);
+        setSubtitleListError(
+          err instanceof Error ? err.message : "Couldn't load subtitle tracks.",
+        );
       }
     },
     [fileId, type],
@@ -103,36 +109,84 @@ export function useSubtitleTracks(
     }
   }, []);
 
+  const clearSubtitleError = useCallback(() => {
+    setSubtitleError(null);
+  }, []);
+
+  const failSubtitleLoad = useCallback(
+    (message: string) => {
+      setSubtitleError(message);
+      setActiveVtt(null);
+      setActiveSubtitle(null);
+      writeStoredSubtitleSelection(fileId, type, null);
+      const video = videoRef.current;
+      if (video) clearWebSubtitleTracksFromVideo(video);
+      revokeObjectUrl();
+    },
+    [fileId, type, revokeObjectUrl, videoRef],
+  );
+
+  const syncSubtitles = useCallback(async () => {
+    if (!attachToVideo) return;
+
+    const generation = ++syncGenerationRef.current;
+    const subtitleId = activeSubtitleRef.current;
+    const video = videoRef.current;
+    const activeTrack = subtitlesRef.current.find((track) => track.id === subtitleId);
+    const label = activeTrack?.language ?? "Subtitles";
+    const shouldApply = () => generation === syncGenerationRef.current;
+
+    if (subtitleId == null) {
+      if (!shouldApply()) return;
+      setActiveVtt(null);
+      setSubtitleError(null);
+      if (video) clearWebSubtitleTracksFromVideo(video);
+      revokeObjectUrl();
+      return;
+    }
+
+    const prepared = await prepareWebSubtitleVtt(subtitleId, timelineOffsetRef.current);
+    if (!shouldApply()) return;
+    if (!prepared.ok) {
+      failSubtitleLoad(prepared.error);
+      return;
+    }
+
+    setSubtitleError(null);
+
+    if (usesDomOverlay) {
+      setActiveVtt(prepared.vtt);
+      return;
+    }
+
+    if (!video) return;
+    revokeObjectUrl();
+    objectUrlRef.current = attachPreparedWebSubtitle(
+      video,
+      prepared.vtt,
+      label,
+      displayModeRef.current,
+    );
+    refreshWebSubtitleCues(video);
+  }, [attachToVideo, failSubtitleLoad, revokeObjectUrl, usesDomOverlay, videoRef]);
+
   const selectSubtitle = useCallback(
     (subtitleId: number | null) => {
       writeStoredSubtitleSelection(fileId, type, subtitleId);
+      setSubtitleError(null);
+      setActiveSubtitle(subtitleId);
 
-      if (attachToVideo) {
-        if (subtitleId != null) {
-          void prefetchSubtitleVtt(subtitleId);
-          const video = videoRef.current;
-          const activeTrack = subtitlesRef.current.find((track) => track.id === subtitleId);
-          if (video) {
-            revokeObjectUrl();
-            objectUrlRef.current = attachCachedWebSubtitle(
-              video,
-              subtitleId,
-              activeTrack?.language ?? "Subtitles",
-              timelineOffsetRef.current,
-              displayModeRef.current,
-            );
-          }
-        } else {
+      if (subtitleId == null) {
+        setActiveVtt(null);
+        if (attachToVideo) {
           const video = videoRef.current;
           if (video) clearWebSubtitleTracksFromVideo(video);
           revokeObjectUrl();
         }
-        queueMicrotask(() => syncRef.current?.());
-      } else if (subtitleId != null) {
-        void prefetchSubtitleVtt(subtitleId);
+        return;
       }
 
-      setActiveSubtitle(subtitleId);
+      void prefetchSubtitleVtt(subtitleId);
     },
     [attachToVideo, fileId, type, revokeObjectUrl, videoRef],
   );
@@ -140,6 +194,9 @@ export function useSubtitleTracks(
   useEffect(() => {
     clearSubtitleVttCache();
     setSubtitles([]);
+    setActiveVtt(null);
+    setSubtitleError(null);
+    setSubtitleListError(null);
     revokeObjectUrl();
     setActiveSubtitle(readStoredSubtitleSelection(fileId, type));
   }, [fileId, type, revokeObjectUrl]);
@@ -149,77 +206,54 @@ export function useSubtitleTracks(
   }, [refreshSubtitles]);
 
   useEffect(() => {
-    if (!attachToVideo) return;
-    const video = videoRef.current;
-    if (!video) return;
-
-    const onStylesChanged = () => {
-      refreshWebSubtitleCues(video);
-    };
-
-    window.addEventListener(SUBTITLE_STYLES_CHANGED_EVENT, onStylesChanged);
-    return () => {
-      window.removeEventListener(SUBTITLE_STYLES_CHANGED_EVENT, onStylesChanged);
-    };
-  }, [attachToVideo, videoRef, streamGeneration]);
+    void syncSubtitles();
+  }, [activeSubtitle, timelineOffsetSeconds, streamGeneration, syncSubtitles]);
 
   useEffect(() => {
     if (!attachToVideo) return;
     const video = videoRef.current;
     if (!video) return;
 
-    let cancelled = false;
-
-    const sync = () => {
-      const generation = ++syncGenerationRef.current;
-      const subtitleId = activeSubtitleRef.current;
-      const activeTrack = subtitlesRef.current.find((track) => track.id === subtitleId);
-      const label = activeTrack?.language ?? "Subtitles";
-      const shouldAttach = () => !cancelled && generation === syncGenerationRef.current;
-
-      void (async () => {
-        if (subtitleId == null) {
-          if (!shouldAttach()) return;
-          clearWebSubtitleTracksFromVideo(video);
-          revokeObjectUrl();
-          return;
-        }
-
-        const shifted = await prepareWebSubtitleVtt(
-          subtitleId,
-          timelineOffsetRef.current,
-        );
-        if (!shifted || !shouldAttach()) return;
-
-        revokeObjectUrl();
-        objectUrlRef.current = attachPreparedWebSubtitle(
-          video,
-          shifted,
-          label,
-          displayModeRef.current,
-        );
+    const onStylesChanged = () => {
+      if (!usesDomOverlay) {
         refreshWebSubtitleCues(video);
-      })();
+      }
+    };
+
+    window.addEventListener(SUBTITLE_STYLES_CHANGED_EVENT, onStylesChanged);
+    return () => {
+      window.removeEventListener(SUBTITLE_STYLES_CHANGED_EVENT, onStylesChanged);
+    };
+  }, [attachToVideo, usesDomOverlay, videoRef, streamGeneration]);
+
+  useEffect(() => {
+    if (!attachToVideo) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const reload = () => {
+      void syncSubtitles();
     };
 
     const resumeSubtitles = () => {
       if (activeSubtitleRef.current == null) return;
+      if (usesDomOverlay) {
+        void syncSubtitles();
+        return;
+      }
       if (hasActiveSubtitleTrack(video)) {
         refreshWebSubtitleCues(video);
         return;
       }
-      sync();
+      void syncSubtitles();
     };
-
-    syncRef.current = sync;
-    sync();
 
     const removeVideoListeners = installWebSubtitleVideoListeners(
       video,
-      sync,
+      reload,
       displayModeRef.current,
     );
-    const removePlaybackListener = subscribeWebPlaybackSourceReady(sync);
+    const removePlaybackListener = subscribeWebPlaybackSourceReady(reload);
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
@@ -234,23 +268,12 @@ export function useSubtitleTracks(
     window.addEventListener("pageshow", onPageShow);
 
     return () => {
-      cancelled = true;
-      syncGenerationRef.current += 1;
-      syncRef.current = null;
       removeVideoListeners();
       removePlaybackListener();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onPageShow);
     };
-  }, [
-    activeSubtitle,
-    attachToVideo,
-    displayMode,
-    streamGeneration,
-    timelineOffsetSeconds,
-    videoRef,
-    revokeObjectUrl,
-  ]);
+  }, [attachToVideo, displayMode, streamGeneration, syncSubtitles, usesDomOverlay, videoRef]);
 
   useEffect(() => {
     if (!attachToVideo) return;
@@ -258,6 +281,7 @@ export function useSubtitleTracks(
       const video = videoRef.current;
       if (video) clearWebSubtitleTracksFromVideo(video);
       revokeObjectUrl();
+      setActiveVtt(null);
     };
   }, [attachToVideo, videoRef, fileId, type, revokeObjectUrl]);
 
@@ -276,6 +300,10 @@ export function useSubtitleTracks(
   return {
     subtitles,
     activeSubtitle,
+    activeVtt,
+    subtitleError,
+    subtitleListError,
+    clearSubtitleError,
     setActiveSubtitle: selectSubtitle,
     selectSubtitle,
     prefetchMenuTracks,

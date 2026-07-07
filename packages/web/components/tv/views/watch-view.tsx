@@ -22,6 +22,8 @@ import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
+import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
+import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import {
   formatSubtitleLabel,
   qualityLabel,
@@ -204,6 +206,10 @@ export function TvWatchView() {
   const {
     subtitles,
     activeSubtitle,
+    activeVtt,
+    subtitleError,
+    subtitleListError,
+    clearSubtitleError,
     setActiveSubtitle: selectWebSubtitle,
     prefetchMenuTracks,
     refreshSubtitles,
@@ -214,7 +220,10 @@ export function TvWatchView() {
     videoRef,
     streamGeneration,
     usingHlsPlayback ? hlsStartOffset : 0,
-    { attachToVideo: !usesNativePlayer },
+    {
+      attachToVideo: !usesNativePlayer,
+      displayMode: usesNativePlayer ? "native" : "dom-overlay",
+    },
   );
 
   const selectSubtitle = useCallback(
@@ -1587,6 +1596,16 @@ export function TvWatchView() {
             }}
           />
         )}
+        {!usesNativePlayer && activeSubtitle !== null && activeVtt && (
+          <WebSubtitleCueOverlay videoRef={videoRef} vtt={activeVtt} />
+        )}
+        {!usesNativePlayer && subtitleError && (
+          <SubtitleLoadNotice
+            message={subtitleError}
+            onDismiss={clearSubtitleError}
+            className="absolute bottom-28 left-1/2 z-30 w-[min(28rem,calc(100%-3rem))] -translate-x-1/2"
+          />
+        )}
 
         {showLoadingOverlay && (
           <div
@@ -1944,7 +1963,10 @@ export function TvWatchView() {
                 ) : null}
               </TvFocusButton>
             ))}
-            {subtitles.length === 0 && !opensubtitlesConfigured ? (
+            {subtitleListError ? (
+              <p className="px-1 py-2 text-sm text-red-400">{subtitleListError}</p>
+            ) : null}
+            {subtitles.length === 0 && !opensubtitlesConfigured && !subtitleListError ? (
               <p className="px-1 py-2 text-sm text-muted-foreground">
                 No subtitles found. Configure OpenSubtitles on the desktop site to search online.
               </p>

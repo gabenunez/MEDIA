@@ -1,78 +1,50 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { findActiveCueTexts, parseWebVttCues } from "@media-app/shared";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import { useSubtitleStyles } from "@/components/subtitle-style-settings";
 import { playbackSubtitleAppearance } from "@/lib/subtitle-styles";
 import { cn } from "@/lib/utils";
 
-function readActiveCueLines(video: HTMLVideoElement): string[] {
-  const track = Array.from(video.textTracks).find(
-    (entry) => entry.kind === "subtitles" && entry.mode !== "disabled",
-  );
-  if (!track?.activeCues?.length) return [];
-
-  const lines: string[] = [];
-  for (const cue of Array.from(track.activeCues)) {
-    if (cue instanceof VTTCue) {
-      const text = cue.text.trim();
-      if (text) lines.push(text);
-    }
-  }
-  return lines;
-}
-
 export function WebSubtitleCueOverlay({
   videoRef,
-  trackKey,
+  vtt,
   className,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
-  /** Bumps listeners when the attached subtitle track or stream changes. */
-  trackKey: string | number;
+  vtt: string | null;
   className?: string;
 }) {
   const { styles } = useSubtitleStyles();
   const [lines, setLines] = useState<string[]>([]);
+  const cues = useMemo(() => (vtt ? parseWebVttCues(vtt) : []), [vtt]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
-
-    const cueListeners = new Map<TextTrack, () => void>();
-
-    const update = () => {
-      setLines(readActiveCueLines(video));
-    };
-
-    const bindTrack = (track: TextTrack) => {
-      if (track.kind !== "subtitles" || cueListeners.has(track)) return;
-      const onCueChange = () => update();
-      cueListeners.set(track, onCueChange);
-      track.addEventListener("cuechange", onCueChange);
-    };
-
-    for (const track of Array.from(video.textTracks)) {
-      bindTrack(track);
+    if (!video || cues.length === 0) {
+      setLines([]);
+      return;
     }
 
-    const onAddTrack = (event: TrackEvent) => {
-      if (event.track) bindTrack(event.track);
-      update();
+    const update = () => {
+      setLines(findActiveCueTexts(cues, video.currentTime));
     };
 
-    video.textTracks.addEventListener("addtrack", onAddTrack);
-    video.textTracks.addEventListener("change", update);
+    video.addEventListener("timeupdate", update);
+    video.addEventListener("seeking", update);
+    video.addEventListener("seeked", update);
+    video.addEventListener("loadedmetadata", update);
+    video.addEventListener("play", update);
     update();
 
     return () => {
-      video.textTracks.removeEventListener("addtrack", onAddTrack);
-      video.textTracks.removeEventListener("change", update);
-      for (const [track, onCueChange] of cueListeners) {
-        track.removeEventListener("cuechange", onCueChange);
-      }
-      cueListeners.clear();
+      video.removeEventListener("timeupdate", update);
+      video.removeEventListener("seeking", update);
+      video.removeEventListener("seeked", update);
+      video.removeEventListener("loadedmetadata", update);
+      video.removeEventListener("play", update);
     };
-  }, [videoRef, trackKey]);
+  }, [videoRef, cues]);
 
   if (lines.length === 0) return null;
 

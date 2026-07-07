@@ -52,6 +52,7 @@ import { TvCastButton, type TvCastPayload } from "@/components/tv-cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { DesktopSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
+import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { formatSubtitleLabel } from "@/lib/watch-helpers";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
@@ -175,6 +176,10 @@ function WatchDesktopClient() {
   const {
     subtitles,
     activeSubtitle,
+    activeVtt,
+    subtitleError,
+    subtitleListError,
+    clearSubtitleError,
     setActiveSubtitle,
     prefetchMenuTracks,
     removeSubtitleTrack,
@@ -967,10 +972,15 @@ function WatchDesktopClient() {
         preload={streamInfo ? "auto" : "metadata"}
         onClick={togglePlay}
       />
-      {activeSubtitle !== null && (
-        <WebSubtitleCueOverlay
-          videoRef={videoRef}
-          trackKey={`${streamGeneration}:${activeSubtitle}`}
+      {activeSubtitle !== null && activeVtt && (
+        <WebSubtitleCueOverlay videoRef={videoRef} vtt={activeVtt} />
+      )}
+
+      {subtitleError && (
+        <SubtitleLoadNotice
+          message={subtitleError}
+          onDismiss={clearSubtitleError}
+          className="absolute bottom-28 left-1/2 z-30 w-[min(24rem,calc(100%-2rem))] -translate-x-1/2"
         />
       )}
 
@@ -1333,7 +1343,9 @@ function WatchDesktopClient() {
                         />
                       ) : (
                         <div className="min-w-56">
-                          {subtitles.length === 0 ? (
+                          {subtitleListError ? (
+                            <p className="px-3 py-1.5 text-sm text-red-400">{subtitleListError}</p>
+                          ) : subtitles.length === 0 ? (
                             <p className="px-3 py-1.5 text-sm text-muted-foreground">
                               None available
                             </p>

@@ -2,10 +2,63 @@ import { shiftVttByOffset } from "@media-app/shared";
 import { api } from "@/lib/api";
 
 const vttCache = new Map<number, string>();
-const inflight = new Map<number, Promise<string | null>>();
+const inflight = new Map<number, Promise<SubtitleLoadResult>>();
 const playbackReadyListeners = new Set<() => void>();
 
 export type SubtitleDisplayMode = "native" | "dom-overlay";
+
+export type SubtitleLoadResult =
+  | { ok: true; vtt: string }
+  | { ok: false; error: string };
+
+export function formatSubtitleFetchError(res: Response | null, err?: unknown): string {
+  if (res?.status === 401) return "Sign in required to load subtitles.";
+  if (res?.status === 404) return "This subtitle file is missing or empty.";
+  if (res && !res.ok) return `Couldn't load subtitles (HTTP ${res.status}).`;
+  if (err instanceof Error && err.message) return err.message;
+  return "Couldn't load subtitles. Check your connection and try again.";
+}
+
+async function loadSubtitleVtt(
+  subtitleId: number,
+  signal?: AbortSignal,
+): Promise<SubtitleLoadResult> {
+  const cached = vttCache.get(subtitleId);
+  if (cached) return { ok: true, vtt: cached };
+
+  const pending = inflight.get(subtitleId);
+  if (pending) return pending;
+
+  const promise = (async (): Promise<SubtitleLoadResult> => {
+    try {
+      const res = await fetch(api.subtitleUrl(subtitleId), {
+        credentials: "include",
+        signal,
+      });
+      if (!res.ok) {
+        return { ok: false, error: formatSubtitleFetchError(res) };
+      }
+
+      const vtt = await res.text();
+      if (!vtt.trim()) {
+        return { ok: false, error: "This subtitle file is empty." };
+      }
+
+      vttCache.set(subtitleId, vtt);
+      return { ok: true, vtt };
+    } catch (err) {
+      if (signal?.aborted) {
+        return { ok: false, error: "Subtitle load was cancelled." };
+      }
+      return { ok: false, error: formatSubtitleFetchError(null, err) };
+    } finally {
+      inflight.delete(subtitleId);
+    }
+  })();
+
+  inflight.set(subtitleId, promise);
+  return promise;
+}
 
 export function notifyWebPlaybackSourceReady(): void {
   for (const listener of playbackReadyListeners) {
@@ -34,34 +87,8 @@ export async function prefetchSubtitleVtt(
   subtitleId: number,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  const cached = vttCache.get(subtitleId);
-  if (cached) return cached;
-
-  const pending = inflight.get(subtitleId);
-  if (pending) return pending;
-
-  const promise = (async () => {
-    try {
-      const res = await fetch(api.subtitleUrl(subtitleId), {
-        credentials: "include",
-        signal,
-      });
-      if (!res.ok) return null;
-
-      const vtt = await res.text();
-      if (!vtt.trim()) return null;
-
-      vttCache.set(subtitleId, vtt);
-      return vtt;
-    } catch {
-      return null;
-    } finally {
-      inflight.delete(subtitleId);
-    }
-  })();
-
-  inflight.set(subtitleId, promise);
-  return promise;
+  const result = await loadSubtitleVtt(subtitleId, signal);
+  return result.ok ? result.vtt : null;
 }
 
 export function prefetchSubtitleTracks(
@@ -153,19 +180,25 @@ export async function prepareWebSubtitleVtt(
   subtitleId: number,
   timelineOffsetSeconds = 0,
   signal?: AbortSignal,
-): Promise<string | null> {
-  if (signal?.aborted) return null;
+): Promise<SubtitleLoadResult> {
+  if (signal?.aborted) {
+    return { ok: false, error: "Subtitle load was cancelled." };
+  }
 
   let shifted = resolveShiftedVtt(subtitleId, timelineOffsetSeconds);
   if (!shifted) {
-    const raw = await prefetchSubtitleVtt(subtitleId, signal);
-    if (!raw || signal?.aborted) return null;
+    const loaded = await loadSubtitleVtt(subtitleId, signal);
+    if (!loaded.ok || signal?.aborted) {
+      return loaded.ok ? { ok: false, error: "Subtitle load was cancelled." } : loaded;
+    }
     shifted =
-      timelineOffsetSeconds > 0 ? shiftVttByOffset(raw, timelineOffsetSeconds) : raw;
+      timelineOffsetSeconds > 0 ? shiftVttByOffset(loaded.vtt, timelineOffsetSeconds) : loaded.vtt;
   }
 
-  if (!shifted || signal?.aborted) return null;
-  return shifted;
+  if (!shifted?.trim() || signal?.aborted) {
+    return { ok: false, error: "This subtitle file is empty." };
+  }
+  return { ok: true, vtt: shifted };
 }
 
 export function attachPreparedWebSubtitle(
@@ -205,10 +238,10 @@ export async function syncWebSubtitleTrack(
     return null;
   }
 
-  const shifted = await prepareWebSubtitleVtt(subtitleId, timelineOffsetSeconds, signal);
-  if (!shifted || signal.aborted || !shouldAttach()) return null;
+  const prepared = await prepareWebSubtitleVtt(subtitleId, timelineOffsetSeconds, signal);
+  if (!prepared.ok || signal.aborted || !shouldAttach()) return null;
 
-  return attachPreparedWebSubtitle(video, shifted, label, displayMode);
+  return attachPreparedWebSubtitle(video, prepared.vtt, label, displayMode);
 }
 
 export function installWebSubtitleVideoListeners(
@@ -223,6 +256,7 @@ export function installWebSubtitleVideoListeners(
   };
 
   const ensureSubtitlesVisible = () => {
+    if (displayMode === "dom-overlay") return;
     const hasTrackElement = video.querySelector("track") != null;
     if (!hasTrackElement) {
       onReload();
@@ -233,14 +267,18 @@ export function installWebSubtitleVideoListeners(
 
   video.textTracks.addEventListener("addtrack", onAddTrack);
   video.addEventListener("emptied", onReload);
-  video.addEventListener("canplay", ensureSubtitlesVisible);
-  video.addEventListener("seeked", ensureSubtitlesVisible);
+  if (displayMode === "native") {
+    video.addEventListener("canplay", ensureSubtitlesVisible);
+    video.addEventListener("seeked", ensureSubtitlesVisible);
+  }
 
   return () => {
     video.textTracks.removeEventListener("addtrack", onAddTrack);
     video.removeEventListener("emptied", onReload);
-    video.removeEventListener("canplay", ensureSubtitlesVisible);
-    video.removeEventListener("seeked", ensureSubtitlesVisible);
+    if (displayMode === "native") {
+      video.removeEventListener("canplay", ensureSubtitlesVisible);
+      video.removeEventListener("seeked", ensureSubtitlesVisible);
+    }
   };
 }
 
