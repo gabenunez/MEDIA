@@ -226,6 +226,19 @@ read_config_gateway_prefix() {
   fi
 }
 
+persist_gateway_prefix() {
+  local config="$1"
+  local prefix="${2:-}"
+  [[ -n "$prefix" ]] || return 0
+  [[ -f "$config" ]] || return 0
+
+  if grep -q '^  gateway_prefix:' "$config" 2>/dev/null; then
+    sed -i "s|^  gateway_prefix:.*|  gateway_prefix: ${prefix}|" "$config"
+  else
+    sed -i "/^  host:/a\\  gateway_prefix: ${prefix}" "$config"
+  fi
+}
+
 verify_web_runtime() {
   local install_dir="$1"
   local port
@@ -380,6 +393,11 @@ main() {
   fi
   command -v pnpm >/dev/null 2>&1 || media_fail "pnpm not found. Install Node 20+ and enable corepack."
   build_app "$install_dir" "$service_user"
+
+  if [[ -n "${MEDIA_GATEWAY_PREFIX:-}" ]]; then
+    persist_gateway_prefix "$install_dir/config.yaml" "$MEDIA_GATEWAY_PREFIX"
+    media_ok "Gateway prefix saved to config.yaml (${MEDIA_GATEWAY_PREFIX})"
+  fi
 
   media_progress "restarting" "Restarting MEDIA! — this page will reconnect when the server is back..."
   media_step "Restarting"
