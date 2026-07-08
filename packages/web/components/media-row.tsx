@@ -36,10 +36,11 @@ export function MediaRow({ title, items, href, hideHeader = false }: MediaRowPro
         </div>
       )}
       <ScrollRow className="mx-auto max-w-7xl" contentClassName="px-4 sm:px-6">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <PosterCard
             key={item.id}
             item={item}
+            priority={index < 8}
             className="w-36 shrink-0 snap-start sm:w-44"
           />
         ))}
@@ -65,9 +66,10 @@ export function ContinueWatchingRow({ items, hideHeader = false }: ContinueWatch
         </div>
       )}
       <ScrollRow className="mx-auto max-w-7xl" contentClassName="px-4 sm:px-6">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <div key={item.id} className="w-44 shrink-0 snap-start sm:w-56">
             <PosterCard
+              priority={index < 6}
               href={
                 item.itemType === "movie"
                   ? routes.watch("movie", item.itemId, item.mediaId)

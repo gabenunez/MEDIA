@@ -110,9 +110,10 @@ try {
   const buildEnv = {
     ...process.env,
     MEDIA_INTERNAL_API_URL: `http://127.0.0.1:${apiPort}`,
-    MEDIA_INTERNAL_API_PORT: apiPort,
     ...(apiReady ? { MEDIA_PRERENDER_BUILD: "1" } : {}),
   };
+  delete buildEnv.MEDIA_INTERNAL_API_PORT;
+  delete buildEnv.MEDIA_PRERENDER_API_PORT;
 
   await run("pnpm", ["exec", "next", "build"], { cwd: webRoot, env: buildEnv });
   await run("node", ["scripts/copy-standalone-assets.mjs"], { cwd: webRoot });

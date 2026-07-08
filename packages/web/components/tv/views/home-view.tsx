@@ -10,21 +10,24 @@ import { TvBrowseCard } from "@/components/tv/tv-see-all-tile";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusPrimaryContentItem } from "@/lib/tv-focus";
 import { LibraryIcon } from "@/components/navbar";
+import { preloadPosterList } from "@/lib/prefetch-artwork";
+import type { HomeData } from "@/lib/server-api";
 
-export function TvHomeView() {
+export function TvHomeView({ initialData = null }: { initialData?: HomeData | null }) {
   useDocumentTitle("Home");
-  const [loaded, setLoaded] = useState(false);
-  const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>([]);
-  const [recentlyAdded, setRecentlyAdded] = useState<MediaItem[]>([]);
-  const [favorites, setFavorites] = useState<MediaItem[]>([]);
-  const [libraries, setLibraries] = useState<
-    Awaited<ReturnType<typeof api.getHome>>["libraries"]
-  >([]);
-  const [decks, setDecks] = useState<Awaited<ReturnType<typeof api.getHome>>["decks"]>(
-    [],
+  const [loaded, setLoaded] = useState(Boolean(initialData));
+  const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>(
+    initialData?.continueWatching ?? [],
   );
+  const [recentlyAdded, setRecentlyAdded] = useState<MediaItem[]>(
+    initialData?.recentlyAdded ?? [],
+  );
+  const [favorites, setFavorites] = useState<MediaItem[]>(initialData?.favorites ?? []);
+  const [libraries, setLibraries] = useState(initialData?.libraries ?? []);
+  const [decks, setDecks] = useState(initialData?.decks ?? []);
 
   useEffect(() => {
+    if (initialData) return;
     api
       .getHome()
       .then((data) => {
@@ -36,7 +39,20 @@ export function TvHomeView() {
       })
       .catch(console.warn)
       .finally(() => setLoaded(true));
-  }, []);
+  }, [initialData]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const seed =
+      continueWatching.length > 0
+        ? continueWatching.map((item) => ({
+            id: item.mediaId,
+            posterPath: item.posterPath,
+            backdropPath: item.posterPath,
+          }))
+        : recentlyAdded;
+    preloadPosterList(seed, 10);
+  }, [loaded, continueWatching, recentlyAdded]);
 
   useEffect(() => {
     if (!loaded) return;

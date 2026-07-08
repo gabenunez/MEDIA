@@ -1,11 +1,12 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import type { MediaItem } from "@/lib/api";
 import Link from "next/link";
 import { tvPosterLinkClassName } from "@/components/tv/tv-focus-link";
+import { prefetchPosterNavigation } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
 import { Clapperboard, Tv } from "lucide-react";
 import { isTvClient } from "@/lib/tv-mode-detect";
@@ -35,10 +36,15 @@ export const TvPoster = memo(function TvPoster({
   // Android TV WebView often never loads lazy images inside horizontal rows/grids.
   const loadImmediately = isTvClient() || priority;
 
+  const warmNavigation = useCallback(() => {
+    prefetchPosterNavigation(item);
+  }, [item]);
+
   return (
     <div className={cn("tv-poster-tile shrink-0", className)}>
       <Link
         href={linkHref}
+        prefetch
         data-tv-item=""
         tabIndex={0}
         className={cn(
@@ -47,6 +53,7 @@ export const TvPoster = memo(function TvPoster({
           linkClassName,
         )}
         aria-label={item.title}
+        onFocus={warmNavigation}
       >
         <div className="tv-poster-art poster-shadow relative aspect-[2/3] overflow-hidden rounded-lg bg-muted">
           {imageUrl ? (

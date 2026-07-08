@@ -25,6 +25,7 @@ import { LibraryIcon } from "@/components/navbar";
 import { cn } from "@/lib/utils";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvHomeView } from "@/components/tv/views/home-view";
+import { preloadPosterList, prefetchPosterNavigation } from "@/lib/prefetch-artwork";
 import type { HomeData } from "@/lib/server-api";
 
 export function HomeClient({
@@ -33,7 +34,7 @@ export function HomeClient({
   initialData?: HomeData | null;
 }) {
   const isTvMode = useTvMode();
-  if (isTvMode) return <TvHomeView />;
+  if (isTvMode) return <TvHomeView initialData={initialData} />;
   return <HomeDesktopClient initialData={initialData} />;
 }
 
@@ -92,6 +93,26 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
   );
   const showEmptyState =
     loaded && !isScanning && (!libraries.length || !recentlyAdded.length);
+
+  useEffect(() => {
+    if (!featured) return;
+    prefetchPosterNavigation(featured);
+  }, [featured]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    preloadPosterList(recentlyAdded, 10);
+    if (continueWatching.length > 0) {
+      preloadPosterList(
+        continueWatching.map((item) => ({
+          id: item.mediaId,
+          posterPath: item.posterPath,
+          backdropPath: item.posterPath,
+        })),
+        8,
+      );
+    }
+  }, [loaded, recentlyAdded, continueWatching]);
 
   useEffect(() => {
     setFeaturedImageReady(false);
@@ -207,6 +228,9 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
                   <img
                     src={featuredImage}
                     alt={featured?.title ?? ""}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
                     onLoad={handleFeaturedImageLoad}
                     ref={(node) => {
                       if (node?.complete && node.naturalWidth > 0) {
