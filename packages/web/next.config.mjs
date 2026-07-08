@@ -55,10 +55,19 @@ function buildImageRemotePatterns() {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  ...(gatewayPrefix ? { assetPrefix: `${gatewayPrefix}?__p=` } : {}),
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
+  webpack(config, { isServer }) {
+    if (gatewayPrefix) {
+      const gatewayAssetPrefix = `${gatewayPrefix}?__p=/_next/`;
+      if (!isServer) {
+        config.output.publicPath = gatewayAssetPrefix;
+      }
+    }
+    return config;
+  },
+  turbopack: {},
   async rewrites() {
     return [
       {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.107 — 2026-07-08
+
+### Fix
+
+- **Reverse proxy** — gateway builds now emit `/_next` assets through `/reel?__p=…` (webpack build + HTML rewrite)
+
 ## 0.1.106 — 2026-07-08
 
 ### Fix

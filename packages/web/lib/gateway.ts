@@ -119,3 +119,8 @@ export function publicUrl(path: string): string {
   if (apiBase) return `${apiBase.replace(/\/$/, "")}${path}`;
   return toGatewayUrl(path);
 }
+
+/** Rewrite /_next asset tags as they appear (dynamic SSR chunks). */
+export const GATEWAY_ASSET_BOOTSTRAP_SCRIPT = gatewayEnabled()
+  ? `(function(){try{var e=${JSON.stringify(GATEWAY_PREFIX)};function r(n){var a=n.tagName==="LINK"?"href":"src",v=n.getAttribute(a);if(!v||v.indexOf("/_next/")!==0)return;n.setAttribute(a,e+"?__p="+encodeURIComponent(v))}function s(root){root.querySelectorAll('link[href^="/_next/"],script[src^="/_next/"]').forEach(r)}s(document.documentElement);new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if(n.matches&&n.matches('link[href^="/_next/"],script[src^="/_next/"]'))r(n);if(n.querySelectorAll)s(n)})})}).observe(document.documentElement,{childList:true,subtree:true})}catch(x){}})();`
+  : "";
