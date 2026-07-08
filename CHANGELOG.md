@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.115 — 2026-07-08
+
+### TV
+
+- **Startup** — keep the native splash up until auth and page content are ready; homepage-style animated MEDIA! hero on launch
+- **Playback** — clearer mid-stream buffering (scrubber buffer state, no settings chrome flash while rebuffering)
+- **UI** — center sidebar logo in the nav rail
+
 ## 0.1.114 — 2026-07-08
 
 ### TV
