@@ -19,18 +19,33 @@ export function MediaIcon({
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 20 14"
+        viewBox="0 0 24 24"
         fill="none"
-        className={cn("block shrink-0 overflow-visible", className)}
+        preserveAspectRatio="xMidYMid meet"
+        className={cn("block shrink-0", className)}
         aria-hidden
       >
-        <text x="5.5" y="7" textAnchor="middle" dominantBaseline="central" {...markProps}>
-          M
-        </text>
-        <g className="origin-[13.5px_7px] transition-transform duration-200 ease-out motion-reduce:transition-none md:group-hover:-translate-y-px">
-          <text x="13.5" y="7" textAnchor="middle" dominantBaseline="central" {...markProps}>
-            !
+        <g transform="translate(12 12)">
+          <text
+            x="-3.5"
+            y="0"
+            textAnchor="middle"
+            dominantBaseline="central"
+            {...markProps}
+          >
+            M
           </text>
+          <g className="origin-[3.5px_0px] transition-transform duration-200 ease-out motion-reduce:transition-none md:group-hover:-translate-y-px">
+            <text
+              x="3.5"
+              y="0"
+              textAnchor="middle"
+              dominantBaseline="central"
+              {...markProps}
+            >
+              !
+            </text>
+          </g>
         </g>
       </svg>
     );

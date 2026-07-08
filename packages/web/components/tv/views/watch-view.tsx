@@ -65,6 +65,10 @@ import {
   toAbsoluteMediaUrl,
   updateNativeSubtitles,
 } from "@/lib/android-bridge";
+import {
+  applySubtitleStyles,
+  readSubtitleStyles,
+} from "@/lib/subtitle-styles";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
@@ -97,7 +101,7 @@ export function TvWatchView() {
   const menuReturnFocusRef = useRef<HTMLElement | null>(null);
   const progressRef = useRef(0);
   const currentTimeRef = useRef(0);
-  const nativeSubtitleInitializedRef = useRef(false);
+  const nativeSubtitlesSyncedSessionRef = useRef(-1);
   const activeSubtitleRef = useRef<number | null>(null);
   const streamInfoRef = useRef<StreamInfo | null>(null);
   const titleRef = useRef("");
@@ -113,8 +117,6 @@ export function TvWatchView() {
   const controlsRevealedAtRef = useRef<number | null>(null);
 
   const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
-  /** Only hide transport chrome on Back if the user opened it within this window. */
-  const TV_CONTROLS_BACK_DISMISS_MS = 4_000;
 
   const scheduleControlsAutoHide = useCallback(() => {
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
@@ -248,17 +250,10 @@ export function TvWatchView() {
 
   const selectSubtitle = useCallback(
     (subtitleId: number | null) => {
-      if (usesNativePlayer) {
-        const offset = usingHlsRef.current ? hlsStartOffsetRef.current : 0;
-        const subtitleUrl =
-          subtitleId != null
-            ? toAbsoluteMediaUrl(api.subtitleUrl(subtitleId, offset))
-            : undefined;
-        updateNativeSubtitles(subtitleUrl);
-      }
+      activeSubtitleRef.current = subtitleId;
       selectWebSubtitle(subtitleId);
     },
-    [selectWebSubtitle, usesNativePlayer],
+    [selectWebSubtitle],
   );
 
   useEffect(() => {
@@ -509,11 +504,97 @@ export function TvWatchView() {
 
   tryFallbackQualityRef.current = tryFallbackQuality;
 
+  const syncNativeSubtitles = useCallback(
+    (options?: { restartOnFailure?: boolean }) => {
+      if (!usesNativePlayer) return true;
+      const info = streamInfoRef.current;
+      if (!info || initialResumeSeconds === null || !fileId) return false;
+
+      const subtitleId = activeSubtitleRef.current;
+      const stream = resolvePlaybackStream(quality, info, { forceRemux });
+      const usingHls = stream.usingHls;
+      const subtitleOffset = usingHls ? hlsStartOffsetRef.current : 0;
+      const subtitleUrl =
+        subtitleId != null
+          ? toAbsoluteMediaUrl(api.subtitleUrl(subtitleId, subtitleOffset))
+          : undefined;
+
+      if (subtitleId == null) {
+        updateNativeSubtitles(undefined);
+        nativeSubtitlesSyncedSessionRef.current = nativePlaySessionRef.current;
+        return true;
+      }
+
+      if (updateNativeSubtitles(subtitleUrl)) {
+        nativeSubtitlesSyncedSessionRef.current = nativePlaySessionRef.current;
+        return true;
+      }
+
+      if (options?.restartOnFailure === false) return false;
+
+      const relativeTime = currentTimeRef.current;
+      const absoluteTime = usingHls
+        ? hlsStartOffsetRef.current + relativeTime
+        : relativeTime;
+      const relativeUrl = api.streamUrl(
+        fileId,
+        type === "movie" ? "movie" : "episode",
+        quality,
+        usingHls ? absoluteTime : undefined,
+        streamGeneration,
+        stream.hlsQuality,
+      );
+
+      nativePlaySessionRef.current += 1;
+      nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
+      nativeSubtitlesSyncedSessionRef.current = -1;
+
+      startNativePlayback({
+        url: toAbsoluteMediaUrl(relativeUrl),
+        title: titleRef.current || "MEDIA!",
+        fileId,
+        itemType: type === "movie" ? "movie" : "episode",
+        startSeconds: usingHls ? 0 : absoluteTime,
+        durationMs: sourceDurationMs || info.durationMs || 0,
+        isHls: usingHls,
+        isHdr: needsHdrToneMap(info.dynamicRange),
+        subtitleUrl,
+      });
+
+      if (usingHls && relativeTime > 0) {
+        seekNativePlayback(relativeTime * 1000);
+      }
+
+      return true;
+    },
+    [
+      usesNativePlayer,
+      fileId,
+      type,
+      quality,
+      forceRemux,
+      streamGeneration,
+      sourceDurationMs,
+      initialResumeSeconds,
+    ],
+  );
+
+  const selectSubtitleOnNative = useCallback(
+    (subtitleId: number | null) => {
+      selectSubtitle(subtitleId);
+      if (!usesNativePlayer) return;
+      nativeSubtitlesSyncedSessionRef.current = -1;
+      void syncNativeSubtitles({ restartOnFailure: subtitleId != null });
+    },
+    [selectSubtitle, syncNativeSubtitles, usesNativePlayer],
+  );
+
   useEffect(() => {
     if (!usesNativePlayer) return;
 
     document.documentElement.setAttribute("data-native-video", "true");
     prepareNativeVideoOverlay();
+    applySubtitleStyles(readSubtitleStyles());
     return registerNativePlayerHandlers({
       onState: (state) => {
         setCurrentTime(state.currentTime);
@@ -533,6 +614,13 @@ export function TvWatchView() {
         setBufferingMidPlayback(state.isBuffering && state.ready);
         if (state.ready || state.isPlaying || state.buffered > 0.5) {
           setPlaybackHasBegun(true);
+        }
+        if (
+          state.ready &&
+          activeSubtitleRef.current != null &&
+          nativeSubtitlesSyncedSessionRef.current !== nativePlaySessionRef.current
+        ) {
+          void syncNativeSubtitles({ restartOnFailure: false });
         }
         const offset = hlsStartOffsetRef.current;
         if (usingHlsRef.current) {
@@ -592,7 +680,7 @@ export function TvWatchView() {
         startNextEpisodeCountdownRef.current();
       },
     });
-  }, [usesNativePlayer, captureStreamRestartPosition, restartNativeHlsAtCurrentPosition]);
+  }, [usesNativePlayer, captureStreamRestartPosition, restartNativeHlsAtCurrentPosition, syncNativeSubtitles]);
 
   useEffect(() => {
     if (!usesNativePlayer) return;
@@ -614,7 +702,7 @@ export function TvWatchView() {
     nativeIsPlayingRef.current = false;
     nativePlaySessionRef.current = 0;
     nativeErrorHandledSessionRef.current = 0;
-    nativeSubtitleInitializedRef.current = false;
+    nativeSubtitlesSyncedSessionRef.current = -1;
     activeSubtitleRef.current = null;
     menuReturnFocusRef.current = null;
     setShowControls(true);
@@ -759,7 +847,10 @@ export function TvWatchView() {
 
       nativePlaySessionRef.current += 1;
       nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
+      nativeSubtitlesSyncedSessionRef.current = -1;
 
+      setNativeWebOverlayAlpha(0);
+      applySubtitleStyles(readSubtitleStyles());
       startNativePlayback({
         url: toAbsoluteMediaUrl(relativeUrl),
         title: titleRef.current || "MEDIA!",
@@ -899,74 +990,24 @@ export function TvWatchView() {
   ]);
 
   useEffect(() => {
+    activeSubtitleRef.current = activeSubtitle;
+  }, [activeSubtitle]);
+
+  useEffect(() => {
     if (!usesNativePlayer || !streamInfo || initialResumeSeconds === null || !fileId) {
       return;
     }
 
-    if (!nativeSubtitleInitializedRef.current) {
-      nativeSubtitleInitializedRef.current = true;
-      activeSubtitleRef.current = activeSubtitle;
-      return;
-    }
-
-    if (activeSubtitleRef.current === activeSubtitle) return;
-    activeSubtitleRef.current = activeSubtitle;
-
-    const stream = resolvePlaybackStream(quality, streamInfo, { forceRemux });
-    const usingHls = stream.usingHls;
-    const relativeTime = currentTimeRef.current;
-    const absoluteTime = usingHls
-      ? hlsStartOffsetRef.current + relativeTime
-      : relativeTime;
-    const subtitleOffset = usingHls ? hlsStartOffsetRef.current : 0;
-
-    const subtitleUrl =
-      activeSubtitle != null
-        ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle, subtitleOffset))
-        : undefined;
-
-    if (updateNativeSubtitles(subtitleUrl)) {
-      return;
-    }
-
-    const relativeUrl = api.streamUrl(
-      fileId,
-      type === "movie" ? "movie" : "episode",
-      quality,
-      usingHls ? absoluteTime : undefined,
-      streamGeneration,
-      stream.hlsQuality,
-    );
-
-    nativePlaySessionRef.current += 1;
-    nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
-
-    startNativePlayback({
-      url: toAbsoluteMediaUrl(relativeUrl),
-      title: titleRef.current || "MEDIA!",
-      fileId,
-      itemType: type === "movie" ? "movie" : "episode",
-      startSeconds: usingHls ? 0 : absoluteTime,
-      durationMs: sourceDurationMs || streamInfo.durationMs || 0,
-      isHls: usingHls,
-      isHdr: needsHdrToneMap(streamInfo.dynamicRange),
-      subtitleUrl,
-    });
-
-    if (usingHls && relativeTime > 0) {
-      seekNativePlayback(relativeTime * 1000);
-    }
+    void syncNativeSubtitles({ restartOnFailure: false });
   }, [
     activeSubtitle,
     usesNativePlayer,
     streamInfo,
     initialResumeSeconds,
     fileId,
-    type,
-    quality,
-    forceRemux,
+    hlsStartOffset,
     streamGeneration,
-    sourceDurationMs,
+    syncNativeSubtitles,
   ]);
 
   useEffect(() => {
@@ -1246,7 +1287,7 @@ export function TvWatchView() {
   }, [error]);
 
   const showPosterBackdrop =
-    Boolean(posterUrl) && !playbackHasBegun && !error;
+    Boolean(posterUrl) && !playbackHasBegun && !error && !usesNativePlayer;
   const showBufferingBar =
     bufferingMidPlayback && playbackHasBegun && !error;
   const loadingMessage = isPreparing
@@ -1274,14 +1315,15 @@ export function TvWatchView() {
     releaseWatchFocus();
   }, [centerMessageVisible, releaseWatchFocus]);
 
+  const nativeWebOverlayRaised =
+    controlsVisible || Boolean(error || countdown);
+
   useEffect(() => {
     if (!usesNativePlayer) return;
-    // Only raise the WebView layer when controls/messages need it — not during
-    // mid-playback buffering, which was dimming HDR video on Android TV.
-    setNativeWebOverlayAlpha(
-      controlsVisible || centerMessageVisible ? 1 : 0,
-    );
-  }, [usesNativePlayer, controlsVisible, centerMessageVisible]);
+    // Only raise the WebView layer for controls and blocking dialogs — never for
+    // the loading spinner, which was covering ExoPlayer and causing black screens.
+    setNativeWebOverlayAlpha(nativeWebOverlayRaised ? 1 : 0);
+  }, [usesNativePlayer, nativeWebOverlayRaised]);
 
   const timelinePreviewPercent = scrubPreviewPercent ?? progress;
   const timelinePreviewMs =
@@ -1319,11 +1361,7 @@ export function TvWatchView() {
       revealControls(false);
       return true;
     }
-    const controlsRecentlyRevealed =
-      showControls &&
-      controlsRevealedAtRef.current !== null &&
-      Date.now() - controlsRevealedAtRef.current < TV_CONTROLS_BACK_DISMISS_MS;
-    if (controlsRecentlyRevealed) {
+    if (controlsVisible) {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
       setShowControls(false);
       controlsRevealedAtRef.current = null;
@@ -1341,7 +1379,7 @@ export function TvWatchView() {
     panelOpen,
     closeMenus,
     revealControls,
-    showControls,
+    controlsVisible,
     releaseWatchFocus,
   ]);
 
@@ -1973,7 +2011,7 @@ export function TvWatchView() {
               variant="card"
               selected={activeSubtitle === null}
               onClick={() => {
-                selectSubtitle(null);
+                selectSubtitleOnNative(null);
                 closeMenus();
                 revealControls(false);
               }}
@@ -1987,7 +2025,7 @@ export function TvWatchView() {
                 variant="card"
                 selected={activeSubtitle === sub.id}
                 onClick={() => {
-                  selectSubtitle(sub.id);
+                  selectSubtitleOnNative(sub.id);
                   closeMenus();
                   revealControls(false);
                 }}
@@ -2098,7 +2136,7 @@ export function TvWatchView() {
         type={type}
         opensubtitlesConfigured={opensubtitlesConfigured}
         onDownloaded={(track) => {
-          selectSubtitle(track.id);
+          selectSubtitleOnNative(track.id);
           void refreshSubtitles(track);
           setSubtitleSearchOpen(false);
           requestAnimationFrame(() => {

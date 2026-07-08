@@ -17,15 +17,15 @@
         android:scaleY="0.8148">
         <path
             android:fillColor="@color/media_icon_background"
-            android:pathData="M0,0 H108 V108 H0 Z" />
+            android:pathData="M20.25,37.125 A16.875,16.875 0 0 1 37.125,20.25 H71.125 A16.875,16.875 0 0 1 87.75,37.125 V71.125 A16.875,16.875 0 0 1 71.125,87.75 H37.125 A16.875,16.875 0 0 1 20.25,71.125 V37.125 Z" />
         <path
             android:fillColor="@color/media_accent"
             android:pathData="M29.5,31 L29.5,77 L38.5,77 L38.5,51 L47,66 L55.5,51 L55.5,77 L64.5,77 L64.5,31 L53.5,31 L47,44 L40.5,31 Z" />
         <path
-            android:fillColor="@color/media_primary"
+            android:fillColor="@color/media_accent"
             android:pathData="M70.5,31 L70.5,58 L78.5,58 L78.5,31 Z" />
         <path
-            android:fillColor="@color/media_primary"
+            android:fillColor="@color/media_accent"
             android:pathData="M74.5,66 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
     </group>
 

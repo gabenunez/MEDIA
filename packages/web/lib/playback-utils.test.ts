@@ -102,3 +102,31 @@ describe("resolvePlaybackStream", () => {
     expect(result.audioCompatNotice).toMatch(/container/i);
   });
 });
+
+describe("resolvePlaybackStream with native TV player", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("prefers direct play for MKV on native ExoPlayer", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "movie.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "hevc",
+          audioCodec: "ac3",
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: false,
+      audioCompatNotice: null,
+    });
+  });
+});

@@ -3,7 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Voice search delegates to the system recognizer (own process); no in-app mic permission needed. -->
 
     <!-- TV hardware: leanback required; touch and phone features not required (TV-MT). -->
     <uses-feature

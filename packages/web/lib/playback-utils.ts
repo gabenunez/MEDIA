@@ -77,17 +77,6 @@ function effectiveOriginalPlaybackMode(
       return "remux";
     }
 
-    // MKV/WebM remux is smoother for SD/HD on ExoPlayer — keep 4K on direct play.
-    if (
-      nativeMode === "direct" &&
-      streamInfo.transcodingEnabled &&
-      containerPrefersHlsRemux(streamInfo.fileName) &&
-      !is4KSource(streamInfo.height, streamInfo.width) &&
-      isHlsVideoCopySupported(streamInfo.videoCodec)
-    ) {
-      return "remux";
-    }
-
     return nativeMode;
   }
 

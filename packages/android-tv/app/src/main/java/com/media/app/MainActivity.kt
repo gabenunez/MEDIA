@@ -2,12 +2,16 @@ package com.media.app
 
 import android.annotation.SuppressLint
 import android.app.SearchManager
+import android.content.ActivityNotFoundException
 import android.content.ComponentCallbacks2
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognizerIntent
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -21,22 +25,43 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var webView: WebView
     private lateinit var nativePlayerView: PlayerView
+    private lateinit var splashOverlay: View
     private lateinit var nativePlayer: NativePlayerManager
     private var serverUrl: String = ""
     private var keepScreenOn = false
-    private var voiceSearchHelper: VoiceSearchHelper? = null
     private var tvCastPoller: TvCastPoller? = null
+    private var splashDismissed = false
+    private val splashHandler = Handler(Looper.getMainLooper())
+    private var splashPollRunnable: Runnable? = null
+    private var splashTimeoutRunnable: Runnable? = null
+
+    // System speech recognizer (Google) runs in its own process, so the app needs no
+    // RECORD_AUDIO permission — unlike an in-process SpeechRecognizer.
+    private val voiceSearchLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            val spoken =
+                result.data
+                    ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                    ?.firstOrNull()
+                    ?.trim()
+            if (!spoken.isNullOrBlank()) {
+                navigateToSearch(spoken)
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +77,7 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webView)
         nativePlayerView = findViewById(R.id.nativePlayerView)
+        splashOverlay = findViewById(R.id.splashOverlay)
         nativePlayerView.apply {
             isFocusable = false
             isFocusableInTouchMode = false
@@ -121,6 +147,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                scheduleSplashDismissWatch()
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?,
@@ -144,6 +174,7 @@ class MainActivity : AppCompatActivity() {
                 error: WebResourceError?,
             ) {
                 if (request?.isForMainFrame == true) {
+                    dismissSplash()
                     Toast.makeText(
                         this@MainActivity,
                         getString(R.string.connection_failed),
@@ -266,6 +297,7 @@ class MainActivity : AppCompatActivity() {
                 SessionPreferences.clearSessionToken(this)
                 clearSessionCookie()
                 if (reload) {
+                    resetSplashForLoad()
                     webView.loadUrl(buildLaunchUrl(serverUrl))
                 }
             }
@@ -288,6 +320,67 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun resetSplashForLoad() {
+        cancelSplashWatch()
+        splashDismissed = false
+        splashOverlay.alpha = 1f
+        splashOverlay.visibility = View.VISIBLE
+    }
+
+    private fun scheduleSplashDismissWatch() {
+        if (splashDismissed) return
+        cancelSplashWatch()
+
+        val poll =
+            object : Runnable {
+                override fun run() {
+                    if (splashDismissed) return
+                    webView.evaluateJavascript(
+                        "(function(){return document.documentElement.classList.contains('tv-ready');})();",
+                    ) { result ->
+                        if (splashDismissed) return@evaluateJavascript
+                        if (result?.trim()?.equals("true", ignoreCase = true) == true) {
+                            dismissSplash()
+                        } else {
+                            splashPollRunnable = this
+                            splashHandler.postDelayed(this, SPLASH_POLL_MS)
+                        }
+                    }
+                }
+            }
+        splashPollRunnable = poll
+
+        val timeout =
+            Runnable {
+                dismissSplash()
+            }
+        splashTimeoutRunnable = timeout
+
+        splashHandler.post(poll)
+        splashHandler.postDelayed(timeout, SPLASH_TIMEOUT_MS)
+    }
+
+    private fun dismissSplash() {
+        if (splashDismissed) return
+        splashDismissed = true
+        cancelSplashWatch()
+        splashOverlay
+            .animate()
+            .alpha(0f)
+            .setDuration(SPLASH_FADE_MS)
+            .withEndAction {
+                splashOverlay.visibility = View.GONE
+                splashOverlay.alpha = 1f
+            }.start()
+    }
+
+    private fun cancelSplashWatch() {
+        splashPollRunnable?.let { splashHandler.removeCallbacks(it) }
+        splashPollRunnable = null
+        splashTimeoutRunnable?.let { splashHandler.removeCallbacks(it) }
+        splashTimeoutRunnable = null
     }
 
     private fun buildLaunchUrl(baseUrl: String): String {
@@ -364,7 +457,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        voiceSearchHelper?.release()
+        cancelSplashWatch()
         tvCastPoller?.shutdown()
         executor.shutdownNow()
         nativePlayer.release()
@@ -429,22 +522,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startVoiceSearch() {
-        voiceSearchHelper?.release()
-        voiceSearchHelper =
-            VoiceSearchHelper(
-                this,
-                onResult = { query -> runOnUiThread { navigateToSearch(query) } },
-                onError = {
-                    runOnUiThread {
-                        Toast.makeText(
-                            this,
-                            R.string.voice_search_failed,
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                },
-            )
-        voiceSearchHelper?.start()
+        val intent =
+            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                )
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            }
+        try {
+            voiceSearchLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.voice_search_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun startTvCastPoller() {
@@ -583,6 +674,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SERVER_URL = "server_url"
         private const val USER_AGENT_TOKEN = "MediaAndroidTV"
+        private const val SPLASH_POLL_MS = 100L
+        private const val SPLASH_TIMEOUT_MS = 15_000L
+        private const val SPLASH_FADE_MS = 250L
         private const val PAUSE_WEB_PLAYBACK_JS =
             "(function(){var video=document.querySelector('video');if(video&&!video.paused){video.pause();}})();"
     }

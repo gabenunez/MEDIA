@@ -61,13 +61,25 @@ object SubtitleStyleMapper {
                     else -> 0.053f
                 }
 
+            val edgeColorArgb =
+                when (edge) {
+                    "outline" ->
+                        if (color == "black" || color == "blue") {
+                            Color.WHITE
+                        } else {
+                            Color.BLACK
+                        }
+                    "drop-shadow" -> Color.argb(230, 0, 0, 0)
+                    else -> Color.TRANSPARENT
+                }
+
             val style =
                 CaptionStyleCompat(
                     foregroundArgb,
                     backgroundArgb,
                     Color.TRANSPARENT,
                     edgeType,
-                    Color.BLACK,
+                    edgeColorArgb,
                     typeface,
                 )
 

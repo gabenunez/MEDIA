@@ -96,10 +96,10 @@ export function TvShell({ children }: { children: React.ReactNode }) {
           <aside className="flex w-[4.25rem] shrink-0 flex-col items-center border-r border-border/50 bg-background/95 py-5 min-h-screen">
             <div
               data-tv-logo=""
-              className="mb-5 flex h-10 w-10 items-center justify-center"
+              className="mb-5 flex h-11 w-11 shrink-0 items-center justify-center"
               aria-hidden="true"
             >
-              <MediaIcon background={false} className="h-8 w-auto" />
+              <MediaIcon background={false} className="h-7 w-7" />
             </div>
 
             <nav

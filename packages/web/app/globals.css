@@ -1039,8 +1039,8 @@
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-logo] svg {
-    height: 2.25rem;
-    width: auto;
+    height: 1.75rem;
+    width: 1.75rem;
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-watch-side-sheet] {

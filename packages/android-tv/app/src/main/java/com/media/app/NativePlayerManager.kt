@@ -73,7 +73,13 @@ class NativePlayerManager(
         playerView.player = exoPlayer
         playerView.useController = false
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
+        playerView.subtitleView?.visibility = View.VISIBLE
         applyStoredSubtitleStyles()
+        exoPlayer.trackSelectionParameters =
+            exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, payload.subtitleUrl.isNullOrBlank())
+                .build()
         if (payload.isHdr) {
             setHdrContentActive(true)
         }
@@ -388,8 +394,7 @@ class NativePlayerManager(
             .put("isPlaying", exoPlayer.isPlaying)
             .put(
                 "isBuffering",
-                exoPlayer.playbackState == Player.STATE_BUFFERING ||
-                    exoPlayer.playbackState == Player.STATE_IDLE,
+                exoPlayer.playbackState == Player.STATE_BUFFERING,
             )
             .put("ready", exoPlayer.playbackState == Player.STATE_READY)
 
