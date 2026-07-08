@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.112 — 2026-07-08
+
+### Fix
+
+- **Reverse proxy** — clearing the public prefix now triggers a clean web rebuild so `/reel` does not stick in asset URLs
+- **Home** — reduce font flicker on first load by prioritizing Inter over poster preloads and fading the hero title in once fonts are ready
+
 ## 0.1.111 — 2026-07-08
 
 ### Fix
