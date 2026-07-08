@@ -1,6 +1,15 @@
 // Runtime API port for /api rewrites — must NOT use the ephemeral prerender port (18197).
 const runtimeApiPort = process.env.MEDIA_RUNTIME_API_PORT ?? "8097";
 
+function normalizePublicPrefix(value) {
+  if (!value || value === "/") return "";
+  const trimmed = String(value).replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+const publicPrefix = normalizePublicPrefix(process.env.MEDIA_PUBLIC_PREFIX);
+
 function buildImageRemotePatterns() {
   /** @type {import('next').NextConfig['images']['remotePatterns']} */
   const patterns = [
@@ -44,6 +53,7 @@ function buildImageRemotePatterns() {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  ...(publicPrefix ? { basePath: publicPrefix } : {}),
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
@@ -67,6 +77,7 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "",
+    NEXT_PUBLIC_BASE_PATH: publicPrefix,
   },
   experimental: {
     optimizePackageImports: [

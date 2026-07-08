@@ -1,4 +1,5 @@
 import type { SubtitleStyles } from "@/lib/subtitle-styles";
+import { withBasePath } from "@/lib/base-path";
 
 export interface NativePlaybackRequest {
   url: string;
@@ -49,8 +50,9 @@ export function toAbsoluteMediaUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
-  if (typeof window === "undefined") return path;
-  return new URL(path, window.location.origin).toString();
+  const prefixed = withBasePath(path.startsWith("/") ? path : `/${path}`);
+  if (typeof window === "undefined") return prefixed;
+  return new URL(prefixed, window.location.origin).toString();
 }
 
 export function prepareNativeVideoOverlay(): void {

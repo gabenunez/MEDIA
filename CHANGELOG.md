@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.110 — 2026-07-08
+
+### Settings
+
+- **Reverse proxy** — editable public URL prefix in Settings; save rebuilds (when changed) and restarts MEDIA!
+
 ## 0.1.109 — 2026-07-08
 
 ### Fix

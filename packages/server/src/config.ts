@@ -185,9 +185,30 @@ export class ConfigManager {
     this.save();
   }
 
+  setPublicPrefix(prefix: string): void {
+    const trimmed = prefix.trim().replace(/\/+$/, "");
+    if (!this.config.server) {
+      this.config.server = { port: 8096, host: "0.0.0.0" };
+    }
+    if (!trimmed) {
+      delete this.config.server.public_prefix;
+    } else {
+      this.config.server.public_prefix = trimmed.startsWith("/")
+        ? trimmed
+        : `/${trimmed}`;
+    }
+    this.save();
+  }
+
   save(): void {
     const payload = {
-      server: this.config.server,
+      server: {
+        port: this.config.server.port,
+        host: this.config.server.host,
+        ...(this.config.server.public_prefix
+          ? { public_prefix: this.config.server.public_prefix }
+          : {}),
+      },
       libraries: this.config.libraries.map((lib) => ({
         name: lib.name,
         type: lib.type,

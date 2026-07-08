@@ -1,6 +1,15 @@
 # Reverse proxy (Apache / nginx)
 
-MEDIA! expects the reverse proxy to forward **all** paths under the public prefix to the app, with the prefix preserved.
+MEDIA! can be served under a public path prefix (for example `/reel`) when your reverse proxy forwards **all** paths under that prefix to the app.
+
+Set the prefix in **Settings → Reverse proxy**, or in `config.yaml`:
+
+```yaml
+server:
+  public_prefix: /reel
+```
+
+Saving from Settings rebuilds (when the prefix changes) and restarts MEDIA! so Next.js `basePath` matches.
 
 ## Apache example
 
