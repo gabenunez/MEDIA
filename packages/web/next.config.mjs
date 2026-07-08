@@ -1,4 +1,5 @@
-const internalApiPort = process.env.MEDIA_INTERNAL_API_PORT ?? "8097";
+// Runtime API port for /api rewrites — must NOT use the ephemeral prerender port (18197).
+const runtimeApiPort = process.env.MEDIA_RUNTIME_API_PORT ?? "8097";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -10,7 +11,7 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: `http://127.0.0.1:${internalApiPort}/api/:path*`,
+        destination: `http://127.0.0.1:${runtimeApiPort}/api/:path*`,
       },
     ];
   },

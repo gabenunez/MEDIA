@@ -28,6 +28,9 @@ export function MediaHero({ media }: { media: MediaDetail }) {
         <img
           src={backdropUrl}
           alt=""
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
           className="absolute inset-0 h-full w-full object-cover"
         />
       )}
@@ -52,6 +55,9 @@ export function MediaHero({ media }: { media: MediaDetail }) {
               <img
                 src={posterUrl}
                 alt={media.title}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
                 className="w-full rounded-md border border-white/10 poster-shadow"
               />
             ) : (

@@ -175,10 +175,65 @@ build_app() {
     cd '$dir'
     export CI=1
     export PATH=\"\${HOME}/node/bin:\${PATH:-}\"
-    rm -rf packages/web/.next packages/web/.turbo
+    rm -rf packages/web/.next packages/web/.turbo packages/web/out
     pnpm install --frozen-lockfile 2>/dev/null || pnpm install
     pnpm build
   "
+}
+
+ensure_startup_script() {
+  local install_dir="$1"
+  local startup="${HOME}/.startup/reel"
+
+  mkdir -p "${HOME}/.startup"
+  if [[ -x "$startup" ]] && grep -q "start-prod.sh" "$startup" 2>/dev/null; then
+    return 0
+  fi
+
+  if [[ -f "$startup" ]]; then
+    cp "$startup" "${startup}.legacy.$(date +%s)" 2>/dev/null || true
+    media_warn "Replacing legacy ~/.startup/reel (backup saved with .legacy suffix)"
+  fi
+
+  cat >"$startup" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$install_dir"
+export PATH="\${HOME}/node/bin:\${PATH:-}"
+exec bash scripts/start-prod.sh
+EOF
+  chmod +x "$startup"
+  media_ok "Configured ~/.startup/reel to run scripts/start-prod.sh"
+}
+
+read_config_port() {
+  local config="$1"
+  if [[ -f "$config" ]]; then
+    awk '/^server:/{found=1} found && /^  port:/{print $2; exit}' "$config"
+  fi
+}
+
+verify_web_runtime() {
+  local install_dir="$1"
+  local port
+  port="$(read_config_port "$install_dir/config.yaml")"
+  port="${port:-8096}"
+
+  sleep 3
+  local headers
+  headers="$(curl -sI -m 15 "http://127.0.0.1:${port}/media/1/" 2>/dev/null || true)"
+
+  if echo "$headers" | grep -qi "x-nextjs-prerender"; then
+    media_ok "Next.js standalone is serving pages (ISR runtime active)"
+    return 0
+  fi
+
+  media_warn "Web is still on the legacy static-export runtime (no x-nextjs-prerender header)"
+  media_warn "Media pages will show client loaders until start-prod.sh is running"
+  if [[ -f "${HOME}/.config/media-app/update.log" ]]; then
+    media_warn "See tail of ~/.config/media-app/update.log for the last deploy"
+  fi
+  return 1
 }
 
 stop_running_reel() {
@@ -221,7 +276,8 @@ restart_service() {
     else
       systemctl restart reel.service
     fi
-  elif [[ -x "${HOME}/.startup/reel" ]]; then
+  elif [[ -x "${HOME}/.startup/reel" ]] || [[ -d "${HOME}/.startup" ]]; then
+    ensure_startup_script "$(detect_install_dir)"
     media_ok "Restarting via ~/.startup/reel..."
     stop_running_reel
     "${HOME}/.startup/reel"
@@ -310,6 +366,7 @@ main() {
   media_progress "restarting" "Restarting MEDIA! — this page will reconnect when the server is back..."
   media_step "Restarting"
   restart_service
+  verify_web_runtime "$install_dir" || true
 
   after="$(media_version_label "$install_dir")"
 
