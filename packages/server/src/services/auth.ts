@@ -236,6 +236,10 @@ const INTERNAL_API_TOKEN = "next-isr";
 
 /** Read-only API paths Next.js may fetch during SSR/ISR (localhost or internal header). */
 export function isInternalNextApiPath(pathname: string): boolean {
+  if (pathname.startsWith("/api/images/")) {
+    return true;
+  }
+
   if (
     pathname === "/api/media/ids" ||
     pathname === "/api/home" ||

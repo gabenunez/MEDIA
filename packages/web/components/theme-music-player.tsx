@@ -331,6 +331,11 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
 
       ctx.clearRect(0, 0, width, height);
 
+      if (width < 8 || height < 8) {
+        frameRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
       if (node) {
         node.getByteFrequencyData(buffer.subarray(0, node.frequencyBinCount));
       }
@@ -338,7 +343,13 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
       const barCount = 56;
       const gap = 2;
       const barWidth = (width - gap * (barCount - 1)) / barCount;
+      if (barWidth < 1) {
+        frameRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
       const midY = height * 0.62;
+      const radius = Math.min(barWidth / 2, height * 0.21);
 
       for (let i = 0; i < barCount; i++) {
         const sample =
@@ -353,7 +364,7 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
 
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.beginPath();
-        ctx.roundRect(x, midY - barHeight, barWidth, barHeight * 2, barWidth / 2);
+        ctx.roundRect(x, midY - barHeight, barWidth, barHeight * 2, radius);
         ctx.fill();
       }
 
