@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.109 — 2026-07-08
+
+### Fix
+
+- **Reverse proxy** — remove gateway `?__p=` mode; use a proper subpath proxy instead (see `docs/reverse-proxy.md`)
+
 ## 0.1.108 — 2026-07-08
 
 ### Fix

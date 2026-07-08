@@ -170,32 +170,15 @@ build_app() {
   local user="$2"
 
   media_ok "Installing dependencies and building..."
-  local gateway_export=""
-  if [[ -n "${MEDIA_GATEWAY_PREFIX:-}" ]]; then
-    gateway_export="export MEDIA_GATEWAY_PREFIX='${MEDIA_GATEWAY_PREFIX}';"
-  fi
   run_as_install_user "$user" "
     set -euo pipefail
     cd '$dir'
     export CI=1
     export PATH=\"\${HOME}/node/bin:\${PATH:-}\"
-    ${gateway_export}
     rm -rf packages/web/.next packages/web/.turbo packages/web/out
     pnpm install --frozen-lockfile 2>/dev/null || pnpm install
-    if [[ -n \"\${MEDIA_GATEWAY_PREFIX:-}\" ]]; then
-      export TURBO_FORCE=1
-    fi
     pnpm build
   "
-
-  if [[ -n "${MEDIA_GATEWAY_PREFIX:-}" ]]; then
-    run_as_install_user "$user" "
-      set -euo pipefail
-      cd '$dir/packages/web'
-      export MEDIA_GATEWAY_PREFIX='${MEDIA_GATEWAY_PREFIX}'
-      node scripts/apply-gateway-assets.mjs
-    "
-  fi
 }
 
 ensure_startup_script() {
@@ -217,7 +200,6 @@ ensure_startup_script() {
 set -euo pipefail
 cd "$install_dir"
 export PATH="\${HOME}/node/bin:\${PATH:-}"
-${MEDIA_GATEWAY_PREFIX:+export MEDIA_GATEWAY_PREFIX='${MEDIA_GATEWAY_PREFIX}'}
 exec bash scripts/start-prod.sh
 EOF
   chmod +x "$startup"
@@ -228,26 +210,6 @@ read_config_port() {
   local config="$1"
   if [[ -f "$config" ]]; then
     awk '/^server:/{found=1} found && /^  port:/{print $2; exit}' "$config"
-  fi
-}
-
-read_config_gateway_prefix() {
-  local config="$1"
-  if [[ -f "$config" ]]; then
-    awk '/^server:/{found=1} found && /^  gateway_prefix:/{gsub(/"/, "", $2); print $2; exit}' "$config"
-  fi
-}
-
-persist_gateway_prefix() {
-  local config="$1"
-  local prefix="${2:-}"
-  [[ -n "$prefix" ]] || return 0
-  [[ -f "$config" ]] || return 0
-
-  if grep -q '^  gateway_prefix:' "$config" 2>/dev/null; then
-    sed -i "s|^  gateway_prefix:.*|  gateway_prefix: ${prefix}|" "$config"
-  else
-    sed -i "/^  host:/a\\  gateway_prefix: ${prefix}" "$config"
   fi
 }
 
@@ -368,11 +330,6 @@ main() {
 
   [[ -f "$install_dir/package.json" ]] || media_fail "Invalid install directory: $install_dir"
 
-  if [[ -z "${MEDIA_GATEWAY_PREFIX:-}" ]]; then
-    MEDIA_GATEWAY_PREFIX="$(read_config_gateway_prefix "$install_dir/config.yaml")"
-    export MEDIA_GATEWAY_PREFIX
-  fi
-
   if uses_systemd; then
     reel_need_sudo
   elif [[ "$(whoami)" != "$service_user" ]] && [[ ! -w "$install_dir" ]]; then
@@ -405,11 +362,6 @@ main() {
   fi
   command -v pnpm >/dev/null 2>&1 || media_fail "pnpm not found. Install Node 20+ and enable corepack."
   build_app "$install_dir" "$service_user"
-
-  if [[ -n "${MEDIA_GATEWAY_PREFIX:-}" ]]; then
-    persist_gateway_prefix "$install_dir/config.yaml" "$MEDIA_GATEWAY_PREFIX"
-    media_ok "Gateway prefix saved to config.yaml (${MEDIA_GATEWAY_PREFIX})"
-  fi
 
   media_progress "restarting" "Restarting MEDIA! — this page will reconnect when the server is back..."
   media_step "Restarting"

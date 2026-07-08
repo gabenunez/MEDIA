@@ -1,5 +1,4 @@
 import type { SubtitleStyles } from "@/lib/subtitle-styles";
-import { publicUrl } from "@/lib/gateway";
 
 export interface NativePlaybackRequest {
   url: string;
@@ -51,7 +50,7 @@ export function toAbsoluteMediaUrl(path: string): string {
     return path;
   }
   if (typeof window === "undefined") return path;
-  return publicUrl(path);
+  return new URL(path, window.location.origin).toString();
 }
 
 export function prepareNativeVideoOverlay(): void {

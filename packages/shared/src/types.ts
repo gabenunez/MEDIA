@@ -13,8 +13,6 @@ export interface LibraryConfig {
 export interface ServerConfig {
   port: number;
   host: string;
-  /** Public reverse-proxy entry path (e.g. /reel) for gateway URL mode. */
-  gateway_prefix?: string;
 }
 
 export interface MetadataConfig {

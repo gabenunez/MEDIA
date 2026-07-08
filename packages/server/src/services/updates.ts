@@ -766,11 +766,7 @@ export function prepareUpdateApply(requestedTag?: string | null): {
   return { releaseTag, installDir, currentVersion };
 }
 
-export function triggerUpdate(
-  releaseTag: string,
-  installDir = detectInstallDir(),
-  gatewayPrefix?: string | null,
-): void {
+export function triggerUpdate(releaseTag: string, installDir = detectInstallDir()): void {
   if (isUpdateInProgress()) {
     throw new Error("An update is already in progress");
   }
@@ -796,11 +792,6 @@ export function triggerUpdate(
     ? `${nodeBin}:${process.env.PATH ?? ""}`
     : process.env.PATH;
 
-  const gatewayEnv =
-    gatewayPrefix?.trim() ||
-    process.env.MEDIA_GATEWAY_PREFIX?.trim() ||
-    "";
-
   const child = spawn("bash", [updateScript], {
     cwd: installDir,
     detached: true,
@@ -813,7 +804,6 @@ export function triggerUpdate(
       REEL_RELEASE_TAG: releaseTag,
       MEDIA_INSTALL_DIR: installDir,
       REEL_INSTALL_DIR: installDir,
-      ...(gatewayEnv ? { MEDIA_GATEWAY_PREFIX: gatewayEnv } : {}),
       MEDIA_REPO: `https://github.com/${GITHUB_REPO}.git`,
       REEL_REPO: `https://github.com/${GITHUB_REPO}.git`,
       GIT_TERMINAL_PROMPT: "0",

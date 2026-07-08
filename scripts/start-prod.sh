@@ -11,24 +11,12 @@ read_config_port() {
   fi
 }
 
-read_config_gateway_prefix() {
-  local config="$ROOT/config.yaml"
-  if [[ -f "$config" ]]; then
-    awk '/^server:/{found=1} found && /^  gateway_prefix:/{gsub(/"/, "", $2); print $2; exit}' "$config"
-  fi
-}
-
 CONFIG_PORT="$(read_config_port || true)"
 PUBLIC_PORT="${MEDIA_PORT:-${CONFIG_PORT:-8096}}"
 # Drop build-only env so a prior `pnpm build` cannot point runtime at the prerender API.
 unset MEDIA_PRERENDER_BUILD MEDIA_PRERENDER_API_PORT MEDIA_INTERNAL_API_URL
 API_PORT="${MEDIA_INTERNAL_API_PORT:-$((PUBLIC_PORT + 1))}"
 HOST="${MEDIA_HOST:-0.0.0.0}"
-GATEWAY_PREFIX="${MEDIA_GATEWAY_PREFIX:-$(read_config_gateway_prefix || true)}"
-GATEWAY_PREFIX="${GATEWAY_PREFIX%/}"
-if [[ -n "$GATEWAY_PREFIX" && "$GATEWAY_PREFIX" != /* ]]; then
-  GATEWAY_PREFIX="/$GATEWAY_PREFIX"
-fi
 
 if [[ ! -f "$ROOT/packages/web/.next/standalone/packages/web/server.js" ]]; then
   echo "Missing Next standalone build. Run: pnpm build" >&2
@@ -48,8 +36,6 @@ done
 HOSTNAME="$HOST" PORT="$PUBLIC_PORT" \
   MEDIA_INTERNAL_API_URL="http://127.0.0.1:${API_PORT}" \
   MEDIA_INTERNAL_API_PORT="$API_PORT" \
-  MEDIA_GATEWAY_PREFIX="$GATEWAY_PREFIX" \
-  NEXT_PUBLIC_GATEWAY_PREFIX="$GATEWAY_PREFIX" \
   node packages/web/.next/standalone/packages/web/server.js &
 WEB_PID=$!
 

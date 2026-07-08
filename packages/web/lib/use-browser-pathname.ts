@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
-import { pathnameFromGatewayUrl } from "@/lib/gateway";
 
 const pathnameListeners = new Set<() => void>();
 let historyPatched = false;
@@ -35,7 +34,7 @@ function ensureHistoryListener() {
   };
 }
 
-export function subscribeToBrowserLocation(onStoreChange: () => void): () => void {
+function subscribeToBrowserPathname(onStoreChange: () => void): () => void {
   if (typeof window === "undefined") return () => {};
 
   ensureHistoryListener();
@@ -53,12 +52,8 @@ export function useBrowserPathname(): string {
   const nextPathname = usePathname();
 
   return useSyncExternalStore(
-    subscribeToBrowserLocation,
-    () => {
-      const pathname = window.location.pathname;
-      const gatewayPath = pathnameFromGatewayUrl(pathname, window.location.search);
-      return gatewayPath ?? pathname;
-    },
+    subscribeToBrowserPathname,
+    () => window.location.pathname,
     () => nextPathname,
   );
 }

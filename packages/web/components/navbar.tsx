@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Film, Heart, Home, Settings, Tv } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { mainNavGroupClassName, NavTab } from "@/components/nav-tabs";
@@ -8,10 +9,9 @@ import { SearchPopover } from "@/components/search-popover";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { isNavActive } from "@/lib/nav-utils";
 import { routes } from "@/lib/routes";
-import { useBrowserPathname } from "@/lib/use-browser-pathname";
 
 export function Navbar() {
-  const pathname = useBrowserPathname();
+  const pathname = usePathname();
 
   if (pathname.startsWith("/watch")) {
     return null;

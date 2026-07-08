@@ -115,17 +115,8 @@ try {
   delete buildEnv.MEDIA_INTERNAL_API_PORT;
   delete buildEnv.MEDIA_PRERENDER_API_PORT;
 
-  const useGateway =
-    Boolean(process.env.MEDIA_GATEWAY_PREFIX?.trim()) ||
-    Boolean(process.env.NEXT_PUBLIC_GATEWAY_PREFIX?.trim());
-  const useWebpack = useGateway;
-  const nextArgs = ["exec", "next", "build", ...(useWebpack ? ["--webpack"] : [])];
-
-  await run("pnpm", nextArgs, { cwd: webRoot, env: buildEnv });
+  await run("pnpm", ["exec", "next", "build"], { cwd: webRoot, env: buildEnv });
   await run("node", ["scripts/copy-standalone-assets.mjs"], { cwd: webRoot });
-  if (useGateway) {
-    await run("node", ["scripts/apply-gateway-assets.mjs"], { cwd: webRoot, env: buildEnv });
-  }
 
   const mediaHtmlDir = path.join(webRoot, ".next/server/app/media");
   const prerendered =
