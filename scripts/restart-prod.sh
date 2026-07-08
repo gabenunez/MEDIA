@@ -79,15 +79,15 @@ if [[ "$REBUILD" == "true" ]]; then
   export PATH="${HOME}/node/bin:${PATH:-}"
   rm -rf packages/web/.next packages/web/.turbo packages/web/out
   pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+  export TURBO_FORCE=1
   if [[ -n "${PUBLIC_PREFIX}" ]]; then
     export MEDIA_PUBLIC_PREFIX="${PUBLIC_PREFIX}"
-    export TURBO_FORCE=1
-    pnpm --filter @media-app/shared build
-    pnpm --filter @media-app/server build
-    (cd packages/web && MEDIA_PUBLIC_PREFIX="${PUBLIC_PREFIX}" node scripts/with-api-for-build.mjs)
   else
-    pnpm build
+    unset MEDIA_PUBLIC_PREFIX
   fi
+  pnpm --filter @media-app/shared build
+  pnpm --filter @media-app/server build
+  (cd packages/web && node scripts/with-api-for-build.mjs)
 fi
 
 stop_running_reel
