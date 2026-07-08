@@ -23,7 +23,7 @@ if [[ ! -f "$ROOT/packages/web/.next/standalone/packages/web/server.js" ]]; then
   exit 1
 fi
 
-MEDIA_API_ONLY=1 MEDIA_INTERNAL_API_PORT="$API_PORT" node packages/server/dist/index.js &
+MEDIA_API_ONLY=1 MEDIA_INTERNAL_API_PORT="$API_PORT" MEDIA_WEB_INTERNAL_URL="http://127.0.0.1:${PUBLIC_PORT}" node packages/server/dist/index.js &
 API_PID=$!
 
 for _ in $(seq 1 60); do

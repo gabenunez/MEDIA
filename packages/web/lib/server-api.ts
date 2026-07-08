@@ -5,6 +5,7 @@ import type {
   LibraryDeck,
   MediaItem,
 } from "@/lib/api";
+import { mediaPageCacheTag } from "@media-app/shared";
 
 const INTERNAL_API_HEADER = "x-media-internal";
 const INTERNAL_API_TOKEN = "next-isr";
@@ -77,7 +78,7 @@ export async function fetchMediaDetail(
   }
 
   const res = await internalApiFetch(`/api/media/${mediaId}`, {
-    next: { revalidate: revalidateSeconds },
+    next: { revalidate: revalidateSeconds, tags: [mediaPageCacheTag(mediaId)] },
   });
 
   if (res.status === 401) return { media: null, unauthorized: true };

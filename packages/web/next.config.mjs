@@ -27,7 +27,6 @@ const nextConfig = {
       "@radix-ui/react-slot",
       "@radix-ui/react-tabs",
     ],
-    turbopackFileSystemCacheForBuild: true,
   },
 };
 

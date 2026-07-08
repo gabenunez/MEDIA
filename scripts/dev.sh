@@ -16,7 +16,7 @@ API_PORT="${MEDIA_INTERNAL_API_PORT:-8096}"
 pnpm --filter @media-app/shared dev &
 SHARED_PID=$!
 
-MEDIA_API_ONLY=1 MEDIA_INTERNAL_API_PORT="$API_PORT" pnpm --filter @media-app/server dev &
+MEDIA_API_ONLY=1 MEDIA_INTERNAL_API_PORT="$API_PORT" MEDIA_WEB_INTERNAL_URL="http://127.0.0.1:3000" pnpm --filter @media-app/server dev &
 SERVER_PID=$!
 
 MEDIA_INTERNAL_API_PORT="$API_PORT" pnpm --filter @media-app/web dev &
