@@ -13,6 +13,17 @@ if [[ "${1:-}" == "--rebuild" ]]; then
   REBUILD=true
 fi
 
+LOCK_FILE="$(media_config_dir)/restarting.lock"
+if [[ -f "$LOCK_FILE" ]]; then
+  lock_pid="$(cat "$LOCK_FILE" 2>/dev/null || true)"
+  if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+    echo "Restart already in progress (pid $lock_pid)" >&2
+    exit 0
+  fi
+fi
+echo $$ >"$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
+
 read_config_public_prefix() {
   local config="$ROOT/config.yaml"
   if [[ -f "$config" ]]; then
@@ -20,7 +31,28 @@ read_config_public_prefix() {
   fi
 }
 
+uses_systemd() {
+  [[ -f /etc/systemd/system/reel.service ]] && systemctl list-unit-files reel.service &>/dev/null
+}
+
+cleanup_pid_files() {
+  local config_dir
+  config_dir="$(media_config_dir)"
+  rm -f "$config_dir/reel.pid" "${HOME}/.config/media-app/reel.pid" "${HOME}/.config/reel/reel.pid"
+}
+
 stop_running_reel() {
+  if uses_systemd; then
+    if [[ -n "${MEDIA_SUDO:-}" ]]; then
+      $MEDIA_SUDO systemctl stop reel.service 2>/dev/null || true
+    else
+      systemctl stop reel.service 2>/dev/null || true
+    fi
+    sleep 2
+    cleanup_pid_files
+    return 0
+  fi
+
   local pid_file pid config_dir
   config_dir="$(media_config_dir)"
   pid_file="$config_dir/reel.pid"
@@ -42,15 +74,15 @@ stop_running_reel() {
   pkill -f "packages/web/.next/standalone/packages/web/server.js" 2>/dev/null || true
   pkill -f "scripts/start-prod.sh" 2>/dev/null || true
   sleep 1
-  rm -f "${HOME}/.config/media-app/reel.pid" "${HOME}/.config/reel/reel.pid"
+  cleanup_pid_files
 }
 
 start_running_reel() {
-  if [[ -f /etc/systemd/system/reel.service ]] && systemctl list-unit-files reel.service &>/dev/null; then
+  if uses_systemd; then
     if [[ -n "${MEDIA_SUDO:-}" ]]; then
-      $MEDIA_SUDO systemctl restart reel.service
+      $MEDIA_SUDO systemctl start reel.service
     else
-      systemctl restart reel.service
+      systemctl start reel.service
     fi
     return 0
   fi
@@ -65,30 +97,30 @@ start_running_reel() {
   mkdir -p "$config_dir"
   pid_file="$config_dir/reel.pid"
   export PATH="${HOME}/node/bin:${PATH:-}"
-  nohup bash scripts/start-prod.sh >> "$config_dir/reel.log" 2>&1 &
-  echo $! > "$pid_file"
+  nohup bash scripts/start-prod.sh >>"$config_dir/reel.log" 2>&1 &
+  echo $! >"$pid_file"
 }
 
 # Let the settings API response flush before we stop the server.
 sleep 2
 
 PUBLIC_PREFIX="$(read_config_public_prefix || true)"
-export MEDIA_PUBLIC_PREFIX="${PUBLIC_PREFIX}"
+if [[ -n "${PUBLIC_PREFIX}" ]]; then
+  export MEDIA_PUBLIC_PREFIX="${PUBLIC_PREFIX}"
+else
+  unset MEDIA_PUBLIC_PREFIX
+fi
+
+stop_running_reel
 
 if [[ "$REBUILD" == "true" ]]; then
   export PATH="${HOME}/node/bin:${PATH:-}"
   rm -rf packages/web/.next packages/web/.turbo packages/web/out
   pnpm install --frozen-lockfile 2>/dev/null || pnpm install
   export TURBO_FORCE=1
-  if [[ -n "${PUBLIC_PREFIX}" ]]; then
-    export MEDIA_PUBLIC_PREFIX="${PUBLIC_PREFIX}"
-  else
-    unset MEDIA_PUBLIC_PREFIX
-  fi
   pnpm --filter @media-app/shared build
   pnpm --filter @media-app/server build
   (cd packages/web && node scripts/with-api-for-build.mjs)
 fi
 
-stop_running_reel
 start_running_reel

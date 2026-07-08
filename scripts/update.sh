@@ -279,7 +279,7 @@ stop_running_reel() {
   pkill -f "packages/web/.next/standalone/packages/web/server.js" 2>/dev/null || true
   pkill -f "scripts/start-prod.sh" 2>/dev/null || true
   sleep 1
-  rm -f "${HOME}/.config/media-app/reel.pid" "${HOME}/.config/reel/reel.pid"
+  rm -f "$config_dir/reel.pid" "${HOME}/.config/media-app/reel.pid" "${HOME}/.config/reel/reel.pid"
 }
 
 restart_service() {
