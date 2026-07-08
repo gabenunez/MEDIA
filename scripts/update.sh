@@ -170,11 +170,18 @@ build_app() {
   local user="$2"
 
   media_ok "Installing dependencies and building..."
+  local prefix_export=""
+  local prefix
+  prefix="$(read_config_public_prefix "$dir/config.yaml")"
+  if [[ -n "$prefix" ]]; then
+    prefix_export="export MEDIA_PUBLIC_PREFIX='${prefix}';"
+  fi
   run_as_install_user "$user" "
     set -euo pipefail
     cd '$dir'
     export CI=1
     export PATH=\"\${HOME}/node/bin:\${PATH:-}\"
+    ${prefix_export}
     rm -rf packages/web/.next packages/web/.turbo packages/web/out
     pnpm install --frozen-lockfile 2>/dev/null || pnpm install
     pnpm build
@@ -210,6 +217,13 @@ read_config_port() {
   local config="$1"
   if [[ -f "$config" ]]; then
     awk '/^server:/{found=1} found && /^  port:/{print $2; exit}' "$config"
+  fi
+}
+
+read_config_public_prefix() {
+  local config="$1"
+  if [[ -f "$config" ]]; then
+    awk '/^server:/{found=1} found && /^  public_prefix:/{gsub(/"/, "", $2); print $2; exit}' "$config"
   fi
 }
 

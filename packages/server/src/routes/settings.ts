@@ -22,6 +22,20 @@ import {
   importPlexWatchProgress,
   previewPlexImport,
 } from "../services/plex-import.js";
+import { scheduleServerRestart } from "../services/restart.js";
+
+function normalizePublicPrefixInput(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") {
+    throw new Error("public_prefix must be a string");
+  }
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (trimmed.includes("://") || /\s/.test(trimmed)) {
+    throw new Error("public_prefix must look like /reel");
+  }
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
 
 export async function settingsRoutes(
   app: FastifyInstance,
@@ -59,6 +73,7 @@ export async function settingsRoutes(
       libraries: libraryDetails,
       decks: await listDecksWithCounts(db),
       passwordConfigured: Boolean(config.auth?.password_hash?.trim()),
+      publicPrefix: config.server.public_prefix ?? "",
       metadata: {
         tmdbConfigured: hasKey,
         tmdbApiKeyPreview: hasKey
@@ -79,6 +94,34 @@ export async function settingsRoutes(
       browseShortcuts: getBrowseShortcuts(),
     };
   });
+
+  app.put<{ Body: { public_prefix?: string } }>(
+    "/api/settings/server",
+    async (request, reply) => {
+      if (request.body?.public_prefix === undefined) {
+        return reply.status(400).send({ error: "public_prefix is required" });
+      }
+
+      try {
+        const nextPrefix = normalizePublicPrefixInput(request.body.public_prefix);
+        const previousPrefix = configManager.get().server.public_prefix ?? "";
+        const prefixChanged = previousPrefix !== nextPrefix;
+
+        configManager.setPublicPrefix(nextPrefix);
+        scheduleServerRestart({ rebuild: prefixChanged });
+
+        return {
+          success: true,
+          restarting: true,
+          rebuild: prefixChanged,
+        };
+      } catch (err) {
+        return reply.status(400).send({
+          error: err instanceof Error ? err.message : "Invalid public_prefix",
+        });
+      }
+    },
+  );
 
   app.get<{ Querystring: { path?: string } }>("/api/browse", async (request) => {
     return browseDirectory(request.query.path);

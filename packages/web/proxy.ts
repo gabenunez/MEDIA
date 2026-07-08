@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { resolveLegacyRouteRedirect } from "@media-app/shared";
+import { withBasePath } from "@/lib/base-path";
 
 export function proxy(request: NextRequest) {
   const redirect = resolveLegacyRouteRedirect(
@@ -8,7 +9,7 @@ export function proxy(request: NextRequest) {
     request.nextUrl.search,
   );
   if (!redirect) return NextResponse.next();
-  return NextResponse.redirect(new URL(redirect, request.url));
+  return NextResponse.redirect(new URL(withBasePath(redirect), request.url));
 }
 
 export const config = {

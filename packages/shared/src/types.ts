@@ -13,6 +13,8 @@ export interface LibraryConfig {
 export interface ServerConfig {
   port: number;
   host: string;
+  /** Reverse-proxy public path prefix (e.g. /reel). */
+  public_prefix?: string;
 }
 
 export interface MetadataConfig {

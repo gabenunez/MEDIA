@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   Database,
+  Globe,
   History,
   Loader2,
   Lock,
@@ -41,6 +42,9 @@ export function SettingsClient() {
   const [plexLoading, setPlexLoading] = useState(false);
   const [plexImporting, setPlexImporting] = useState(false);
   const [plexMessage, setPlexMessage] = useState<string | null>(null);
+  const [publicPrefix, setPublicPrefix] = useState("");
+  const [savingPrefix, setSavingPrefix] = useState(false);
+  const [prefixMessage, setPrefixMessage] = useState<string | null>(null);
 
   const loadSettings = useCallback((options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -48,7 +52,10 @@ export function SettingsClient() {
     }
     api
       .getSettings()
-      .then(setSettings)
+      .then((data) => {
+        setSettings(data);
+        setPublicPrefix(data.publicPrefix ?? "");
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -100,6 +107,23 @@ export function SettingsClient() {
       setPlexMessage(err instanceof Error ? err.message : "Import failed");
     } finally {
       setPlexImporting(false);
+    }
+  };
+
+  const handleSavePublicPrefix = async () => {
+    setSavingPrefix(true);
+    setPrefixMessage(null);
+    try {
+      const result = await api.updateServerSettings({ public_prefix: publicPrefix });
+      setPrefixMessage(
+        result.rebuild
+          ? "Prefix saved. MEDIA! is rebuilding and restarting — this page will reconnect shortly."
+          : "Prefix saved. MEDIA! is restarting — this page will reconnect shortly.",
+      );
+    } catch (err) {
+      setPrefixMessage(err instanceof Error ? err.message : "Failed to save prefix");
+    } finally {
+      setSavingPrefix(false);
     }
   };
 
@@ -423,6 +447,45 @@ export function SettingsClient() {
         {!initialLoad && settings && (
           <>
             <ApiKeysSettings settings={settings} onChange={() => loadSettings()} />
+
+            <SettingsSection icon={Globe} title="Reverse proxy">
+              <p className="text-sm text-muted-foreground">
+                Public URL prefix when MEDIA! is served behind Apache or nginx (for example{" "}
+                <code className="text-foreground">/reel</code>). Leave empty when using the direct
+                port URL.
+              </p>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-sm font-medium" htmlFor="public-prefix">
+                    Public prefix
+                  </label>
+                  <Input
+                    id="public-prefix"
+                    value={publicPrefix}
+                    onChange={(event) => setPublicPrefix(event.target.value)}
+                    placeholder="/reel"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                <Button
+                  onClick={() => void handleSavePublicPrefix()}
+                  disabled={savingPrefix}
+                >
+                  {savingPrefix ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save and restart"
+                  )}
+                </Button>
+              </div>
+              {prefixMessage ? (
+                <p className="mt-2 text-sm text-muted-foreground">{prefixMessage}</p>
+              ) : null}
+            </SettingsSection>
 
             <UpdateManager />
 

@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { api } from "@/lib/api";
 import { invalidateApiCache } from "@/lib/api-cache";
+import { routes } from "@/lib/routes";
 import { androidTvShellSupportsLogout, notifyAndroidLogout } from "@/lib/android-bridge";
 import { isTvClient } from "@/lib/tv-mode-detect";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         notifyAndroidLogout();
         return;
       }
-      window.location.href = `${window.location.origin}/?tv=1`;
+      window.location.href = `${window.location.origin}${routes.home()}?tv=1`;
       return;
     }
 

@@ -1,9 +1,15 @@
 import { cachedFetch, invalidateApiCache } from "./api-cache";
+import { withBasePath } from "./base-path";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+function apiUrl(path: string): string {
+  if (API_BASE) return `${API_BASE}${path}`;
+  return withBasePath(path);
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     ...options,
     credentials: "include",
     headers: {
@@ -89,6 +95,7 @@ export interface LibraryDeck {
 export interface AppSettings {
   ffmpegAvailable: boolean;
   passwordConfigured: boolean;
+  publicPrefix: string;
   libraries: SettingsLibrary[];
   decks: LibraryDeck[];
   metadata: {
@@ -374,6 +381,14 @@ export const api = {
       return result;
     }),
   getSettings: () => fetchApi<AppSettings>("/api/settings"),
+  updateServerSettings: (data: { public_prefix?: string }) =>
+    fetchApi<{ success: boolean; restarting: boolean; rebuild: boolean }>(
+      "/api/settings/server",
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    ),
   previewPlexImport: (path?: string) =>
     fetchApi<PlexImportPreview>(
       `/api/settings/plex-import${path ? `?path=${encodeURIComponent(path)}` : ""}`,
@@ -563,7 +578,7 @@ export const api = {
     options?: { keepalive?: boolean },
   ) => {
     const request = options?.keepalive
-      ? fetch(`${API_BASE}/api/watch-progress`, {
+      ? fetch(apiUrl("/api/watch-progress"), {
           method: "POST",
           credentials: "include",
           keepalive: true,
@@ -620,9 +635,9 @@ export const api = {
       body: JSON.stringify({ type }),
     }),
   thumbnailVttUrl: (fileId: number, type: "movie" | "episode") =>
-    `${API_BASE}/api/stream/${fileId}/thumbnails/thumbs.vtt?type=${type}`,
+    apiUrl(`/api/stream/${fileId}/thumbnails/thumbs.vtt?type=${type}`),
   thumbnailSpriteUrl: (fileId: number, type: "movie" | "episode") =>
-    `${API_BASE}/api/stream/${fileId}/thumbnails/sprite.jpg?type=${type}`,
+    apiUrl(`/api/stream/${fileId}/thumbnails/sprite.jpg?type=${type}`),
   streamUrl: (
     fileId: number,
     type: "movie" | "episode",
@@ -632,7 +647,7 @@ export const api = {
     hlsQuality?: StreamQuality | "remux",
   ) => {
     if (quality === "original" && !hlsQuality) {
-      return `${API_BASE}/api/stream/${fileId}?type=${type}`;
+      return apiUrl(`/api/stream/${fileId}?type=${type}`);
     }
     const effectiveQuality = hlsQuality ?? quality;
     const params = new URLSearchParams({ type, quality: effectiveQuality });
@@ -640,20 +655,20 @@ export const api = {
     if (cacheKey !== undefined) {
       params.set("_", String(cacheKey));
     }
-    return `${API_BASE}/api/stream/${fileId}/hls/master.m3u8?${params.toString()}`;
+    return apiUrl(`/api/stream/${fileId}/hls/master.m3u8?${params.toString()}`);
   },
   subtitleUrl: (id: number, offsetSeconds = 0) => {
-    const base = `${API_BASE}/api/subtitles/${id}`;
+    const base = apiUrl(`/api/subtitles/${id}`);
     if (offsetSeconds > 0) {
       return `${base}?offset=${Math.floor(offsetSeconds)}`;
     }
     return base;
   },
-  themeMusicUrl: (mediaId: number) => `${API_BASE}/api/media/${mediaId}/theme`,
+  themeMusicUrl: (mediaId: number) => apiUrl(`/api/media/${mediaId}/theme`),
   imageUrl: (path?: string | null, options?: { hd?: boolean }) => {
     if (!path) return null;
     if (path.startsWith("http")) return path;
-    const url = `${API_BASE}${path}`;
+    const url = apiUrl(path);
     if (options?.hd) {
       return `${url}${url.includes("?") ? "&" : "?"}hd=1`;
     }
