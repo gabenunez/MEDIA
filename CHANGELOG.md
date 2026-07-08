@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.105 — 2026-07-07
+
+### Fix
+
+- **Images** — allowlist `/api/images/**` in Next.js `localPatterns` so `/_next/image` no longer returns 400 for poster URLs
+- **Images** — let the image optimizer fetch cached artwork from localhost on password-protected servers
+- **Theme music** — guard the media-banner waveform canvas when layout is too narrow (fixes `roundRect` negative radius crash)
+
 ## 0.1.104 — 2026-07-07
 
 ### Performance
