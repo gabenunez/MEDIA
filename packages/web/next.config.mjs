@@ -11,9 +11,18 @@ function buildImageRemotePatterns() {
     },
   ];
 
+  for (const host of ["localhost", "127.0.0.1"]) {
+    patterns.push({
+      protocol: "http",
+      hostname: host,
+      pathname: "/api/images/**",
+    });
+  }
+
   for (const value of [
     process.env.NEXT_PUBLIC_API_URL,
     process.env.MEDIA_INTERNAL_API_URL,
+    process.env.MEDIA_WEB_INTERNAL_URL,
   ]) {
     if (!value) continue;
     try {
@@ -49,6 +58,11 @@ const nextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 86_400,
+    localPatterns: [
+      {
+        pathname: "/api/images/**",
+      },
+    ],
     remotePatterns: buildImageRemotePatterns(),
   },
   env: {
