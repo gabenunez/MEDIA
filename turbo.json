@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": ["MEDIA_PUBLIC_PREFIX"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
