@@ -86,6 +86,31 @@ try {
 
   await run("pnpm", ["exec", "next", "build"], { cwd: webRoot, env: buildEnv });
   await run("node", ["scripts/copy-standalone-assets.mjs"], { cwd: webRoot });
+
+  const mediaHtmlDir = path.join(webRoot, ".next/server/app/media");
+  const prerendered =
+    fs.existsSync(mediaHtmlDir) &&
+    fs.readdirSync(mediaHtmlDir).filter((name) => /^\d+\.html$/.test(name));
+
+  if (apiReady && prerendered.length === 0) {
+    console.warn(
+      "[media] Build API was ready but no media pages were pre-rendered. Check data_dir and /api/media/ids.",
+    );
+  } else if (prerendered.length > 0) {
+    console.log(`[media] Pre-rendered HTML for ${prerendered.length} media page(s)`);
+    const sample = path.join(mediaHtmlDir, prerendered[0]);
+    const html = fs.readFileSync(sample, "utf8");
+    if (html.includes("h-80 w-full") || html.includes("h-96 w-full")) {
+      console.warn(
+        `[media] ${prerendered[0]} still ships a loading shell — remove route loading.tsx for static media pages`,
+      );
+    }
+    if (!html.includes("font-black")) {
+      console.warn(
+        `[media] ${prerendered[0]} is missing hero markup — build-time API fetch may have failed`,
+      );
+    }
+  }
 } finally {
   stopProcess(apiProcess);
 }
