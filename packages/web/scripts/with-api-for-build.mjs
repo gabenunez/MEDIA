@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(webRoot, "../..");
+const nextDir = path.join(webRoot, ".next");
 const apiPort = process.env.MEDIA_PRERENDER_API_PORT ?? "18197";
 const serverEntry = path.join(repoRoot, "packages/server/dist/index.js");
 
@@ -48,7 +49,36 @@ function stopProcess(child) {
 
 let apiProcess = null;
 
+function assertNoMediaLoadingShell(html, sampleName) {
+  const mainStart = html.indexOf("<main>");
+  const mainEnd = html.indexOf("</main>");
+  if (mainStart === -1 || mainEnd === -1) {
+    throw new Error(`[media] ${sampleName} is missing <main> — build output looks broken`);
+  }
+
+  const main = html.slice(mainStart, mainEnd);
+  const issues = [];
+  if (main.includes("animate-pulse")) issues.push("animate-pulse skeleton");
+  if (main.includes("h-80 w-full")) issues.push("media page skeleton (h-80)");
+  if (main.includes("h-96 w-full")) issues.push("home loading skeleton (h-96)");
+  if (!main.includes("font-black") && !main.includes("<h1")) {
+    issues.push("missing hero heading");
+  }
+
+  if (issues.length > 0) {
+    throw new Error(
+      `[media] ${sampleName} still ships a loading shell (${issues.join(", ")}). ` +
+        "Remove route loading.tsx from static ISR pages and rebuild clean.",
+    );
+  }
+}
+
 try {
+  if (fs.existsSync(nextDir)) {
+    fs.rmSync(nextDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    console.log("[media] Cleared previous .next output for a clean prerender");
+  }
+
   let apiReady = false;
 
   if (fs.existsSync(serverEntry)) {
@@ -98,18 +128,11 @@ try {
     );
   } else if (prerendered.length > 0) {
     console.log(`[media] Pre-rendered HTML for ${prerendered.length} media page(s)`);
-    const sample = path.join(mediaHtmlDir, prerendered[0]);
-    const html = fs.readFileSync(sample, "utf8");
-    if (html.includes("h-80 w-full") || html.includes("h-96 w-full")) {
-      console.warn(
-        `[media] ${prerendered[0]} still ships a loading shell — remove route loading.tsx for static media pages`,
-      );
+    for (const name of prerendered.slice(0, 3)) {
+      const html = fs.readFileSync(path.join(mediaHtmlDir, name), "utf8");
+      assertNoMediaLoadingShell(html, name);
     }
-    if (!html.includes("font-black")) {
-      console.warn(
-        `[media] ${prerendered[0]} is missing hero markup — build-time API fetch may have failed`,
-      );
-    }
+    console.log("[media] Verified prerendered media HTML has hero markup and no loading shells");
   }
 } finally {
   stopProcess(apiProcess);

@@ -175,6 +175,7 @@ build_app() {
     cd '$dir'
     export CI=1
     export PATH=\"\${HOME}/node/bin:\${PATH:-}\"
+    rm -rf packages/web/.next packages/web/.turbo
     pnpm install --frozen-lockfile 2>/dev/null || pnpm install
     pnpm build
   "

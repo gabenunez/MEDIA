@@ -24,6 +24,7 @@ import {
 import { MetadataService } from "./metadata.js";
 import { SubtitleService } from "./subtitles.js";
 import { ThemeService } from "./themes.js";
+import { revalidateMediaPage } from "./page-revalidate.js";
 import { probeFile } from "../utils/ffmpeg.js";
 
 export class ScannerService {
@@ -965,6 +966,7 @@ export class ScannerService {
       .returning();
 
     await this.subtitles.discoverForEpisode(episode.id, filePath, probe);
+    void revalidateMediaPage(mediaItem.id);
   }
 
   private async removeFile(filePath: string): Promise<void> {

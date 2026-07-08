@@ -10,3 +10,4 @@ export * from "./vtt-cues.js";
 export * from "./parsers/movie.js";
 export * from "./parsers/tv.js";
 export * from "./routes.js";
+export * from "./cache-tags.js";
