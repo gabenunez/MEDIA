@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.103 — 2026-07-07
+
+### Performance
+
+- **Images** — eager-load above-fold posters, preload artwork on hover/TV focus, and warm media JSON before navigation
+- **TV home** — server-seed home rows so posters render immediately instead of waiting on a client fetch spinner
+- **Media pages** — eager-load hero backdrop and poster for faster first paint
+
+### Fix
+
+- **Deploy** — migrate legacy `~/.startup/reel` to `start-prod.sh`, verify Next.js is serving pages after update, and remove stale static export output on build
+- **API proxy** — keep runtime `/api` rewrites on port 8097 instead of baking the ephemeral prerender port into the build
+- **Next.js** — rename `middleware.ts` to `proxy.ts` (Next 16 convention)
+
 ## 0.1.102 — 2026-07-07
 
 ### Fix
