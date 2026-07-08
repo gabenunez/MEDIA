@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import type { ConfigManager } from "../config.js";
 import {
   checkForUpdates,
   getUpdateProgress,
@@ -7,7 +8,7 @@ import {
   triggerUpdate,
 } from "../services/updates.js";
 
-export async function updateRoutes(app: FastifyInstance) {
+export async function updateRoutes(app: FastifyInstance, configManager: ConfigManager) {
   app.get("/api/updates/progress", async () => ({
     updateInProgress: isUpdateInProgress(),
     progress: isUpdateInProgress() ? getUpdateProgress() : null,
@@ -18,12 +19,21 @@ export async function updateRoutes(app: FastifyInstance) {
     return checkForUpdates(force);
   });
 
-  app.post<{ Body: { releaseTag?: string } }>(
+  app.post<{ Body: { releaseTag?: string; gatewayPrefix?: string } }>(
     "/api/updates/apply",
     async (request, reply) => {
       try {
+        const gatewayPrefix = request.body?.gatewayPrefix?.trim();
+        if (gatewayPrefix) {
+          configManager.setGatewayPrefix(gatewayPrefix);
+        }
+
         const { releaseTag, installDir } = prepareUpdateApply(request.body?.releaseTag);
-        triggerUpdate(releaseTag, installDir);
+        triggerUpdate(
+          releaseTag,
+          installDir,
+          gatewayPrefix || configManager.get().server.gateway_prefix,
+        );
 
         return {
           success: true,

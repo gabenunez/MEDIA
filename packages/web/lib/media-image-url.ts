@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { publicUrl } from "./gateway";
 
 export function mediaImageUrl(
   path?: string | null,
@@ -6,7 +6,7 @@ export function mediaImageUrl(
 ): string | null {
   if (!path) return null;
   if (path.startsWith("http")) return path;
-  const url = `${API_BASE}${path}`;
+  const url = publicUrl(path);
   if (options?.hd) {
     return `${url}${url.includes("?") ? "&" : "?"}hd=1`;
   }

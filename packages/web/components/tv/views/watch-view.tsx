@@ -43,7 +43,7 @@ import {
   TvWatchMenuSectionLabel,
   tvWatchMenuOptionClassName,
 } from "@/components/tv/tv-watch-settings-menu";
-import { focusTvItem } from "@/lib/tv-focus";
+import { focusFirstWatchMenuItem, focusTvItem } from "@/lib/tv-focus";
 import { needsTvSdUpscaleSoftening, tvImageUrl } from "@/lib/tv-image";
 import { isTv4KClient } from "@/lib/tv-mode-detect";
 import { cn, formatDuration } from "@/lib/utils";
@@ -1226,18 +1226,14 @@ export function TvWatchView() {
   useEffect(() => {
     if (!subtitleMenuOpen && !subtitleAppearanceOpen && !qualityMenuOpen) return;
     requestAnimationFrame(() => {
-      const panel = document.querySelector("[data-tv-watch-menu]");
-      const first = panel?.querySelector<HTMLElement>("[data-tv-item]");
-      if (first) focusTvItem(first);
+      focusFirstWatchMenuItem();
     });
   }, [subtitleMenuOpen, subtitleAppearanceOpen, qualityMenuOpen]);
 
   useEffect(() => {
     if (!subtitleSearchOpen) return;
     requestAnimationFrame(() => {
-      const panel = document.querySelector("[data-tv-watch-menu]");
-      const first = panel?.querySelector<HTMLElement>("[data-tv-item]");
-      if (first) focusTvItem(first);
+      focusFirstWatchMenuItem();
     });
   }, [subtitleSearchOpen]);
 
@@ -1976,7 +1972,11 @@ export function TvWatchView() {
             <TvFocusButton
               variant="card"
               selected={activeSubtitle === null}
-              onClick={() => selectSubtitle(null)}
+              onClick={() => {
+                selectSubtitle(null);
+                closeMenus();
+                revealControls(false);
+              }}
               className={tvWatchMenuOptionClassName()}
             >
               Off
@@ -1986,7 +1986,11 @@ export function TvWatchView() {
                 key={sub.id}
                 variant="card"
                 selected={activeSubtitle === sub.id}
-                onClick={() => selectSubtitle(sub.id)}
+                onClick={() => {
+                  selectSubtitle(sub.id);
+                  closeMenus();
+                  revealControls(false);
+                }}
                 className={tvWatchMenuOptionClassName("flex items-center justify-between gap-3")}
               >
                 <span className="min-w-0 truncate">{formatSubtitleLabel(sub)}</span>
@@ -2063,7 +2067,11 @@ export function TvWatchView() {
                 variant="card"
                 selected={quality === option}
                 disabled={option !== "original" && !transcodingEnabled}
-                onClick={() => changeQuality(option)}
+                onClick={() => {
+                  changeQuality(option);
+                  closeMenus();
+                  revealControls(false);
+                }}
                 className={tvWatchMenuOptionClassName(
                   option !== "original" && !transcodingEnabled ? "opacity-40" : undefined,
                 )}

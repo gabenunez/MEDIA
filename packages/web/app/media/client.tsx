@@ -12,6 +12,7 @@ import { MediaDesktopSeasons } from "./media-desktop-seasons";
 import { MediaHero } from "./media-hero";
 import { asMediaDetail } from "./types";
 import { useMediaPageData } from "@/lib/use-media-page-data";
+import { routes } from "@/lib/routes";
 
 export function MediaPageSkeleton() {
   return (
@@ -45,7 +46,7 @@ function LegacyDesktopMedia() {
       <div className="py-20 text-center">
         <p>Invalid media</p>
         <Button asChild className="mt-4">
-          <Link href="/">Go Home</Link>
+          <Link href={routes.home()}>Go Home</Link>
         </Button>
       </div>
     );

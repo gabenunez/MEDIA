@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { routes } from "@/lib/routes";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvSearchView } from "@/components/tv/views/search-view";
 
@@ -11,7 +12,7 @@ export function SearchClient() {
 
   useEffect(() => {
     if (!isTvMode) {
-      router.replace("/");
+      router.replace(routes.home());
     }
   }, [isTvMode, router]);
 

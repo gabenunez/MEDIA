@@ -5,9 +5,10 @@ import { Download, Loader2, Search, X } from "lucide-react";
 import { api, type SubtitleSearchResult, type SubtitleTrack } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
+import { TvWatchSideSheet } from "@/components/tv/tv-watch-settings-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { focusTvItem } from "@/lib/tv-focus";
+import { focusFirstWatchMenuItem, focusTvItem } from "@/lib/tv-focus";
 
 interface SubtitleSearchDialogProps {
   open: boolean;
@@ -78,13 +79,13 @@ export function SubtitleSearchDialog({
     if (!open || !tv) return;
 
     requestAnimationFrame(() => {
-      const target =
-        results.length > 0
-          ? firstResultRef.current
-          : opensubtitlesConfigured && !loading
-            ? searchButtonRef.current
-            : closeButtonRef.current;
-      if (target) focusTvItem(target);
+      if (results.length > 0 && firstResultRef.current) {
+        focusTvItem(firstResultRef.current);
+        return;
+      }
+      if (!focusFirstWatchMenuItem()) {
+        closeButtonRef.current?.focus();
+      }
     });
   }, [open, tv, opensubtitlesConfigured, results.length, loading]);
 
@@ -112,114 +113,119 @@ export function SubtitleSearchDialog({
 
   if (tv) {
     return (
-      <div
-        data-tv-watch-menu=""
-        className="fixed inset-0 z-50 flex flex-col bg-background"
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
-          <div className="min-w-0">
-            <h3 className="text-xl font-bold text-white">Search subtitles</h3>
-            <p className="mt-1 truncate text-sm text-muted-foreground">
-              {contextTitle || "OpenSubtitles.com"} · matched to your file hash
-            </p>
-          </div>
-          <TvFocusButton
-            ref={closeButtonRef}
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-white"
+      <TvWatchSideSheet>
+        <aside data-tv-watch-menu="" className="flex h-full min-h-0 flex-col">
+          <div
+            data-tv-row=""
+            data-tv-watch-menu-header=""
+            className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 px-4 py-3"
           >
-            <X className="h-5 w-5" />
-          </TvFocusButton>
-        </div>
-
-        {!opensubtitlesConfigured ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center text-base text-muted-foreground">
-            <p>Add a free OpenSubtitles API key in Settings to search online subtitles.</p>
-            <p>Create one at opensubtitles.com → API consumers → New consumer</p>
-          </div>
-        ) : (
-          <>
-            <div
-              data-tv-row=""
-              data-tv-content-row=""
-              data-tv-watch-controls=""
-              className="flex flex-wrap items-center gap-2 border-b border-white/10 px-6 py-4"
+            <div className="min-w-0 flex-1">
+              <h3 className="text-lg font-bold text-white">Search subtitles</h3>
+              <p className="mt-1 truncate text-sm text-muted-foreground">
+                {contextTitle || "OpenSubtitles.com"} · matched to your file hash
+              </p>
+            </div>
+            <TvFocusButton
+              ref={closeButtonRef}
+              variant="nav"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white"
             >
-              <Input
-                value={languages}
-                onChange={(e) => setLanguages(e.target.value)}
-                placeholder="Languages (en, es, fr)"
-                className="max-w-xs bg-muted/40 text-base text-white"
-              />
-              <TvFocusButton
-                ref={searchButtonRef}
-                onClick={runSearch}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              <X className="h-5 w-5" />
+            </TvFocusButton>
+          </div>
+
+          {!opensubtitlesConfigured ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
+              <p>Add a free OpenSubtitles API key in Settings to search online subtitles.</p>
+              <p>Create one at opensubtitles.com → API consumers → New consumer</p>
+            </div>
+          ) : (
+            <>
+              <div
+                data-tv-row=""
+                data-tv-content-row=""
+                className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3"
+              >
+                <Input
+                  value={languages}
+                  onChange={(e) => setLanguages(e.target.value)}
+                  placeholder="Languages (en, es, fr)"
+                  className="max-w-xs bg-muted/40 text-base text-white"
+                />
+                <TvFocusButton
+                  ref={searchButtonRef}
+                  onClick={runSearch}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                  Search
+                </TvFocusButton>
+              </div>
+
+              <div
+                data-tv-row=""
+                data-tv-content-row=""
+                data-tv-vertical=""
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
               >
                 {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <p className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    Searching OpenSubtitles...
+                  </p>
+                ) : results.length ? (
+                  results.map((result) => (
+                    <TvFocusButton
+                      key={`${result.id}-${result.fileId}`}
+                      ref={result === results[0] ? firstResultRef : undefined}
+                      variant="card"
+                      disabled={downloadingId === result.fileId}
+                      onClick={() => handleDownload(result)}
+                      className="mb-1.5 flex w-full items-start gap-3 rounded-xl px-4 py-3 text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-semibold text-white">
+                          {result.language.toUpperCase()}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                          {result.release}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {result.downloadCount.toLocaleString()} downloads
+                          {result.hearingImpaired ? " / HI" : ""}
+                          {result.uploader ? ` / ${result.uploader}` : ""}
+                        </p>
+                      </div>
+                      {downloadingId === result.fileId ? (
+                        <Loader2 className="mt-1 h-5 w-5 shrink-0 animate-spin text-primary" />
+                      ) : (
+                        <Download className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                      )}
+                    </TvFocusButton>
+                  ))
                 ) : (
-                  <Search className="h-4 w-4" />
+                  <p className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    {error ?? "No results yet"}
+                  </p>
                 )}
-                Search
-              </TvFocusButton>
-            </div>
+              </div>
 
-            <div
-              data-tv-row=""
-              data-tv-content-row=""
-              data-tv-vertical=""
-              className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
-            >
-              {loading ? (
-                <p className="px-3 py-12 text-center text-base text-muted-foreground">
-                  Searching OpenSubtitles...
-                </p>
-              ) : results.length ? (
-                results.map((result) => (
-                  <TvFocusButton
-                    key={`${result.id}-${result.fileId}`}
-                    ref={result === results[0] ? firstResultRef : undefined}
-                    variant="card"
-                    disabled={downloadingId === result.fileId}
-                    onClick={() => handleDownload(result)}
-                    className="mb-1.5 flex w-full items-start gap-3 rounded-xl px-4 py-3 text-left"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-base font-semibold text-white">
-                        {result.language.toUpperCase()}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                        {result.release}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {result.downloadCount.toLocaleString()} downloads
-                        {result.hearingImpaired ? " / HI" : ""}
-                        {result.uploader ? ` / ${result.uploader}` : ""}
-                      </p>
-                    </div>
-                    {downloadingId === result.fileId ? (
-                      <Loader2 className="mt-1 h-5 w-5 shrink-0 animate-spin text-primary" />
-                    ) : (
-                      <Download className="mt-1 h-5 w-5 shrink-0 text-primary" />
-                    )}
-                  </TvFocusButton>
-                ))
-              ) : (
-                <p className="px-3 py-12 text-center text-base text-muted-foreground">
-                  {error ?? "No results yet"}
+              {error && results.length > 0 && (
+                <p className="shrink-0 border-t border-white/10 px-4 py-3 text-sm text-red-400">
+                  {error}
                 </p>
               )}
-            </div>
-
-            {error && results.length > 0 && (
-              <p className="border-t border-white/10 px-6 py-3 text-sm text-red-400">{error}</p>
-            )}
-          </>
-        )}
-      </div>
+            </>
+          )}
+        </aside>
+      </TvWatchSideSheet>
     );
   }
 

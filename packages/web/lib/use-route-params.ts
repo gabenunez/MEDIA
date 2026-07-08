@@ -13,16 +13,27 @@ import {
   type FavoriteFilter,
   type WatchType,
 } from "@media-app/shared";
-import { useBrowserPathname } from "@/lib/use-browser-pathname";
+import { useBrowserPathname, subscribeToBrowserLocation } from "@/lib/use-browser-pathname";
+import { parseGatewayLocation } from "@/lib/gateway";
+import { useSyncExternalStore } from "react";
 
 function searchQuery(searchParams: URLSearchParams): string {
   const query = searchParams.toString();
   return query ? `?${query}` : "";
 }
 
+function useAppSearchParams(): URLSearchParams {
+  const fallback = useSearchParams();
+  return useSyncExternalStore(
+    subscribeToBrowserLocation,
+    () => parseGatewayLocation(window.location.pathname, window.location.search).searchParams,
+    () => fallback,
+  );
+}
+
 export function useMediaRouteId(): number {
   const pathname = useBrowserPathname();
-  const searchParams = useSearchParams();
+  const searchParams = useAppSearchParams();
   return (
     parseMediaId(pathname) ??
     parseLegacyMediaId(pathname, searchQuery(searchParams)) ??
@@ -32,7 +43,7 @@ export function useMediaRouteId(): number {
 
 export function useLibraryRouteContext(): { libraryId: number; deckId: number } {
   const pathname = useBrowserPathname();
-  const searchParams = useSearchParams();
+  const searchParams = useAppSearchParams();
   const legacy = parseLegacyLibraryContext(pathname, searchQuery(searchParams));
 
   return {
@@ -53,7 +64,7 @@ export function useWatchRouteParams(): {
   castStartSeconds: number;
 } {
   const pathname = useBrowserPathname();
-  const searchParams = useSearchParams();
+  const searchParams = useAppSearchParams();
   const route =
     parseWatchRoute(pathname) ??
     parseLegacyWatchRoute(pathname, searchQuery(searchParams));

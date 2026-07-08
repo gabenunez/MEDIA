@@ -1023,13 +1023,17 @@
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-logo] {
-    height: 4.5rem;
-    width: 4.5rem;
+    height: 2.75rem;
+    width: 2.75rem;
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-logo] svg {
-    height: 4.5rem;
-    width: 4.5rem;
+    height: 2.25rem;
+    width: auto;
+  }
+
+  html.tv-mode.tv-4k .tv-ui [data-tv-watch-side-sheet] {
+    width: min(28rem, 34vw);
   }
 
   html.tv-mode.tv-4k .tv-media-hero {

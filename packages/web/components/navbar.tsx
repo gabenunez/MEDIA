@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Film, Heart, Home, Settings, Tv } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { mainNavGroupClassName, NavTab } from "@/components/nav-tabs";
 import { SearchPopover } from "@/components/search-popover";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { isNavActive } from "@/lib/nav-utils";
+import { routes } from "@/lib/routes";
+import { useBrowserPathname } from "@/lib/use-browser-pathname";
 
 export function Navbar() {
-  const pathname = usePathname();
+  const pathname = useBrowserPathname();
 
   if (pathname.startsWith("/watch")) {
     return null;
@@ -29,7 +30,7 @@ export function Navbar() {
 
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:h-[4.5rem] sm:gap-4 sm:px-6">
         <Link
-          href="/"
+          href={routes.home()}
           aria-label="MEDIA! home"
           className="group flex h-10 shrink-0 items-center justify-center rounded-lg outline-none ring-primary/40 focus-visible:ring-2"
         >
@@ -44,16 +45,16 @@ export function Navbar() {
           <SearchPopover variant="icon" className="hidden sm:block md:hidden" />
 
           <nav aria-label="Main" className={mainNavGroupClassName}>
-            <NavTab href="/" icon={Home} label="Home" active={homeActive} compact />
+            <NavTab href={routes.home()} icon={Home} label="Home" active={homeActive} compact />
             <NavTab
-              href="/favorites/"
+              href={routes.favorites()}
               icon={Heart}
               label="Favorites"
               active={favoritesActive}
               compact
             />
             <NavTab
-              href="/settings/"
+              href={routes.settings()}
               icon={Settings}
               label="Settings"
               active={settingsActive}

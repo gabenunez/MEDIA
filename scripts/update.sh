@@ -170,11 +170,16 @@ build_app() {
   local user="$2"
 
   media_ok "Installing dependencies and building..."
+  local gateway_export=""
+  if [[ -n "${MEDIA_GATEWAY_PREFIX:-}" ]]; then
+    gateway_export="export MEDIA_GATEWAY_PREFIX='${MEDIA_GATEWAY_PREFIX}';"
+  fi
   run_as_install_user "$user" "
     set -euo pipefail
     cd '$dir'
     export CI=1
     export PATH=\"\${HOME}/node/bin:\${PATH:-}\"
+    ${gateway_export}
     rm -rf packages/web/.next packages/web/.turbo packages/web/out
     pnpm install --frozen-lockfile 2>/dev/null || pnpm install
     pnpm build
@@ -200,6 +205,7 @@ ensure_startup_script() {
 set -euo pipefail
 cd "$install_dir"
 export PATH="\${HOME}/node/bin:\${PATH:-}"
+${MEDIA_GATEWAY_PREFIX:+export MEDIA_GATEWAY_PREFIX='${MEDIA_GATEWAY_PREFIX}'}
 exec bash scripts/start-prod.sh
 EOF
   chmod +x "$startup"
@@ -210,6 +216,13 @@ read_config_port() {
   local config="$1"
   if [[ -f "$config" ]]; then
     awk '/^server:/{found=1} found && /^  port:/{print $2; exit}' "$config"
+  fi
+}
+
+read_config_gateway_prefix() {
+  local config="$1"
+  if [[ -f "$config" ]]; then
+    awk '/^server:/{found=1} found && /^  gateway_prefix:/{gsub(/"/, "", $2); print $2; exit}' "$config"
   fi
 }
 
@@ -329,6 +342,11 @@ main() {
   service_user="$(detect_service_user)"
 
   [[ -f "$install_dir/package.json" ]] || media_fail "Invalid install directory: $install_dir"
+
+  if [[ -z "${MEDIA_GATEWAY_PREFIX:-}" ]]; then
+    MEDIA_GATEWAY_PREFIX="$(read_config_gateway_prefix "$install_dir/config.yaml")"
+    export MEDIA_GATEWAY_PREFIX
+  fi
 
   if uses_systemd; then
     reel_need_sudo

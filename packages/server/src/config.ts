@@ -177,6 +177,19 @@ export class ConfigManager {
     this.save();
   }
 
+  setGatewayPrefix(gatewayPrefix: string): void {
+    const trimmed = gatewayPrefix.trim().replace(/\/+$/, "");
+    if (!this.config.server) {
+      this.config.server = { port: 8096, host: "0.0.0.0" };
+    }
+    this.config.server.gateway_prefix = trimmed
+      ? trimmed.startsWith("/")
+        ? trimmed
+        : `/${trimmed}`
+      : undefined;
+    this.save();
+  }
+
   clearPasswordHash(): void {
     if (!this.config.auth) {
       this.config.auth = {};
@@ -187,7 +200,13 @@ export class ConfigManager {
 
   save(): void {
     const payload = {
-      server: this.config.server,
+      server: {
+        port: this.config.server.port,
+        host: this.config.server.host,
+        ...(this.config.server.gateway_prefix
+          ? { gateway_prefix: this.config.server.gateway_prefix }
+          : {}),
+      },
       libraries: this.config.libraries.map((lib) => ({
         name: lib.name,
         type: lib.type,

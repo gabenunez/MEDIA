@@ -196,6 +196,40 @@ function moveInScrollRow(active: HTMLElement, direction: "left" | "right") {
   return true;
 }
 
+function moveInWatchMenu(active: HTMLElement, direction: "up" | "down") {
+  const watchMenu = active.closest<HTMLElement>("[data-tv-watch-menu]");
+  if (!watchMenu) return false;
+
+  const header = watchMenu.querySelector<HTMLElement>("[data-tv-watch-menu-header]");
+  const contentRows = Array.from(
+    watchMenu.querySelectorAll<HTMLElement>("[data-tv-content-row]"),
+  );
+
+  if (direction === "down" && header?.contains(active)) {
+    for (const row of contentRows) {
+      const first = getRowItems(row)[0];
+      if (first) {
+        focusItem(first);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (direction === "up" && contentRows.length > 0) {
+    const firstItems = getRowItems(contentRows[0]);
+    if (firstItems[0] === active) {
+      const back = header?.querySelector<HTMLElement>("[data-tv-item]");
+      if (back) {
+        focusItem(back);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function moveInVerticalRow(active: HTMLElement, direction: "up" | "down") {
   const row = active.closest("[data-tv-row][data-tv-vertical]");
   if (!row) return false;
@@ -303,6 +337,8 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
 
 function moveVertical(active: HTMLElement, direction: "up" | "down") {
   const watchMenu = active.closest("[data-tv-watch-menu]");
+  if (watchMenu && moveInWatchMenu(active, direction)) return true;
+
   const contentRows = getScopedContentRows(active);
   const activeRow = active.closest("[data-tv-row]");
   if (!activeRow) return false;
