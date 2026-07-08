@@ -1,3 +1,6 @@
+const INTERNAL_API_HEADER = "x-media-internal";
+const INTERNAL_API_TOKEN = "next-isr";
+
 function internalApiBase(): string {
   if (process.env.MEDIA_INTERNAL_API_URL) {
     return process.env.MEDIA_INTERNAL_API_URL.replace(/\/$/, "");
@@ -7,7 +10,9 @@ function internalApiBase(): string {
 }
 
 async function internalApiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${internalApiBase()}${path}`, init);
+  const headers = new Headers(init?.headers);
+  headers.set(INTERNAL_API_HEADER, INTERNAL_API_TOKEN);
+  return fetch(`${internalApiBase()}${path}`, { ...init, headers });
 }
 
 export async function fetchMediaIds(): Promise<number[]> {

@@ -75,12 +75,15 @@ export function MediaPageSkeleton() {
 export function MediaClient({
   mediaId: mediaIdProp,
   initialMedia,
+  heroOnServer = false,
 }: {
   mediaId?: number;
   initialMedia?: Record<string, unknown>;
+  heroOnServer?: boolean;
 } = {}) {
   const isTvMode = useTvMode();
   const hasResolvedId = mediaIdProp != null && Number.isFinite(mediaIdProp);
+  const serverHeroActive = heroOnServer && !isTvMode;
 
   if (hasResolvedId) {
     if (isTvMode) {
@@ -97,6 +100,7 @@ export function MediaClient({
         key={mediaIdProp}
         mediaId={mediaIdProp}
         initialMedia={initialMedia}
+        heroOnServer={serverHeroActive}
       />
     );
   }
@@ -130,12 +134,14 @@ function MediaDesktopLegacyClient() {
 function MediaDesktopClient({
   mediaId,
   initialMedia,
+  heroOnServer = false,
 }: {
   mediaId: number;
   initialMedia?: Record<string, unknown>;
+  heroOnServer?: boolean;
 }) {
   const { media: mediaRecord, related, loading } = useMediaPageData(mediaId, initialMedia);
-  const media = mediaRecord as MediaDetail | null;
+  const media = (mediaRecord ?? initialMedia) as unknown as MediaDetail | null;
   const [selectedSeason, setSelectedSeason] = useState(0);
 
   useDocumentTitle(media?.title ?? null);
@@ -152,12 +158,12 @@ function MediaDesktopClient({
     }
   }, [media]);
 
-  if (loading && !media) {
+  if (!heroOnServer && loading && !media) {
     return <MediaPageSkeleton />;
   }
 
   if (!media) {
-    return (
+    return heroOnServer ? null : (
       <div className="py-20 text-center">
         <p>Media not found</p>
         <Button asChild className="mt-4">
@@ -182,6 +188,7 @@ function MediaDesktopClient({
       {media.hasThemeMusic && (
         <ThemeMusicMuteButton className="fixed top-20 right-4 z-50 sm:right-6" />
       )}
+      {!heroOnServer && (
       <section className="relative overflow-hidden border-b border-border/70">
         {backdropUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -286,6 +293,7 @@ function MediaDesktopClient({
           </div>
         </div>
       </section>
+      )}
 
       {media.type === "tv" && media.seasons && (
         <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">

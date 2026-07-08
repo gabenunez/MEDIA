@@ -231,12 +231,27 @@ export class AuthService {
   }
 }
 
+const INTERNAL_API_HEADER = "x-media-internal";
+const INTERNAL_API_TOKEN = "next-isr";
+
 export function isInternalMediaApiPath(pathname: string): boolean {
   return (
     pathname === "/api/media/ids" ||
     /^\/api\/media\/\d+$/.test(pathname)
   );
 }
+
+export function isInternalMediaApiRequest(
+  pathname: string,
+  headers: Record<string, string | string[] | undefined>,
+): boolean {
+  if (!isInternalMediaApiPath(pathname)) return false;
+  const token = headers[INTERNAL_API_HEADER] ?? headers[INTERNAL_API_HEADER.toLowerCase()];
+  const value = Array.isArray(token) ? token[0] : token;
+  return value === INTERNAL_API_TOKEN;
+}
+
+export { INTERNAL_API_HEADER as INTERNAL_MEDIA_API_HEADER, INTERNAL_API_TOKEN as INTERNAL_MEDIA_API_TOKEN };
 
 /** @deprecated Use isInternalMediaApiPath; kept for build scripts that set MEDIA_PRERENDER_BUILD */
 export function isPrerenderBuildPath(pathname: string): boolean {

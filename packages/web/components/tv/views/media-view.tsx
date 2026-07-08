@@ -112,7 +112,7 @@ function TvMediaViewResolved({
   initialMedia?: Record<string, unknown>;
 }) {
   const { media: mediaRecord, related, loading } = useMediaPageData(mediaId, initialMedia);
-  const media = mediaRecord as MediaDetail | null;
+  const media = (mediaRecord ?? initialMedia) as unknown as MediaDetail | null;
   const [selectedSeason, setSelectedSeason] = useState(0);
   const nextEpisodeIdRef = useRef<number | null>(null);
 
@@ -146,7 +146,7 @@ function TvMediaViewResolved({
     });
   }, [loading, media]);
 
-  if (loading && !media) {
+  if (loading && !media && !initialMedia) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-9 w-9 animate-spin text-primary" />
@@ -169,7 +169,6 @@ function TvMediaViewResolved({
       </div>
     );
   }
-
   const backdropUrl = tvImageUrl(media.backdropPath ?? media.posterPath);
   const posterUrl = tvImageUrl(media.posterPath);
   const seasons = media.seasons ?? [];

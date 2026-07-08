@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MediaClient } from "../client";
+import { MediaHeroServer } from "../media-hero-server";
 import { fetchMediaDetail, fetchMediaIds } from "@/lib/server-api";
 
 export const revalidate = 300;
@@ -40,6 +41,34 @@ export default async function MediaDetailPage({
   if (!initialMedia && !unauthorized) notFound();
 
   return (
-    <MediaClient mediaId={mediaId} initialMedia={initialMedia ?? undefined} />
+    <div>
+      {initialMedia ? (
+        <div data-web-only>
+          <MediaHeroServer
+            media={
+              initialMedia as {
+                id: number;
+                title: string;
+                overview?: string | null;
+                year?: number | null;
+                posterPath?: string | null;
+                backdropPath?: string | null;
+                type: "movie" | "tv";
+                genres?: string | null;
+                rating?: number | null;
+                isFavorite?: boolean;
+                watchProgress?: { positionMs: number; durationMs?: number | null } | null;
+                files?: Array<{ id: number; durationMs?: number | null }>;
+              }
+            }
+          />
+        </div>
+      ) : null}
+      <MediaClient
+        mediaId={mediaId}
+        initialMedia={initialMedia ?? undefined}
+        heroOnServer={Boolean(initialMedia)}
+      />
+    </div>
   );
 }

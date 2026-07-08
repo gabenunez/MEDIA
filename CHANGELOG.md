@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.99 — 2026-07-07
+
+### Fix
+
+- **Media pages** — server-render the hero in RSC so navigation never flashes a client skeleton; tighten internal API auth for SSR on password-protected servers
+
 ## 0.1.98 — 2026-07-07
 
 ### Fix

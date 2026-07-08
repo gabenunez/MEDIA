@@ -14,35 +14,32 @@ function readCachedMedia(mediaId: number | null) {
   return peekApiCache<Record<string, unknown>>(`media:${mediaId}`) ?? null;
 }
 
-function readSeed(
-  mediaId: number | null,
-  initialMedia?: Record<string, unknown> | null,
-) {
-  return initialMedia ?? readCachedMedia(mediaId);
-}
-
 export function useMediaPageData(
   mediaId: number,
   initialMedia?: Record<string, unknown> | null,
 ) {
   const validId = Number.isFinite(mediaId) ? mediaId : null;
-  const seed = readSeed(validId, initialMedia);
 
   const [snapshot, setSnapshot] = useState(() => ({
     mediaId: validId,
-    media: seed,
+    media: initialMedia ?? null,
     related: [] as MediaItem[],
-    pending: validId != null && !seed,
+    pending: validId != null && !initialMedia,
   }));
 
   useEffect(() => {
     if (validId == null) return;
-    const nextSeed = readSeed(validId, initialMedia);
-    setSnapshot({
-      mediaId: validId,
-      media: nextSeed,
-      related: [],
-      pending: !nextSeed,
+
+    setSnapshot((prev) => {
+      if (prev.mediaId === validId) return prev;
+      const cached = readCachedMedia(validId);
+      const seeded = initialMedia ?? cached;
+      return {
+        mediaId: validId,
+        media: seeded,
+        related: [],
+        pending: !seeded,
+      };
     });
   }, [validId, initialMedia]);
 
@@ -50,22 +47,30 @@ export function useMediaPageData(
     if (validId == null) return;
 
     let cancelled = false;
-    const hadSeed = Boolean(readSeed(validId, initialMedia));
+    const hadSeed = Boolean(initialMedia ?? readCachedMedia(validId));
 
     void api
       .getMedia(validId)
       .then((data) => {
         if (cancelled) return;
-        setSnapshot((prev) => ({ ...prev, media: data, pending: false }));
+        setSnapshot((prev) =>
+          prev.mediaId === validId
+            ? { ...prev, media: data, pending: false }
+            : prev,
+        );
       })
       .catch((err) => {
         console.error(err);
         if (!cancelled) {
-          setSnapshot((prev) => ({
-            ...prev,
-            media: hadSeed ? prev.media : null,
-            pending: false,
-          }));
+          setSnapshot((prev) =>
+            prev.mediaId === validId
+              ? {
+                  ...prev,
+                  media: hadSeed ? prev.media : null,
+                  pending: false,
+                }
+              : prev,
+          );
         }
       });
 
@@ -73,7 +78,11 @@ export function useMediaPageData(
       .getRelatedMedia(validId)
       .then((data) => {
         if (!cancelled) {
-          setSnapshot((prev) => ({ ...prev, related: data.items }));
+          setSnapshot((prev) =>
+            prev.mediaId === validId
+              ? { ...prev, related: data.items }
+              : prev,
+          );
         }
       })
       .catch(console.error);
@@ -81,10 +90,13 @@ export function useMediaPageData(
     return () => {
       cancelled = true;
     };
-  }, [validId]);
+  }, [validId, initialMedia]);
 
+  const cached = readCachedMedia(validId);
   const media =
-    snapshot.mediaId === validId ? snapshot.media ?? seed : seed;
+    snapshot.mediaId === validId
+      ? snapshot.media ?? initialMedia ?? cached
+      : initialMedia ?? cached;
   const related = snapshot.mediaId === validId ? snapshot.related : [];
   const loading = validId != null && !media && snapshot.pending;
 
