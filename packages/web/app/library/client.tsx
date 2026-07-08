@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, LibraryBig } from "lucide-react";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvLibraryView } from "@/components/tv/views/library-view";
+import { routes } from "@/lib/routes";
 
 type LibraryInitialList = {
   kind: "library" | "deck";
@@ -128,7 +129,7 @@ function LibraryDesktopClient({
       <div className="mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
         <p className="mb-4 text-muted-foreground">Invalid library or deck</p>
         <Button asChild>
-          <Link href="/">Go Home</Link>
+          <Link href={routes.home()}>Go Home</Link>
         </Button>
       </div>
     );
@@ -139,7 +140,7 @@ function LibraryDesktopClient({
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/">
+            <Link href={routes.home()}>
               <ChevronLeft className="h-5 w-5" />
             </Link>
           </Button>

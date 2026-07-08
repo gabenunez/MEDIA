@@ -59,7 +59,7 @@ function ContinueWatchingDesktopClient({
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/">
+            <Link href={routes.home()}>
               <ChevronLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -92,7 +92,7 @@ function ContinueWatchingDesktopClient({
             Start watching something and it will show up here.
           </p>
           <Button asChild>
-            <Link href="/">Browse home</Link>
+            <Link href={routes.home()}>Browse home</Link>
           </Button>
         </div>
       ) : (

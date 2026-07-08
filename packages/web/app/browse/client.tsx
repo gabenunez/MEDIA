@@ -41,7 +41,7 @@ function BrowseDesktopClient() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex items-center gap-4 border-b border-border/70 pb-6">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/">
+          <Link href={routes.home()}>
             <ChevronLeft className="h-5 w-5" />
           </Link>
         </Button>

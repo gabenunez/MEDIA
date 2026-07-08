@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.106 — 2026-07-08
+
+### Fix
+
+- **Reverse proxy** — gateway URL mode for broken Apache subpath proxies (`/reel?__p=…`); see `docs/gateway-proxy.md`
+- **TV** — subtitle settings menu as a side panel with working D-pad navigation; smaller sidebar logo
+
 ## 0.1.105 — 2026-07-07
 
 ### Fix

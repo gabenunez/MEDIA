@@ -1,9 +1,8 @@
 import { cachedFetch, invalidateApiCache } from "./api-cache";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { publicUrl } from "./gateway";
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(publicUrl(path), {
     ...options,
     credentials: "include",
     headers: {
@@ -563,7 +562,7 @@ export const api = {
     options?: { keepalive?: boolean },
   ) => {
     const request = options?.keepalive
-      ? fetch(`${API_BASE}/api/watch-progress`, {
+      ? fetch(publicUrl("/api/watch-progress"), {
           method: "POST",
           credentials: "include",
           keepalive: true,
@@ -620,9 +619,9 @@ export const api = {
       body: JSON.stringify({ type }),
     }),
   thumbnailVttUrl: (fileId: number, type: "movie" | "episode") =>
-    `${API_BASE}/api/stream/${fileId}/thumbnails/thumbs.vtt?type=${type}`,
+    publicUrl(`/api/stream/${fileId}/thumbnails/thumbs.vtt?type=${type}`),
   thumbnailSpriteUrl: (fileId: number, type: "movie" | "episode") =>
-    `${API_BASE}/api/stream/${fileId}/thumbnails/sprite.jpg?type=${type}`,
+    publicUrl(`/api/stream/${fileId}/thumbnails/sprite.jpg?type=${type}`),
   streamUrl: (
     fileId: number,
     type: "movie" | "episode",
@@ -632,7 +631,7 @@ export const api = {
     hlsQuality?: StreamQuality | "remux",
   ) => {
     if (quality === "original" && !hlsQuality) {
-      return `${API_BASE}/api/stream/${fileId}?type=${type}`;
+      return publicUrl(`/api/stream/${fileId}?type=${type}`);
     }
     const effectiveQuality = hlsQuality ?? quality;
     const params = new URLSearchParams({ type, quality: effectiveQuality });
@@ -640,20 +639,20 @@ export const api = {
     if (cacheKey !== undefined) {
       params.set("_", String(cacheKey));
     }
-    return `${API_BASE}/api/stream/${fileId}/hls/master.m3u8?${params.toString()}`;
+    return publicUrl(`/api/stream/${fileId}/hls/master.m3u8?${params.toString()}`);
   },
   subtitleUrl: (id: number, offsetSeconds = 0) => {
-    const base = `${API_BASE}/api/subtitles/${id}`;
+    const base = publicUrl(`/api/subtitles/${id}`);
     if (offsetSeconds > 0) {
       return `${base}?offset=${Math.floor(offsetSeconds)}`;
     }
     return base;
   },
-  themeMusicUrl: (mediaId: number) => `${API_BASE}/api/media/${mediaId}/theme`,
+  themeMusicUrl: (mediaId: number) => publicUrl(`/api/media/${mediaId}/theme`),
   imageUrl: (path?: string | null, options?: { hd?: boolean }) => {
     if (!path) return null;
     if (path.startsWith("http")) return path;
-    const url = `${API_BASE}${path}`;
+    const url = publicUrl(path);
     if (options?.hd) {
       return `${url}${url.includes("?") ? "&" : "?"}hd=1`;
     }

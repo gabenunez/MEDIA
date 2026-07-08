@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvRecentView } from "@/components/tv/views/recent-view";
+import { routes } from "@/lib/routes";
 
 export function RecentClient({
   initialPage = null,
@@ -58,7 +59,7 @@ function RecentDesktopClient({
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/">
+            <Link href={routes.home()}>
               <ChevronLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -91,7 +92,7 @@ function RecentDesktopClient({
             Scan a library to see newly added titles.
           </p>
           <Button asChild>
-            <Link href="/settings">Open settings</Link>
+            <Link href={routes.settings()}>Open settings</Link>
           </Button>
         </div>
       ) : (

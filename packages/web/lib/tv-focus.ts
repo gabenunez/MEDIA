@@ -120,3 +120,17 @@ export function focusPrimaryContentItem() {
   const item = row?.querySelector<HTMLElement>("[data-tv-item]");
   if (item) focusTvItem(item);
 }
+
+/** Focus the first selectable row inside a watch settings / subtitle panel. */
+export function focusFirstWatchMenuItem(panel?: ParentNode | null) {
+  const root =
+    panel instanceof HTMLElement
+      ? panel
+      : document.querySelector<HTMLElement>("[data-tv-watch-menu]");
+  if (!root) return false;
+
+  const first = root.querySelector<HTMLElement>("[data-tv-content-row] [data-tv-item]");
+  if (!first) return false;
+  focusTvItem(first);
+  return true;
+}

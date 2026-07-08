@@ -973,7 +973,7 @@ function WatchDesktopClient() {
         <div className="text-center">
           <p className="mb-4 text-muted-foreground">Invalid playback URL</p>
           <Button asChild>
-            <Link href="/">Go Home</Link>
+            <Link href={routes.home()}>Go Home</Link>
           </Button>
         </div>
       </div>
@@ -1069,7 +1069,7 @@ function WatchDesktopClient() {
                 asChild
               >
                 <Link
-                  href={mediaId ? routes.media(parseInt(mediaId, 10)) : "/"}
+                  href={mediaId ? routes.media(parseInt(mediaId, 10)) : routes.home()}
                   aria-label={mediaId ? "Back to details" : "Back home"}
                 >
                   <ArrowLeft className="h-5 w-5" />

@@ -198,7 +198,7 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
               <div className="mt-4 max-w-2xl rounded-md border border-amber-400/35 bg-amber-400/10 px-4 py-3">
                 <p className="text-sm text-amber-100">
                   TMDB is off. Add a key in{" "}
-                  <Link href="/settings" className="text-accent underline">
+                  <Link href={routes.settings()} className="text-accent underline">
                     Settings
                   </Link>{" "}
                   to pull posters and metadata.
@@ -283,7 +283,7 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
                         <h2 className="text-2xl font-bold">Library waiting</h2>
                       </div>
                       <Button size="sm" asChild>
-                        <Link href="/settings">
+                        <Link href={routes.settings()}>
                           Add source
                           <ArrowRight className="h-4 w-4" />
                         </Link>
@@ -436,7 +436,7 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
             Add movie and TV folders in Settings, then scan them into MEDIA!.
           </p>
           <Button asChild>
-            <Link href="/settings">
+            <Link href={routes.settings()}>
               Open settings
               <ArrowRight className="h-4 w-4" />
             </Link>

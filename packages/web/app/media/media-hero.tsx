@@ -43,7 +43,7 @@ export function MediaHero({ media }: { media: MediaDetail }) {
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 pb-10 pt-20 sm:px-6 sm:pt-28">
         <Button variant="ghost" size="sm" asChild className="mb-8">
-          <Link href="/">
+          <Link href={routes.home()}>
             <ChevronLeft className="h-4 w-4" /> Back
           </Link>
         </Button>
