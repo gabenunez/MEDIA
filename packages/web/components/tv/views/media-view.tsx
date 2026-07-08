@@ -59,9 +59,54 @@ export function TvMediaView({
   mediaId?: number;
   initialMedia?: Record<string, unknown>;
 } = {}) {
+  const hasResolvedId = mediaIdProp != null && Number.isFinite(mediaIdProp);
+  if (!hasResolvedId) {
+    return <TvMediaViewLegacy />;
+  }
+
+  return (
+    <TvMediaViewResolved mediaId={mediaIdProp} initialMedia={initialMedia} />
+  );
+}
+
+function TvMediaViewLegacy() {
   const isClient = useIsClient();
-  const routeMediaId = useMediaRouteId();
-  const mediaId = mediaIdProp ?? routeMediaId;
+  const mediaId = useMediaRouteId();
+
+  if (!mediaId || Number.isNaN(mediaId)) {
+    if (!isClient) {
+      return (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 className="h-9 w-9 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="px-6 py-16 text-center">
+        <p className="mb-4 text-muted-foreground">Invalid media</p>
+        <div data-tv-row="" data-tv-content-row="" className="flex justify-center">
+          <TvFocusLink
+            href={routes.home()}
+            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+          >
+            Back to home
+          </TvFocusLink>
+        </div>
+      </div>
+    );
+  }
+
+  return <TvMediaViewResolved mediaId={mediaId} />;
+}
+
+function TvMediaViewResolved({
+  mediaId,
+  initialMedia,
+}: {
+  mediaId: number;
+  initialMedia?: Record<string, unknown>;
+}) {
   const { media: mediaRecord, related, loading } = useMediaPageData(mediaId, initialMedia);
   const media = mediaRecord as MediaDetail | null;
   const [selectedSeason, setSelectedSeason] = useState(0);
@@ -97,31 +142,7 @@ export function TvMediaView({
     });
   }, [loading, media]);
 
-  if (!mediaId || Number.isNaN(mediaId)) {
-    if (!isClient) {
-      return (
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <Loader2 className="h-9 w-9 animate-spin text-primary" />
-        </div>
-      );
-    }
-
-    return (
-      <div className="px-6 py-16 text-center">
-        <p className="mb-4 text-muted-foreground">Invalid media</p>
-        <div data-tv-row="" data-tv-content-row="" className="flex justify-center">
-          <TvFocusLink
-            href={routes.home()}
-            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
-          >
-            Back to home
-          </TvFocusLink>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
+  if (loading && !media) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-9 w-9 animate-spin text-primary" />

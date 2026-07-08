@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.96 — 2026-07-07
+
+### Fix
+
+- **Media pages** — ISR routes now server-render the hero instead of showing a skeleton while client JS loads; `useSearchParams` is limited to legacy `/media/?id=` URLs
+
 ## 0.1.95 — 2026-07-07
 
 ### Performance

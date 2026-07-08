@@ -1,7 +1,6 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { MediaClient } from "./client";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Suspense } from "react";
+import { MediaClient, MediaPageSkeleton } from "./client";
 
 export default async function MediaPage({
   searchParams,
@@ -14,17 +13,7 @@ export default async function MediaPage({
   }
 
   return (
-    <Suspense
-      fallback={
-        <div>
-          <Skeleton className="h-80 w-full" />
-          <div className="mx-auto max-w-7xl px-6 py-10">
-            <Skeleton className="mb-4 h-10 w-64" />
-            <Skeleton className="h-24 w-full max-w-2xl" />
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<MediaPageSkeleton />}>
       <MediaClient />
     </Suspense>
   );

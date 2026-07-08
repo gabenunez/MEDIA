@@ -75,7 +75,7 @@ export function useMediaPageData(
     return () => {
       cancelled = true;
     };
-  }, [validId, initialMedia]);
+  }, [validId]);
 
   return {
     media: snapshot.media,

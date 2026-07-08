@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import Link from "next/link";
@@ -60,6 +60,18 @@ interface MediaDetail {
   seasons?: Season[];
 }
 
+export function MediaPageSkeleton() {
+  return (
+    <div>
+      <Skeleton className="h-80 w-full" />
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <Skeleton className="mb-4 h-10 w-64" />
+        <Skeleton className="h-24 w-full max-w-2xl" />
+      </div>
+    </div>
+  );
+}
+
 export function MediaClient({
   mediaId: mediaIdProp,
   initialMedia,
@@ -68,22 +80,48 @@ export function MediaClient({
   initialMedia?: Record<string, unknown>;
 } = {}) {
   const isTvMode = useTvMode();
-  if (isTvMode) {
-    return <TvMediaView mediaId={mediaIdProp} initialMedia={initialMedia} />;
+  const hasResolvedId = mediaIdProp != null && Number.isFinite(mediaIdProp);
+
+  if (hasResolvedId) {
+    if (isTvMode) {
+      return <TvMediaView mediaId={mediaIdProp} initialMedia={initialMedia} />;
+    }
+    return <MediaDesktopClient mediaId={mediaIdProp} initialMedia={initialMedia} />;
   }
-  return <MediaDesktopClient mediaId={mediaIdProp} initialMedia={initialMedia} />;
+
+  return (
+    <Suspense fallback={<MediaPageSkeleton />}>
+      {isTvMode ? <TvMediaView /> : <MediaDesktopLegacyClient />}
+    </Suspense>
+  );
+}
+
+function MediaDesktopLegacyClient() {
+  const isClient = useIsClient();
+  const mediaId = useMediaRouteId();
+
+  if (!mediaId || Number.isNaN(mediaId)) {
+    if (!isClient) return <MediaPageSkeleton />;
+    return (
+      <div className="py-20 text-center">
+        <p>Invalid media</p>
+        <Button asChild className="mt-4">
+          <Link href="/">Go Home</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return <MediaDesktopClient mediaId={mediaId} />;
 }
 
 function MediaDesktopClient({
-  mediaId: mediaIdProp,
+  mediaId,
   initialMedia,
 }: {
-  mediaId?: number;
+  mediaId: number;
   initialMedia?: Record<string, unknown>;
 }) {
-  const isClient = useIsClient();
-  const routeMediaId = useMediaRouteId();
-  const mediaId = mediaIdProp ?? routeMediaId;
   const { media: mediaRecord, related, loading } = useMediaPageData(mediaId, initialMedia);
   const media = mediaRecord as MediaDetail | null;
   const [selectedSeason, setSelectedSeason] = useState(0);
@@ -102,39 +140,8 @@ function MediaDesktopClient({
     }
   }, [media]);
 
-  if (!mediaId || Number.isNaN(mediaId)) {
-    if (!isClient) {
-      return (
-        <div>
-          <Skeleton className="h-80 w-full" />
-          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-            <Skeleton className="mb-4 h-10 w-64" />
-            <Skeleton className="h-24 w-full max-w-2xl" />
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="py-20 text-center">
-        <p>Invalid media</p>
-        <Button asChild className="mt-4">
-          <Link href="/">Go Home</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div>
-        <Skeleton className="h-80 w-full" />
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-          <Skeleton className="mb-4 h-10 w-64" />
-          <Skeleton className="h-24 w-full max-w-2xl" />
-        </div>
-      </div>
-    );
+  if (loading && !media) {
+    return <MediaPageSkeleton />;
   }
 
   if (!media) {
