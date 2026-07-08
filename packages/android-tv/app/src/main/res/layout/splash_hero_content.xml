@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <com.media.app.OutlineTextView
+        android:id="@+id/splashWatermark"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:fontFamily="sans-serif-black"
+        android:includeFontPadding="false"
+        android:letterSpacing="-0.05"
+        android:text="MEDIA!"
+        android:textSize="168sp"
+        android:translationY="-12dp" />
+
+    <FrameLayout
+        android:id="@+id/splashRingHost"
+        android:layout_width="280dp"
+        android:layout_height="280dp"
+        android:layout_gravity="center"
+        android:translationX="96dp"
+        android:translationY="-12dp">
+
+        <View
+            android:id="@+id/splashRing1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/splash_signal_ring" />
+
+        <View
+            android:id="@+id/splashRing2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/splash_signal_ring" />
+
+        <View
+            android:id="@+id/splashRing3"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/splash_signal_ring" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/splashTitleHost"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center">
+
+        <com.media.app.OutlineTextView
+            android:id="@+id/splashTitleGhost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:fontFamily="sans-serif-black"
+            android:includeFontPadding="false"
+            android:letterSpacing="-0.045"
+            android:text="MEDIA!"
+            android:textSize="72sp"
+            android:translationX="4dp"
+            android:translationY="6dp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:baselineAligned="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.media.app.GradientShiftTextView
+                android:id="@+id/splashTitleMedia"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-black"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.045"
+                android:text="MEDIA"
+                android:textSize="72sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/splashTitleBang"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-black"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.045"
+                android:text="!"
+                android:textColor="@color/media_hero_accent"
+                android:textSize="72sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+</merge>

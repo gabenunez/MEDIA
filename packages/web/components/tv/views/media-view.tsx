@@ -21,6 +21,7 @@ import { MediaImage } from "@/components/media-image";
 import type { MediaItem } from "@/lib/api";
 import type { MediaDetail } from "@/app/media/types";
 import { useMediaPageData } from "@/lib/use-media-page-data";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 
 export function TvMediaView({
   media: mediaProp,
@@ -52,6 +53,8 @@ export function TvMediaView({
 function TvMediaViewLegacy() {
   const isClient = useIsClient();
   const mediaId = useMediaRouteId();
+
+  useMarkTvBootReadyWhen(isClient);
 
   if (!mediaId || Number.isNaN(mediaId)) {
     if (!isClient) {
@@ -90,6 +93,8 @@ function TvMediaViewResolved({
   const { media: mediaRecord, related } = useMediaPageData(mediaId, initialMedia);
   const media = (mediaRecord ?? initialMedia) as unknown as MediaDetail | null;
 
+  useMarkTvBootReadyWhen(Boolean(media));
+
   if (!media) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -123,6 +128,8 @@ function TvMediaViewContent({
 }) {
   const [selectedSeason, setSelectedSeason] = useState(0);
   const nextEpisodeIdRef = useRef<number | null>(null);
+
+  useMarkTvBootReadyWhen(true);
 
   useDocumentTitle(includeDocumentTitle ? media.title : null);
 

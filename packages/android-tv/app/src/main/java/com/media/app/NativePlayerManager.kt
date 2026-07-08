@@ -391,6 +391,7 @@ class NativePlayerManager(
             .put("currentTime", exoPlayer.currentPosition / 1000.0)
             .put("duration", durationMs / 1000.0)
             .put("buffered", exoPlayer.bufferedPosition / 1000.0)
+            .put("bufferedRanges", buildBufferedRanges(exoPlayer))
             .put("isPlaying", exoPlayer.isPlaying)
             .put(
                 "isBuffering",
@@ -399,6 +400,19 @@ class NativePlayerManager(
             .put("ready", exoPlayer.playbackState == Player.STATE_READY)
 
         emitJs("window.__mediaNativePlayer?.onState?.($payload)")
+    }
+
+    private fun buildBufferedRanges(exoPlayer: ExoPlayer): org.json.JSONArray {
+        val ranges = org.json.JSONArray()
+        val bufferedEndMs = exoPlayer.bufferedPosition
+        if (bufferedEndMs <= 0L) return ranges
+
+        ranges.put(
+            org.json.JSONObject()
+                .put("start", 0.0)
+                .put("end", bufferedEndMs / 1000.0),
+        )
+        return ranges
     }
 
     private fun saveProgress(positionMs: Long, ended: Boolean) {

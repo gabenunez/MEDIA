@@ -9,6 +9,7 @@ import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { TvBrowseCard } from "@/components/tv/tv-see-all-tile";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusPrimaryContentItem } from "@/lib/tv-focus";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { LibraryIcon } from "@/components/navbar";
 import { preloadPosterList } from "@/lib/prefetch-artwork";
 import type { HomeData } from "@/lib/server-api";
@@ -25,6 +26,8 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
   const [favorites, setFavorites] = useState<MediaItem[]>(initialData?.favorites ?? []);
   const [libraries, setLibraries] = useState(initialData?.libraries ?? []);
   const [decks, setDecks] = useState(initialData?.decks ?? []);
+
+  useMarkTvBootReadyWhen(loaded);
 
   useEffect(() => {
     if (initialData) return;

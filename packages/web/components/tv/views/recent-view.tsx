@@ -9,6 +9,7 @@ import { TvGrid } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 
 export function TvRecentView() {
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -16,6 +17,8 @@ export function TvRecentView() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  useMarkTvBootReadyWhen(!loading);
 
   useDocumentTitle("Recently Added");
 

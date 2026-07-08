@@ -11,6 +11,7 @@ import { TvGrid, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { cn } from "@/lib/utils";
 
 export function TvFavoritesView() {
@@ -21,6 +22,8 @@ export function TvFavoritesView() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  useMarkTvBootReadyWhen(!loading);
 
   useDocumentTitle("Favorites");
 

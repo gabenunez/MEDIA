@@ -10,6 +10,7 @@ import { tvScrollRowClassName } from "@/components/tv/tv-row";
 import { LibraryIcon } from "@/components/navbar";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 
 export function TvBrowseView() {
   const [libraries, setLibraries] = useState<Library[]>([]);
@@ -17,6 +18,8 @@ export function TvBrowseView() {
   const [continueCount, setContinueCount] = useState(0);
   const [recentCount, setRecentCount] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  useMarkTvBootReadyWhen(!loading);
 
   useDocumentTitle("Browse");
 

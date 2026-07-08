@@ -69,6 +69,7 @@ import {
   applySubtitleStyles,
   readSubtitleStyles,
 } from "@/lib/subtitle-styles";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
@@ -79,6 +80,76 @@ import {
   videoDisplayModeClass,
   type VideoDisplayMode,
 } from "@/lib/video-display-mode";
+
+function TvWatchScrubTrack({
+  bufferedRanges,
+  progress,
+  bufferingMidPlayback,
+  toTimelinePercent,
+  optimisticSeek,
+}: {
+  bufferedRanges: Array<{ start: number; end: number }>;
+  progress: number;
+  bufferingMidPlayback: boolean;
+  toTimelinePercent: (seconds: number) => number;
+  optimisticSeek: boolean;
+}) {
+  const progressClamped = Math.min(100, Math.max(0, progress));
+  const bufferEndSeconds = bufferedRanges.reduce(
+    (max, range) => Math.max(max, range.end),
+    0,
+  );
+  const bufferEndPercent = toTimelinePercent(bufferEndSeconds);
+  const aheadWidth = Math.max(0, bufferEndPercent - progressClamped);
+
+  return (
+    <div
+      className={cn(
+        "watch-scrub-track w-full",
+        bufferingMidPlayback && "watch-scrub-track--buffering",
+      )}
+    >
+      {bufferedRanges.map((range, index) => {
+        const left = toTimelinePercent(range.start);
+        const width = Math.max(0, toTimelinePercent(range.end) - left);
+        if (width <= 0) return null;
+        return (
+          <div
+            key={index}
+            className={cn(
+              "watch-scrub-buffer",
+              bufferingMidPlayback && "watch-scrub-buffer--active",
+            )}
+            style={{ left: `${left}%`, width: `${width}%` }}
+          />
+        );
+      })}
+      {bufferingMidPlayback && aheadWidth > 0.3 && (
+        <div
+          className="watch-scrub-buffer-ahead"
+          style={{ left: `${progressClamped}%`, width: `${aheadWidth}%` }}
+          aria-hidden="true"
+        />
+      )}
+      <div
+        className={cn(
+          "watch-scrub-progress",
+          progressClamped >= 99.5 ? "rounded-full" : "rounded-l-full",
+          !optimisticSeek && "transition-[width] duration-150",
+          bufferingMidPlayback && "watch-scrub-progress--buffering",
+        )}
+        style={{ width: `${progressClamped}%` }}
+      />
+      <div
+        className={cn(
+          "watch-scrub-playhead",
+          bufferingMidPlayback && "watch-scrub-playhead--buffering",
+        )}
+        style={{ left: `${progressClamped}%` }}
+      />
+    </div>
+  );
+}
 
 export function TvWatchView() {
   const isClient = useIsClient();
@@ -313,6 +384,7 @@ export function TvWatchView() {
   startNextEpisodeCountdownRef.current = startNextEpisodeCountdown;
 
   const isPreparing = initialResumeSeconds === null;
+  useMarkTvBootReadyWhen(!isPreparing || Boolean(error));
   const showLoadingOverlay =
     !error &&
     !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null) &&
@@ -623,11 +695,16 @@ export function TvWatchView() {
           void syncNativeSubtitles({ restartOnFailure: false });
         }
         const offset = hlsStartOffsetRef.current;
-        if (usingHlsRef.current) {
-          setBufferedRanges([{ start: offset, end: offset + state.buffered }]);
-        } else {
-          setBufferedRanges([{ start: 0, end: state.buffered }]);
-        }
+        const ranges =
+          state.bufferedRanges && state.bufferedRanges.length > 0
+            ? state.bufferedRanges.map((range) => ({
+                start: range.start + offset,
+                end: range.end + offset,
+              }))
+            : usingHlsRef.current
+              ? [{ start: offset, end: offset + state.buffered }]
+              : [{ start: 0, end: state.buffered }];
+        setBufferedRanges(ranges);
       },
       onError: () => {
         const session = nativePlaySessionRef.current;
@@ -724,7 +801,7 @@ export function TvWatchView() {
       setShowControls(false);
       return;
     }
-    if (!isPlaying) {
+    if (!isPlaying && !bufferingMidPlayback) {
       setShowControls(true);
       return;
     }
@@ -734,7 +811,12 @@ export function TvWatchView() {
     return () => {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     };
-  }, [centerMessageVisible, isPlaying, panelOpen, scheduleControlsAutoHide]);
+  }, [centerMessageVisible, isPlaying, bufferingMidPlayback, panelOpen, scheduleControlsAutoHide]);
+
+  useEffect(() => {
+    if (!bufferingMidPlayback || !panelOpen) return;
+    closeMenus();
+  }, [bufferingMidPlayback, panelOpen, closeMenus]);
 
   useEffect(() => {
     setPosterPath(null);
@@ -1288,8 +1370,9 @@ export function TvWatchView() {
 
   const showPosterBackdrop =
     Boolean(posterUrl) && !playbackHasBegun && !error && !usesNativePlayer;
-  const showBufferingBar =
-    bufferingMidPlayback && playbackHasBegun && !error;
+  const showMidPlaybackBuffering =
+    bufferingMidPlayback && playbackHasBegun && !error && !countdown;
+  const showBufferingBar = showMidPlaybackBuffering;
   const loadingMessage = isPreparing
     ? "Preparing playback..."
     : bufferingMidPlayback
@@ -1316,7 +1399,9 @@ export function TvWatchView() {
   }, [centerMessageVisible, releaseWatchFocus]);
 
   const nativeWebOverlayRaised =
-    controlsVisible || Boolean(error || countdown);
+    controlsVisible ||
+    Boolean(error || countdown) ||
+    (usesNativePlayer && showMidPlaybackBuffering);
 
   useEffect(() => {
     if (!usesNativePlayer) return;
@@ -1696,6 +1781,32 @@ export function TvWatchView() {
 
         {showBufferingBar && <div className="watch-buffering-bar" aria-hidden="true" />}
 
+        {showMidPlaybackBuffering && !controlsVisible && !panelOpen && (
+          <div
+            className="pointer-events-none absolute inset-0 z-[15] flex flex-col justify-end"
+            aria-live="polite"
+            aria-label="Buffering"
+          >
+            <div className="flex flex-col items-center gap-3 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-8">
+              <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-black/75 px-4 py-2.5 text-sm text-white">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                Buffering...
+              </div>
+              {showTransportControls && totalDurationSeconds > 0 && (
+                <div className="w-full max-w-3xl">
+                  <TvWatchScrubTrack
+                    bufferedRanges={bufferedRanges}
+                    progress={progress}
+                    bufferingMidPlayback={bufferingMidPlayback}
+                    toTimelinePercent={toTimelinePercent}
+                    optimisticSeek={optimisticAbsoluteSeconds !== null}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {countdown && countdownLabel && (
           <NextEpisodeCountdownOverlay
             countdown={countdown}
@@ -1853,32 +1964,13 @@ export function TvWatchView() {
                       onBlur={() => setScrubPreviewPercent(null)}
                       className="tv-watch-scrub relative flex h-7 w-full items-center overflow-visible border-2 border-transparent bg-transparent p-0 px-1.5"
                     >
-                      <div className="watch-scrub-track w-full">
-                        {bufferedRanges.map((range, index) => {
-                          const left = toTimelinePercent(range.start);
-                          const width = Math.max(0, toTimelinePercent(range.end) - left);
-                          if (width <= 0) return null;
-                          return (
-                            <div
-                              key={index}
-                              className="watch-scrub-buffer"
-                              style={{ left: `${left}%`, width: `${width}%` }}
-                            />
-                          );
-                        })}
-                        <div
-                          className={cn(
-                            "watch-scrub-progress",
-                            progress >= 99.5 ? "rounded-full" : "rounded-l-full",
-                            optimisticAbsoluteSeconds === null && "transition-[width] duration-150",
-                          )}
-                          style={{ width: `${Math.min(100, progress)}%` }}
-                        />
-                        <div
-                          className="watch-scrub-playhead"
-                          style={{ left: `${Math.min(100, Math.max(0, progress))}%` }}
-                        />
-                      </div>
+                      <TvWatchScrubTrack
+                        bufferedRanges={bufferedRanges}
+                        progress={progress}
+                        bufferingMidPlayback={bufferingMidPlayback}
+                        toTimelinePercent={toTimelinePercent}
+                        optimisticSeek={optimisticAbsoluteSeconds !== null}
+                      />
                     </TvFocusButton>
                   </div>
                 </div>
@@ -1917,9 +2009,11 @@ export function TvWatchView() {
                   variant="nav"
                   onClick={togglePlay}
                   className={cn("h-14 w-14", controlButtonClassName)}
-                  aria-label={isPlaying ? "Pause" : "Play"}
+                  aria-label={bufferingMidPlayback ? "Buffering" : isPlaying ? "Pause" : "Play"}
                 >
-                  {isPlaying ? (
+                  {bufferingMidPlayback ? (
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  ) : isPlaying ? (
                     <Pause className="h-6 w-6" />
                   ) : (
                     <Play className="h-6 w-6 fill-current" />

@@ -12,6 +12,7 @@ import { TvGrid } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 
 export function TvLibraryView() {
   const isClient = useIsClient();
@@ -25,6 +26,8 @@ export function TvLibraryView() {
 
   const isDeck = !Number.isNaN(deckId) && deckId > 0;
   const isLibrary = !Number.isNaN(libraryId) && libraryId > 0;
+
+  useMarkTvBootReadyWhen(!loading || (isClient && !isDeck && !isLibrary));
 
   useDocumentTitle(isDeck || isLibrary ? title : null);
 

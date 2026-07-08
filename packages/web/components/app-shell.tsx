@@ -11,6 +11,7 @@ import { UpdateModal } from "@/components/update-modal";
 import { Navbar } from "@/components/navbar";
 import { ScanStatusBar } from "@/components/scan-status-bar";
 import { TvShell } from "@/components/tv/tv-shell";
+import { TvBootReadyProvider } from "@/components/tv/tv-boot-ready";
 import { TvModeProvider, useTvMode } from "@/lib/tv-mode";
 import {
   clearStaleChunkReloadGuard,
@@ -33,17 +34,19 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <AudioUnlock />
           <UpdateStatusProvider>
             <UpdateModal />
-            {isTvMode ? (
-              <TvShell>{children}</TvShell>
-            ) : (
-              <div data-web-only>
-                <ScanStatusProvider>
-                  <Navbar />
-                  <ScanStatusBar />
-                  <main>{children}</main>
-                </ScanStatusProvider>
-              </div>
-            )}
+            <TvBootReadyProvider>
+              {isTvMode ? (
+                <TvShell>{children}</TvShell>
+              ) : (
+                <div data-web-only>
+                  <ScanStatusProvider>
+                    <Navbar />
+                    <ScanStatusBar />
+                    <main>{children}</main>
+                  </ScanStatusProvider>
+                </div>
+              )}
+            </TvBootReadyProvider>
           </UpdateStatusProvider>
         </ThemeMusicSettingsProvider>
       </SubtitleStylesProvider>

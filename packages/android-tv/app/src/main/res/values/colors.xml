@@ -9,4 +9,10 @@
     <color name="media_text">#F5F5F5</color>
     <color name="media_text_muted">#A1A1AA</color>
     <color name="media_error">#F87171</color>
+    <!-- Homepage hero gradient (primary → accent) -->
+    <color name="media_hero_primary">#2EFFE5</color>
+    <color name="media_hero_accent">#D9FF5C</color>
+    <color name="media_hero_primary_14">#242EFFE5</color>
+    <color name="media_hero_primary_18">#2E2EFFE5</color>
+    <color name="media_hero_primary_22">#382EFFE5</color>
 </resources>

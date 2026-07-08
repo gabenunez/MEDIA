@@ -10,12 +10,38 @@ const markProps = {
 export function MediaIcon({
   className,
   background = true,
+  /** Single centered "M!" — better optical alignment in square slots (TV sidebar). */
+  combined = false,
 }: {
   className?: string;
   /** Rounded tile behind the mark — off for TV sidebar where the rail is the backdrop. */
   background?: boolean;
+  combined?: boolean;
 }) {
   if (!background) {
+    if (combined) {
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          preserveAspectRatio="xMidYMid meet"
+          className={cn("block shrink-0", className)}
+          aria-hidden
+        >
+          <text
+            x="12"
+            y="12"
+            textAnchor="middle"
+            dominantBaseline="central"
+            {...markProps}
+          >
+            M!
+          </text>
+        </svg>
+      );
+    }
+
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"

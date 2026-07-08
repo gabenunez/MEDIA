@@ -17,7 +17,9 @@ export interface NativePlaybackRequest {
 export interface NativePlaybackState {
   currentTime: number;
   duration: number;
+  /** Highest buffered position in seconds (player timeline). */
   buffered: number;
+  bufferedRanges?: Array<{ start: number; end: number }>;
   isPlaying: boolean;
   isBuffering: boolean;
   ready: boolean;
@@ -100,6 +102,11 @@ export function setNativeWebOverlayAlpha(alpha: number): void {
   getAndroidBridge()?.setWebOverlayAlpha?.(alpha);
 }
 
+/** Native TV startup splash — dismiss once web UI is painted. */
+export function notifyAndroidTvBootReady(): void {
+  getAndroidBridge()?.notifyTvBootReady?.();
+}
+
 /** Apply user subtitle appearance settings to ExoPlayer's SubtitleView. */
 export function setNativeSubtitleStyles(styles: SubtitleStyles): void {
   const bridge = getAndroidBridge();
@@ -160,6 +167,7 @@ declare global {
       setVideoDisplayMode?: (mode: NativeVideoDisplayMode) => void;
       syncPlaybackState?: () => void;
       setWebOverlayAlpha?: (alpha: number) => void;
+      notifyTvBootReady?: () => void;
     };
     /** Legacy Android TV shell before MEDIA! rebrand. */
     ReelAndroid?: Window["MediaAndroid"];

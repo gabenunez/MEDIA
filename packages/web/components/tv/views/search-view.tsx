@@ -10,6 +10,7 @@ import { TvPoster } from "@/components/tv/tv-poster";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
 import { useMediaSearch } from "@/lib/use-media-search";
+import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 
 export function TvSearchView() {
   useDocumentTitle("Search");
@@ -17,6 +18,8 @@ export function TvSearchView() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState(() => searchParams.get("q")?.trim() ?? "");
   const { results, loading, searched } = useMediaSearch(query);
+
+  useMarkTvBootReadyWhen(true);
 
   useEffect(() => {
     const fromUrl = searchParams.get("q")?.trim() ?? "";

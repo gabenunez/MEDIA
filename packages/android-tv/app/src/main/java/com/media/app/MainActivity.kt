@@ -338,7 +338,16 @@ class MainActivity : AppCompatActivity() {
                 override fun run() {
                     if (splashDismissed) return
                     webView.evaluateJavascript(
-                        "(function(){return document.documentElement.classList.contains('tv-ready');})();",
+                        """
+                        (function(){
+                          var html=document.documentElement;
+                          if(!html.classList.contains('tv-boot-ready'))return false;
+                          if(document.querySelector('[data-tv-watch-player]'))return true;
+                          var shell=document.querySelector('.tv-ui');
+                          var main=document.querySelector('.tv-ui main');
+                          return !!(shell&&main&&main.children.length>0);
+                        })();
+                        """.trimIndent(),
                     ) { result ->
                         if (splashDismissed) return@evaluateJavascript
                         if (result?.trim()?.equals("true", ignoreCase = true) == true) {
@@ -572,6 +581,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private inner class MediaAndroidBridge {
+        @JavascriptInterface
+        fun notifyTvBootReady() {
+            runOnUiThread { dismissSplash() }
+        }
+
         @JavascriptInterface
         fun logout() {
             runOnUiThread {
