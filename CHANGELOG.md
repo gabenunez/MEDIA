@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.111 — 2026-07-08
+
+### Fix
+
+- **Reverse proxy** — pass `MEDIA_PUBLIC_PREFIX` through Turbo builds so `basePath` is applied
+
 ## 0.1.110 — 2026-07-08
 
 ### Settings

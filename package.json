@@ -1,6 +1,6 @@
 {
   "name": "media-app",
-  "version": "0.1.110",
+  "version": "0.1.111",
   "private": true,
   "scripts": {
     "dev": "turbo dev",
