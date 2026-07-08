@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.102 — 2026-07-07
+
+### Fix
+
+- **Media pages** — force clean `.next` output on build and fail if prerendered HTML still contains loading skeletons; wipe web build cache on server deploy
+- **Build** — disable turbopack filesystem build cache to avoid stale prerender shells across releases
+
+### Performance
+
+- **Media pages** — revalidate ISR cache by tag when a new TV episode is scanned so season lists refresh without waiting for the 5-minute TTL
+
 ## 0.1.101 — 2026-07-07
 
 ### Fix
