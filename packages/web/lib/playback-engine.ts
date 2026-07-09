@@ -91,12 +91,20 @@ export function catchUpHlsPlayback(
   hls.startLoad(video.currentTime);
 }
 
-/** Reload the growing playlist so new segments are discovered. */
-function refreshHlsPlaylist(hls: Hls): void {
-  const level = hls.currentLevel;
-  if (level < 0) return;
+/**
+ * Reload the growing playlist so new segments are discovered.
+ *
+ * Re-assigning `hls.loadLevel`/`nextLevel`/`currentLevel` to the level it's
+ * already on is a guaranteed no-op in hls.js — the level-controller's setter
+ * bails out early whenever the target level index is unchanged, which is
+ * always true here since this app never runs multi-variant ABR (every
+ * session is a single level). `startLoad` is the one public entry point that
+ * actually re-arms the level-controller's playlist reload regardless of
+ * whether its internal timer has already elapsed.
+ */
+function refreshHlsPlaylist(video: HTMLVideoElement, hls: Hls): void {
   try {
-    hls.loadLevel = level;
+    hls.startLoad(video.currentTime);
   } catch {
     // ignore — next poll will retry
   }
@@ -139,12 +147,10 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   let waitingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   let lastPlaybackAdvanceMs = Date.now();
   let lastPlaybackPosition = 0;
-  // Whether the loaded level still lacks #EXT-X-ENDLIST (transcode in
-  // progress). Starts true so we keep refreshing until hls.js tells us
-  // otherwise — video.duration alone can't distinguish "reached the true end
-  // of the file" from "reached the edge of however much is transcoded so
-  // far," and during a growing transcode it is NOT Infinity by default.
-  let playlistIsLive = true;
+  // Whether `#EXT-X-ENDLIST` has appeared in the loaded manifest. Use
+  // `details.endList`, not `details.live` — VoD-style growing transcodes are
+  // not live but also don't have ENDLIST until ffmpeg finishes.
+  let playlistHasEndList = false;
 
   const clearTimers = () => {
     if (manifestPollTimer) {
@@ -175,7 +181,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   const shouldRefreshGrowingPlaylist = () => {
     if (!hls || video.ended) return false;
     return decideShouldRefreshGrowingPlaylist({
-      playlistIsLive,
+      playlistHasEndList,
       playlistDurationSeconds: video.duration,
       currentTimeSeconds: video.currentTime,
       bufferedAheadSeconds: getVideoBufferedEnd(video) - video.currentTime,
@@ -187,7 +193,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
 
   const maybeRefreshPlaylist = () => {
     if (!shouldRefreshGrowingPlaylist()) return;
-    refreshHlsPlaylist(hls!);
+    refreshHlsPlaylist(video, hls!);
   };
 
   const scheduleWaitingRecovery = () => {
@@ -213,6 +219,11 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
     if (manifestPollTimer) return;
     manifestPollTimer = setInterval(() => {
       if (!hls || video.ended) return;
+      // The stall watchdog below is the only other place that nudges hls.js
+      // past a stall, and it bails out entirely while paused — so this is
+      // the sole mechanism that keeps a paused-at-the-buffer-edge session
+      // discovering new segments (and keeps the server-side transcode
+      // session from idling out) until the viewer hits play again.
       const pausedNearEdge = video.paused && isNearBufferEdge(video);
       if (video.paused && !pausedNearEdge) return;
       maybeRefreshPlaylist();
@@ -242,7 +253,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       });
 
       hls.on(HlsConstructor.Events.LEVEL_UPDATED, (_, data) => {
-        playlistIsLive = data.details.live;
+        playlistHasEndList = data.details.endList;
         onBufferUpdate();
       });
 
@@ -288,7 +299,6 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
         if (!needsMoreMediaData(video)) return;
 
         maybeRefreshPlaylist();
-        hls.startLoad(video.currentTime);
         lastPlaybackAdvanceMs = Date.now();
       }, 1500);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
