@@ -26,6 +26,7 @@ import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import {
   getVideoBufferedRanges,
+  getScrubberBufferedRanges,
   getVideoSeekableEnd,
   resolveInitialStreamQuality,
   getPlaybackRestartSeconds,
@@ -304,8 +305,12 @@ function WatchDesktopClient() {
     if (!video) return;
 
     const offset = usingHlsPlayback ? hlsStartOffsetRef.current : 0;
+    const scrubberRanges = getScrubberBufferedRanges(
+      getVideoBufferedRanges(video),
+      video.currentTime,
+    );
     setBufferedRanges(
-      getVideoBufferedRanges(video).map((range) => ({
+      scrubberRanges.map((range) => ({
         start: offset + range.start,
         end: offset + range.end,
       })),

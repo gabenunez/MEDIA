@@ -380,6 +380,46 @@ export function getVideoBufferedRanges(
   return ranges;
 }
 
+/**
+ * Scrubber buffer display: one contiguous bar from the playhead forward.
+ * Hides disconnected islands from live-edge prefetch that are not playable yet.
+ */
+export function getScrubberBufferedRanges(
+  ranges: Array<{ start: number; end: number }>,
+  playheadSeconds: number,
+  maxGapSeconds = 4,
+): Array<{ start: number; end: number }> {
+  if (!ranges.length) return [];
+
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  let anchorIdx = sorted.findIndex(
+    (range) =>
+      playheadSeconds >= range.start - 0.05 && playheadSeconds <= range.end + maxGapSeconds,
+  );
+  if (anchorIdx < 0) {
+    anchorIdx = sorted.findIndex(
+      (range) =>
+        range.start >= playheadSeconds && range.start - playheadSeconds <= maxGapSeconds,
+    );
+  }
+  if (anchorIdx < 0) return [];
+
+  const merged = [
+    {
+      start: Math.max(sorted[anchorIdx].start, playheadSeconds),
+      end: sorted[anchorIdx].end,
+    },
+  ];
+  for (let i = anchorIdx + 1; i < sorted.length; i++) {
+    const previous = merged[merged.length - 1];
+    const next = sorted[i];
+    if (next.start - previous.end > maxGapSeconds) break;
+    previous.end = Math.max(previous.end, next.end);
+  }
+
+  return merged.filter((range) => range.end > playheadSeconds + 0.05);
+}
+
 /** End of the buffered range containing the current playhead (or before it in a gap). */
 export function getVideoBufferedEnd(video: HTMLVideoElement): number {
   const ranges = video.buffered;
@@ -599,6 +639,7 @@ export function createPlaybackHls(
   const tv = options?.tv ?? isTvClient();
 
   return new HlsConstructor({
+    startPosition: 0,
     backBufferLength: tv ? 60 : 90,
     maxBufferLength: tv ? 120 : 120,
     maxMaxBufferLength: tv ? 300 : 600,

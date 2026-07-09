@@ -114,13 +114,21 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
     }
   };
 
+  const shouldRefreshGrowingPlaylist = () => {
+    if (!hls || video.ended) return false;
+    const playlistDuration = video.duration;
+    const atSourceEnd =
+      Number.isFinite(playlistDuration) &&
+      playlistDuration > 0 &&
+      video.currentTime >= playlistDuration - 0.5;
+    if (atSourceEnd) return false;
+    const bufferedAhead = getVideoBufferedEnd(video) - video.currentTime;
+    return needsMoreMediaData(video) || isNearBufferEdge(video) || bufferedAhead < 45;
+  };
+
   const maybeRefreshPlaylist = () => {
-    if (!hls || video.ended) return;
-    const details = hls.levels[hls.currentLevel]?.details;
-    if (!details?.live) return;
-    if (needsMoreMediaData(video) || isNearBufferEdge(video)) {
-      refreshHlsPlaylist(hls);
-    }
+    if (!shouldRefreshGrowingPlaylist()) return;
+    refreshHlsPlaylist(hls!);
   };
 
   const scheduleWaitingRecovery = () => {
@@ -145,8 +153,9 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   const startManifestPolling = () => {
     if (manifestPollTimer) return;
     manifestPollTimer = setInterval(() => {
+      if (!hls || video.ended || video.paused) return;
       maybeRefreshPlaylist();
-    }, 2500);
+    }, 3000);
   };
 
   if (usingHls) {
