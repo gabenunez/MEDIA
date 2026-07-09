@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamInfo } from "./api.js";
 import {
+  getPlaybackRestartSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
@@ -139,7 +140,10 @@ describe("resolvePlaybackStartSeconds", () => {
         streamStartSeconds: null,
         initialResumeSeconds: 1200,
         streamGeneration: 0,
-        currentAbsoluteSeconds: 0,
+        usingHls: true,
+        hlsStartOffset: 0,
+        relativeSeconds: 0,
+        stableAbsoluteSeconds: 0,
       }),
     ).toBe(1200);
   });
@@ -150,9 +154,12 @@ describe("resolvePlaybackStartSeconds", () => {
         streamStartSeconds: null,
         initialResumeSeconds: 1200,
         streamGeneration: 2,
-        currentAbsoluteSeconds: 180,
+        usingHls: true,
+        hlsStartOffset: 1200,
+        relativeSeconds: 180,
+        stableAbsoluteSeconds: 1380,
       }),
-    ).toBe(180);
+    ).toBe(1380);
   });
 
   it("prefers an explicit restart position when provided", () => {
@@ -161,8 +168,35 @@ describe("resolvePlaybackStartSeconds", () => {
         streamStartSeconds: 420,
         initialResumeSeconds: 1200,
         streamGeneration: 3,
-        currentAbsoluteSeconds: 180,
+        usingHls: true,
+        hlsStartOffset: 1200,
+        relativeSeconds: 180,
+        stableAbsoluteSeconds: 1380,
       }),
     ).toBe(420);
+  });
+});
+
+describe("getPlaybackRestartSeconds", () => {
+  it("rejects buffer-edge jumps ahead of the stable playhead", () => {
+    expect(
+      getPlaybackRestartSeconds({
+        usingHls: true,
+        hlsStartOffset: 1200,
+        relativeSeconds: 420,
+        stableAbsoluteSeconds: 1260,
+      }),
+    ).toBe(1260);
+  });
+
+  it("keeps a forward seek that has not reached the live clock yet", () => {
+    expect(
+      getPlaybackRestartSeconds({
+        usingHls: true,
+        hlsStartOffset: 1200,
+        relativeSeconds: 60,
+        stableAbsoluteSeconds: 1400,
+      }),
+    ).toBe(1400);
   });
 });
