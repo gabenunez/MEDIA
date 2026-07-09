@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.116 — 2026-07-08
+
+### TV
+
+- **Playback** — watch scrubber and subtitle/quality menus mirror the desktop player (popover menus, ghost transport controls, preview-then-commit scrubbing)
+- **Playback** — scrubber shows the saved resume position immediately when opening a title instead of creeping from zero
+
 ## 0.1.115 — 2026-07-08
 
 ### TV
