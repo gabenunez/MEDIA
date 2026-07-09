@@ -233,6 +233,11 @@ export interface HlsSession {
   outputDir: string;
   playlistPath: string;
   lastAccess: number;
+  /** Highest segment index the client has actually requested — segments below
+   * this (minus the retention window) are safe to prune. Encoding can outrun
+   * playback (no `-re` throttling), so pruning must track consumption, not
+   * just how many segments ffmpeg has written. */
+  lastServedSegmentIndex: number;
 }
 
 const activeSessions = new Map<string, HlsSession>();
@@ -467,6 +472,7 @@ export function startHlsTranscode(
     outputDir,
     playlistPath,
     lastAccess: Date.now(),
+    lastServedSegmentIndex: -1,
   };
 
   activeSessions.set(sessionId, session);
@@ -587,6 +593,7 @@ export function startHlsRemux(
     outputDir,
     playlistPath,
     lastAccess: Date.now(),
+    lastServedSegmentIndex: -1,
   };
 
   activeSessions.set(sessionId, session);
@@ -631,6 +638,7 @@ export function resolveHlsSession(
     outputDir,
     playlistPath: path.join(outputDir, "master.m3u8"),
     lastAccess: Date.now(),
+    lastServedSegmentIndex: -1,
   };
 }
 
@@ -659,14 +667,25 @@ function hasCompleteHlsPlaylist(outputDir: string): boolean {
   }
 }
 
+export function parseHlsSegmentIndex(segmentName: string): number {
+  return parseInt(segmentName.match(/\d+/)?.[0] ?? "0", 10);
+}
+
+/**
+ * Delete segments strictly older than `minSegmentIndex`. FFmpeg has no
+ * realtime throttle (`-re`) and can encode many minutes ahead of actual
+ * playback, so the caller must derive `minSegmentIndex` from what the client
+ * has consumed — never from segment count alone, or this can delete data the
+ * client hasn't requested yet and force a forward skip.
+ */
 export function pruneOldHlsSegments(
   outputDir: string,
-  keepCount = HLS_PLAYLIST_WINDOW_SEGMENTS,
+  minSegmentIndex: number,
 ): void {
-  const segments = listHlsSegments(outputDir);
-  if (segments.length <= keepCount) return;
+  if (minSegmentIndex <= 0) return;
 
-  for (const segment of segments.slice(0, segments.length - keepCount)) {
+  for (const segment of listHlsSegments(outputDir)) {
+    if (parseHlsSegmentIndex(segment) >= minSegmentIndex) break;
     try {
       fs.unlinkSync(path.join(outputDir, segment));
     } catch {
@@ -679,6 +698,7 @@ export function generateHlsPlaylist(
   outputDir: string,
   segmentDuration: number,
   inProgress: boolean,
+  lastServedSegmentIndex = -1,
 ): string | null {
   const allSegments = listHlsSegments(outputDir).filter((name) => {
     try {
@@ -690,13 +710,22 @@ export function generateHlsPlaylist(
 
   if (allSegments.length === 0) return null;
 
-  if (inProgress && allSegments.length > HLS_PLAYLIST_WINDOW_SEGMENTS) {
-    pruneOldHlsSegments(outputDir, HLS_PLAYLIST_WINDOW_SEGMENTS);
+  // Trail the retention window behind the client's own consumption point,
+  // not behind the newest segment written — the encoder can race ahead of
+  // playback (see pruneOldHlsSegments), so windowing off segment count alone
+  // can prune or hide segments the client hasn't reached yet.
+  const minSegmentIndex = Math.max(
+    0,
+    lastServedSegmentIndex - HLS_PLAYLIST_WINDOW_SEGMENTS,
+  );
+
+  if (inProgress) {
+    pruneOldHlsSegments(outputDir, minSegmentIndex);
   }
 
   const segments =
-    allSegments.length > HLS_PLAYLIST_WINDOW_SEGMENTS
-      ? allSegments.slice(-HLS_PLAYLIST_WINDOW_SEGMENTS)
+    minSegmentIndex > 0
+      ? allSegments.filter((name) => parseHlsSegmentIndex(name) >= minSegmentIndex)
       : allSegments;
 
   const mediaSequence = parseInt(segments[0]?.match(/\d+/)?.[0] ?? "0", 10);

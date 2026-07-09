@@ -4,6 +4,7 @@ import {
   getPlaybackRestartSeconds,
   getScrubberBufferedRanges,
   isSpuriousHlsEnded,
+  nextStableAbsoluteSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
@@ -277,5 +278,33 @@ describe("getPlaybackRestartSeconds", () => {
         stableAbsoluteSeconds: 1400,
       }),
     ).toBe(1260);
+  });
+});
+
+describe("nextStableAbsoluteSeconds", () => {
+  it("tracks normal small forward progress exactly", () => {
+    expect(nextStableAbsoluteSeconds(100, 100.25)).toBe(100.25);
+  });
+
+  it("tolerates a small backward correction", () => {
+    expect(nextStableAbsoluteSeconds(100, 99.2)).toBe(99.2);
+  });
+
+  it("ignores a small backward blip below the tolerance", () => {
+    expect(nextStableAbsoluteSeconds(100, 98)).toBe(100);
+  });
+
+  it("clamps a sudden large forward spike instead of adopting it outright", () => {
+    // A one-tick jump of +20s looks like an HLS buffer-hole nudge or a
+    // segment renumbering artifact, not real playback progress.
+    expect(nextStableAbsoluteSeconds(100, 120)).toBe(103);
+  });
+
+  it("catches up to a sustained real jump within a few samples", () => {
+    let stable = 100;
+    for (let i = 0; i < 7; i++) {
+      stable = nextStableAbsoluteSeconds(stable, 120);
+    }
+    expect(stable).toBe(120);
   });
 });

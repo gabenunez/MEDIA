@@ -22,6 +22,7 @@ import {
   startHlsRemux,
   resolveHlsSession,
   generateHlsPlaylist,
+  parseHlsSegmentIndex,
   isTranscodeInProgress,
   waitForFirstSegment,
   waitForHlsSegment,
@@ -588,6 +589,7 @@ export async function streamRoutes(
         outputDir,
         config.transcoding.hls_segment_duration,
         inProgress,
+        session.lastServedSegmentIndex,
       );
 
       if (!playlist) {
@@ -644,6 +646,11 @@ export async function streamRoutes(
       if (!session) {
         return reply.status(404).send({ error: "HLS session not found" });
       }
+
+      session.lastServedSegmentIndex = Math.max(
+        session.lastServedSegmentIndex,
+        parseHlsSegmentIndex(segmentName),
+      );
 
       const segmentPath = path.join(session.outputDir, segmentName);
       let segmentStats: fs.Stats | null = null;

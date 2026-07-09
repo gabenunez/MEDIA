@@ -31,6 +31,7 @@ import {
   isSpuriousHlsEnded,
   resolveInitialStreamQuality,
   getPlaybackRestartSeconds,
+  nextStableAbsoluteSeconds,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
   buildPlaybackTitle,
@@ -695,9 +696,10 @@ function WatchDesktopClient() {
           const absoluteTime = usingHlsPlayback
             ? hlsStartOffsetRef.current + seconds
             : seconds;
-          if (absoluteTime >= lastStableAbsoluteSecondsRef.current - 1) {
-            lastStableAbsoluteSecondsRef.current = absoluteTime;
-          }
+          lastStableAbsoluteSecondsRef.current = nextStableAbsoluteSeconds(
+            lastStableAbsoluteSecondsRef.current,
+            absoluteTime,
+          );
         }
       },
       onDuration: setDuration,

@@ -15,6 +15,27 @@ import {
 
 export const PROGRESS_SAVE_MS = 10_000;
 
+/**
+ * Max forward jump accepted into the "stable" playback position per sample.
+ * A bigger jump is more likely a transient position spike — an HLS
+ * buffer-hole nudge, a native-player self-heal, a live-playlist segment
+ * renumbering — than genuine playback progress; real seeks write the stable
+ * ref directly and never go through this path. Excess is folded in
+ * gradually so a spike can't get latched in as ground truth for the next
+ * restart/recovery, but a sustained real jump still catches up within a
+ * couple of samples instead of being rejected forever.
+ */
+const MAX_STABLE_FORWARD_JUMP_SECONDS = 3;
+
+/** Fold a freshly observed absolute position into the tracked "stable" one. */
+export function nextStableAbsoluteSeconds(
+  currentStable: number,
+  observedAbsolute: number,
+): number {
+  if (observedAbsolute < currentStable - 1) return currentStable;
+  return Math.min(observedAbsolute, currentStable + MAX_STABLE_FORWARD_JUMP_SECONDS);
+}
+
 export function getPlaybackAbsoluteSeconds({
   usingHls,
   hlsStartOffset,

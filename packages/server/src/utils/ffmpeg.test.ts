@@ -2,7 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { waitForFirstSegment } from "./ffmpeg.js";
+import {
+  generateHlsPlaylist,
+  pruneOldHlsSegments,
+  waitForFirstSegment,
+} from "./ffmpeg.js";
 
 const tempDirs: string[] = [];
 
@@ -16,6 +20,71 @@ afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+function writeSegments(dir: string, count: number): void {
+  for (let i = 0; i < count; i++) {
+    fs.writeFileSync(
+      path.join(dir, `segment_${String(i).padStart(3, "0")}.ts`),
+      "segment",
+    );
+  }
+}
+
+describe("pruneOldHlsSegments", () => {
+  it("keeps everything the client hasn't consumed yet, even far past the window size", () => {
+    // FFmpeg has no realtime throttle and can encode well ahead of playback.
+    // A client that just opened the stream (minSegmentIndex <= 0) must never
+    // have segments pruned out from under it.
+    const dir = createTempHlsDir();
+    writeSegments(dir, 200);
+
+    pruneOldHlsSegments(dir, 0);
+
+    expect(fs.existsSync(path.join(dir, "segment_000.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "segment_199.ts"))).toBe(true);
+  });
+
+  it("only deletes segments strictly older than the consumption floor", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 200);
+
+    pruneOldHlsSegments(dir, 30);
+
+    expect(fs.existsSync(path.join(dir, "segment_029.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "segment_030.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "segment_199.ts"))).toBe(true);
+  });
+});
+
+describe("generateHlsPlaylist", () => {
+  it("does not hide or prune segments ahead of a fresh client, even when encoding has raced far ahead", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 200);
+
+    // A fresh session: nothing served yet (lastServedSegmentIndex = -1).
+    const playlist = generateHlsPlaylist(dir, 6, true, -1);
+
+    expect(playlist).toContain("#EXT-X-MEDIA-SEQUENCE:0");
+    expect(playlist).toContain("segment_000.ts");
+    expect(fs.existsSync(path.join(dir, "segment_000.ts"))).toBe(true);
+  });
+
+  it("windows the playlist and prunes disk relative to what the client has actually requested", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 300);
+
+    // Client has consumed up through segment 150; the 120-segment window
+    // trails behind that point, not behind the newest (299th) segment.
+    const playlist = generateHlsPlaylist(dir, 6, true, 150);
+
+    expect(playlist).toContain("#EXT-X-MEDIA-SEQUENCE:30");
+    expect(playlist).not.toContain("segment_029.ts");
+    expect(playlist).toContain("segment_030.ts");
+    expect(playlist).toContain("segment_299.ts");
+    expect(fs.existsSync(path.join(dir, "segment_029.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "segment_030.ts"))).toBe(true);
+  });
 });
 
 describe("waitForFirstSegment", () => {
