@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.122 — 2026-07-09
+
+### Fix
+
+- **Playback** — fix HLS stalling at the first buffer edge caused by live-edge prefetch leaving gaps ahead of the playhead
+- **Playback** — resume segment loading on waiting, playlist updates, and fragment errors instead of requiring a refresh
+
 ## 0.1.121 — 2026-07-09
 
 ### Fix
