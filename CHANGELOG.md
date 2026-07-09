@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.120 — 2026-07-09
+
+### Fix
+
+- **Playback** — stop buffering recoveries from jumping forward to a stale position instead of continuing where you were watching
+- **Playback** — clear one-shot seek targets after stream restarts so later recoveries follow the live playhead
+
+### TV
+
+- **Playback** — commit scrub preview on blur and restart the stream when seeking outside the buffered range
+
 ## 0.1.119 — 2026-07-09
 
 ### Fix
