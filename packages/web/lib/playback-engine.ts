@@ -2,6 +2,7 @@ import type Hls from "hls.js";
 import {
   createPlaybackHls,
   getVideoBufferedEnd,
+  shouldRefreshGrowingPlaylist as decideShouldRefreshGrowingPlaylist,
   startDirectPlaybackWithResume,
 } from "@/lib/playback-utils";
 
@@ -138,6 +139,12 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   let waitingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   let lastPlaybackAdvanceMs = Date.now();
   let lastPlaybackPosition = 0;
+  // Whether the loaded level still lacks #EXT-X-ENDLIST (transcode in
+  // progress). Starts true so we keep refreshing until hls.js tells us
+  // otherwise — video.duration alone can't distinguish "reached the true end
+  // of the file" from "reached the edge of however much is transcoded so
+  // far," and during a growing transcode it is NOT Infinity by default.
+  let playlistIsLive = true;
 
   const clearTimers = () => {
     if (manifestPollTimer) {
@@ -167,16 +174,15 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
 
   const shouldRefreshGrowingPlaylist = () => {
     if (!hls || video.ended) return false;
-    const playlistDuration = video.duration;
-    const atSourceEnd =
-      Number.isFinite(playlistDuration) &&
-      playlistDuration > 0 &&
-      video.currentTime >= playlistDuration - 0.5;
-    if (atSourceEnd) return false;
-    const bufferedAhead = getVideoBufferedEnd(video) - video.currentTime;
-    const waitingForData =
-      !video.paused && video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
-    return waitingForData || isNearBufferEdge(video) || bufferedAhead < 45;
+    return decideShouldRefreshGrowingPlaylist({
+      playlistIsLive,
+      playlistDurationSeconds: video.duration,
+      currentTimeSeconds: video.currentTime,
+      bufferedAheadSeconds: getVideoBufferedEnd(video) - video.currentTime,
+      waitingForData:
+        !video.paused && video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA,
+      isNearBufferEdge: isNearBufferEdge(video),
+    });
   };
 
   const maybeRefreshPlaylist = () => {
@@ -235,7 +241,8 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
         video.play().catch(() => {});
       });
 
-      hls.on(HlsConstructor.Events.LEVEL_UPDATED, () => {
+      hls.on(HlsConstructor.Events.LEVEL_UPDATED, (_, data) => {
+        playlistIsLive = data.details.live;
         onBufferUpdate();
       });
 
