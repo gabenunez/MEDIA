@@ -311,13 +311,10 @@ describe("nextStableAbsoluteSeconds", () => {
 });
 
 describe("shouldRefreshGrowingPlaylist", () => {
-  it("keeps refreshing once playback catches up to the known duration while still live", () => {
-    // Regression: video.duration during an in-progress transcode is the
-    // currently-known partial duration, not Infinity, so reaching it must
-    // not be mistaken for the true end of the file while ENDLIST is absent.
+  it("keeps refreshing once playback catches up to the partial duration while ENDLIST is absent", () => {
     expect(
       shouldRefreshGrowingPlaylist({
-        playlistIsLive: true,
+        playlistHasEndList: false,
         playlistDurationSeconds: 24,
         currentTimeSeconds: 23.8,
         bufferedAheadSeconds: 0.2,
@@ -330,7 +327,7 @@ describe("shouldRefreshGrowingPlaylist", () => {
   it("stops refreshing once the manifest confirms the real end of file (ENDLIST seen)", () => {
     expect(
       shouldRefreshGrowingPlaylist({
-        playlistIsLive: false,
+        playlistHasEndList: true,
         playlistDurationSeconds: 24,
         currentTimeSeconds: 23.8,
         bufferedAheadSeconds: 0.2,
@@ -343,7 +340,7 @@ describe("shouldRefreshGrowingPlaylist", () => {
   it("does not refresh mid-playback with a healthy buffer", () => {
     expect(
       shouldRefreshGrowingPlaylist({
-        playlistIsLive: true,
+        playlistHasEndList: false,
         playlistDurationSeconds: 600,
         currentTimeSeconds: 100,
         bufferedAheadSeconds: 60,
@@ -356,7 +353,7 @@ describe("shouldRefreshGrowingPlaylist", () => {
   it("refreshes when the buffer runs low even mid-playlist", () => {
     expect(
       shouldRefreshGrowingPlaylist({
-        playlistIsLive: true,
+        playlistHasEndList: false,
         playlistDurationSeconds: 600,
         currentTimeSeconds: 100,
         bufferedAheadSeconds: 30,
