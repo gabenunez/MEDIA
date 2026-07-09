@@ -11,6 +11,7 @@ import { routes } from "@/lib/routes";
 import {
   buildPlaybackTitle,
   getVideoBufferedRanges,
+  getScrubberBufferedRanges,
   getVideoSeekableEnd,
   PROGRESS_SAVE_MS,
   getPlaybackRestartSeconds,
@@ -519,8 +520,12 @@ export function TvWatchView() {
     if (!video) return;
 
     const offset = usingHlsPlayback ? hlsStartOffsetRef.current : 0;
+    const scrubberRanges = getScrubberBufferedRanges(
+      getVideoBufferedRanges(video),
+      video.currentTime,
+    );
     setBufferedRanges(
-      getVideoBufferedRanges(video).map((range) => ({
+      scrubberRanges.map((range) => ({
         start: offset + range.start,
         end: offset + range.end,
       })),
@@ -723,16 +728,22 @@ export function TvWatchView() {
           void syncNativeSubtitles({ restartOnFailure: false });
         }
         const offset = hlsStartOffsetRef.current;
-        const ranges =
+        const relativeRanges =
           state.bufferedRanges && state.bufferedRanges.length > 0
-            ? state.bufferedRanges.map((range) => ({
-                start: range.start + offset,
-                end: range.end + offset,
-              }))
+            ? state.bufferedRanges
             : usingHlsRef.current
-              ? [{ start: offset, end: offset + state.buffered }]
+              ? [{ start: 0, end: state.buffered }]
               : [{ start: 0, end: state.buffered }];
-        setBufferedRanges(ranges);
+        const scrubberRanges = getScrubberBufferedRanges(
+          relativeRanges,
+          state.currentTime,
+        );
+        setBufferedRanges(
+          scrubberRanges.map((range) => ({
+            start: range.start + offset,
+            end: range.end + offset,
+          })),
+        );
       },
       onError: () => {
         const session = nativePlaySessionRef.current;

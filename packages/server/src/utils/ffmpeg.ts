@@ -682,9 +682,9 @@ export function generateHlsPlaylist(
     lines.push(`#EXTINF:${segmentDuration}.0,`, segment);
   }
 
-  if (!inProgress) {
-    lines.push("#EXT-X-ENDLIST");
-  }
+  // Always end the playlist so hls.js uses VoD sequential loading instead of
+  // live-edge prefetch (which leaves disconnected buffer islands ahead of playhead).
+  lines.push("#EXT-X-ENDLIST");
 
   return `${lines.join("\n")}\n`;
 }

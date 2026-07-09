@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamInfo } from "./api.js";
 import {
   getPlaybackRestartSeconds,
+  getScrubberBufferedRanges,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
@@ -130,6 +131,33 @@ describe("resolvePlaybackStream with native TV player", () => {
       usingHls: false,
       audioCompatNotice: null,
     });
+  });
+});
+
+describe("getScrubberBufferedRanges", () => {
+  it("returns one contiguous bar from the playhead and hides disconnected islands", () => {
+    expect(
+      getScrubberBufferedRanges(
+        [
+          { start: 0, end: 24 },
+          { start: 48, end: 54 },
+          { start: 72, end: 78 },
+        ],
+        20,
+      ),
+    ).toEqual([{ start: 20, end: 24 }]);
+  });
+
+  it("merges small gaps ahead of the playhead", () => {
+    expect(
+      getScrubberBufferedRanges(
+        [
+          { start: 0, end: 30 },
+          { start: 33, end: 60 },
+        ],
+        25,
+      ),
+    ).toEqual([{ start: 25, end: 60 }]);
   });
 });
 
