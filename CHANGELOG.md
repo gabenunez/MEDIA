@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.128 — 2026-07-09
+
+### Fix
+
+- **Playback** — prune and window HLS segments based on what the client has consumed, not how far ffmpeg has encoded ahead (fixes forward skips on fresh transcodes)
+- **Playback** — clamp sudden forward position spikes when tracking stable resume position during HLS recovery (desktop + TV)
+
 ## 0.1.127 — 2026-07-09
 
 ### Fix
