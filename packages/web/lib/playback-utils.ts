@@ -600,12 +600,18 @@ export function createPlaybackHls(
 
   return new HlsConstructor({
     backBufferLength: tv ? 60 : 90,
-    maxBufferLength: tv ? 120 : 90,
+    maxBufferLength: tv ? 120 : 120,
     maxMaxBufferLength: tv ? 300 : 600,
-    maxBufferSize: tv ? 200 * 1000 * 1000 : 80 * 1000 * 1000,
-    maxBufferHole: 2,
+    maxBufferSize: tv ? 200 * 1000 * 1000 : 100 * 1000 * 1000,
+    maxBufferHole: 4,
     nudgeOnVideoHole: true,
-    startFragPrefetch: true,
+    // Prefetching ahead of the playhead creates buffer holes on growing transcodes.
+    startFragPrefetch: false,
+    // Load sequentially from the buffer end, not from the live edge.
+    liveSyncMode: "buffered",
+    liveSyncDurationCount: 3,
+    liveMaxLatencyDurationCount: Number.POSITIVE_INFINITY,
+    maxLiveSyncPlaybackRate: 1,
     manifestLoadingMaxRetry: 6,
     manifestLoadingRetryDelay: 1000,
     levelLoadingMaxRetry: 4,

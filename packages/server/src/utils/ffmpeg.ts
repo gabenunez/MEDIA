@@ -676,7 +676,6 @@ export function generateHlsPlaylist(
     "#EXT-X-VERSION:3",
     `#EXT-X-TARGETDURATION:${targetDuration}`,
     `#EXT-X-MEDIA-SEQUENCE:${mediaSequence}`,
-    "#EXT-X-PLAYLIST-TYPE:EVENT",
   ];
 
   for (const segment of segments) {

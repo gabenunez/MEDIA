@@ -39,17 +39,29 @@ export function destroyHlsInstance(hls: Hls | null): void {
   hls.destroy();
 }
 
-function resumeHlsLoading(hls: Hls, video: HTMLVideoElement): void {
-  const position = Math.max(0, video.currentTime);
+/** Reload the growing playlist so new segments are discovered. */
+function refreshHlsPlaylist(hls: Hls): void {
+  const level = hls.currentLevel;
+  if (level < 0) return;
   try {
-    hls.startLoad(position);
+    hls.loadLevel = level;
   } catch {
-    try {
-      hls.startLoad(-1);
-    } catch {
-      // ignore — next watchdog tick will retry
-    }
+    // ignore — next poll will retry
   }
+}
+
+function isNearBufferEdge(video: HTMLVideoElement): boolean {
+  const bufferedEnd = getVideoBufferedEnd(video);
+  if (bufferedEnd <= 0) return false;
+  return video.currentTime >= bufferedEnd - 1.25;
+}
+
+function needsMoreMediaData(video: HTMLVideoElement): boolean {
+  return (
+    !video.ended &&
+    !video.paused &&
+    video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA
+  );
 }
 
 export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle {
@@ -70,12 +82,17 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   let stopDirectPlayback: (() => void) | null = null;
   let hlsRecoveryAttempts = 0;
   const maxHlsRecoveryAttempts = 4;
+  let manifestPollTimer: ReturnType<typeof setInterval> | null = null;
   let stallWatchdog: ReturnType<typeof setInterval> | null = null;
   let waitingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   let lastPlaybackAdvanceMs = Date.now();
   let lastPlaybackPosition = 0;
 
-  const clearStallTimers = () => {
+  const clearTimers = () => {
+    if (manifestPollTimer) {
+      clearInterval(manifestPollTimer);
+      manifestPollTimer = null;
+    }
     if (stallWatchdog) {
       clearInterval(stallWatchdog);
       stallWatchdog = null;
@@ -97,16 +114,23 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
     }
   };
 
+  const maybeRefreshPlaylist = () => {
+    if (!hls || video.ended) return;
+    const details = hls.levels[hls.currentLevel]?.details;
+    if (!details?.live) return;
+    if (needsMoreMediaData(video) || isNearBufferEdge(video)) {
+      refreshHlsPlaylist(hls);
+    }
+  };
+
   const scheduleWaitingRecovery = () => {
     if (!hls || video.ended) return;
     if (waitingRecoveryTimer) clearTimeout(waitingRecoveryTimer);
     waitingRecoveryTimer = setTimeout(() => {
       waitingRecoveryTimer = null;
-      if (video.ended || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-        return;
-      }
-      resumeHlsLoading(hls!, video);
-    }, 400);
+      if (!needsMoreMediaData(video)) return;
+      maybeRefreshPlaylist();
+    }, 300);
   };
 
   const onWaiting = () => {
@@ -116,6 +140,13 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   const onTimeUpdate = () => {
     trackPlaybackAdvance();
     onBufferUpdate();
+  };
+
+  const startManifestPolling = () => {
+    if (manifestPollTimer) return;
+    manifestPollTimer = setInterval(() => {
+      maybeRefreshPlaylist();
+    }, 2500);
   };
 
   if (usingHls) {
@@ -135,14 +166,13 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
         hls?.startLoad(0);
         lastPlaybackPosition = 0;
         lastPlaybackAdvanceMs = Date.now();
+        startManifestPolling();
         onSourceReady?.();
         video.play().catch(() => {});
       });
 
       hls.on(HlsConstructor.Events.LEVEL_UPDATED, () => {
-        if (!hls || video.paused || video.ended) return;
-        if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
-        resumeHlsLoading(hls, video);
+        onBufferUpdate();
       });
 
       hls.on(HlsConstructor.Events.ERROR, (_, data) => {
@@ -151,9 +181,10 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
             hls &&
             (data.details === HlsConstructor.ErrorDetails.FRAG_LOAD_ERROR ||
               data.details === HlsConstructor.ErrorDetails.FRAG_LOAD_TIMEOUT ||
-              data.details === HlsConstructor.ErrorDetails.LEVEL_LOAD_ERROR)
+              data.details === HlsConstructor.ErrorDetails.LEVEL_LOAD_ERROR ||
+              data.details === HlsConstructor.ErrorDetails.LEVEL_PARSING_ERROR)
           ) {
-            resumeHlsLoading(hls, video);
+            maybeRefreshPlaylist();
           }
           return;
         }
@@ -161,7 +192,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
         if (hls && hlsRecoveryAttempts < maxHlsRecoveryAttempts) {
           hlsRecoveryAttempts += 1;
           if (data.type === HlsConstructor.ErrorTypes.NETWORK_ERROR) {
-            resumeHlsLoading(hls, video);
+            maybeRefreshPlaylist();
             return;
           }
           if (data.type === HlsConstructor.ErrorTypes.MEDIA_ERROR) {
@@ -181,14 +212,12 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
 
         trackPlaybackAdvance();
 
-        const bufferedEnd = getVideoBufferedEnd(video);
-        const nearBufferEdge = video.currentTime >= bufferedEnd - 0.75;
-        if (!nearBufferEdge) return;
+        if (!isNearBufferEdge(video)) return;
+        if (Date.now() - lastPlaybackAdvanceMs < 2000) return;
+        if (!needsMoreMediaData(video)) return;
 
-        if (Date.now() - lastPlaybackAdvanceMs < 2500) return;
-        if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
-
-        resumeHlsLoading(hls, video);
+        maybeRefreshPlaylist();
+        hls.startLoad(video.currentTime);
         lastPlaybackAdvanceMs = Date.now();
       }, 1500);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -211,7 +240,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   return {
     hls,
     cleanup: () => {
-      clearStallTimers();
+      clearTimers();
       video.removeEventListener("error", onVideoError);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("timeupdate", onTimeUpdate);

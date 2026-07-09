@@ -571,7 +571,7 @@ export async function streamRoutes(
                 probe?.dynamicRange,
               );
 
-        const ready = await waitForFirstSegment(outputDir);
+        const ready = await waitForFirstSegment(outputDir, 90_000, 4);
         if (!ready) {
           stopHlsSession(sessionId);
           const logPath = path.join(outputDir, "ffmpeg.log");

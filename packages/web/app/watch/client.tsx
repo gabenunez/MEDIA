@@ -587,11 +587,14 @@ function WatchDesktopClient() {
       hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();
-      if (usingHls) {
-        void api.stopStream(fileId, type).catch(() => {});
-      }
     };
   }, [fileId, type, quality, streamGeneration, initialResumeSeconds, streamInfo]);
+
+  useEffect(() => {
+    return () => {
+      void api.stopStream(fileId, type).catch(() => {});
+    };
+  }, [fileId, type]);
 
   useEffect(() => {
     const onPageHide = () => {

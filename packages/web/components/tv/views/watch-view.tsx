@@ -1002,9 +1002,6 @@ export function TvWatchView() {
         stopNativePlayback();
         if (progressInterval.current) clearInterval(progressInterval.current);
         saveProgressRef.current();
-        if (usingHls) {
-          void api.stopStream(fileId, type).catch(() => {});
-        }
       };
     }
 
@@ -1099,9 +1096,6 @@ export function TvWatchView() {
       hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();
-      if (usingHls) {
-        void api.stopStream(fileId, type).catch(() => {});
-      }
     };
   }, [
     fileId,
@@ -1113,6 +1107,12 @@ export function TvWatchView() {
     usesNativePlayer,
     forceRemux,
   ]);
+
+  useEffect(() => {
+    return () => {
+      void api.stopStream(fileId, type).catch(() => {});
+    };
+  }, [fileId, type]);
 
   useEffect(() => {
     activeSubtitleRef.current = activeSubtitle;
