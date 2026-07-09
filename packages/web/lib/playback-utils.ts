@@ -467,6 +467,41 @@ export function isSpuriousHlsEnded({
   return absoluteSeconds < effectiveSourceDuration - 8;
 }
 
+/**
+ * Whether the growing-transcode manifest should be reloaded to discover new
+ * segments. `playlistIsLive` must come from hls.js's own level details (no
+ * `#EXT-X-ENDLIST` yet) — `video.duration` alone can't tell "reached the true
+ * end of the file" apart from "reached the edge of however much has been
+ * transcoded so far": during an in-progress transcode `video.duration` is the
+ * currently-known partial duration, not `Infinity`, so gating on it alone
+ * would permanently stop refreshing (and therefore stop discovering new
+ * segments) the moment playback first catches up to the encoder.
+ */
+export function shouldRefreshGrowingPlaylist({
+  playlistIsLive,
+  playlistDurationSeconds,
+  currentTimeSeconds,
+  bufferedAheadSeconds,
+  waitingForData,
+  isNearBufferEdge,
+}: {
+  playlistIsLive: boolean;
+  playlistDurationSeconds: number;
+  currentTimeSeconds: number;
+  bufferedAheadSeconds: number;
+  waitingForData: boolean;
+  isNearBufferEdge: boolean;
+}): boolean {
+  const atSourceEnd =
+    !playlistIsLive &&
+    Number.isFinite(playlistDurationSeconds) &&
+    playlistDurationSeconds > 0 &&
+    currentTimeSeconds >= playlistDurationSeconds - 0.5;
+  if (atSourceEnd) return false;
+
+  return waitingForData || isNearBufferEdge || bufferedAheadSeconds < 45;
+}
+
 /** End of the buffered range containing the current playhead (or before it in a gap). */
 export function getVideoBufferedEnd(video: HTMLVideoElement): number {
   const ranges = video.buffered;

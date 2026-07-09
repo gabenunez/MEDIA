@@ -8,6 +8,7 @@ import {
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
+  shouldRefreshGrowingPlaylist,
 } from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
@@ -306,5 +307,62 @@ describe("nextStableAbsoluteSeconds", () => {
       stable = nextStableAbsoluteSeconds(stable, 120);
     }
     expect(stable).toBe(120);
+  });
+});
+
+describe("shouldRefreshGrowingPlaylist", () => {
+  it("keeps refreshing once playback catches up to the known duration while still live", () => {
+    // Regression: video.duration during an in-progress transcode is the
+    // currently-known partial duration, not Infinity, so reaching it must
+    // not be mistaken for the true end of the file while ENDLIST is absent.
+    expect(
+      shouldRefreshGrowingPlaylist({
+        playlistIsLive: true,
+        playlistDurationSeconds: 24,
+        currentTimeSeconds: 23.8,
+        bufferedAheadSeconds: 0.2,
+        waitingForData: true,
+        isNearBufferEdge: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("stops refreshing once the manifest confirms the real end of file (ENDLIST seen)", () => {
+    expect(
+      shouldRefreshGrowingPlaylist({
+        playlistIsLive: false,
+        playlistDurationSeconds: 24,
+        currentTimeSeconds: 23.8,
+        bufferedAheadSeconds: 0.2,
+        waitingForData: true,
+        isNearBufferEdge: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not refresh mid-playback with a healthy buffer", () => {
+    expect(
+      shouldRefreshGrowingPlaylist({
+        playlistIsLive: true,
+        playlistDurationSeconds: 600,
+        currentTimeSeconds: 100,
+        bufferedAheadSeconds: 60,
+        waitingForData: false,
+        isNearBufferEdge: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("refreshes when the buffer runs low even mid-playlist", () => {
+    expect(
+      shouldRefreshGrowingPlaylist({
+        playlistIsLive: true,
+        playlistDurationSeconds: 600,
+        currentTimeSeconds: 100,
+        bufferedAheadSeconds: 30,
+        waitingForData: false,
+        isNearBufferEdge: false,
+      }),
+    ).toBe(true);
   });
 });
