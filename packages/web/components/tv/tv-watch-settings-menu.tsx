@@ -103,6 +103,31 @@ export function TvWatchMenuList({
   );
 }
 
+/** Compact popover anchored above a watch toolbar button (mirrors desktop dropdowns). */
+export function TvWatchPopover({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      data-tv-watch-menu=""
+      className={cn(
+        "absolute bottom-full right-0 z-50 mb-2 rounded-md border border-border bg-card p-1 shadow-xl",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function tvWatchMenuOptionClassName(extra?: string) {
   return cn("w-full rounded-xl px-4 py-3 text-left text-base", extra);
+}
+
+export function tvWatchPopoverOptionClassName(...extra: Array<string | false | null | undefined>) {
+  return cn("w-full rounded px-3 py-1.5 text-left text-sm", ...extra);
 }
