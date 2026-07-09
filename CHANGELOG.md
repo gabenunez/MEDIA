@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.123 — 2026-07-09
+
+### Fix
+
+- **Playback** — fix HLS stalling after the first buffer by loading segments sequentially from the buffer end instead of prefetching ahead of the playhead
+- **Playback** — poll the growing transcode playlist and recover when playback stalls at the buffer edge
+- **Playback** — stop killing the active ffmpeg transcode on seek or stream restart; only stop when leaving the title
+- **Playback** — wait for four HLS segments before starting playback so the first buffer has enough runway
+
 ## 0.1.122 — 2026-07-09
 
 ### Fix
