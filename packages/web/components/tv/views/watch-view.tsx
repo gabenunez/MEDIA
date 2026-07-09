@@ -16,6 +16,7 @@ import {
   isSpuriousHlsEnded,
   PROGRESS_SAVE_MS,
   getPlaybackRestartSeconds,
+  nextStableAbsoluteSeconds,
   resolvePlaybackStartSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
@@ -704,9 +705,10 @@ export function TvWatchView() {
           const absoluteTime = usingHlsRef.current
             ? hlsStartOffsetRef.current + state.currentTime
             : state.currentTime;
-          if (absoluteTime >= lastStableAbsoluteSecondsRef.current - 1) {
-            lastStableAbsoluteSecondsRef.current = absoluteTime;
-          }
+          lastStableAbsoluteSecondsRef.current = nextStableAbsoluteSeconds(
+            lastStableAbsoluteSecondsRef.current,
+            absoluteTime,
+          );
         }
         if (nativeWasPlayingRef.current && !state.isPlaying) {
           saveProgressRef.current();
@@ -1454,9 +1456,10 @@ export function TvWatchView() {
           const absoluteTime = usingHlsPlayback
             ? hlsStartOffsetRef.current + seconds
             : seconds;
-          if (absoluteTime >= lastStableAbsoluteSecondsRef.current - 1) {
-            lastStableAbsoluteSecondsRef.current = absoluteTime;
-          }
+          lastStableAbsoluteSecondsRef.current = nextStableAbsoluteSeconds(
+            lastStableAbsoluteSecondsRef.current,
+            absoluteTime,
+          );
         }
       },
       onDuration: setDuration,

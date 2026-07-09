@@ -203,6 +203,7 @@ export async function castRoutes(
         outputDir,
         config.transcoding.hls_segment_duration,
         inProgress,
+        session.lastServedSegmentIndex,
       );
       if (!playlist) {
         stopHlsSession(sessionId);
