@@ -14,7 +14,6 @@ import {
   getVideoSeekableEnd,
   PROGRESS_SAVE_MS,
   getPlaybackRestartSeconds,
-  getPlaybackRestartSeconds,
   resolvePlaybackStartSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
