@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.130 — 2026-07-09
+
+### Fix
+
+- **Playback** — use `hls.startLoad()` to reload growing transcode manifests; re-assigning the same `loadLevel` was a no-op in hls.js and stopped buffering after the first window
+- **Playback** — gate manifest refresh on `#EXT-X-ENDLIST` (`details.endList`), not `details.live`, so VoD-style growing transcodes keep discovering new segments
+
 ## 0.1.129 — 2026-07-09
 
 ### Fix
