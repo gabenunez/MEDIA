@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.129 — 2026-07-09
+
+### Fix
+
+- **Playback** — keep refreshing growing HLS transcode playlists until `#EXT-X-ENDLIST` appears; `video.duration` alone is the partial encode length, not the file end
+
 ## 0.1.128 — 2026-07-09
 
 ### Fix
