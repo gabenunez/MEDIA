@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.121 — 2026-07-09
+
+### Fix
+
+- **Playback** — stop HLS from stalling at the end of the first buffer; clearing seek state no longer kills the active transcode session mid-playback
+- **Playback** — server waits for in-progress HLS segments instead of returning 404 while ffmpeg is still encoding
+- **Playback** — hls.js keeps polling growing EVENT playlists for new segments
+
 ## 0.1.120 — 2026-07-09
 
 ### Fix
