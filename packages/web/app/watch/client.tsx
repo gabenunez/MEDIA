@@ -28,6 +28,7 @@ import {
   getVideoBufferedRanges,
   getVideoSeekableEnd,
   resolveInitialStreamQuality,
+  getPlaybackRestartSeconds,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
   buildPlaybackTitle,
@@ -101,6 +102,8 @@ function WatchDesktopClient() {
   const timelineRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const hlsStartOffsetRef = useRef(0);
+  const lastStableAbsoluteSecondsRef = useRef(0);
+  const playbackBufferingRef = useRef(false);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveProgressRef = useRef<() => void>(() => {});
@@ -336,12 +339,14 @@ function WatchDesktopClient() {
     (nextQuality: StreamQuality) => {
       const video = videoRef.current;
       if (video) {
-        const absoluteTime = usingHlsPlayback
-          ? hlsStartOffset + video.currentTime
-          : video.currentTime;
-        if (absoluteTime >= 0) {
-          setStreamStartSeconds(absoluteTime);
-        }
+        const absoluteTime = getPlaybackRestartSeconds({
+          usingHls: usingHlsPlayback,
+          hlsStartOffset: hlsStartOffsetRef.current,
+          relativeSeconds: video.currentTime,
+          stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
+        });
+        setStreamStartSeconds(absoluteTime);
+        lastStableAbsoluteSecondsRef.current = absoluteTime;
       }
       setQuality(nextQuality);
       setQualityMenuOpen(false);
@@ -370,6 +375,7 @@ function WatchDesktopClient() {
     setStreamStartSeconds(null);
     setStreamGeneration(0);
     setPlaybackHasBegun(false);
+    lastStableAbsoluteSecondsRef.current = 0;
     hlsStartOffsetRef.current = 0;
     setHlsStartOffset(0);
   }, [fileId, type]);
@@ -497,9 +503,10 @@ function WatchDesktopClient() {
       streamStartSeconds,
       initialResumeSeconds,
       streamGeneration,
-      currentAbsoluteSeconds: usingHls
-        ? hlsStartOffsetRef.current + video.currentTime
-        : video.currentTime,
+      usingHls,
+      hlsStartOffset: hlsStartOffsetRef.current,
+      relativeSeconds: video.currentTime,
+      stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
     });
 
     hlsStartOffsetRef.current = usingHls ? startAt : 0;
@@ -508,6 +515,7 @@ function WatchDesktopClient() {
     } else {
       setHlsStartOffset(0);
     }
+    lastStableAbsoluteSecondsRef.current = startAt;
 
     video.pause();
     video.currentTime = 0;
@@ -629,9 +637,20 @@ function WatchDesktopClient() {
         setIsPlaying(false);
         startNextEpisodeCountdown();
       },
-      onCurrentTime: setCurrentTime,
+      onCurrentTime: (seconds) => {
+        setCurrentTime(seconds);
+        if (!playbackBufferingRef.current) {
+          const absoluteTime = usingHlsPlayback
+            ? hlsStartOffsetRef.current + seconds
+            : seconds;
+          if (absoluteTime >= lastStableAbsoluteSecondsRef.current - 1) {
+            lastStableAbsoluteSecondsRef.current = absoluteTime;
+          }
+        }
+      },
       onDuration: setDuration,
       onBuffering: (nextBuffering, midPlayback) => {
+        playbackBufferingRef.current = nextBuffering || midPlayback;
         setBuffering(nextBuffering);
         setBufferingMidPlayback(midPlayback);
       },
@@ -748,6 +767,7 @@ function WatchDesktopClient() {
 
       const clamped = Math.max(0, Math.min(targetSeconds, totalDurationSeconds));
       setOptimisticAbsoluteSeconds(clamped);
+      lastStableAbsoluteSecondsRef.current = clamped;
 
       if (!usingHlsPlayback) {
         video.currentTime = clamped;
@@ -792,7 +812,14 @@ function WatchDesktopClient() {
     const video = videoRef.current;
     if (!video) return;
 
-    setStreamStartSeconds(hlsStartOffsetRef.current + video.currentTime);
+    const absoluteTime = getPlaybackRestartSeconds({
+      usingHls: true,
+      hlsStartOffset: hlsStartOffsetRef.current,
+      relativeSeconds: video.currentTime,
+      stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
+    });
+    setStreamStartSeconds(absoluteTime);
+    lastStableAbsoluteSecondsRef.current = absoluteTime;
     setStreamGeneration((current) => current + 1);
     setBuffering(true);
   }, []);

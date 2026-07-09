@@ -13,6 +13,8 @@ import {
   getVideoBufferedRanges,
   getVideoSeekableEnd,
   PROGRESS_SAVE_MS,
+  getPlaybackRestartSeconds,
+  getPlaybackRestartSeconds,
   resolvePlaybackStartSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
@@ -182,7 +184,7 @@ export function TvWatchView() {
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const usingHlsRef = useRef(false);
-  const hasReachedResumeRef = useRef(false);
+  const lastStableAbsoluteSecondsRef = useRef(0);
   const menuReturnFocusRef = useRef<HTMLElement | null>(null);
   const progressRef = useRef(0);
   const currentTimeRef = useRef(0);
@@ -407,10 +409,14 @@ export function TvWatchView() {
   const centerMessageVisible = Boolean(error || countdown || showLoadingOverlay);
 
   const captureStreamRestartPosition = useCallback(() => {
-    const absoluteTime = usingHlsRef.current
-      ? hlsStartOffsetRef.current + currentTimeRef.current
-      : currentTimeRef.current;
-    setStreamStartSeconds(Math.max(0, absoluteTime));
+    const absoluteTime = getPlaybackRestartSeconds({
+      usingHls: usingHlsRef.current,
+      hlsStartOffset: hlsStartOffsetRef.current,
+      relativeSeconds: currentTimeRef.current,
+      stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
+    });
+    setStreamStartSeconds(absoluteTime);
+    lastStableAbsoluteSecondsRef.current = absoluteTime;
   }, []);
 
   /** HLS transcode/remux sessions expire server-side after idle — restart at current position. */
@@ -545,24 +551,17 @@ export function TvWatchView() {
 
   const changeQuality = useCallback(
     (nextQuality: StreamQuality) => {
-      if (usesNativePlayer) {
-        const absoluteTime = usingHlsPlayback
-          ? hlsStartOffset + currentTime
-          : currentTime;
-        if (absoluteTime >= 0) {
-          setStreamStartSeconds(absoluteTime);
-        }
-      } else {
-        const video = videoRef.current;
-        if (video) {
-          const absoluteTime = usingHlsPlayback
-            ? hlsStartOffset + video.currentTime
-            : video.currentTime;
-          if (absoluteTime > 0) {
-            setStreamStartSeconds(absoluteTime);
-          }
-        }
-      }
+      const relativeSeconds = usesNativePlayer
+        ? currentTime
+        : videoRef.current?.currentTime ?? currentTime;
+      const absoluteTime = getPlaybackRestartSeconds({
+        usingHls: usingHlsPlayback,
+        hlsStartOffset: hlsStartOffsetRef.current,
+        relativeSeconds,
+        stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
+      });
+      setStreamStartSeconds(absoluteTime);
+      lastStableAbsoluteSecondsRef.current = absoluteTime;
       setQuality(nextQuality);
       nativeRemuxFallbackRef.current = false;
       nativeTranscodeFallbackRef.current = false;
@@ -618,9 +617,13 @@ export function TvWatchView() {
       if (options?.restartOnFailure === false) return false;
 
       const relativeTime = currentTimeRef.current;
-      const absoluteTime = usingHls
-        ? hlsStartOffsetRef.current + relativeTime
-        : relativeTime;
+      const absoluteTime = getPlaybackRestartSeconds({
+        usingHls,
+        hlsStartOffset: hlsStartOffsetRef.current,
+        relativeSeconds: relativeTime,
+        stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
+      });
+      lastStableAbsoluteSecondsRef.current = absoluteTime;
       const relativeUrl = api.streamUrl(
         fileId,
         type === "movie" ? "movie" : "episode",
@@ -684,6 +687,14 @@ export function TvWatchView() {
       onState: (state) => {
         setCurrentTime(state.currentTime);
         if (state.duration > 0) setDuration(state.duration);
+        if (!state.isBuffering) {
+          const absoluteTime = usingHlsRef.current
+            ? hlsStartOffsetRef.current + state.currentTime
+            : state.currentTime;
+          if (absoluteTime >= lastStableAbsoluteSecondsRef.current - 1) {
+            lastStableAbsoluteSecondsRef.current = absoluteTime;
+          }
+        }
         if (nativeWasPlayingRef.current && !state.isPlaying) {
           saveProgressRef.current();
         }
@@ -797,7 +808,7 @@ export function TvWatchView() {
     menuReturnFocusRef.current = null;
     setShowControls(true);
     setPlaybackHasBegun(false);
-    hasReachedResumeRef.current = false;
+    lastStableAbsoluteSecondsRef.current = 0;
     hlsStartOffsetRef.current = 0;
     setHlsStartOffset(0);
   }, [fileId, type]);
@@ -920,9 +931,10 @@ export function TvWatchView() {
       streamStartSeconds,
       initialResumeSeconds,
       streamGeneration,
-      currentAbsoluteSeconds: usingHlsRef.current
-        ? hlsStartOffsetRef.current + currentTimeRef.current
-        : currentTimeRef.current,
+      usingHls: usingHlsRef.current,
+      hlsStartOffset: hlsStartOffsetRef.current,
+      relativeSeconds: currentTimeRef.current,
+      stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
     });
     const stream = resolvePlaybackStream(quality, streamInfo, { forceRemux });
     const usingHls = stream.usingHls;
@@ -938,6 +950,7 @@ export function TvWatchView() {
       } else {
         setHlsStartOffset(0);
       }
+      lastStableAbsoluteSecondsRef.current = startAt;
       setCurrentTime(usingHls || startAt <= 0 ? 0 : startAt);
 
       const relativeUrl = api.streamUrl(
@@ -1009,6 +1022,7 @@ export function TvWatchView() {
     } else {
       setHlsStartOffset(0);
     }
+    lastStableAbsoluteSecondsRef.current = startAt;
 
     video.pause();
     video.currentTime = 0;
@@ -1143,24 +1157,13 @@ export function TvWatchView() {
     return () => window.removeEventListener("pagehide", onPageHide);
   }, [fileId, type, usingHlsPlayback, sourceDurationMs, duration]);
 
-  useEffect(() => {
-    if (streamStartSeconds === null) return;
-    hasReachedResumeRef.current = false;
-  }, [streamStartSeconds, streamGeneration]);
-
   const resumeAnchorSeconds = streamStartSeconds ?? initialResumeSeconds ?? 0;
   const playbackAbsoluteTime =
     usingHlsPlayback ? hlsStartOffsetRef.current + currentTime : currentTime;
-  if (
-    resumeAnchorSeconds > 0 &&
-    playbackAbsoluteTime >= resumeAnchorSeconds - 1.5
-  ) {
-    hasReachedResumeRef.current = true;
-  }
   const absoluteCurrentTime =
+    !playbackHasBegun &&
     scrubPreview === null &&
     optimisticAbsoluteSeconds === null &&
-    !hasReachedResumeRef.current &&
     resumeAnchorSeconds > 0 &&
     playbackAbsoluteTime < resumeAnchorSeconds - 1.5
       ? resumeAnchorSeconds
@@ -1194,6 +1197,7 @@ export function TvWatchView() {
 
       const clamped = Math.max(0, Math.min(seconds, totalDurationSeconds));
       setOptimisticAbsoluteSeconds(clamped);
+      lastStableAbsoluteSecondsRef.current = clamped;
 
       if (usesNativePlayer) {
         if (usingHlsPlayback && clamped < hlsStartOffset) {
@@ -1355,6 +1359,8 @@ export function TvWatchView() {
     onResumeStoppedHls: resumeStoppedHlsPlayback,
   });
 
+  const playbackBufferingRef = useRef(false);
+
   useVideoPlaybackEvents({
     videoRef,
     enabled: Boolean(fileId && !Number.isNaN(fileId) && !usesNativePlayer),
@@ -1376,9 +1382,20 @@ export function TvWatchView() {
         setIsPlaying(false);
         startNextEpisodeCountdown();
       },
-      onCurrentTime: setCurrentTime,
+      onCurrentTime: (seconds) => {
+        setCurrentTime(seconds);
+        if (!playbackBufferingRef.current) {
+          const absoluteTime = usingHlsPlayback
+            ? hlsStartOffsetRef.current + seconds
+            : seconds;
+          if (absoluteTime >= lastStableAbsoluteSecondsRef.current - 1) {
+            lastStableAbsoluteSecondsRef.current = absoluteTime;
+          }
+        }
+      },
       onDuration: setDuration,
       onBuffering: (nextBuffering, midPlayback) => {
+        playbackBufferingRef.current = nextBuffering || midPlayback;
         setBuffering(nextBuffering);
         setBufferingMidPlayback(midPlayback);
       },

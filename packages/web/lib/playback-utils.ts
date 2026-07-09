@@ -15,6 +15,44 @@ import {
 
 export const PROGRESS_SAVE_MS = 10_000;
 
+export function getPlaybackAbsoluteSeconds({
+  usingHls,
+  hlsStartOffset,
+  relativeSeconds,
+}: {
+  usingHls: boolean;
+  hlsStartOffset: number;
+  relativeSeconds: number;
+}): number {
+  return Math.max(0, usingHls ? hlsStartOffset + relativeSeconds : relativeSeconds);
+}
+
+/**
+ * Resolve a safe restart position. During rebuffer/recovery the player may
+ * briefly report the buffer edge instead of the real playhead.
+ */
+export function getPlaybackRestartSeconds({
+  usingHls,
+  hlsStartOffset,
+  relativeSeconds,
+  stableAbsoluteSeconds,
+}: {
+  usingHls: boolean;
+  hlsStartOffset: number;
+  relativeSeconds: number;
+  stableAbsoluteSeconds: number;
+}): number {
+  const live = getPlaybackAbsoluteSeconds({ usingHls, hlsStartOffset, relativeSeconds });
+  if (stableAbsoluteSeconds <= 0) return live;
+  if (live > stableAbsoluteSeconds + 3) {
+    return stableAbsoluteSeconds;
+  }
+  if (stableAbsoluteSeconds > live + 3) {
+    return stableAbsoluteSeconds;
+  }
+  return live;
+}
+
 /**
  * Pick where to start or restart playback on the absolute timeline.
  * The first open may use saved resume progress; later restarts must follow
@@ -24,18 +62,29 @@ export function resolvePlaybackStartSeconds({
   streamStartSeconds,
   initialResumeSeconds,
   streamGeneration,
-  currentAbsoluteSeconds,
+  usingHls,
+  hlsStartOffset,
+  relativeSeconds,
+  stableAbsoluteSeconds,
 }: {
   streamStartSeconds: number | null;
   initialResumeSeconds: number | null;
   streamGeneration: number;
-  currentAbsoluteSeconds: number;
+  usingHls: boolean;
+  hlsStartOffset: number;
+  relativeSeconds: number;
+  stableAbsoluteSeconds: number;
 }): number {
   if (streamStartSeconds !== null) {
     return streamStartSeconds;
   }
   if (streamGeneration > 0) {
-    return Math.max(0, currentAbsoluteSeconds);
+    return getPlaybackRestartSeconds({
+      usingHls,
+      hlsStartOffset,
+      relativeSeconds,
+      stableAbsoluteSeconds,
+    });
   }
   return initialResumeSeconds ?? 0;
 }
