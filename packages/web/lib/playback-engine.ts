@@ -39,6 +39,58 @@ export function destroyHlsInstance(hls: Hls | null): void {
   hls.destroy();
 }
 
+/** Resume after a premature `ended` at a growing transcode playlist boundary. */
+export function recoverHlsPlaybackAtPlaylistEnd(
+  video: HTMLVideoElement,
+  hls: Hls | null,
+): void {
+  const resumeAt = Math.max(0, video.currentTime - 0.1);
+  if (hls) {
+    try {
+      if (hls.currentLevel >= 0) {
+        hls.loadLevel = hls.currentLevel;
+      }
+    } catch {
+      // ignore — startLoad below still nudges loading
+    }
+    hls.startLoad(resumeAt);
+  }
+  video.currentTime = resumeAt;
+  void video.play().catch(() => {});
+}
+
+/** Nudge HLS loading after returning to a foreground tab or pausing near the buffer edge. */
+export function catchUpHlsPlayback(
+  video: HTMLVideoElement,
+  hls: Hls | null,
+): void {
+  if (!hls) {
+    if (video.ended) {
+      recoverHlsPlaybackAtPlaylistEnd(video, null);
+    }
+    return;
+  }
+
+  if (video.ended) {
+    recoverHlsPlaybackAtPlaylistEnd(video, hls);
+    return;
+  }
+
+  const bufferedAhead = getVideoBufferedEnd(video) - video.currentTime;
+  if (bufferedAhead >= 45 && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+    return;
+  }
+
+  try {
+    if (hls.currentLevel >= 0) {
+      hls.loadLevel = hls.currentLevel;
+    }
+  } catch {
+    // ignore
+  }
+  hls.startLoad(video.currentTime);
+}
+
 /** Reload the growing playlist so new segments are discovered. */
 function refreshHlsPlaylist(hls: Hls): void {
   const level = hls.currentLevel;
@@ -123,7 +175,9 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       video.currentTime >= playlistDuration - 0.5;
     if (atSourceEnd) return false;
     const bufferedAhead = getVideoBufferedEnd(video) - video.currentTime;
-    return needsMoreMediaData(video) || isNearBufferEdge(video) || bufferedAhead < 45;
+    const waitingForData =
+      !video.paused && video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
+    return waitingForData || isNearBufferEdge(video) || bufferedAhead < 45;
   };
 
   const maybeRefreshPlaylist = () => {
@@ -153,7 +207,9 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   const startManifestPolling = () => {
     if (manifestPollTimer) return;
     manifestPollTimer = setInterval(() => {
-      if (!hls || video.ended || video.paused) return;
+      if (!hls || video.ended) return;
+      const pausedNearEdge = video.paused && isNearBufferEdge(video);
+      if (video.paused && !pausedNearEdge) return;
       maybeRefreshPlaylist();
     }, 3000);
   };

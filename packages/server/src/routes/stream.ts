@@ -646,10 +646,25 @@ export async function streamRoutes(
       }
 
       const segmentPath = path.join(session.outputDir, segmentName);
-      if (!fs.existsSync(segmentPath)) {
+      let segmentStats: fs.Stats | null = null;
+      try {
+        segmentStats = fs.statSync(segmentPath);
+      } catch {
+        segmentStats = null;
+      }
+
+      if (!segmentStats || segmentStats.size === 0) {
         if (isTranscodeInProgress(sessionId)) {
           const ready = await waitForHlsSegment(session.outputDir, segmentName);
-          if (!ready || !fs.existsSync(segmentPath)) {
+          if (!ready) {
+            return reply.status(404).send({ error: "Segment not found" });
+          }
+          try {
+            segmentStats = fs.statSync(segmentPath);
+          } catch {
+            return reply.status(404).send({ error: "Segment not found" });
+          }
+          if (segmentStats.size === 0) {
             return reply.status(404).send({ error: "Segment not found" });
           }
         } else {

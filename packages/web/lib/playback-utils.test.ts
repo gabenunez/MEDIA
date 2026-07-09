@@ -3,6 +3,7 @@ import type { StreamInfo } from "./api.js";
 import {
   getPlaybackRestartSeconds,
   getScrubberBufferedRanges,
+  isSpuriousHlsEnded,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
@@ -134,6 +135,42 @@ describe("resolvePlaybackStream with native TV player", () => {
   });
 });
 
+describe("isSpuriousHlsEnded", () => {
+  it("detects premature ended events during ongoing transcodes", () => {
+    expect(
+      isSpuriousHlsEnded({
+        usingHls: true,
+        relativeSeconds: 24,
+        hlsStartOffset: 1200,
+        sourceDurationSeconds: 7200,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows ended near the real file end", () => {
+    expect(
+      isSpuriousHlsEnded({
+        usingHls: true,
+        relativeSeconds: 5998,
+        hlsStartOffset: 1200,
+        sourceDurationSeconds: 7200,
+      }),
+    ).toBe(false);
+  });
+
+  it("uses playlist duration when source duration is missing", () => {
+    expect(
+      isSpuriousHlsEnded({
+        usingHls: true,
+        relativeSeconds: 24,
+        hlsStartOffset: 0,
+        sourceDurationSeconds: 0,
+        playlistRelativeSeconds: 30,
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("getScrubberBufferedRanges", () => {
   it("returns one contiguous bar from the playhead and hides disconnected islands", () => {
     expect(
@@ -202,6 +239,20 @@ describe("resolvePlaybackStartSeconds", () => {
         stableAbsoluteSeconds: 1380,
       }),
     ).toBe(420);
+  });
+
+  it("uses an explicit restart position on the first quality change", () => {
+    expect(
+      resolvePlaybackStartSeconds({
+        streamStartSeconds: 2100,
+        initialResumeSeconds: 1200,
+        streamGeneration: 0,
+        usingHls: true,
+        hlsStartOffset: 0,
+        relativeSeconds: 2100,
+        stableAbsoluteSeconds: 2100,
+      }),
+    ).toBe(2100);
   });
 });
 

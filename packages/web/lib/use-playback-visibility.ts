@@ -2,96 +2,36 @@
 
 import { useEffect, useRef } from "react";
 import type Hls from "hls.js";
-import { api, type StreamQuality } from "@/lib/api";
 import { destroyHlsInstance } from "@/lib/playback-engine";
-import { syncNativePlaybackState } from "@/lib/android-bridge";
 
 interface PlaybackVisibilityOptions {
   enabled: boolean;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-  hlsRef: React.RefObject<Hls | null>;
-  fileId: number;
-  type: "movie" | "episode";
-  usingHlsPlayback: boolean;
-  usesNativePlayer?: boolean;
   onSaveProgress: () => void;
-  onResumeStoppedHls?: () => void;
+  onVisible?: () => void;
 }
 
+/** Save watch progress when the tab is hidden; do not pause playback. */
 export function usePlaybackVisibility(options: PlaybackVisibilityOptions): void {
-  const {
-    enabled,
-    videoRef,
-    hlsRef,
-    fileId,
-    type,
-    usingHlsPlayback,
-    usesNativePlayer = false,
-    onSaveProgress,
-    onResumeStoppedHls,
-  } = options;
-
-  const wasPlayingRef = useRef(false);
-  const stoppedHlsForHiddenRef = useRef(false);
+  const { enabled, onSaveProgress, onVisible } = options;
   const onSaveProgressRef = useRef(onSaveProgress);
   onSaveProgressRef.current = onSaveProgress;
-  const onResumeStoppedHlsRef = useRef(onResumeStoppedHls);
-  onResumeStoppedHlsRef.current = onResumeStoppedHls;
+  const onVisibleRef = useRef(onVisible);
+  onVisibleRef.current = onVisible;
 
   useEffect(() => {
     if (!enabled || typeof document === "undefined") return;
 
     const onVisibilityChange = () => {
-      const hidden = document.visibilityState === "hidden";
-      const video = videoRef.current;
-
-      if (hidden) {
-        wasPlayingRef.current = usesNativePlayer
-          ? false
-          : Boolean(video && !video.paused);
-
+      if (document.visibilityState === "hidden") {
         onSaveProgressRef.current();
-
-        if (usesNativePlayer) {
-          // Activity onPause already pauses native playback — avoid double-pause races.
-        } else if (video && !video.paused) {
-          video.pause();
-        }
-
-        if (usingHlsPlayback && !usesNativePlayer && wasPlayingRef.current) {
-          stoppedHlsForHiddenRef.current = true;
-          hlsRef.current?.stopLoad();
-          void api.stopStream(fileId, type).catch(() => {});
-        }
         return;
       }
-
-      if (usesNativePlayer) {
-        syncNativePlaybackState();
-        return;
-      }
-
-      if (wasPlayingRef.current && video) {
-        if (usingHlsPlayback && stoppedHlsForHiddenRef.current) {
-          stoppedHlsForHiddenRef.current = false;
-          onResumeStoppedHlsRef.current?.();
-          return;
-        }
-        void video.play().catch(() => {});
-      }
+      onVisibleRef.current?.();
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [
-    enabled,
-    videoRef,
-    hlsRef,
-    fileId,
-    type,
-    usingHlsPlayback,
-    usesNativePlayer,
-  ]);
+  }, [enabled]);
 }
 
 export function teardownWebPlayback(

@@ -255,6 +255,28 @@ function writeStartOffset(outputDir: string, startSeconds: number): void {
   );
 }
 
+function writeExitCode(outputDir: string, code: number | null): void {
+  fs.writeFileSync(path.join(outputDir, ".exit-code"), String(code ?? -1));
+}
+
+function readExitCode(outputDir: string): number | null {
+  try {
+    const raw = fs.readFileSync(path.join(outputDir, ".exit-code"), "utf8").trim();
+    const code = parseInt(raw, 10);
+    return Number.isFinite(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+function isTranscodeOutputComplete(outputDir: string): boolean {
+  const exitCode = readExitCode(outputDir);
+  if (exitCode === null) {
+    return hasCompleteHlsPlaylist(outputDir);
+  }
+  return exitCode === 0;
+}
+
 export function clearTranscodeOutput(outputDir: string): void {
   if (!fs.existsSync(outputDir)) return;
   for (const entry of fs.readdirSync(outputDir)) {
@@ -447,6 +469,7 @@ export function startHlsTranscode(
 
   process.on("close", (code) => {
     closeLog();
+    writeExitCode(outputDir, code);
     activeSessions.delete(sessionId);
     if (code !== 0 && code !== null) {
       console.warn(`HLS transcode exited with code ${code} for session ${sessionId}`);
@@ -455,6 +478,7 @@ export function startHlsTranscode(
 
   process.on("error", (err) => {
     closeLog();
+    writeExitCode(outputDir, -1);
     activeSessions.delete(sessionId);
     console.warn(`HLS transcode failed for session ${sessionId}:`, err.message);
   });
@@ -565,6 +589,7 @@ export function startHlsRemux(
 
   process.on("close", (code) => {
     closeLog();
+    writeExitCode(outputDir, code);
     activeSessions.delete(sessionId);
     if (code !== 0 && code !== null) {
       console.warn(`HLS remux exited with code ${code} for session ${sessionId}`);
@@ -573,6 +598,7 @@ export function startHlsRemux(
 
   process.on("error", (err) => {
     closeLog();
+    writeExitCode(outputDir, -1);
     activeSessions.delete(sessionId);
     console.warn(`HLS remux failed for session ${sessionId}:`, err.message);
   });
@@ -682,9 +708,9 @@ export function generateHlsPlaylist(
     lines.push(`#EXTINF:${segmentDuration}.0,`, segment);
   }
 
-  // Always end the playlist so hls.js uses VoD sequential loading instead of
-  // live-edge prefetch (which leaves disconnected buffer islands ahead of playhead).
-  lines.push("#EXT-X-ENDLIST");
+  if (!inProgress && isTranscodeOutputComplete(outputDir)) {
+    lines.push("#EXT-X-ENDLIST");
+  }
 
   return `${lines.join("\n")}\n`;
 }

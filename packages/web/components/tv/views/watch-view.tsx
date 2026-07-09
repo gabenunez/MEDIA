@@ -13,6 +13,7 @@ import {
   getVideoBufferedRanges,
   getScrubberBufferedRanges,
   getVideoSeekableEnd,
+  isSpuriousHlsEnded,
   PROGRESS_SAVE_MS,
   getPlaybackRestartSeconds,
   resolvePlaybackStartSeconds,
@@ -20,7 +21,7 @@ import {
   resolvePlaybackStream,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
-import { destroyHlsInstance, loadHls, startWebPlayback } from "@/lib/playback-engine";
+import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
@@ -184,6 +185,7 @@ export function TvWatchView() {
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const usingHlsRef = useRef(false);
+  const wasUsingHlsRef = useRef(false);
   const lastStableAbsoluteSecondsRef = useRef(0);
   const menuReturnFocusRef = useRef<HTMLElement | null>(null);
   const progressRef = useRef(0);
@@ -571,6 +573,7 @@ export function TvWatchView() {
       });
       pendingStreamStartRef.current = absoluteTime;
       lastStableAbsoluteSecondsRef.current = absoluteTime;
+      setStreamGeneration((generation) => generation + 1);
       setQuality(nextQuality);
       nativeRemuxFallbackRef.current = false;
       nativeTranscodeFallbackRef.current = false;
@@ -791,6 +794,20 @@ export function TvWatchView() {
         setError("Playback failed. Try Original again or pick a lower quality from the settings menu.");
       },
       onEnded: () => {
+        const sourceSeconds = (streamInfoRef.current?.durationMs || 0) / 1000;
+        if (
+          usingHlsRef.current &&
+          isSpuriousHlsEnded({
+            usingHls: true,
+            relativeSeconds: currentTimeRef.current,
+            hlsStartOffset: hlsStartOffsetRef.current,
+            sourceDurationSeconds: sourceSeconds,
+          })
+        ) {
+          setBuffering(true);
+          restartNativeHlsAtCurrentPosition();
+          return;
+        }
         setIsPlaying(false);
         saveProgressRef.current();
         startNextEpisodeCountdownRef.current();
@@ -942,9 +959,8 @@ export function TvWatchView() {
       return;
     }
 
-    const explicitStreamStart =
-      streamGeneration > 0 ? pendingStreamStartRef.current : null;
-    if (streamGeneration > 0) {
+    const explicitStreamStart = pendingStreamStartRef.current;
+    if (explicitStreamStart !== null) {
       pendingStreamStartRef.current = null;
     }
 
@@ -959,6 +975,11 @@ export function TvWatchView() {
     });
     const stream = resolvePlaybackStream(quality, streamInfo, { forceRemux });
     const usingHls = stream.usingHls;
+
+    if (wasUsingHlsRef.current && !usingHls) {
+      void api.stopStream(fileId, type).catch(() => {});
+    }
+    wasUsingHlsRef.current = usingHls;
 
     if (usesNativePlayer) {
       setError(null);
@@ -1363,22 +1384,15 @@ export function TvWatchView() {
     }
   }, [absoluteCurrentTime, optimisticAbsoluteSeconds]);
 
-  const resumeStoppedHlsPlayback = useCallback(() => {
-    captureStreamRestartPosition();
-    setStreamGeneration((generation) => generation + 1);
-    setBuffering(true);
-  }, [captureStreamRestartPosition]);
-
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),
-    videoRef,
-    hlsRef,
-    fileId,
-    type: type === "movie" ? "movie" : "episode",
-    usingHlsPlayback,
-    usesNativePlayer,
     onSaveProgress: saveProgress,
-    onResumeStoppedHls: resumeStoppedHlsPlayback,
+    onVisible: () => {
+      if (!usingHlsPlayback || usesNativePlayer) return;
+      const video = videoRef.current;
+      if (!video) return;
+      catchUpHlsPlayback(video, hlsRef.current);
+    },
   });
 
   const playbackBufferingRef = useRef(false);
@@ -1401,6 +1415,28 @@ export function TvWatchView() {
       onSaveProgress: saveProgress,
       onBufferUpdate: updateBufferedPosition,
       onEnded: () => {
+        const video = videoRef.current;
+        const sourceSeconds = (sourceDurationMs || 0) / 1000;
+        if (
+          video &&
+          isSpuriousHlsEnded({
+            usingHls: usingHlsPlayback,
+            relativeSeconds: video.currentTime,
+            hlsStartOffset: hlsStartOffsetRef.current,
+            sourceDurationSeconds: sourceSeconds,
+            playlistRelativeSeconds: video.duration,
+          })
+        ) {
+          setBuffering(true);
+          if (hlsRef.current) {
+            recoverHlsPlaybackAtPlaylistEnd(video, hlsRef.current);
+          } else {
+            pendingStreamStartRef.current =
+              hlsStartOffsetRef.current + video.currentTime;
+            setStreamGeneration((generation) => generation + 1);
+          }
+          return;
+        }
         setIsPlaying(false);
         startNextEpisodeCountdown();
       },

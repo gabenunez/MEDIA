@@ -15,6 +15,7 @@ import {
   probeFile,
   canDirectCast,
   stopTranscodeSessionsForFile,
+  stopHlsSession,
 } from "../utils/ffmpeg.js";
 import { createStreamSessionId } from "../utils/stream-session.js";
 import { appendQueryParam, getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
@@ -191,6 +192,7 @@ export async function castRoutes(
 
       const ready = await waitForFirstSegment(outputDir);
       if (!ready) {
+        stopHlsSession(sessionId);
         return reply.status(500).send({
           error: "Transcoding failed to start — try casting again in a moment",
         });
@@ -203,6 +205,7 @@ export async function castRoutes(
         inProgress,
       );
       if (!playlist) {
+        stopHlsSession(sessionId);
         return reply.status(500).send({
           error: "Transcoding failed to start — try casting again in a moment",
         });

@@ -28,6 +28,7 @@ import {
   getVideoBufferedRanges,
   getScrubberBufferedRanges,
   getVideoSeekableEnd,
+  isSpuriousHlsEnded,
   resolveInitialStreamQuality,
   getPlaybackRestartSeconds,
   resolvePlaybackStartSeconds,
@@ -36,7 +37,7 @@ import {
   findEpisode,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
-import { destroyHlsInstance, loadHls, startWebPlayback } from "@/lib/playback-engine";
+import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useMediaSession } from "@/lib/use-media-session";
@@ -117,6 +118,7 @@ function WatchDesktopClient() {
   const [quality, setQuality] = useState<StreamQuality>("original");
   const [hlsStartOffset, setHlsStartOffset] = useState(0);
   const pendingStreamStartRef = useRef<number | null>(null);
+  const wasUsingHlsRef = useRef(false);
   const [sourceDurationMs, setSourceDurationMs] = useState(0);
   const [streamGeneration, setStreamGeneration] = useState(0);
   const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
@@ -353,6 +355,7 @@ function WatchDesktopClient() {
         });
         pendingStreamStartRef.current = absoluteTime;
         lastStableAbsoluteSecondsRef.current = absoluteTime;
+        setStreamGeneration((current) => current + 1);
       }
       setQuality(nextQuality);
       setQualityMenuOpen(false);
@@ -505,9 +508,13 @@ function WatchDesktopClient() {
     const stream = resolvePlaybackStream(quality, streamInfo);
     const usingHls = stream.usingHls;
 
-    const explicitStreamStart =
-      streamGeneration > 0 ? pendingStreamStartRef.current : null;
-    if (streamGeneration > 0) {
+    if (wasUsingHlsRef.current && !usingHls) {
+      void api.stopStream(fileId, type).catch(() => {});
+    }
+    wasUsingHlsRef.current = usingHls;
+
+    const explicitStreamStart = pendingStreamStartRef.current;
+    if (explicitStreamStart !== null) {
       pendingStreamStartRef.current = null;
     }
 
@@ -649,6 +656,28 @@ function WatchDesktopClient() {
       onSaveProgress: saveProgress,
       onBufferUpdate: updateBufferedPosition,
       onEnded: () => {
+        const video = videoRef.current;
+        const sourceSeconds = (sourceDurationMs || 0) / 1000;
+        if (
+          video &&
+          isSpuriousHlsEnded({
+            usingHls: usingHlsPlayback,
+            relativeSeconds: video.currentTime,
+            hlsStartOffset: hlsStartOffsetRef.current,
+            sourceDurationSeconds: sourceSeconds,
+            playlistRelativeSeconds: video.duration,
+          })
+        ) {
+          setBuffering(true);
+          if (hlsRef.current) {
+            recoverHlsPlaybackAtPlaylistEnd(video, hlsRef.current);
+          } else {
+            pendingStreamStartRef.current =
+              hlsStartOffsetRef.current + video.currentTime;
+            setStreamGeneration((current) => current + 1);
+          }
+          return;
+        }
         setIsPlaying(false);
         startNextEpisodeCountdown();
       },
@@ -823,31 +852,15 @@ function WatchDesktopClient() {
 
   seekToAbsoluteRef.current = seekToAbsolute;
 
-  const resumeStoppedHlsPlayback = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const absoluteTime = getPlaybackRestartSeconds({
-      usingHls: true,
-      hlsStartOffset: hlsStartOffsetRef.current,
-      relativeSeconds: video.currentTime,
-      stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
-    });
-    pendingStreamStartRef.current = absoluteTime;
-    lastStableAbsoluteSecondsRef.current = absoluteTime;
-    setStreamGeneration((current) => current + 1);
-    setBuffering(true);
-  }, []);
-
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),
-    videoRef,
-    hlsRef,
-    fileId,
-    type: type === "movie" ? "movie" : "episode",
-    usingHlsPlayback,
     onSaveProgress: saveProgress,
-    onResumeStoppedHls: resumeStoppedHlsPlayback,
+    onVisible: () => {
+      if (!usingHlsPlayback) return;
+      const video = videoRef.current;
+      if (!video) return;
+      catchUpHlsPlayback(video, hlsRef.current);
+    },
   });
 
   const seekToPercent = useCallback(

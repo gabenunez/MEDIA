@@ -75,7 +75,7 @@ export function resolvePlaybackStartSeconds({
   relativeSeconds: number;
   stableAbsoluteSeconds: number;
 }): number {
-  if (streamStartSeconds !== null && streamGeneration > 0) {
+  if (streamStartSeconds !== null) {
     return streamStartSeconds;
   }
   if (streamGeneration > 0) {
@@ -418,6 +418,32 @@ export function getScrubberBufferedRanges(
   }
 
   return merged.filter((range) => range.end > playheadSeconds + 0.05);
+}
+
+/** True when `ended` fired at a growing HLS transcode boundary, not the real file end. */
+export function isSpuriousHlsEnded({
+  usingHls,
+  relativeSeconds,
+  hlsStartOffset,
+  sourceDurationSeconds,
+  playlistRelativeSeconds,
+}: {
+  usingHls: boolean;
+  relativeSeconds: number;
+  hlsStartOffset: number;
+  sourceDurationSeconds: number;
+  playlistRelativeSeconds?: number;
+}): boolean {
+  if (!usingHls) return false;
+
+  const effectiveSourceDuration = Math.max(
+    sourceDurationSeconds,
+    hlsStartOffset + (playlistRelativeSeconds ?? 0) + 8,
+  );
+  if (effectiveSourceDuration <= 0) return false;
+
+  const absoluteSeconds = hlsStartOffset + relativeSeconds;
+  return absoluteSeconds < effectiveSourceDuration - 8;
 }
 
 /** End of the buffered range containing the current playhead (or before it in a gap). */
