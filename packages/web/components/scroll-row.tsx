@@ -8,12 +8,35 @@ interface ScrollRowProps {
   children: ReactNode;
   className?: string;
   contentClassName?: string;
+  /** Called once when the pointer enters the carousel scroller. */
+  onPointerEnterRow?: (scroller: HTMLDivElement) => void;
 }
 
-export function ScrollRow({ children, className, contentClassName }: ScrollRowProps) {
+export function ScrollRow({
+  children,
+  className,
+  contentClassName,
+  onPointerEnterRow,
+}: ScrollRowProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const pointerInRowRef = useRef(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const prefetchVisiblePosters = useCallback(() => {
+    const node = scrollerRef.current;
+    if (!node || !onPointerEnterRow) return;
+    onPointerEnterRow(node);
+  }, [onPointerEnterRow]);
+
+  const handlePointerEnterRow = useCallback(() => {
+    pointerInRowRef.current = true;
+    prefetchVisiblePosters();
+  }, [prefetchVisiblePosters]);
+
+  const handlePointerLeaveRow = useCallback(() => {
+    pointerInRowRef.current = false;
+  }, []);
 
   const updateScrollState = useCallback(() => {
     const node = scrollerRef.current;
@@ -54,6 +77,9 @@ export function ScrollRow({ children, className, contentClassName }: ScrollRowPr
 
     const runUpdate = () => {
       updateScrollState();
+      if (pointerInRowRef.current) {
+        prefetchVisiblePosters();
+      }
     };
 
     runUpdate();
@@ -70,7 +96,7 @@ export function ScrollRow({ children, className, contentClassName }: ScrollRowPr
       node.removeEventListener("scroll", runUpdate);
       node.removeEventListener("load", runUpdate, true);
     };
-  }, [updateScrollState]);
+  }, [updateScrollState, prefetchVisiblePosters]);
 
   const scrollBy = (direction: "left" | "right") => {
     const node = scrollerRef.current;
@@ -94,6 +120,8 @@ export function ScrollRow({ children, className, contentClassName }: ScrollRowPr
 
       <div
         ref={scrollerRef}
+        onPointerEnter={handlePointerEnterRow}
+        onPointerLeave={handlePointerLeaveRow}
         className={cn(
           "scrollbar-hide flex snap-x gap-4 overflow-x-auto pb-3",
           contentClassName,

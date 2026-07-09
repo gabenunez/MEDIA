@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, type PointerEvent, type ReactNode } from "react";
+import type { MediaItem } from "@/lib/api";
+import { prefetchCarouselPosters } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import { TvSeeAllTile } from "@/components/tv/tv-see-all-tile";
@@ -16,6 +17,8 @@ interface TvRowProps {
   seeAllHref?: string;
   seeAllLabel?: string;
   seeAllDetail?: string;
+  /** Poster metadata aligned with row children (excluding the see-all tile). */
+  prefetchItems?: ReadonlyArray<Pick<MediaItem, "id" | "posterPath" | "backdropPath">>;
 }
 
 export function TvRow({
@@ -25,7 +28,16 @@ export function TvRow({
   seeAllHref,
   seeAllLabel = "See all",
   seeAllDetail,
+  prefetchItems,
 }: TvRowProps) {
+  const prefetchRowPosters = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!prefetchItems?.length) return;
+      prefetchCarouselPosters(event.currentTarget, prefetchItems);
+    },
+    [prefetchItems],
+  );
+
   return (
     <section className={cn("tv-row-section mb-5", className)}>
       <h2 className="mb-2 px-8 text-base font-semibold tracking-tight text-muted-foreground">
@@ -36,6 +48,7 @@ export function TvRow({
         data-tv-content-row=""
         data-tv-scroll-row=""
         className={tvScrollRowClassName}
+        onPointerEnter={prefetchItems?.length ? prefetchRowPosters : undefined}
       >
         {children}
         {seeAllHref ? (

@@ -54,6 +54,7 @@ export const TvPoster = memo(function TvPoster({
           linkClassName,
         )}
         aria-label={item.title}
+        onMouseEnter={warmNavigation}
         onFocus={warmNavigation}
       >
         <div className="tv-poster-art poster-shadow relative aspect-[2/3] overflow-hidden rounded-lg bg-muted">

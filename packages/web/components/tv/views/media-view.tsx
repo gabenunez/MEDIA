@@ -368,6 +368,7 @@ function TvMediaViewContent({
               : "More series in your library"
           }
           className="mt-2"
+          prefetchItems={related}
         >
           {related.map((item) => (
             <TvPoster key={item.id} item={item} />

@@ -93,6 +93,11 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
           seeAllHref={routes.continueWatching()}
           seeAllLabel="Continue Watching"
           seeAllDetail="All in progress"
+          prefetchItems={continueWatching.map((item) => ({
+            id: item.mediaId,
+            posterPath: item.posterPath,
+            backdropPath: item.posterPath,
+          }))}
         >
           {continueWatching.map((item, index) => (
             <TvPoster
@@ -123,6 +128,7 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
           seeAllHref={routes.favorites()}
           seeAllLabel="Favorites"
           seeAllDetail={`${favorites.length}+ saved`}
+          prefetchItems={favorites}
         >
           {favorites.map((item, index) => (
             <TvPoster key={item.id} item={item} priority={firstRowKey === "favorites" && index < 6} />
@@ -136,6 +142,7 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
           seeAllHref={routes.recentlyAdded()}
           seeAllLabel="Recently Added"
           seeAllDetail="Full list"
+          prefetchItems={recentlyAdded}
         >
           {recentlyAdded.map((item, index) => (
             <TvPoster key={item.id} item={item} priority={firstRowKey === "recent" && index < 6} />

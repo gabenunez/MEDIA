@@ -39,3 +39,27 @@ export function preloadPosterList(
     preloadImageUrl(api.imageUrl(item.posterPath));
   }
 }
+
+/** Preload poster images for items visible in a horizontal carousel (+ nearby tiles). */
+export function prefetchCarouselPosters(
+  scroller: HTMLElement,
+  items: ReadonlyArray<PosterLike>,
+): void {
+  const containerRect = scroller.getBoundingClientRect();
+  const margin = 280;
+
+  scroller.childNodes.forEach((node, index) => {
+    if (!(node instanceof HTMLElement)) return;
+    const item = items[index];
+    if (!item) return;
+
+    const rect = node.getBoundingClientRect();
+    const inRange =
+      rect.right >= containerRect.left - margin &&
+      rect.left <= containerRect.right + margin;
+
+    if (inRange) {
+      preloadImageUrl(api.imageUrl(item.posterPath));
+    }
+  });
+}

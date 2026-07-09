@@ -27,7 +27,7 @@ export async function MediaRelatedServer({
         </section>
       </div>
       <div data-tv-only className="mt-2">
-        <TvRow title={title}>
+        <TvRow title={title} prefetchItems={items}>
           {items.map((item) => (
             <TvPoster key={item.id} item={item} />
           ))}

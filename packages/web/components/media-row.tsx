@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback } from "react";
 import { ArrowRight } from "lucide-react";
 import { PosterCard } from "./poster-card";
 import { ScrollRow } from "./scroll-row";
 import { api, type ContinueWatchingItem, type MediaItem } from "@/lib/api";
+import { prefetchCarouselPosters } from "@/lib/prefetch-artwork";
 import { routes } from "@/lib/routes";
 
 interface MediaRowProps {
@@ -23,6 +25,13 @@ export function MediaRow({
   hideHeader = false,
   priorityLimit = 8,
 }: MediaRowProps) {
+  const prefetchRowPosters = useCallback(
+    (scroller: HTMLDivElement) => {
+      prefetchCarouselPosters(scroller, items);
+    },
+    [items],
+  );
+
   if (!items.length) return null;
 
   return (
@@ -43,7 +52,11 @@ export function MediaRow({
           )}
         </div>
       )}
-      <ScrollRow className="mx-auto max-w-7xl" contentClassName="px-4 sm:px-6">
+      <ScrollRow
+        className="mx-auto max-w-7xl"
+        contentClassName="px-4 sm:px-6"
+        onPointerEnterRow={prefetchRowPosters}
+      >
         {items.map((item, index) => (
           <PosterCard
             key={item.id}
@@ -69,6 +82,19 @@ export function ContinueWatchingRow({
   hideHeader = false,
   priorityLimit = 6,
 }: ContinueWatchingRowProps) {
+  const posterItems = items.map((item) => ({
+    id: item.mediaId,
+    posterPath: item.posterPath,
+    backdropPath: item.posterPath,
+  }));
+
+  const prefetchRowPosters = useCallback(
+    (scroller: HTMLDivElement) => {
+      prefetchCarouselPosters(scroller, posterItems);
+    },
+    [posterItems],
+  );
+
   if (!items.length) return null;
 
   return (
@@ -79,7 +105,11 @@ export function ContinueWatchingRow({
           <h2 className="text-lg font-semibold sm:text-xl">Continue Watching</h2>
         </div>
       )}
-      <ScrollRow className="mx-auto max-w-7xl" contentClassName="px-4 sm:px-6">
+      <ScrollRow
+        className="mx-auto max-w-7xl"
+        contentClassName="px-4 sm:px-6"
+        onPointerEnterRow={prefetchRowPosters}
+      >
         {items.map((item, index) => (
           <div key={item.id} className="w-44 shrink-0 snap-start sm:w-56">
             <PosterCard
