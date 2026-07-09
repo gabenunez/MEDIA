@@ -145,7 +145,7 @@ describe("resolvePlaybackStartSeconds", () => {
         relativeSeconds: 0,
         stableAbsoluteSeconds: 0,
       }),
-    ).toEqual({ startSeconds: 1200, consumedExplicitSeek: false });
+    ).toBe(1200);
   });
 
   it("uses the live playhead on stream restarts instead of stale resume", () => {
@@ -159,7 +159,7 @@ describe("resolvePlaybackStartSeconds", () => {
         relativeSeconds: 180,
         stableAbsoluteSeconds: 1380,
       }),
-    ).toEqual({ startSeconds: 1380, consumedExplicitSeek: false });
+    ).toBe(1380);
   });
 
   it("prefers an explicit restart position when provided", () => {
@@ -173,7 +173,7 @@ describe("resolvePlaybackStartSeconds", () => {
         relativeSeconds: 180,
         stableAbsoluteSeconds: 1380,
       }),
-    ).toEqual({ startSeconds: 420, consumedExplicitSeek: true });
+    ).toBe(420);
   });
 });
 

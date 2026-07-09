@@ -115,7 +115,7 @@ function WatchDesktopClient() {
 
   const [quality, setQuality] = useState<StreamQuality>("original");
   const [hlsStartOffset, setHlsStartOffset] = useState(0);
-  const [streamStartSeconds, setStreamStartSeconds] = useState<number | null>(null);
+  const pendingStreamStartRef = useRef<number | null>(null);
   const [sourceDurationMs, setSourceDurationMs] = useState(0);
   const [streamGeneration, setStreamGeneration] = useState(0);
   const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
@@ -184,7 +184,7 @@ function WatchDesktopClient() {
     return resolveWebSubtitlePlaybackSeconds({
       usingHlsPlayback,
       videoCurrentTime: video.currentTime,
-      streamStartSeconds,
+      streamStartSeconds: pendingStreamStartRef.current,
       hlsStartOffsetLive: hlsStartOffsetRef.current,
       hlsStartOffset,
       initialResumeSeconds,
@@ -192,7 +192,6 @@ function WatchDesktopClient() {
     });
   }, [
     usingHlsPlayback,
-    streamStartSeconds,
     hlsStartOffset,
     initialResumeSeconds,
   ]);
@@ -345,7 +344,7 @@ function WatchDesktopClient() {
           relativeSeconds: video.currentTime,
           stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
         });
-        setStreamStartSeconds(absoluteTime);
+        pendingStreamStartRef.current = absoluteTime;
         lastStableAbsoluteSecondsRef.current = absoluteTime;
       }
       setQuality(nextQuality);
@@ -372,8 +371,8 @@ function WatchDesktopClient() {
   tryFallbackQualityRef.current = tryFallbackQuality;
 
   useEffect(() => {
-    setStreamStartSeconds(null);
     setStreamGeneration(0);
+    pendingStreamStartRef.current = null;
     setPlaybackHasBegun(false);
     lastStableAbsoluteSecondsRef.current = 0;
     hlsStartOffsetRef.current = 0;
@@ -499,8 +498,14 @@ function WatchDesktopClient() {
     const stream = resolvePlaybackStream(quality, streamInfo);
     const usingHls = stream.usingHls;
 
-    const { startSeconds: startAt, consumedExplicitSeek } = resolvePlaybackStartSeconds({
-      streamStartSeconds,
+    const explicitStreamStart =
+      streamGeneration > 0 ? pendingStreamStartRef.current : null;
+    if (streamGeneration > 0) {
+      pendingStreamStartRef.current = null;
+    }
+
+    const startAt = resolvePlaybackStartSeconds({
+      streamStartSeconds: explicitStreamStart,
       initialResumeSeconds,
       streamGeneration,
       usingHls,
@@ -508,9 +513,6 @@ function WatchDesktopClient() {
       relativeSeconds: video.currentTime,
       stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
     });
-    if (consumedExplicitSeek) {
-      setStreamStartSeconds(null);
-    }
 
     hlsStartOffsetRef.current = usingHls ? startAt : 0;
     if (usingHls) {
@@ -587,7 +589,7 @@ function WatchDesktopClient() {
         void api.stopStream(fileId, type).catch(() => {});
       }
     };
-  }, [fileId, type, quality, streamGeneration, streamStartSeconds, initialResumeSeconds, streamInfo, updateBufferedPosition]);
+  }, [fileId, type, quality, streamGeneration, initialResumeSeconds, streamInfo, updateBufferedPosition]);
 
   useEffect(() => {
     const onPageHide = () => {
@@ -781,7 +783,7 @@ function WatchDesktopClient() {
       const relativeTarget = clamped - hlsStartOffset;
 
       if (relativeTarget < 0) {
-        setStreamStartSeconds(clamped);
+        pendingStreamStartRef.current = clamped;
         setStreamGeneration((current) => current + 1);
         setBuffering(true);
         revealControls(true);
@@ -796,7 +798,7 @@ function WatchDesktopClient() {
         return;
       }
 
-      setStreamStartSeconds(clamped);
+      pendingStreamStartRef.current = clamped;
       setStreamGeneration((current) => current + 1);
       setBuffering(true);
       revealControls(true);
@@ -821,7 +823,7 @@ function WatchDesktopClient() {
       relativeSeconds: video.currentTime,
       stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
     });
-    setStreamStartSeconds(absoluteTime);
+    pendingStreamStartRef.current = absoluteTime;
     lastStableAbsoluteSecondsRef.current = absoluteTime;
     setStreamGeneration((current) => current + 1);
     setBuffering(true);

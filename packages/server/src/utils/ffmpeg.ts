@@ -840,6 +840,29 @@ const cleanupTimer = setInterval(() => {
 }, 60_000);
 cleanupTimer.unref?.();
 
+/** Wait for ffmpeg to finish writing a segment that is not on disk yet. */
+export async function waitForHlsSegment(
+  outputDir: string,
+  segmentName: string,
+  timeoutMs = 30_000,
+): Promise<boolean> {
+  const segmentPath = path.join(outputDir, segmentName);
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      if (fs.existsSync(segmentPath) && fs.statSync(segmentPath).size > 0) {
+        return true;
+      }
+    } catch {
+      // keep polling
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  return false;
+}
+
 export async function waitForFirstSegment(
   outputDir: string,
   timeoutMs = 90_000,

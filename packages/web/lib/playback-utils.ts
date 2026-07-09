@@ -74,25 +74,19 @@ export function resolvePlaybackStartSeconds({
   hlsStartOffset: number;
   relativeSeconds: number;
   stableAbsoluteSeconds: number;
-}): { startSeconds: number; consumedExplicitSeek: boolean } {
+}): number {
   if (streamStartSeconds !== null && streamGeneration > 0) {
-    return { startSeconds: streamStartSeconds, consumedExplicitSeek: true };
+    return streamStartSeconds;
   }
   if (streamGeneration > 0) {
-    return {
-      startSeconds: getPlaybackRestartSeconds({
-        usingHls,
-        hlsStartOffset,
-        relativeSeconds,
-        stableAbsoluteSeconds,
-      }),
-      consumedExplicitSeek: false,
-    };
+    return getPlaybackRestartSeconds({
+      usingHls,
+      hlsStartOffset,
+      relativeSeconds,
+      stableAbsoluteSeconds,
+    });
   }
-  return {
-    startSeconds: initialResumeSeconds ?? 0,
-    consumedExplicitSeek: false,
-  };
+  return initialResumeSeconds ?? 0;
 }
 
 export type PlaybackHlsQuality = StreamQuality | "remux";
@@ -612,6 +606,8 @@ export function createPlaybackHls(
     maxBufferHole: 0.5,
     nudgeOnVideoHole: true,
     startFragPrefetch: tv,
+    liveDurationInfinity: true,
+    liveBackBufferLength: tv ? 60 : 90,
     manifestLoadingMaxRetry: 4,
     manifestLoadingRetryDelay: 1000,
     levelLoadingMaxRetry: 4,

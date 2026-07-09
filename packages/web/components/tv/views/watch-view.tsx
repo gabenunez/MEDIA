@@ -217,7 +217,7 @@ export function TvWatchView() {
 
   const [quality, setQuality] = useState<StreamQuality>("original");
   const [hlsStartOffset, setHlsStartOffset] = useState(0);
-  const [streamStartSeconds, setStreamStartSeconds] = useState<number | null>(null);
+  const pendingStreamStartRef = useRef<number | null>(null);
   const [sourceDurationMs, setSourceDurationMs] = useState(0);
   const [streamGeneration, setStreamGeneration] = useState(0);
   const [forceRemux, setForceRemux] = useState(false);
@@ -302,7 +302,7 @@ export function TvWatchView() {
     return resolveWebSubtitlePlaybackSeconds({
       usingHlsPlayback,
       videoCurrentTime: video.currentTime,
-      streamStartSeconds,
+      streamStartSeconds: pendingStreamStartRef.current,
       hlsStartOffsetLive: hlsStartOffsetRef.current,
       hlsStartOffset,
       initialResumeSeconds,
@@ -310,7 +310,6 @@ export function TvWatchView() {
     });
   }, [
     usingHlsPlayback,
-    streamStartSeconds,
     hlsStartOffset,
     initialResumeSeconds,
   ]);
@@ -418,7 +417,7 @@ export function TvWatchView() {
       relativeSeconds: currentTimeRef.current,
       stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
     });
-    setStreamStartSeconds(absoluteTime);
+    pendingStreamStartRef.current = absoluteTime;
     lastStableAbsoluteSecondsRef.current = absoluteTime;
   }, []);
 
@@ -563,7 +562,7 @@ export function TvWatchView() {
         relativeSeconds,
         stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
       });
-      setStreamStartSeconds(absoluteTime);
+      pendingStreamStartRef.current = absoluteTime;
       lastStableAbsoluteSecondsRef.current = absoluteTime;
       setQuality(nextQuality);
       nativeRemuxFallbackRef.current = false;
@@ -796,8 +795,8 @@ export function TvWatchView() {
   }, [usesNativePlayer]);
 
   useEffect(() => {
-    setStreamStartSeconds(null);
     setStreamGeneration(0);
+    pendingStreamStartRef.current = null;
     setForceRemux(false);
     nativeRemuxFallbackRef.current = false;
     nativeTranscodeFallbackRef.current = false;
@@ -930,8 +929,14 @@ export function TvWatchView() {
       return;
     }
 
-    const { startSeconds: startAt, consumedExplicitSeek } = resolvePlaybackStartSeconds({
-      streamStartSeconds,
+    const explicitStreamStart =
+      streamGeneration > 0 ? pendingStreamStartRef.current : null;
+    if (streamGeneration > 0) {
+      pendingStreamStartRef.current = null;
+    }
+
+    const startAt = resolvePlaybackStartSeconds({
+      streamStartSeconds: explicitStreamStart,
       initialResumeSeconds,
       streamGeneration,
       usingHls: usingHlsRef.current,
@@ -939,9 +944,6 @@ export function TvWatchView() {
       relativeSeconds: currentTimeRef.current,
       stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
     });
-    if (consumedExplicitSeek) {
-      setStreamStartSeconds(null);
-    }
     const stream = resolvePlaybackStream(quality, streamInfo, { forceRemux });
     const usingHls = stream.usingHls;
 
@@ -1104,7 +1106,6 @@ export function TvWatchView() {
     type,
     quality,
     streamGeneration,
-    streamStartSeconds,
     initialResumeSeconds,
     streamInfo,
     updateBufferedPosition,
@@ -1163,7 +1164,8 @@ export function TvWatchView() {
     return () => window.removeEventListener("pagehide", onPageHide);
   }, [fileId, type, usingHlsPlayback, sourceDurationMs, duration]);
 
-  const resumeAnchorSeconds = streamStartSeconds ?? initialResumeSeconds ?? 0;
+  const resumeAnchorSeconds =
+    hlsStartOffset > 0 ? hlsStartOffset : (initialResumeSeconds ?? 0);
   const playbackAbsoluteTime =
     usingHlsPlayback ? hlsStartOffsetRef.current + currentTime : currentTime;
   const absoluteCurrentTime =
@@ -1207,7 +1209,7 @@ export function TvWatchView() {
 
       if (usesNativePlayer) {
         if (usingHlsPlayback && clamped < hlsStartOffset) {
-          setStreamStartSeconds(clamped);
+          pendingStreamStartRef.current = clamped;
           setStreamGeneration((g) => g + 1);
           setBuffering(true);
           revealControls(true);
@@ -1222,7 +1224,7 @@ export function TvWatchView() {
           );
 
         if (usingHlsPlayback && !inBufferedRange) {
-          setStreamStartSeconds(clamped);
+          pendingStreamStartRef.current = clamped;
           setStreamGeneration((g) => g + 1);
           setBuffering(true);
           revealControls(true);
@@ -1247,7 +1249,7 @@ export function TvWatchView() {
       const relativeTarget = clamped - hlsStartOffset;
 
       if (relativeTarget < 0) {
-        setStreamStartSeconds(clamped);
+        pendingStreamStartRef.current = clamped;
         setStreamGeneration((g) => g + 1);
         setBuffering(true);
         revealControls(true);
@@ -1262,7 +1264,7 @@ export function TvWatchView() {
         return;
       }
 
-      setStreamStartSeconds(clamped);
+      pendingStreamStartRef.current = clamped;
       setStreamGeneration((g) => g + 1);
       setBuffering(true);
       revealControls(true);
