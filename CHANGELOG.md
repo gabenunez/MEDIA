@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.125 — 2026-07-09
+
+### Fix
+
+- **Playback** — keep video playing when the browser tab loses focus; only save progress instead of pausing and killing the transcode
+- **Playback** — stop exiting watch when HLS hits a growing playlist boundary; recover and continue instead of treating it as the end of the file
+- **Playback** — preserve the current position on quality changes and auto-fallback instead of restarting from saved resume
+- **Playback** — only mark transcodes complete with `#EXT-X-ENDLIST` when ffmpeg exits successfully, not on failure
+- **Playback** — refresh the HLS manifest when returning to a foreground tab or when paused near the buffer edge
+- **Playback** — stop orphaned ffmpeg sessions when switching from transcode to direct play
+
 ## 0.1.124 — 2026-07-09
 
 ### Fix
