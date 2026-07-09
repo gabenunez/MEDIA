@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.117 — 2026-07-09
+
+### Fix
+
+- **Playback** — stop stream restarts during buffering from jumping back to the saved resume point instead of the current playhead
+
+### TV
+
+- **Playback** — same resume-position restart fix on Android TV
+
+### UI
+
+- **Posters** — prefetch carousel artwork on row hover and scroll so off-screen tiles decode sooner
+
 ## 0.1.116 — 2026-07-08
 
 ### TV
