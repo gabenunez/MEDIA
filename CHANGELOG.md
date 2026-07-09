@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.124 — 2026-07-09
+
+### Fix
+
+- **Playback** — fix scattered buffer dots on the scrubber by serving growing transcode playlists as VoD with `#EXT-X-ENDLIST` so hls.js loads segments sequentially instead of prefetching at the live edge
+- **Playback** — poll the manifest before the buffer runs low so new segments are discovered during ongoing transcodes
+- **Playback** — scrubber shows one contiguous buffered range from the playhead instead of disconnected islands ahead
+
 ## 0.1.123 — 2026-07-09
 
 ### Fix
