@@ -467,6 +467,11 @@ export function isSpuriousHlsEnded({
   return absoluteSeconds < effectiveSourceDuration - 8;
 }
 
+/** True when an HLS media playlist includes `#EXT-X-ENDLIST`. */
+export function playlistM3u8HasEndList(m3u8: string): boolean {
+  return m3u8.includes("#EXT-X-ENDLIST");
+}
+
 /**
  * Whether the growing-transcode manifest should be reloaded to discover new
  * segments. `playlistHasEndList` must reflect whether `#EXT-X-ENDLIST` has

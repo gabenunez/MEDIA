@@ -5,6 +5,7 @@ import {
   getScrubberBufferedRanges,
   isSpuriousHlsEnded,
   nextStableAbsoluteSeconds,
+  playlistM3u8HasEndList,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
@@ -307,6 +308,22 @@ describe("nextStableAbsoluteSeconds", () => {
       stable = nextStableAbsoluteSeconds(stable, 120);
     }
     expect(stable).toBe(120);
+  });
+});
+
+describe("playlistM3u8HasEndList", () => {
+  it("detects ENDLIST in a media playlist", () => {
+    expect(
+      playlistM3u8HasEndList(
+        "#EXTM3U\n#EXTINF:6.0,\nsegment_000.ts\n#EXT-X-ENDLIST\n",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false for a growing playlist without ENDLIST", () => {
+    expect(
+      playlistM3u8HasEndList("#EXTM3U\n#EXTINF:6.0,\nsegment_000.ts\n"),
+    ).toBe(false);
   });
 });
 

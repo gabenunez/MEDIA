@@ -2,6 +2,7 @@ import type Hls from "hls.js";
 import {
   createPlaybackHls,
   getVideoBufferedEnd,
+  playlistM3u8HasEndList,
   shouldRefreshGrowingPlaylist as decideShouldRefreshGrowingPlaylist,
   startDirectPlaybackWithResume,
 } from "@/lib/playback-utils";
@@ -253,7 +254,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       });
 
       hls.on(HlsConstructor.Events.LEVEL_UPDATED, (_, data) => {
-        playlistHasEndList = data.details.endList;
+        playlistHasEndList = playlistM3u8HasEndList(data.details.m3u8);
         onBufferUpdate();
       });
 
