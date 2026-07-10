@@ -660,8 +660,10 @@ export const api = {
   },
   subtitleUrl: (id: number, offsetSeconds = 0) => {
     const base = apiUrl(`/api/subtitles/${id}`);
-    if (offsetSeconds > 0) {
-      return `${base}?offset=${Math.floor(offsetSeconds)}`;
+    if (Number.isFinite(offsetSeconds) && offsetSeconds > 0) {
+      // Keep millisecond precision so native TV HLS resume stays in sync.
+      const offset = Math.round(offsetSeconds * 1000) / 1000;
+      return `${base}?offset=${offset}`;
     }
     return base;
   },

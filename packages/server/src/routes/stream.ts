@@ -797,7 +797,10 @@ export async function subtitleRoutes(
     "/api/subtitles/:id",
     async (request, reply) => {
       const id = parseInt(request.params.id, 10);
-      const offsetSeconds = Math.max(0, parseInt(request.query.offset ?? "0", 10) || 0);
+      // Fractional seconds (ms precision) keep native HLS cues aligned after resume.
+      const rawOffset = Number.parseFloat(request.query.offset ?? "0");
+      const offsetSeconds =
+        Number.isFinite(rawOffset) && rawOffset > 0 ? Math.round(rawOffset * 1000) / 1000 : 0;
       const subtitle = await db.query.subtitles.findFirst({
         where: eq(subtitles.id, id),
       });

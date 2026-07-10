@@ -1612,8 +1612,8 @@ export function TvWatchView() {
 
   const seekPreviewMaxWidth = isTv4KClient() ? 224 : 200;
 
-  const controlButtonClassName = "watch-control-btn";
-  const controlIconButtonClassName = cn("h-11 w-11 shrink-0", controlButtonClassName);
+  const controlIconButtonClassName = "watch-control-btn shrink-0";
+  const controlLabelButtonClassName = "watch-control-btn watch-control-btn--label shrink-0";
 
   const handleWatchBack = useCallback((): boolean => {
     if (countdown) {
@@ -2136,12 +2136,7 @@ export function TvWatchView() {
             data-tv-watch-bottom-chrome=""
             className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
           >
-            <div
-              className={cn(
-                "pointer-events-auto px-5 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-8",
-                usesNativePlayer ? "bg-transparent" : "watch-chrome-bottom",
-              )}
-            >
+            <div className="watch-chrome-bottom pointer-events-auto px-5 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-8">
               <div className="group/watch-scrub relative mb-3 flex items-center gap-3 overflow-visible">
                 <div
                   data-tv-row=""
@@ -2213,43 +2208,54 @@ export function TvWatchView() {
                 data-tv-watch-transport-row=""
                 className="flex items-center justify-between gap-3"
               >
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-3">
                   <TvFocusButton
-                    variant="nav"
+                    variant="watch"
                     onClick={() => skipRelative(-10)}
                     aria-label="Back 10 seconds"
                     className={controlIconButtonClassName}
                   >
-                    <SkipBack />
+                    <span className="watch-control-icon">
+                      <SkipBack size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                    </span>
                   </TvFocusButton>
 
                   <TvFocusButton
                     ref={playButtonRef}
-                    variant="nav"
+                    variant="watch"
                     onClick={togglePlay}
                     className={controlIconButtonClassName}
                     aria-label={bufferingMidPlayback ? "Buffering" : isPlaying ? "Pause" : "Play"}
                   >
-                    {bufferingMidPlayback ? (
-                      <Loader2 className="animate-spin text-primary" />
-                    ) : isPlaying ? (
-                      <Pause />
-                    ) : (
-                      <Play className="fill-current" />
-                    )}
+                    <span
+                      className={cn(
+                        "watch-control-icon",
+                        !bufferingMidPlayback && !isPlaying && "watch-control-icon--play",
+                      )}
+                    >
+                      {bufferingMidPlayback ? (
+                        <Loader2 size={24} strokeWidth={2} absoluteStrokeWidth className="animate-spin" aria-hidden />
+                      ) : isPlaying ? (
+                        <Pause size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                      ) : (
+                        <Play size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                      )}
+                    </span>
                   </TvFocusButton>
 
                   <TvFocusButton
-                    variant="nav"
+                    variant="watch"
                     onClick={() => skipRelative(30)}
                     aria-label="Forward 30 seconds"
                     className={controlIconButtonClassName}
                   >
-                    <SkipForward />
+                    <span className="watch-control-icon">
+                      <SkipForward size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                    </span>
                   </TvFocusButton>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-3">
                   <VideoDisplayModeButton
                     variant="tv"
                     mode={videoDisplayMode}
@@ -2259,7 +2265,7 @@ export function TvWatchView() {
 
                   <div className="relative">
                     <TvFocusButton
-                      variant="nav"
+                      variant="watch"
                       selected={activeSubtitle !== null}
                       aria-label={activeSubtitle === null ? "Subtitles off" : "Subtitles on"}
                       onClick={() => {
@@ -2273,7 +2279,9 @@ export function TvWatchView() {
                       }}
                       className={controlIconButtonClassName}
                     >
-                      <Subtitles />
+                      <span className="watch-control-icon">
+                        <Subtitles size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                      </span>
                     </TvFocusButton>
                     {subtitleMenuOpen && (
                       <TvWatchPopover className="min-w-56">
@@ -2363,7 +2371,7 @@ export function TvWatchView() {
 
                   <div className="relative">
                     <TvFocusButton
-                      variant="nav"
+                      variant="watch"
                       aria-label={`Quality: ${qualityLabel(quality, sourceHeight, sourceWidth)}`}
                       onClick={() => {
                         setSubtitleMenuOpen(false);
@@ -2375,12 +2383,11 @@ export function TvWatchView() {
                         revealControls(false);
                       }}
                       disabled={!transcodingEnabled && quality === "original"}
-                      className={cn(
-                        "watch-control-btn--label h-11 shrink-0",
-                        controlButtonClassName,
-                      )}
+                      className={controlLabelButtonClassName}
                     >
-                      <Settings2 />
+                      <span className="watch-control-icon">
+                        <Settings2 size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                      </span>
                       <span>{qualityLabel(quality, sourceHeight, sourceWidth)}</span>
                     </TvFocusButton>
                     {qualityMenuOpen && (

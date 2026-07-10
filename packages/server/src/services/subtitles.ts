@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { eq, and, or } from "drizzle-orm";
-import { isSubtitleFile } from "@media-app/shared";
+import { convertSrtToVtt, isSubtitleFile } from "@media-app/shared";
 import type { AppConfig } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import { subtitles, movieFiles, tvEpisodes } from "../db/schema.js";
@@ -389,27 +389,7 @@ export class SubtitleService {
   }
 
   convertSrtToVtt(srtContent: string): string {
-    const lines = srtContent.replace(/\r\n/g, "\n").split("\n");
-    let vtt = "WEBVTT\n\n";
-    let i = 0;
-
-    while (i < lines.length) {
-      if (/^\d+$/.test(lines[i]?.trim() ?? "")) i++;
-
-      const timeLine = lines[i];
-      if (timeLine && timeLine.includes("-->")) {
-        vtt += timeLine.replace(/,/g, ".") + "\n";
-        i++;
-        while (i < lines.length && lines[i].trim() !== "") {
-          vtt += lines[i] + "\n";
-          i++;
-        }
-        vtt += "\n";
-      }
-      i++;
-    }
-
-    return vtt;
+    return convertSrtToVtt(srtContent);
   }
 
   async getSubtitleContent(subtitle: typeof subtitles.$inferSelect): Promise<string> {
@@ -426,7 +406,7 @@ export class SubtitleService {
 
     const content = fs.readFileSync(filePath, "utf-8");
     if (filePath.endsWith(".srt")) {
-      return this.convertSrtToVtt(content);
+      return convertSrtToVtt(content);
     }
 
     return content;

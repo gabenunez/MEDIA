@@ -102,4 +102,18 @@ describe("resolveWebSubtitlePlaybackSeconds", () => {
       }),
     ).toBe(3642);
   });
+
+  it("preserves fractional resume offsets for cue lookup", () => {
+    expect(
+      resolveWebSubtitlePlaybackSeconds({
+        usingHlsPlayback: true,
+        videoCurrentTime: 0.25,
+        streamStartSeconds: null,
+        hlsStartOffsetLive: 3723.5,
+        hlsStartOffset: 3723.5,
+        initialResumeSeconds: 3723.5,
+        playbackActive: true,
+      }),
+    ).toBeCloseTo(3723.75, 3);
+  });
 });

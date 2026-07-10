@@ -28,17 +28,26 @@ export function parseVttTimestamp(value: string): number {
 }
 
 export function formatVttTimestamp(seconds: number): string {
-  const clamped = Math.max(0, seconds);
-  const hours = Math.floor(clamped / 3600);
-  const minutes = Math.floor((clamped % 3600) / 60);
-  const secs = Math.floor(clamped % 60);
-  const millis = Math.round((clamped % 1) * 1000);
+  // Round via total milliseconds so 0.9996s never formats as ".1000".
+  let totalMs = Math.max(0, Math.round(seconds * 1000));
+  const hours = Math.floor(totalMs / 3_600_000);
+  totalMs -= hours * 3_600_000;
+  const minutes = Math.floor(totalMs / 60_000);
+  totalMs -= minutes * 60_000;
+  const secs = Math.floor(totalMs / 1000);
+  const millis = totalMs - secs * 1000;
 
   if (hours > 0) {
     return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
   }
 
   return `${minutes}:${String(secs).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
+}
+
+/** Normalize subtitle timeline offsets for URL/query transport (ms precision). */
+export function normalizeSubtitleOffsetSeconds(offsetSeconds: number): number {
+  if (!Number.isFinite(offsetSeconds) || offsetSeconds <= 0) return 0;
+  return Math.round(offsetSeconds * 1000) / 1000;
 }
 
 function shiftTimestampToken(token: string, offsetSeconds: number): string {

@@ -7,6 +7,7 @@ export * from "./video-dynamic-range.js";
 export * from "./image-cache.js";
 export * from "./vtt-timing.js";
 export * from "./vtt-cues.js";
+export * from "./srt-to-vtt.js";
 export * from "./parsers/movie.js";
 export * from "./parsers/tv.js";
 export * from "./routes.js";
