@@ -26,7 +26,7 @@ object SubtitleStyleMapper {
             val obj = JSONObject(json)
             val size = obj.optString("size", "large")
             val font = obj.optString("font", "default")
-            val color = obj.optString("color", "black")
+            val color = obj.optString("color", "white")
             val opacity = obj.optString("opacity", "100")
             val background = obj.optString("background", "none")
             val backgroundOpacity = obj.optString("backgroundOpacity", "0")

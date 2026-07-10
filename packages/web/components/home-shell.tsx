@@ -8,12 +8,12 @@ export function HomeHeroStatic() {
         <span className="mb-3 block font-mono text-[0.72rem] uppercase tracking-[0.24em] text-muted-foreground sm:text-xs">
           This is your
         </span>
-        <span className="home-hero-title relative block text-[3.25rem] font-black tracking-[-0.045em] sm:text-[4.25rem] lg:text-[5.25rem]">
+        <span className="home-hero-title relative block text-[3.25rem] font-black tracking-[-0.045em] text-primary sm:text-[4.25rem] lg:text-[5.25rem]">
           <span className="home-hero-title-ghost" aria-hidden>
             MEDIA!
           </span>
           <span className="home-hero-title-fill">MEDIA</span>
-          <span className="home-hero-title-bang text-accent">!</span>
+          <span className="home-hero-title-bang">!</span>
         </span>
       </h1>
 

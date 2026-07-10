@@ -7,6 +7,7 @@ import { MediaRelatedServer } from "../media-related-server";
 import { MediaDocumentTitle, MediaThemeShell } from "../media-chrome";
 import { MediaAuthRequired } from "../media-auth-required";
 import { asMediaDetail } from "../types";
+import { pageMetadataTitle } from "@/lib/document-title";
 import { fetchMediaDetail, fetchMediaIds } from "@/lib/server-api";
 
 export const revalidate = 300;
@@ -30,7 +31,7 @@ export async function generateMetadata({
   if (!Number.isFinite(mediaId)) return {};
   const { media } = await fetchMediaDetail(mediaId);
   const title = typeof media?.title === "string" ? media.title : undefined;
-  return title ? { title } : {};
+  return title ? { title: pageMetadataTitle(title) } : {};
 }
 
 export default async function MediaDetailPage({

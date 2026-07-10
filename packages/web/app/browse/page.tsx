@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { pageMetadataTitle } from "@/lib/document-title";
 import { Suspense } from "react";
 import { BrowseClient } from "./client";
 import { BrowseLoadingSkeleton } from "@/lib/route-loading";
 
 export const metadata: Metadata = {
-  title: "Browse Files",
+  title: pageMetadataTitle("Browse Files"),
 };
 
 export default function BrowsePage() {

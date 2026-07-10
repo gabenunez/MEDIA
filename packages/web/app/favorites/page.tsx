@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadataTitle } from "@/lib/document-title";
 import { Suspense } from "react";
 import { FavoritesClient } from "./client";
 import { fetchFavorites } from "@/lib/server-api";
@@ -7,7 +8,7 @@ import { PosterGridLoadingSkeleton } from "@/lib/route-loading";
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "Favorites",
+  title: pageMetadataTitle("Favorites"),
 };
 
 export default async function FavoritesPage() {

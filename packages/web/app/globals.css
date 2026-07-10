@@ -21,7 +21,7 @@
     --radius: 0.5rem;
     --subtitle-cue-size: 1.3em;
     --subtitle-cue-font: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --subtitle-cue-color: rgba(0, 0, 0, 1);
+    --subtitle-cue-color: rgba(255, 255, 255, 1);
     --subtitle-cue-background: transparent;
     --subtitle-cue-shadow: rgb(0 0 0) -1px -1px 0, rgb(0 0 0) 1px -1px 0, rgb(0 0 0) -1px 1px 0, rgb(0 0 0) 1px 1px 0;
   }
@@ -403,12 +403,8 @@
   .home-hero-title {
     position: relative;
     z-index: 1;
-    opacity: 0;
-    transition: opacity 150ms ease;
-  }
-
-  html.hero-fonts-ready .home-hero-title {
     opacity: 1;
+    color: hsl(var(--primary));
   }
 
   .home-hero-title-ghost {
@@ -418,26 +414,24 @@
     color: transparent;
     -webkit-text-stroke: 1px hsl(var(--primary) / 0.22);
     user-select: none;
+    pointer-events: none;
   }
 
+  /*
+   * Solid colors only — gradient + background-clip:text with color:transparent
+   * can paint nothing on hard reload / some WebViews until a reflow.
+   */
   .home-hero-title-fill {
-    background: linear-gradient(
-      118deg,
-      hsl(var(--primary)) 0%,
-      hsl(var(--primary)) 42%,
-      hsl(var(--accent)) 100%
-    );
-    background-size: 200% 200%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: home-gradient-shift 10s ease-in-out infinite;
+    color: hsl(var(--primary));
+    -webkit-text-fill-color: currentColor;
   }
 
   .home-hero-title-bang {
     display: inline-block;
     margin-left: -0.04em;
     vertical-align: top;
+    color: hsl(var(--accent));
+    -webkit-text-fill-color: currentColor;
     text-shadow:
       0 0 24px hsl(var(--accent) / 0.55),
       0 0 48px hsl(var(--accent) / 0.2);
@@ -589,11 +583,6 @@
     .home-hero-title-bang,
     .home-hero-telem-bar {
       animation: none;
-    }
-
-    .home-hero-title {
-      opacity: 1;
-      transition: none;
     }
 
     .home-hero-monitor {

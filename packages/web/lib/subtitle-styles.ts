@@ -36,7 +36,8 @@ const SUBTITLE_CUE_STYLE_ID = "media-subtitle-cue-styles";
 export const DEFAULT_SUBTITLE_STYLES: SubtitleStyles = {
   size: "large",
   font: "default",
-  color: "black",
+  // White + outline is readable on dark and light video without user setup.
+  color: "white",
   opacity: "100",
   background: "none",
   backgroundOpacity: "0",
@@ -148,7 +149,17 @@ export function readSubtitleStyles(): SubtitleStyles {
     if (!raw) return DEFAULT_SUBTITLE_STYLES;
     const parsed = JSON.parse(raw) as unknown;
     if (!isSubtitleStyles(parsed)) return DEFAULT_SUBTITLE_STYLES;
-    return { ...DEFAULT_SUBTITLE_STYLES, ...parsed };
+    const styles = { ...DEFAULT_SUBTITLE_STYLES, ...parsed };
+    // Legacy default was black-on-transparent (often invisible on dark video).
+    if (styles.color === "black" && styles.background === "none") {
+      styles.color = "white";
+      try {
+        writeSubtitleStyles(styles);
+      } catch {
+        // ignore quota / private mode
+      }
+    }
+    return styles;
   } catch {
     return DEFAULT_SUBTITLE_STYLES;
   }

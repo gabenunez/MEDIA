@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadataTitle } from "@/lib/document-title";
 import { Suspense } from "react";
 import { LibraryClient } from "../client";
 import { fetchLibraryItems } from "@/lib/server-api";
@@ -7,7 +8,7 @@ import { PosterGridLoadingSkeleton } from "@/lib/route-loading";
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "Library",
+  title: pageMetadataTitle("Library"),
 };
 
 export default async function LibraryDetailPage({

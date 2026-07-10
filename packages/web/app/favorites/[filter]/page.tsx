@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { FavoritesClient } from "../client";
+import { pageMetadataTitle } from "@/lib/document-title";
 import { fetchFavorites } from "@/lib/server-api";
 import { PosterGridLoadingSkeleton } from "@/lib/route-loading";
 
@@ -12,9 +13,9 @@ export async function generateMetadata({
   params: Promise<{ filter: string }>;
 }): Promise<Metadata> {
   const { filter } = await params;
-  if (filter === "movie") return { title: "Favorite Films" };
-  if (filter === "tv") return { title: "Favorite Series" };
-  return { title: "Favorites" };
+  if (filter === "movie") return { title: pageMetadataTitle("Favorite Films") };
+  if (filter === "tv") return { title: pageMetadataTitle("Favorite Series") };
+  return { title: pageMetadataTitle("Favorites") };
 }
 
 export default async function FavoritesFilterPage({
