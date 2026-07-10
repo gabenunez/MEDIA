@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   generateHlsPlaylist,
+  isTranscodeComplete,
   parseFfmpegPlaylist,
   pruneOldHlsSegments,
   waitForFirstSegment,
@@ -224,6 +225,84 @@ describe("generateHlsPlaylist", () => {
 
     expect(playlist).not.toContain("#EXT-X-ENDLIST");
     expect(playlist).toContain("#EXT-X-PLAYLIST-TYPE:EVENT");
+  });
+
+  it("does NOT emit ENDLIST for a SIGTERM'd partial transcode (ffmpeg wrote ENDLIST but exited 255)", () => {
+    const dir = createTempHlsDir();
+    // ffmpeg was killed after 4 six-second segments (24s) of a 2-hour movie.
+    // It flushed #EXT-X-ENDLIST on the way out and exit code is 255 (killed).
+    writeSegments(dir, 4);
+    writeFfmpegPlaylist(dir, 4, { complete: true, exitCode: 255, segmentDuration: 6 });
+
+    const playlist = generateHlsPlaylist(dir, 6, false, 3, /* sourceDuration */ 7200);
+
+    // Must NOT look finished — the client would otherwise stop at 24s forever.
+    expect(playlist).not.toContain("#EXT-X-ENDLIST");
+  });
+
+  it("does NOT emit ENDLIST when the playlist doesn't cover the source, even on a clean exit", () => {
+    const dir = createTempHlsDir();
+    // Clean exit but only 24s produced of a 7200s movie (e.g. source read error).
+    writeSegments(dir, 4);
+    writeFfmpegPlaylist(dir, 4, { complete: true, exitCode: 0, segmentDuration: 6 });
+
+    const playlist = generateHlsPlaylist(dir, 6, false, 3, 7200);
+
+    expect(playlist).not.toContain("#EXT-X-ENDLIST");
+  });
+
+  it("emits ENDLIST when a clean transcode actually covers the source duration", () => {
+    const dir = createTempHlsDir();
+    // 5 x 6s = 30s produced for a 28s source → covers it.
+    writeSegments(dir, 5);
+    writeFfmpegPlaylist(dir, 5, { complete: true, exitCode: 0, segmentDuration: 6 });
+
+    const playlist = generateHlsPlaylist(dir, 6, false, 4, 28);
+
+    expect(playlist).toContain("#EXT-X-ENDLIST");
+  });
+
+  it("accounts for the session start offset when checking source coverage", () => {
+    const dir = createTempHlsDir();
+    // Session started at -ss 7000 of a 7200s movie → only 200s remain.
+    fs.writeFileSync(path.join(dir, ".start-offset"), JSON.stringify(7000));
+    // ~204s produced (34 x 6s) covers the remaining 200s.
+    writeSegments(dir, 34);
+    writeFfmpegPlaylist(dir, 34, { complete: true, exitCode: 0, segmentDuration: 6 });
+
+    const playlist = generateHlsPlaylist(dir, 6, false, 33, 7200);
+
+    expect(playlist).toContain("#EXT-X-ENDLIST");
+  });
+});
+
+describe("isTranscodeComplete", () => {
+  it("is false for a SIGTERM'd partial transcode", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 4);
+    writeFfmpegPlaylist(dir, 4, { complete: true, exitCode: 255, segmentDuration: 6 });
+    expect(isTranscodeComplete(dir, 7200)).toBe(false);
+  });
+
+  it("is false when produced duration is short of the source", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 4);
+    writeFfmpegPlaylist(dir, 4, { complete: true, exitCode: 0, segmentDuration: 6 });
+    expect(isTranscodeComplete(dir, 7200)).toBe(false);
+  });
+
+  it("is true for a clean transcode that covers the source", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 5);
+    writeFfmpegPlaylist(dir, 5, { complete: true, exitCode: 0, segmentDuration: 6 });
+    expect(isTranscodeComplete(dir, 28)).toBe(true);
+  });
+
+  it("is true when source duration is unknown but ffmpeg exited cleanly", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 5);
+    writeFfmpegPlaylist(dir, 5, { complete: true, exitCode: 0, segmentDuration: 6 });
+    expect(isTranscodeComplete(dir, 0)).toBe(true);
   });
 });
 

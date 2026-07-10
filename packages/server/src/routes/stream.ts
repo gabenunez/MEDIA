@@ -24,6 +24,7 @@ import {
   generateHlsPlaylist,
   parseHlsSegmentIndex,
   isTranscodeInProgress,
+  isTranscodeComplete,
   waitForFirstSegment,
   waitForHlsSegment,
   getHlsSession,
@@ -585,31 +586,49 @@ export async function streamRoutes(
         });
       }
 
+      const sourceDurationSeconds =
+        probe?.durationMs && probe.durationMs > 0 ? probe.durationMs / 1000 : 0;
+
+      const startTranscode = () =>
+        hlsQuality === "remux"
+          ? startHlsRemux(
+              sessionId,
+              file.filePath,
+              outputDir,
+              config.transcoding.hls_segment_duration,
+              startSeconds,
+              metadata.videoCodec,
+              probe?.audioStreamIndex,
+            )
+          : startHlsTranscode(
+              sessionId,
+              file.filePath,
+              outputDir,
+              config.transcoding.hls_segment_duration,
+              hlsQuality,
+              sourceHeight,
+              startSeconds,
+              probe?.audioStreamIndex,
+              probe?.dynamicRange,
+            );
+
       let session = resolveHlsSession(sessionId, outputDir, startSeconds);
 
-      if (!session) {
-        session =
-          hlsQuality === "remux"
-            ? startHlsRemux(
-                sessionId,
-                file.filePath,
-                outputDir,
-                config.transcoding.hls_segment_duration,
-                startSeconds,
-                metadata.videoCodec,
-                probe?.audioStreamIndex,
-              )
-            : startHlsTranscode(
-                sessionId,
-                file.filePath,
-                outputDir,
-                config.transcoding.hls_segment_duration,
-                hlsQuality,
-                sourceHeight,
-                startSeconds,
-                probe?.audioStreamIndex,
-                probe?.dynamicRange,
-              );
+      // A session can exist on disk but its ffmpeg is no longer running (it was
+      // killed, crashed, or the server restarted). If that transcode did NOT
+      // reach the true end of the source, resume it — otherwise the client
+      // would poll a frozen partial playlist forever. This is the core fix for
+      // "plays the first ~20s then stalls": a SIGTERM'd transcode must never be
+      // treated as finished.
+      const deadButIncomplete =
+        !!session &&
+        !isTranscodeInProgress(sessionId) &&
+        !isTranscodeComplete(outputDir, sourceDurationSeconds);
+
+      if (!session || deadButIncomplete) {
+        const lastServed = session?.lastServedSegmentIndex ?? -1;
+        session = startTranscode();
+        session.lastServedSegmentIndex = lastServed;
 
         const ready = await waitForFirstSegment(outputDir, 90_000, 4);
         if (!ready) {
@@ -629,6 +648,7 @@ export async function streamRoutes(
         config.transcoding.hls_segment_duration,
         inProgress,
         session.lastServedSegmentIndex,
+        sourceDurationSeconds,
       );
 
       // The playlist file can be caught mid-flush by ffmpeg (empty/partial).
@@ -643,13 +663,20 @@ export async function streamRoutes(
             config.transcoding.hls_segment_duration,
             inProgress,
             session.lastServedSegmentIndex,
+            sourceDurationSeconds,
           );
         }
       }
 
       if (!playlist) {
-        stopHlsSession(sessionId);
-        return reply.status(500).send({ error: "Transcoding failed to start" });
+        // Don't kill a live, actively-serving session just because we caught
+        // the playlist file mid-flush — that would freeze playback. Only fail
+        // hard when there's genuinely no session running.
+        if (!isTranscodeInProgress(sessionId)) {
+          stopHlsSession(sessionId);
+          return reply.status(500).send({ error: "Transcoding failed to start" });
+        }
+        return reply.status(503).header("Retry-After", "1").send({ error: "Playlist not ready" });
       }
 
       const useAbsolute = request.query.cast === "1";

@@ -15,6 +15,13 @@ import { createStreamFilePrefix } from "./stream-session.js";
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_TRANSCODES = 4;
 const IDLE_SESSION_MS = 2 * 60 * 1000;
+/**
+ * A session accessed within this window is considered actively serving a
+ * client and must never be reclaimed for capacity or reaped by same-file
+ * cleanup — killing it mid-encode leaves a partial playlist and freezes that
+ * viewer's playback.
+ */
+const ACTIVELY_SERVING_MS = 20 * 1000;
 export const PRUNE_CACHE_MS = 60 * 60 * 1000;
 const FFMPEG_CACHE_MS = 5 * 60 * 1000;
 let ffmpegAvailabilityCache: { available: boolean; checkedAt: number } | null = null;
@@ -284,6 +291,37 @@ function isTranscodeOutputComplete(outputDir: string): boolean {
     return false;
   }
   return listHlsSegments(outputDir).length > 0;
+}
+
+/**
+ * True only when the transcode reached the true end of the source: ffmpeg
+ * exited cleanly AND (when we know the source duration) the produced segments
+ * actually cover it. A SIGTERM'd/crashed transcode fails this even though its
+ * playlist file may contain a (bogus) #EXT-X-ENDLIST, so callers must use this
+ * — never ffmpeg's ENDLIST — to decide whether a stream is really finished.
+ */
+export function isTranscodeComplete(
+  outputDir: string,
+  sourceDurationSeconds = 0,
+): boolean {
+  if (!isTranscodeOutputComplete(outputDir)) return false;
+
+  if (sourceDurationSeconds <= 0) return true;
+
+  let raw: string;
+  try {
+    raw = fs.readFileSync(path.join(outputDir, "master.m3u8"), "utf-8");
+  } catch {
+    return false;
+  }
+  const parsed = parseFfmpegPlaylist(raw);
+  if (!parsed) return false;
+
+  const produced = sumPlaylistDurationSeconds(parsed.segments);
+  const startOffset = readStartOffset(outputDir);
+  const remaining = Math.max(0, sourceDurationSeconds - startOffset);
+  // Allow a one-segment tolerance for rounding / final short segment.
+  return produced >= remaining - 8;
 }
 
 export function clearTranscodeOutput(outputDir: string): void {
@@ -755,6 +793,22 @@ interface ParsedHlsPlaylist {
   hasEndList: boolean;
 }
 
+/** Sum of `#EXTINF` durations across the given segments (seconds). */
+export function sumPlaylistDurationSeconds(
+  segments: ParsedHlsSegment[],
+): number {
+  let total = 0;
+  for (const seg of segments) {
+    for (const tag of seg.tags) {
+      if (tag.startsWith("#EXTINF")) {
+        const value = parseFloat(tag.slice("#EXTINF:".length));
+        if (Number.isFinite(value)) total += value;
+      }
+    }
+  }
+  return total;
+}
+
 /**
  * Parse ffmpeg's own master.m3u8. Modern ffmpeg (5.x+) writes this file
  * incrementally with ACCURATE per-segment `#EXTINF` durations, the correct
@@ -840,6 +894,7 @@ export function generateHlsPlaylist(
   segmentDuration: number,
   inProgress: boolean,
   lastServedSegmentIndex = -1,
+  sourceDurationSeconds = 0,
 ): string | null {
   const playlistPath = path.join(outputDir, "master.m3u8");
   let raw: string;
@@ -931,7 +986,33 @@ export function generateHlsPlaylist(
     lines.push(seg.uri);
   }
 
-  if (!inProgress && parsed.hasEndList && isTranscodeOutputComplete(outputDir)) {
+  // Emit #EXT-X-ENDLIST ONLY when we are certain the transcode reached the
+  // true end of the source. ffmpeg writes ENDLIST into its own playlist even
+  // when it is SIGTERM'd mid-encode (verified), which would otherwise make a
+  // 20-second partial transcode look like the whole movie and freeze the
+  // client at that point forever. Defense in depth:
+  //   1. The session must no longer be in progress.
+  //   2. ffmpeg must have written ENDLIST.
+  //   3. The process must have exited cleanly (exit code 0).
+  //   4. The produced playlist must actually cover the source duration
+  //      (within one segment) when we know the source duration — a killed
+  //      transcode fails this even if it somehow reports a clean exit.
+  // Total media ffmpeg has actually produced (all segments, including any
+  // pruned from the served window). The HLS timeline is relative to the
+  // session's `-ss` start, so compare against the *remaining* source length.
+  const producedDurationSeconds = sumPlaylistDurationSeconds(parsed.segments);
+  const startOffsetSeconds = readStartOffset(outputDir);
+  const remainingSourceSeconds = Math.max(0, sourceDurationSeconds - startOffsetSeconds);
+  const coversSource =
+    remainingSourceSeconds <= 0 ||
+    producedDurationSeconds >= remainingSourceSeconds - Math.max(segmentDuration, 6);
+
+  if (
+    !inProgress &&
+    parsed.hasEndList &&
+    isTranscodeOutputComplete(outputDir) &&
+    coversSource
+  ) {
     lines.push("#EXT-X-ENDLIST");
   }
 
@@ -973,9 +1054,15 @@ export function stopTranscodeSessionsForMedia(
 ): void {
   if (!fs.existsSync(cacheDir)) return;
 
+  const now = Date.now();
   for (const entry of fs.readdirSync(cacheDir)) {
     if (!entry.startsWith(sessionPrefix)) continue;
     if (entry === keepSessionId) continue;
+    // Never kill a session another request is actively pulling from — only
+    // reap genuinely stale sessions. This runs on every playlist poll, so
+    // killing an in-use session here is what freezes playback mid-movie.
+    const active = activeSessions.get(entry);
+    if (active && now - active.lastAccess <= ACTIVELY_SERVING_MS) continue;
     stopHlsSession(entry);
   }
 }
@@ -996,8 +1083,11 @@ export function stopTranscodeSessionsForFile(
 export function enforceTranscodeCapacity(keepSessionId?: string): void {
   if (activeSessions.size < MAX_CONCURRENT_TRANSCODES) return;
 
+  const now = Date.now();
   const sessions = [...activeSessions.entries()]
     .filter(([id]) => id !== keepSessionId)
+    // Never evict a session a client is actively pulling from.
+    .filter(([, s]) => now - s.lastAccess > ACTIVELY_SERVING_MS)
     .sort(([, a], [, b]) => a.lastAccess - b.lastAccess);
 
   for (const [id] of sessions) {
