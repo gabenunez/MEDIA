@@ -19,7 +19,11 @@ import { AuthService, isCastMediaPath, isInternalMediaApiPath, isInternalMediaAp
 import { authRoutes } from "./routes/auth.js";
 import { updateRoutes } from "./routes/updates.js";
 import { resolveLegacyRouteRedirect, resolveSpaIndexFile } from "@media-app/shared";
-import { pruneStaleTranscodeCache, killOrphanFfmpegInCache } from "./utils/ffmpeg.js";
+import {
+  pruneStaleTranscodeCache,
+  killOrphanFfmpegInCache,
+  stopAllHlsSessions,
+} from "./utils/ffmpeg.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -155,6 +159,21 @@ async function main() {
       app.log.error(err, "Failed to prune stale transcode cache");
     }
   }, 60 * 60 * 1000);
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    app.log.info({ signal }, "Shutting down MEDIA! server");
+    stopAllHlsSessions();
+    try {
+      await app.close();
+    } finally {
+      process.exit(0);
+    }
+  };
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 
   const { port: configPort, host } = config.server;
   const port = apiOnly
