@@ -351,20 +351,30 @@ function readLogTail(maxLines = 40): string[] {
   }
 }
 
-function readLockMeta(): { startedAt: string | null; releaseTag: string | null } {
+function readLockMeta(): {
+  startedAt: string | null;
+  releaseTag: string | null;
+  processId: number | null;
+} {
   const lockPath = getUpdateLockPath();
   if (!fs.existsSync(lockPath)) {
-    return { startedAt: null, releaseTag: null };
+    return { startedAt: null, releaseTag: null, processId: null };
   }
 
   try {
-    const [startedMs, releaseTag] = fs.readFileSync(lockPath, "utf8").trim().split("\n");
+    const [startedMs, releaseTag, processIdRaw] = fs
+      .readFileSync(lockPath, "utf8")
+      .trim()
+      .split("\n");
     const startedAt = startedMs && /^\d+$/.test(startedMs)
       ? new Date(Number(startedMs)).toISOString()
       : null;
-    return { startedAt, releaseTag: releaseTag?.trim() || null };
+    const processId = processIdRaw && /^\d+$/.test(processIdRaw)
+      ? Number(processIdRaw)
+      : null;
+    return { startedAt, releaseTag: releaseTag?.trim() || null, processId };
   } catch {
-    return { startedAt: null, releaseTag: null };
+    return { startedAt: null, releaseTag: null, processId: null };
   }
 }
 
@@ -481,7 +491,51 @@ function getUpdateLockPath(): string {
 }
 
 export function isUpdateInProgress(): boolean {
-  return fs.existsSync(getUpdateLockPath());
+  const lockPath = getUpdateLockPath();
+  if (!fs.existsSync(lockPath)) return false;
+
+  const { startedAt, processId } = readLockMeta();
+  if (processId == null || !startedAt) {
+    // Legacy locks predate PID tracking. Only recover one that is clearly
+    // stuck in the restart phase; normal downloads/builds may run longer.
+    const ageMs = Date.now() - new Date(startedAt ?? 0).getTime();
+    let phase = "";
+    try {
+      phase = JSON.parse(fs.readFileSync(getUpdateProgressPath(), "utf8")).phase ?? "";
+    } catch {
+      // Treat missing progress as unknown, not as a stale restart.
+    }
+    if (phase === "restarting" && Number.isFinite(ageMs) && ageMs > 10 * 60 * 1000) {
+      try {
+        fs.unlinkSync(lockPath);
+        fs.rmSync(getUpdateProgressPath(), { force: true });
+      } catch {
+        // Another process may be cleaning it up.
+      }
+      return false;
+    }
+    return true;
+  }
+
+  let processAlive = true;
+  try {
+    process.kill(processId, 0);
+  } catch {
+    processAlive = false;
+  }
+
+  if (processAlive) return true;
+
+  // A detached updater can die while the server is down, leaving its lock
+  // behind. Clear only after its recorded process is gone so a live update is
+  // never interrupted by polling.
+  try {
+    fs.unlinkSync(lockPath);
+    fs.rmSync(getUpdateProgressPath(), { force: true });
+  } catch {
+    // Another process may be cleaning it up.
+  }
+  return false;
 }
 
 function isUpdateSupported(installDir: string): boolean {
@@ -813,5 +867,8 @@ export function triggerUpdate(releaseTag: string, installDir = detectInstallDir(
   });
 
   child.unref();
+  // Record the detached updater so a failed restart cannot leave a permanent
+  // "restarting" state after the updater exits.
+  fs.appendFileSync(getUpdateLockPath(), `${child.pid ?? ""}\n`);
   fs.closeSync(logFd);
 }

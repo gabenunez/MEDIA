@@ -349,7 +349,19 @@ restart_service() {
     media_ok "Restarting production stack..."
     export PATH="${HOME}/node/bin:${PATH:-}"
     cd "$(detect_install_dir)"
-    bash scripts/restart-prod.sh
+    # Restart is a handoff: do not let a stuck supervisor stop the updater
+    # forever while the UI waits on updating.lock.
+    bash scripts/restart-prod.sh &
+    local restart_pid=$!
+    for _ in $(seq 1 120); do
+      kill -0 "$restart_pid" 2>/dev/null || break
+      sleep 0.5
+    done
+    if kill -0 "$restart_pid" 2>/dev/null; then
+      kill "$restart_pid" 2>/dev/null || true
+      media_fail "MEDIA! restart did not complete within 60 seconds"
+    fi
+    wait "$restart_pid"
   else
     local config_dir pid_file install_dir
     config_dir="$(media_config_dir)"

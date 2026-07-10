@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.148 — 2026-07-10
+
+### Fix
+
+- **Deploy** — track updater PID in `updating.lock` and clear stale locks when the detached update process has exited (fixes permanent “Restarting…” / blocked installs)
+- **Deploy** — run `restart-prod.sh` with a 60s timeout so a stuck restart cannot leave the updater hanging forever
+
 ## 0.1.147 — 2026-07-10
 
 ### Fix
