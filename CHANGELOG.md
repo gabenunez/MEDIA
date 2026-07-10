@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.135 — 2026-07-09
+
+### Fix
+
+- **Playback** — serve ffmpeg's real HLS playlist with accurate per-segment `#EXTINF` durations instead of synthesizing fixed 6.0s segments (fixes buffer/live-edge math stalls when source GOPs produce longer segments)
+- **Server** — force keyframes at every segment boundary (`-force_key_frames`) for uniform transcode segments; retry playlist generation on mid-flush instead of killing a healthy transcode
+
 ## 0.1.134 — 2026-07-09
 
 ### Fix
