@@ -1214,13 +1214,18 @@
 
   /* 4K TV — sharper imagery, slightly larger 10-foot UI */
   html.tv-mode.tv-4k {
-    font-size: 106.25%;
+    font-size: 112.5%;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
   html.tv-mode.tv-4k .tv-ui {
-    --tv-poster-width: 8.25rem;
+    --tv-poster-width: 10rem;
+    --tv-focus-ring-compact: 0 0 0 3px hsl(var(--primary));
+    --tv-focus-ring-compact-strong: 0 0 0 4px hsl(var(--primary));
+    --tv-poster-focus-ring:
+      0 0 0 3px hsl(var(--background)),
+      0 0 0 5px hsl(var(--primary));
   }
 
   .tv-ui [data-tv-logo] svg {
@@ -1229,13 +1234,49 @@
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-logo] {
-    height: 2.75rem;
-    width: 2.75rem;
+    height: 3rem;
+    width: 3rem;
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-logo] svg {
-    height: 1.5rem;
-    width: 1.5rem;
+    height: 1.65rem;
+    width: 1.65rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui > aside {
+    width: 5rem;
+    padding-block: 1.5rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui > aside nav {
+    gap: 0.75rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui .tv-row-section {
+    margin-bottom: 1.75rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui .tv-scroll-row {
+    gap: 1rem;
+    padding-inline: 3rem;
+    padding-block: 1.25rem 1rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui .tv-row-section > h2 {
+    margin-bottom: 0.5rem;
+    padding-inline: 3rem;
+    font-size: 1.15rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui .tv-poster-title {
+    margin-top: 0.75rem;
+    font-size: 0.95rem;
+    line-height: 1.3;
+  }
+
+  html.tv-mode.tv-4k .tv-ui [data-tv-item].tv-focus-nav,
+  html.tv-mode.tv-4k .tv-ui [data-tv-item].tv-focus-button {
+    border-width: 3px;
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-watch-side-sheet] {

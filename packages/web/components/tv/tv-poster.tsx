@@ -64,7 +64,7 @@ export const TvPoster = memo(function TvPoster({
               alt=""
               fill
               priority={loadImmediately}
-              sizes="8rem"
+               sizes="(min-width: 1920px) 10rem, 8rem"
               className="object-cover"
             />
           ) : (
