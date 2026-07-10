@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.152 — 2026-07-10
+
+### Fix
+
+- **Android TV** — sharper adaptive icon and banner (larger M!, hero primary/accent colors, no nested tile in foreground)
+- **Server** — Plex import detects Docker/snap/custom installs via `PLEX_DB_PATH`, `PLEX_HOME`, and a bounded filesystem scan; clearer warnings when the DB is unreadable or remote
+- **Settings** — Plex import panel lists paths checked and documents Docker `PLEX_DB_PATH`
+
 ## 0.1.151 — 2026-07-10
 
 ### Fix

@@ -243,7 +243,21 @@ export function SettingsClient() {
                   <p className="mt-1 break-all font-mono text-xs">{plexPreview.dbPath}</p>
                 </>
               ) : (
-                <p>{plexPreview?.warning ?? "Scanning for Plex…"}</p>
+                <>
+                  <p>{plexPreview?.warning ?? "Scanning for Plex…"}</p>
+                  {plexPreview?.candidates?.length ? (
+                    <details className="mt-2 text-xs">
+                      <summary className="cursor-pointer text-foreground/80">
+                        Paths checked
+                      </summary>
+                      <ul className="mt-2 space-y-1 break-all font-mono text-muted-foreground">
+                        {plexPreview.candidates.map((candidate) => (
+                          <li key={candidate}>{candidate}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
+                </>
               )}
             </div>
 
@@ -263,7 +277,7 @@ export function SettingsClient() {
                 <span className="font-mono">
                   …/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db
                 </span>
-                . Stop Plex before importing.
+                . For Docker, mount Plex’s config directory and set <span className="font-mono">PLEX_DB_PATH</span> on the MEDIA! server. Stop Plex before importing.
               </p>
             </div>
 
