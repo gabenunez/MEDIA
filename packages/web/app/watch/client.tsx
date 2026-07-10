@@ -29,6 +29,9 @@ import {
   getScrubberBufferedRanges,
   getVideoSeekableEnd,
   isSpuriousHlsEnded,
+  resolveSpuriousRecovery,
+  type SpuriousRecoveryState,
+  SPURIOUS_RECOVERY_PROGRESS_SECONDS,
   resolveInitialStreamQuality,
   getPlaybackRestartSeconds,
   nextStableAbsoluteSeconds,
@@ -114,7 +117,11 @@ function WatchDesktopClient() {
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const playbackStreamRef = useRef<ReturnType<typeof resolvePlaybackStream> | null>(null);
   const playbackFatalHandledRef = useRef(-1);
-  const spuriousHlsRecoveryRef = useRef(0);
+  const spuriousRecoveryStateRef = useRef<SpuriousRecoveryState>({
+    attempts: 0,
+    lastEndedAtMs: 0,
+    anchorSeconds: 0,
+  });
   const volumeBeforeMuteRef = useRef(1);
 
   const [quality, setQuality] = useState<StreamQuality>("original");
@@ -498,7 +505,11 @@ function WatchDesktopClient() {
     setBuffering(true);
     setBufferedRanges([]);
     setBufferingMidPlayback(false);
-    spuriousHlsRecoveryRef.current = 0;
+    spuriousRecoveryStateRef.current = {
+      attempts: 0,
+      lastEndedAtMs: 0,
+      anchorSeconds: 0,
+    };
 
     if (hlsRef.current) {
       destroyHlsInstance(hlsRef.current);
@@ -672,21 +683,31 @@ function WatchDesktopClient() {
           })
         ) {
           const absoluteResume = hlsStartOffsetRef.current + video.currentTime;
-          spuriousHlsRecoveryRef.current += 1;
           setBuffering(true);
-          if (
-            hlsRef.current &&
-            spuriousHlsRecoveryRef.current <= 3
-          ) {
+
+          const decision = resolveSpuriousRecovery({
+            state: spuriousRecoveryStateRef.current,
+            nowMs: Date.now(),
+            relativeSeconds: video.currentTime,
+          });
+          spuriousRecoveryStateRef.current = decision.next;
+
+          if (decision.action === "recover" && hlsRef.current) {
+            // A growing transcode will produce the next segment — replay in
+            // place and let the engine's manifest poll + stall watchdog pick
+            // it up. Avoids a disruptive full restart on transient encoder lag.
             recoverHlsPlaybackAtPlaylistEnd(video, hlsRef.current);
           } else {
-            spuriousHlsRecoveryRef.current = 0;
             pendingStreamStartRef.current = absoluteResume;
             setStreamGeneration((current) => current + 1);
           }
           return;
         }
-        spuriousHlsRecoveryRef.current = 0;
+        spuriousRecoveryStateRef.current = {
+          attempts: 0,
+          lastEndedAtMs: 0,
+          anchorSeconds: 0,
+        };
         setIsPlaying(false);
         startNextEpisodeCountdown();
       },
@@ -700,6 +721,20 @@ function WatchDesktopClient() {
             lastStableAbsoluteSecondsRef.current,
             absoluteTime,
           );
+          // Sustained healthy playback past the last spurious-ended boundary
+          // means recovery worked — clear the budget so it can't accumulate
+          // across the whole stream and force a needless restart later.
+          const recovery = spuriousRecoveryStateRef.current;
+          if (
+            recovery.attempts > 0 &&
+            seconds - recovery.anchorSeconds >= SPURIOUS_RECOVERY_PROGRESS_SECONDS
+          ) {
+            spuriousRecoveryStateRef.current = {
+              attempts: 0,
+              lastEndedAtMs: 0,
+              anchorSeconds: 0,
+            };
+          }
         }
       },
       onDuration: setDuration,

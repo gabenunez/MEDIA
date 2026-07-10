@@ -9,6 +9,8 @@ import {
   playlistM3u8HasEndList,
   RECOVERY_FORGIVE_PROGRESS_SECONDS,
   resolveRecoveryBudget,
+  resolveSpuriousRecovery,
+  type SpuriousRecoveryState,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
@@ -471,5 +473,76 @@ describe("resolveRecoveryBudget", () => {
         positionAtLastRecoverySeconds: 500,
       }),
     ).toEqual({ allowed: false, nextSpentBudget: 4 });
+  });
+});
+
+describe("resolveSpuriousRecovery", () => {
+  const fresh: SpuriousRecoveryState = {
+    attempts: 0,
+    lastEndedAtMs: 0,
+    anchorSeconds: 0,
+  };
+
+  it("recovers in place on the first spurious ended", () => {
+    const result = resolveSpuriousRecovery({
+      state: fresh,
+      nowMs: 1_000,
+      relativeSeconds: 6,
+    });
+    expect(result.action).toBe("recover");
+    expect(result.next.attempts).toBe(1);
+    expect(result.next.anchorSeconds).toBe(6);
+  });
+
+  it("coalesces rapid repeats without spending the budget", () => {
+    // Five rapid repeats (250ms apart) at the same wall stay at 1 attempt.
+    let state: SpuriousRecoveryState = fresh;
+    let now = 1_000;
+    for (let i = 0; i < 5; i++) {
+      const result = resolveSpuriousRecovery({
+        state,
+        nowMs: now,
+        relativeSeconds: 6,
+      });
+      expect(result.action).toBe("recover");
+      state = result.next;
+      now += 250;
+    }
+    expect(state.attempts).toBe(1);
+  });
+
+  it("restarts only after repeated recoveries with no forward progress", () => {
+    let state: SpuriousRecoveryState = fresh;
+    let now = 1_000;
+    let action = "recover";
+    // Space attempts > coalesce window apart, no progress (same position).
+    for (let i = 0; i < 10 && action === "recover"; i++) {
+      const result = resolveSpuriousRecovery({
+        state,
+        nowMs: now,
+        relativeSeconds: 6,
+      });
+      action = result.action;
+      state = result.next;
+      now += 6_000;
+    }
+    expect(action).toBe("restart");
+  });
+
+  it("resets the budget after sustained forward progress (rate limiter)", () => {
+    let state: SpuriousRecoveryState = {
+      attempts: 4,
+      lastEndedAtMs: 1_000,
+      anchorSeconds: 6,
+    };
+    // Next spurious ended happens 20s later at a much later position.
+    const result = resolveSpuriousRecovery({
+      state,
+      nowMs: 30_000,
+      relativeSeconds: 6 + RECOVERY_FORGIVE_PROGRESS_SECONDS + 100,
+    });
+    expect(result.action).toBe("recover");
+    // Progress cleared the accumulated attempts before counting this one.
+    expect(result.next.attempts).toBe(1);
   });
 });

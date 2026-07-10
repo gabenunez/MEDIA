@@ -491,6 +491,87 @@ export function getScrubberBufferedRanges(
   return merged.filter((range) => range.end > playheadSeconds + 0.05);
 }
 
+/**
+ * Minimum forward progress (seconds) past the last spurious-`ended` boundary
+ * that counts as "recovery is working", clearing the spurious-recovery budget.
+ */
+export const SPURIOUS_RECOVERY_PROGRESS_SECONDS = 8;
+
+/**
+ * Spurious-`ended` events closer together than this are coalesced into a
+ * single logical recovery attempt, so transient encoder lag at one boundary
+ * can't burn the whole budget in a fraction of a second.
+ */
+export const SPURIOUS_RECOVERY_COALESCE_MS = 5000;
+
+/** Max distinct spurious-recovery attempts before a full stream restart. */
+export const MAX_SPURIOUS_RECOVERY_ATTEMPTS = 5;
+
+export interface SpuriousRecoveryState {
+  /** Count of distinct (non-coalesced) recovery attempts since last reset. */
+  attempts: number;
+  /** Epoch ms of the last spurious `ended`, or 0 if none. */
+  lastEndedAtMs: number;
+  /** Relative playhead seconds captured at the last spurious `ended`. */
+  anchorSeconds: number;
+}
+
+export interface SpuriousRecoveryDecision {
+  /** "recover" = replay in place & keep polling; "restart" = full stream restart. */
+  action: "recover" | "restart";
+  next: SpuriousRecoveryState;
+}
+
+/**
+ * Decide how to respond to a spurious `ended` at a growing-transcode boundary.
+ *
+ * A growing transcode will always eventually produce the next segment, so the
+ * default response is to replay in place and let the manifest poll discover
+ * it. A full stream restart is only warranted when in-place recovery keeps
+ * firing WITHOUT the playhead ever advancing — otherwise transient encoder
+ * lag would trigger a jarring restart every ~6s (one segment).
+ */
+export function resolveSpuriousRecovery({
+  state,
+  nowMs,
+  relativeSeconds,
+  progressThresholdSeconds = SPURIOUS_RECOVERY_PROGRESS_SECONDS,
+  coalesceWindowMs = SPURIOUS_RECOVERY_COALESCE_MS,
+  maxAttempts = MAX_SPURIOUS_RECOVERY_ATTEMPTS,
+}: {
+  state: SpuriousRecoveryState;
+  nowMs: number;
+  relativeSeconds: number;
+  progressThresholdSeconds?: number;
+  coalesceWindowMs?: number;
+  maxAttempts?: number;
+}): SpuriousRecoveryDecision {
+  // Sustained forward progress since the last boundary means recovery works —
+  // treat the budget as freshly reset (rate limiter, not lifetime cap).
+  const progressed = relativeSeconds - state.anchorSeconds;
+  let attempts = progressed >= progressThresholdSeconds ? 0 : state.attempts;
+
+  // Coalesce rapid repeats at the same wall so a single stuck boundary can't
+  // exhaust the budget in one burst.
+  const isRapidRepeat =
+    state.lastEndedAtMs > 0 && nowMs - state.lastEndedAtMs < coalesceWindowMs;
+  if (!isRapidRepeat) {
+    attempts += 1;
+  }
+
+  if (isRapidRepeat || attempts <= maxAttempts) {
+    return {
+      action: "recover",
+      next: { attempts, lastEndedAtMs: nowMs, anchorSeconds: relativeSeconds },
+    };
+  }
+
+  return {
+    action: "restart",
+    next: { attempts: 0, lastEndedAtMs: 0, anchorSeconds: relativeSeconds },
+  };
+}
+
 /** True when `ended` fired at a growing HLS transcode boundary, not the real file end. */
 export function isSpuriousHlsEnded({
   usingHls,

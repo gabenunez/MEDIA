@@ -14,6 +14,9 @@ import {
   getScrubberBufferedRanges,
   getVideoSeekableEnd,
   isSpuriousHlsEnded,
+  resolveSpuriousRecovery,
+  type SpuriousRecoveryState,
+  SPURIOUS_RECOVERY_PROGRESS_SECONDS,
   PROGRESS_SAVE_MS,
   getPlaybackRestartSeconds,
   nextStableAbsoluteSeconds,
@@ -197,7 +200,11 @@ export function TvWatchView() {
   const titleRef = useRef("");
   const playbackStreamRef = useRef<ReturnType<typeof resolvePlaybackStream> | null>(null);
   const playbackFatalHandledRef = useRef(-1);
-  const spuriousHlsRecoveryRef = useRef(0);
+  const spuriousRecoveryStateRef = useRef<SpuriousRecoveryState>({
+    attempts: 0,
+    lastEndedAtMs: 0,
+    anchorSeconds: 0,
+  });
   const nativePlaySessionRef = useRef(0);
   const nativeErrorHandledSessionRef = useRef(0);
   const nativeWasPlayingRef = useRef(false);
@@ -1049,7 +1056,11 @@ export function TvWatchView() {
     setBuffering(true);
     setBufferingMidPlayback(false);
     setBufferedRanges([]);
-    spuriousHlsRecoveryRef.current = 0;
+    spuriousRecoveryStateRef.current = {
+      attempts: 0,
+      lastEndedAtMs: 0,
+      anchorSeconds: 0,
+    };
 
     if (hlsRef.current) {
       destroyHlsInstance(hlsRef.current);
@@ -1432,21 +1443,28 @@ export function TvWatchView() {
           })
         ) {
           const absoluteResume = hlsStartOffsetRef.current + video.currentTime;
-          spuriousHlsRecoveryRef.current += 1;
           setBuffering(true);
-          if (
-            hlsRef.current &&
-            spuriousHlsRecoveryRef.current <= 3
-          ) {
+
+          const decision = resolveSpuriousRecovery({
+            state: spuriousRecoveryStateRef.current,
+            nowMs: Date.now(),
+            relativeSeconds: video.currentTime,
+          });
+          spuriousRecoveryStateRef.current = decision.next;
+
+          if (decision.action === "recover" && hlsRef.current) {
             recoverHlsPlaybackAtPlaylistEnd(video, hlsRef.current);
           } else {
-            spuriousHlsRecoveryRef.current = 0;
             pendingStreamStartRef.current = absoluteResume;
             setStreamGeneration((generation) => generation + 1);
           }
           return;
         }
-        spuriousHlsRecoveryRef.current = 0;
+        spuriousRecoveryStateRef.current = {
+          attempts: 0,
+          lastEndedAtMs: 0,
+          anchorSeconds: 0,
+        };
         setIsPlaying(false);
         startNextEpisodeCountdown();
       },
@@ -1460,6 +1478,17 @@ export function TvWatchView() {
             lastStableAbsoluteSecondsRef.current,
             absoluteTime,
           );
+          const recovery = spuriousRecoveryStateRef.current;
+          if (
+            recovery.attempts > 0 &&
+            seconds - recovery.anchorSeconds >= SPURIOUS_RECOVERY_PROGRESS_SECONDS
+          ) {
+            spuriousRecoveryStateRef.current = {
+              attempts: 0,
+              lastEndedAtMs: 0,
+              anchorSeconds: 0,
+            };
+          }
         }
       },
       onDuration: setDuration,
