@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.136 — 2026-07-09
+
+### Fix
+
+- **Playback** — trust hls.js native live-playlist reload for growing transcodes instead of custom manifest polling and `startLoad()` refresh loops that reset the fragment loader and stall buffer growth
+- **Playback** — simplify spurious-`ended` recovery to a tiny backward seek + `play()`; rework stall watchdog to nudge → pipeline reset → fatal escalation
+- **Playback** — guard `saveProgress` against persisting regressed positions during stream restarts (desktop + TV)
+
 ## 0.1.135 — 2026-07-09
 
 ### Fix
