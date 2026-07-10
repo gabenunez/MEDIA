@@ -1,6 +1,6 @@
 {
   "name": "media-app",
-  "version": "0.1.137",
+  "version": "0.1.138",
   "private": true,
   "scripts": {
     "dev": "turbo dev",
@@ -15,7 +15,9 @@
     "test": "turbo test",
     "test:watch": "turbo test -- --watch",
     "android:build": "cd packages/android-tv && ./gradlew assembleDebug",
-    "android:build:release": "cd packages/android-tv && ./gradlew assembleRelease"
+    "android:build:release": "cd packages/android-tv && ./gradlew assembleRelease",
+    "tv-deploy": "bash scripts/deploy-android-tv.sh",
+    "tv-deploy:release": "bash scripts/deploy-android-tv.sh --release"
   },
   "devDependencies": {
     "turbo": "^2.3.3",
