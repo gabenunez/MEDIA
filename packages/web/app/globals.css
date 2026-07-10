@@ -924,84 +924,136 @@
     line-height: 1.4;
   }
 
-  /* Transport chrome — beat nav/button focus styles so rest/focus/active stay consistent */
-  .tv-ui [data-tv-watch-controls] [data-tv-item]:not([data-tv-watch-scrub]) {
-    background-color: transparent;
-    color: rgb(255 255 255 / 0.92);
-    border: 2px solid transparent;
-    box-shadow: none;
-    transform: none;
-    transition: background-color 75ms ease-out, border-color 75ms ease-out, color 75ms ease-out;
-  }
-
+  /*
+   * Watch transport controls — self-contained 10-foot UI.
+   * Icon shell is a fixed square so Lucide glyphs stay geometrically centered.
+   */
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 2.75rem;
-    min-width: 2.75rem;
-    padding: 0;
-    border-radius: 0.5rem;
-    color: rgb(255 255 255 / 0.92);
-  }
-
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn svg {
-    width: 1.25rem;
-    height: 1.25rem;
-    flex-shrink: 0;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    width: 52px !important;
+    min-width: 52px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 2px solid rgb(255 255 255 / 0.12) !important;
+    border-radius: 9999px !important;
+    background-color: rgb(0 0 0 / 0.55) !important;
+    color: #fff !important;
+    line-height: 0 !important;
+    font-size: 0 !important;
+    box-shadow: 0 2px 10px rgb(0 0 0 / 0.35) !important;
+    transform: none !important;
+    transition:
+      background-color 90ms ease-out,
+      border-color 90ms ease-out,
+      box-shadow 90ms ease-out !important;
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label {
-    min-width: 0;
-    gap: 0.375rem;
-    padding-inline: 0.625rem;
+    width: auto !important;
+    min-width: 52px !important;
+    gap: 10px !important;
+    padding-inline: 16px !important;
+    border-radius: 9999px !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
   }
 
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label span {
-    font-size: 0.75rem;
-    line-height: 1;
-    font-weight: 500;
-    max-width: 8rem;
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn .watch-control-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    flex: 0 0 24px !important;
+    line-height: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* Play triangle is optically left-heavy in the 24 viewBox — nudge for true center */
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn .watch-control-icon--play {
+    transform: translateX(1px);
+  }
+
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label span:not(.watch-control-icon) {
+    font-size: 14px !important;
+    line-height: 1 !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+    color: #fff !important;
+    max-width: 10rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn[data-tv-focused],
-  .tv-ui [data-tv-watch-controls] [data-tv-item].tv-focus-nav.watch-control-btn[data-tv-focused],
-  .tv-ui [data-tv-watch-controls] [data-tv-item].tv-focus-button.watch-control-btn[data-tv-focused] {
-    background-color: rgb(255 255 255 / 0.16);
-    color: #fff;
-    border-color: hsl(var(--primary));
-    box-shadow: none;
-    transform: none;
+  /* Size only the root SVG — never path children (that breaks Lucide geometry) */
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn svg {
+    display: block !important;
+    width: 24px !important;
+    height: 24px !important;
+    flex-shrink: 0 !important;
+    color: #fff !important;
+    stroke: currentColor !important;
+    fill: none !important;
+    overflow: visible !important;
+  }
+
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn svg[data-watch-icon-fill="true"],
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn .watch-control-icon--play svg {
+    fill: currentColor !important;
+  }
+
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn[data-tv-focused] {
+    background-color: rgb(255 255 255 / 0.2) !important;
+    color: #fff !important;
+    border-color: #fff !important;
+    box-shadow:
+      0 0 0 2px rgb(0 0 0 / 0.55),
+      0 0 0 4px #fff !important;
+    transform: none !important;
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn[data-tv-selected]:not([data-tv-focused]) {
-    color: hsl(var(--primary));
-    background-color: rgb(255 255 255 / 0.08);
-    border-color: transparent;
+    background-color: rgb(0 0 0 / 0.65) !important;
+    color: #fff !important;
+    border-color: rgb(255 255 255 / 0.7) !important;
   }
 
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn[data-tv-selected][data-tv-focused],
-  .tv-ui [data-tv-watch-controls] [data-tv-item].tv-focus-nav.watch-control-btn[data-tv-selected][data-tv-focused] {
-    background-color: rgb(255 255 255 / 0.16);
-    color: #fff;
-    border-color: hsl(var(--primary));
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn[data-tv-selected][data-tv-focused] {
+    background-color: rgb(255 255 255 / 0.24) !important;
+    color: #fff !important;
+    border-color: #fff !important;
+  }
+
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn:disabled {
+    opacity: 0.4 !important;
+  }
+
+  .tv-ui [data-tv-watch-transport-row] {
+    align-items: center !important;
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-watch-scrub],
+  .tv-ui [data-tv-watch-controls] [data-tv-item][data-tv-watch-scrub],
   .tv-ui [data-tv-watch-controls] [data-tv-item][data-tv-watch-scrub][data-tv-focused],
   .tv-ui [data-tv-watch-scrub].tv-focus-nav[data-tv-focused],
   .tv-ui [data-tv-watch-scrub].tv-focus-button[data-tv-focused] {
-    background-color: transparent;
-    border-color: transparent;
-    color: white;
-    box-shadow: none;
-    transform: none;
-    min-width: 0;
-    height: auto;
-    padding: 0;
+    display: block !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: white !important;
+    box-shadow: none !important;
+    transform: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 1.25rem !important;
+    min-height: 0 !important;
+    padding: 0 !important;
   }
 
   /* Focus ring on the track bar, not a filled button shell */
@@ -1138,9 +1190,14 @@
     background-image: none !important;
   }
 
-  html[data-native-video="true"] [data-tv-watch-player] .watch-chrome-bottom {
-    background: transparent !important;
-    background-image: none !important;
+  /* Keep bottom transport readable over native video (letterbox stays transparent elsewhere) */
+  html[data-native-video="true"] [data-tv-watch-bottom-chrome] .watch-chrome-bottom {
+    background: linear-gradient(
+      to top,
+      rgb(0 0 0 / 0.88) 0%,
+      rgb(0 0 0 / 0.45) 45%,
+      transparent 100%
+    ) !important;
   }
 
   /* TV watch — compact overlay chrome; video stays full-screen behind controls */

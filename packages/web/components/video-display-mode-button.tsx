@@ -11,14 +11,29 @@ import {
   videoDisplayModeLabel,
 } from "@/lib/video-display-mode";
 
-function DisplayModeIcon({ mode, className }: { mode: VideoDisplayMode; className?: string }) {
+function DisplayModeIcon({
+  mode,
+  className,
+  size = 24,
+}: {
+  mode: VideoDisplayMode;
+  className?: string;
+  size?: number;
+}) {
+  const props = {
+    size,
+    strokeWidth: 2 as const,
+    absoluteStrokeWidth: true as const,
+    className,
+    "aria-hidden": true as const,
+  };
   switch (mode) {
     case "fill":
-      return <Expand className={className} />;
+      return <Expand {...props} />;
     case "stretch":
-      return <StretchHorizontal className={className} />;
+      return <StretchHorizontal {...props} />;
     default:
-      return <Proportions className={className} />;
+      return <Proportions {...props} />;
   }
 }
 
@@ -41,13 +56,15 @@ export function VideoDisplayModeButton({
   if (variant === "tv") {
     return (
       <TvFocusButton
-        variant="nav"
+        variant="watch"
         onClick={onCycle}
         aria-label={`Display: ${label}. ${hint}`}
         title={hint}
         className={className}
       >
-        <DisplayModeIcon mode={mode} />
+        <span className="watch-control-icon">
+          <DisplayModeIcon mode={mode} size={24} />
+        </span>
       </TvFocusButton>
     );
   }
@@ -62,7 +79,7 @@ export function VideoDisplayModeButton({
         onClick={onCycle}
         aria-label={`Display: ${label}. ${hint}`}
       >
-        <DisplayModeIcon mode={mode} className="h-4 w-4" />
+        <DisplayModeIcon mode={mode} size={16} />
       </Button>
     </WatchControlHint>
   );

@@ -48,4 +48,16 @@ On time`;
     expect(shifted).not.toContain("Too early");
     expect(shifted).toContain("On time");
   });
+
+  it("preserves fractional offsets without flooring to whole seconds", () => {
+    const source = `WEBVTT
+
+1
+1:02:03.750 --> 1:02:05.000
+Fractional
+`;
+    const shifted = shiftVttByOffset(source, 3723.5);
+    expect(shifted).toContain("0:00.250 --> 0:01.500");
+    expect(shifted).toContain("Fractional");
+  });
 });

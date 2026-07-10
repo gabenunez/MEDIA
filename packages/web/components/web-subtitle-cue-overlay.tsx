@@ -61,6 +61,8 @@ export function WebSubtitleCueOverlay({
       return;
     }
 
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
     const update = () => {
       if (!playbackReady) {
         setLines([]);
@@ -69,19 +71,49 @@ export function WebSubtitleCueOverlay({
       setLines(findActiveCueTexts(cues, getPlaybackSecondsRef.current()));
     };
 
+    const stopPolling = () => {
+      if (pollTimer != null) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    // timeupdate is sparse (~4Hz); poll while playing so short cues aren't missed.
+    const startPolling = () => {
+      if (pollTimer != null || !playbackReady) return;
+      pollTimer = setInterval(update, 100);
+    };
+
+    const onPlay = () => {
+      update();
+      startPolling();
+    };
+    const onPause = () => {
+      stopPolling();
+      update();
+    };
+
     video.addEventListener("timeupdate", update);
     video.addEventListener("seeking", update);
     video.addEventListener("seeked", update);
     video.addEventListener("loadedmetadata", update);
-    video.addEventListener("play", update);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("playing", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("ended", onPause);
     update();
+    if (!video.paused && !video.ended) startPolling();
 
     return () => {
+      stopPolling();
       video.removeEventListener("timeupdate", update);
       video.removeEventListener("seeking", update);
       video.removeEventListener("seeked", update);
       video.removeEventListener("loadedmetadata", update);
-      video.removeEventListener("play", update);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("playing", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("ended", onPause);
     };
   }, [videoRef, cues, playbackReady, getPlaybackSeconds]);
 

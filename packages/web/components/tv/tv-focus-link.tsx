@@ -24,8 +24,31 @@ export const tvCardLinkClassName =
 export const tvChipClassName =
   "tv-focus-chip shrink-0 snap-center rounded-lg border-2 border-transparent outline-none ring-0 shadow-none transition-colors duration-75 ease-out";
 
+/** Watch transport controls — visuals owned by globals.css (.watch-control-btn) */
+export const tvWatchControlClassName =
+  "watch-control-btn outline-none ring-0 shadow-none";
+
 function focusSelectedProps(selected?: boolean) {
   return selected ? ({ "data-tv-selected": "" as const }) : {};
+}
+
+function variantClassName(
+  variant: "default" | "poster" | "card" | "nav" | "chip" | "watch",
+) {
+  switch (variant) {
+    case "poster":
+      return tvPosterLinkClassName;
+    case "card":
+      return tvCardLinkClassName;
+    case "nav":
+      return tvNavItemClassName;
+    case "chip":
+      return tvChipClassName;
+    case "watch":
+      return tvWatchControlClassName;
+    default:
+      return tvFocusRingClassName;
+  }
 }
 
 export function TvFocusLink({
@@ -34,25 +57,14 @@ export function TvFocusLink({
   selected,
   ...props
 }: ComponentProps<typeof Link> & {
-  variant?: "default" | "poster" | "card" | "nav" | "chip";
+  variant?: "default" | "poster" | "card" | "nav" | "chip" | "watch";
   selected?: boolean;
 }) {
   return (
     <Link
       data-tv-item=""
       tabIndex={0}
-      className={cn(
-        variant === "poster"
-          ? tvPosterLinkClassName
-          : variant === "card"
-            ? tvCardLinkClassName
-            : variant === "nav"
-              ? tvNavItemClassName
-              : variant === "chip"
-                ? tvChipClassName
-                : tvFocusRingClassName,
-        className,
-      )}
+      className={cn(variantClassName(variant), className)}
       {...focusSelectedProps(selected)}
       {...props}
     />
@@ -62,7 +74,7 @@ export function TvFocusLink({
 export const TvFocusButton = forwardRef<
   HTMLButtonElement,
   ComponentProps<"button"> & {
-    variant?: "default" | "card" | "nav" | "chip";
+    variant?: "default" | "card" | "nav" | "chip" | "watch";
     selected?: boolean;
   }
 >(function TvFocusButton({ className, variant = "default", selected, ...props }, ref) {
@@ -72,16 +84,7 @@ export const TvFocusButton = forwardRef<
       type="button"
       data-tv-item=""
       tabIndex={0}
-      className={cn(
-        variant === "card"
-          ? tvCardLinkClassName
-          : variant === "nav"
-            ? tvNavItemClassName
-            : variant === "chip"
-              ? tvChipClassName
-              : tvFocusRingClassName,
-        className,
-      )}
+      className={cn(variantClassName(variant), className)}
       {...focusSelectedProps(selected)}
       {...props}
     />
