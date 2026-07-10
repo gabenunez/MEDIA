@@ -4,6 +4,20 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Only one production supervisor may own the API/Web pair.
+SUPERVISOR_LOCK_DIR="$ROOT/data/.start-prod.lock"
+mkdir -p "$ROOT/data"
+if ! mkdir "$SUPERVISOR_LOCK_DIR" 2>/dev/null; then
+  existing_pid="$(cat "$SUPERVISOR_LOCK_DIR/pid" 2>/dev/null || true)"
+  if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+    echo "MEDIA! supervisor already running (pid $existing_pid)" >&2
+    exit 0
+  fi
+  rm -rf "$SUPERVISOR_LOCK_DIR"
+  mkdir "$SUPERVISOR_LOCK_DIR"
+fi
+echo "$$" >"$SUPERVISOR_LOCK_DIR/pid"
+
 read_config_port() {
   local config="$ROOT/config.yaml"
   if [[ -f "$config" ]]; then
@@ -52,7 +66,15 @@ cleanup_children() {
   API_PID=""
 }
 
-trap cleanup_children EXIT INT TERM
+shutdown() {
+  trap - EXIT INT TERM
+  cleanup_children
+  rm -rf "$SUPERVISOR_LOCK_DIR"
+  exit 0
+}
+
+trap 'cleanup_children; rm -rf "$SUPERVISOR_LOCK_DIR"' EXIT
+trap shutdown INT TERM
 
 start_api() {
   MEDIA_API_ONLY=1 MEDIA_INTERNAL_API_PORT="$API_PORT" MEDIA_WEB_INTERNAL_URL="http://127.0.0.1:${PUBLIC_PORT}" \

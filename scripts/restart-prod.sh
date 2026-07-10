@@ -48,7 +48,25 @@ stop_running_reel() {
     else
       systemctl stop reel.service 2>/dev/null || true
     fi
-    sleep 2
+    # systemd may be stopped while an older non-systemd owner is still alive.
+    sleep 1
+    pkill -f "node packages/server/dist/index.js" 2>/dev/null || true
+    pkill -f "packages/web/.next/standalone/packages/web/server.js" 2>/dev/null || true
+    pkill -f "scripts/start-prod.sh" 2>/dev/null || true
+    for _ in $(seq 1 40); do
+      if ! pgrep -f "node packages/server/dist/index.js" >/dev/null 2>&1 &&
+        ! pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 &&
+        ! pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.25
+    done
+    if pgrep -f "node packages/server/dist/index.js" >/dev/null 2>&1 ||
+      pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 ||
+      pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
+      echo "Could not stop all MEDIA! processes cleanly; refusing to start a duplicate." >&2
+      exit 1
+    fi
     cleanup_pid_files
     return 0
   fi
@@ -73,7 +91,24 @@ stop_running_reel() {
   pkill -f "node packages/server/dist/index.js" 2>/dev/null || true
   pkill -f "packages/web/.next/standalone/packages/web/server.js" 2>/dev/null || true
   pkill -f "scripts/start-prod.sh" 2>/dev/null || true
-  sleep 1
+
+  # Do not start a replacement until every old process has actually exited.
+  # A short fixed sleep allowed orphaned API processes to retain port 8097.
+  for _ in $(seq 1 40); do
+    if ! pgrep -f "node packages/server/dist/index.js" >/dev/null 2>&1 &&
+      ! pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 &&
+      ! pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.25
+  done
+
+  if pgrep -f "node packages/server/dist/index.js" >/dev/null 2>&1 ||
+    pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 ||
+    pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
+    echo "Could not stop all MEDIA! processes cleanly; refusing to start a duplicate." >&2
+    exit 1
+  fi
   cleanup_pid_files
 }
 

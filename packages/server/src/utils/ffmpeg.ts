@@ -271,7 +271,16 @@ function writeStartOffset(outputDir: string, startSeconds: number): void {
 }
 
 function writeExitCode(outputDir: string, code: number | null): void {
-  fs.writeFileSync(path.join(outputDir, ".exit-code"), String(code ?? -1));
+  try {
+    fs.writeFileSync(path.join(outputDir, ".exit-code"), String(code ?? -1));
+  } catch (err) {
+    // stopHlsSession intentionally removes a killed session directory. The
+    // child close event can arrive afterward; never let that async bookkeeping
+    // failure crash the API during an orderly restart.
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to record FFmpeg exit code for ${outputDir}:`, err);
+    }
+  }
 }
 
 function readExitCode(outputDir: string): number | null {
@@ -1053,6 +1062,13 @@ export function stopHlsSession(sessionId: string): void {
   } catch (err) {
     // Must never throw — caller is inside request handling / cleanup timers.
     console.warn(`Failed to remove transcode dir ${session.outputDir}:`, err);
+  }
+}
+
+/** Stop every tracked HLS encoder during an orderly server shutdown. */
+export function stopAllHlsSessions(): void {
+  for (const sessionId of [...activeSessions.keys()]) {
+    stopHlsSession(sessionId);
   }
 }
 
