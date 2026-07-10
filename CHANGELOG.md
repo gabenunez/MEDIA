@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.142 — 2026-07-10
+
+### Fix
+
+- **Playback** — HLS buffer gate holds playback until forward buffer refills (18s start / 8s min / 24s resume) instead of stuttering segment-by-segment at the growing encode edge
+- **Playback** — disable hls.js hole nudging and automatic seeks on recovery so the playhead never jumps ahead or rewinds
+- **Playback** — pin spurious-`ended` resume to last stable position; skip progress save during buffer gate (desktop + TV)
+
 ## 0.1.141 — 2026-07-10
 
 ### Fix
