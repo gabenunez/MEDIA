@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.141 — 2026-07-10
+
+### Fix
+
+- **Playback** — use source-matched 2160p HLS when the browser cannot remux HEVC originals (full 4K quality instead of downscaling)
+- **Playback** — stall watchdog waits on growing encode edges instead of pipeline-resetting; only escalates when the decoder is wedged on buffered data
+- **Server** — 2160p transcode uses ultrafast/zerolatency; remux allows non-keyframe segment cuts for long-GOP HEVC; resume dead encodes after 1 segment (new sessions after 2); protect actively-serving transcodes for 90s
+
 ## 0.1.140 — 2026-07-10
 
 ### Fix
