@@ -31,8 +31,25 @@ read_config_public_prefix() {
   fi
 }
 
+read_config_port() {
+  local config="$ROOT/config.yaml"
+  if [[ -f "$config" ]]; then
+    awk '/^server:/{found=1} found && /^  port:/{print $2; exit}' "$config"
+  fi
+}
+
 uses_systemd() {
   [[ -f /etc/systemd/system/reel.service ]] && systemctl list-unit-files reel.service &>/dev/null
+}
+
+listener_pids() {
+  local port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser -n tcp "$port" 2>/dev/null |
+      awk '{for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) print $i}' || true
+  fi
 }
 
 cleanup_pid_files() {
@@ -42,73 +59,64 @@ cleanup_pid_files() {
 }
 
 stop_running_reel() {
-  if uses_systemd; then
-    if [[ -n "${MEDIA_SUDO:-}" ]]; then
-      $MEDIA_SUDO systemctl stop reel.service 2>/dev/null || true
-    else
-      systemctl stop reel.service 2>/dev/null || true
-    fi
-    # systemd may be stopped while an older non-systemd owner is still alive.
-    sleep 1
-    pkill -f "packages/server/dist/index.js" 2>/dev/null || true
-    pkill -f "packages/web/.next/standalone/packages/web/server.js" 2>/dev/null || true
-    pkill -f "scripts/start-prod.sh" 2>/dev/null || true
-    for _ in $(seq 1 40); do
-      if ! pgrep -f "packages/server/dist/index.js" >/dev/null 2>&1 &&
-        ! pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 &&
-        ! pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
-        break
-      fi
-      sleep 0.25
-    done
-    if pgrep -f "packages/server/dist/index.js" >/dev/null 2>&1 ||
-      pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 ||
-      pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
-      echo "Could not stop all MEDIA! processes cleanly; refusing to start a duplicate." >&2
-      exit 1
-    fi
-    cleanup_pid_files
-    return 0
-  fi
-
-  local pid_file pid config_dir
+  local pid_file pid config_dir supervisor_pid public_port api_port
   config_dir="$(media_config_dir)"
   pid_file="$config_dir/reel.pid"
   pid=""
   if [[ -f "$pid_file" ]]; then
     pid="$(cat "$pid_file" 2>/dev/null || true)"
   elif [[ -f "${HOME}/.config/media-app/reel.pid" ]]; then
-    pid_file="${HOME}/.config/media-app/reel.pid"
-    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    pid="$(cat "${HOME}/.config/media-app/reel.pid" 2>/dev/null || true)"
   elif [[ -f "${HOME}/.config/reel/reel.pid" ]]; then
-    pid_file="${HOME}/.config/reel/reel.pid"
-    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    pid="$(cat "${HOME}/.config/reel/reel.pid" 2>/dev/null || true)"
   fi
-  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-    kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
-    sleep 2
+
+  if uses_systemd; then
+    if [[ -n "${MEDIA_SUDO:-}" ]]; then
+      $MEDIA_SUDO systemctl stop reel.service 2>/dev/null || true
+    else
+      systemctl stop reel.service 2>/dev/null || true
+    fi
   fi
+
+  supervisor_pid="$(cat "$ROOT/data/.start-prod.lock/pid" 2>/dev/null || true)"
+  for candidate in "$pid" "$supervisor_pid"; do
+    if [[ -n "$candidate" ]] && kill -0 "$candidate" 2>/dev/null; then
+      kill "$candidate" 2>/dev/null || true
+    fi
+  done
+
   pkill -f "packages/server/dist/index.js" 2>/dev/null || true
   pkill -f "packages/web/.next/standalone/packages/web/server.js" 2>/dev/null || true
   pkill -f "scripts/start-prod.sh" 2>/dev/null || true
 
-  # Do not start a replacement until every old process has actually exited.
-  # A short fixed sleep allowed orphaned API processes to retain port 8097.
+  # Use actual listening sockets as the source of truth. pgrep can match its
+  # own search command and must not prevent a replacement from starting.
+  public_port="$(read_config_port)"
+  public_port="${public_port:-8096}"
+  api_port=$((public_port + 1))
+  for port in "$public_port" "$api_port"; do
+    for listener in $(listener_pids "$port"); do
+      [[ "$listener" == "$$" ]] || kill "$listener" 2>/dev/null || true
+    done
+  done
+
   for _ in $(seq 1 40); do
-    if ! pgrep -f "packages/server/dist/index.js" >/dev/null 2>&1 &&
-      ! pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 &&
-      ! pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
+    if [[ -z "$(listener_pids "$public_port")" ]] &&
+      [[ -z "$(listener_pids "$api_port")" ]]; then
       break
     fi
     sleep 0.25
   done
 
-  if pgrep -f "packages/server/dist/index.js" >/dev/null 2>&1 ||
-    pgrep -f "packages/web/.next/standalone/packages/web/server.js" >/dev/null 2>&1 ||
-    pgrep -f "scripts/start-prod.sh" >/dev/null 2>&1; then
-    echo "Could not stop all MEDIA! processes cleanly; refusing to start a duplicate." >&2
-    exit 1
-  fi
+  # Force-release stubborn listeners; never leave the app offline because an
+  # old process ignored graceful termination.
+  for port in "$public_port" "$api_port"; do
+    for listener in $(listener_pids "$port"); do
+      [[ "$listener" == "$$" ]] || kill -9 "$listener" 2>/dev/null || true
+    done
+  done
+  rm -rf "$ROOT/data/.start-prod.lock"
   cleanup_pid_files
 }
 
