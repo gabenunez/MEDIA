@@ -9,7 +9,7 @@ import { tvPosterLinkClassName } from "@/components/tv/tv-focus-link";
 import { prefetchPosterNavigation } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
 import { Clapperboard, Tv } from "lucide-react";
-import { isTvClient } from "@/lib/tv-mode-detect";
+import { isTv4KClient, isTvClient } from "@/lib/tv-mode-detect";
 import { MediaImage } from "@/components/media-image";
 
 interface TvPosterProps {
@@ -47,6 +47,7 @@ export const TvPoster = memo(function TvPoster({
         href={linkHref}
         prefetch
         data-tv-item=""
+        data-tv-video-item=""
         tabIndex={0}
         className={cn(
           tvPosterLinkClassName,
@@ -64,7 +65,8 @@ export const TvPoster = memo(function TvPoster({
               alt=""
               fill
               priority={loadImmediately}
-               sizes="(min-width: 1920px) 10rem, 8rem"
+              quality={isTv4KClient() ? 90 : 80}
+              sizes="(min-width: 1920px) 10rem, 8rem"
               className="object-cover"
             />
           ) : (

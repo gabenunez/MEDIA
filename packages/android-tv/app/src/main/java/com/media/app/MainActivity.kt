@@ -213,6 +213,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun performDefaultBackNavigation() {
         when {
+            nativePlayer.isActive() && webView.canGoBack() -> webView.goBack()
             nativePlayer.isActive() -> stopNativeVideoPlayback()
             webView.canGoBack() -> webView.goBack()
             else -> finishAffinity()

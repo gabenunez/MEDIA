@@ -388,7 +388,7 @@ export async function settingsRoutes(
     async (request, reply) => {
       const customPath = request.body?.plexDbPath?.trim();
       if (customPath) {
-        const detection = detectPlexLibraryDatabase(customPath);
+        const detection = await detectPlexLibraryDatabase(customPath);
         if (!detection.detected) {
           return reply.status(400).send({
             error: "The provided path is not a readable Plex library database.",

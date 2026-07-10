@@ -101,6 +101,9 @@
     max-height: 100vh;
     overflow: hidden;
     --tv-poster-width: 7.5rem;
+    --tv-page-gutter: 2rem;
+    --tv-row-gap: 0.75rem;
+    --tv-section-gap: 1.5rem;
     --tv-focus-glow:
       0 0 0 2px hsl(var(--background)),
       0 0 0 4px hsl(var(--primary));
@@ -115,6 +118,36 @@
       0 0 0 3px hsl(var(--primary));
     --tv-focus-border: 2px solid hsl(var(--primary));
     --tv-focus-border-selected: 2px solid hsl(var(--primary) / 0.55);
+  }
+
+  /* Shared 10-foot spacing rhythm for every TV view. */
+  .tv-ui > main {
+    padding-block: 1rem 2rem;
+  }
+
+  .tv-ui .tv-row-section {
+    margin-bottom: var(--tv-section-gap);
+  }
+
+  .tv-ui .tv-row-section > h2 {
+    margin-bottom: 0.25rem;
+    padding-inline: var(--tv-page-gutter);
+  }
+
+  .tv-ui .tv-scroll-row {
+    gap: var(--tv-row-gap);
+    padding-inline: var(--tv-page-gutter);
+    padding-block: 0.75rem 1rem;
+    scroll-padding-inline: var(--tv-page-gutter);
+  }
+
+  .tv-ui [data-tv-grid] {
+    row-gap: 1.5rem;
+    column-gap: var(--tv-row-gap);
+  }
+
+  .tv-ui [data-tv-content-row] {
+    scroll-margin-block: 2rem;
   }
 
   /* —— Side nav —— */
@@ -1221,6 +1254,9 @@
 
   html.tv-mode.tv-4k .tv-ui {
     --tv-poster-width: 10rem;
+    --tv-page-gutter: 3rem;
+    --tv-row-gap: 1rem;
+    --tv-section-gap: 2rem;
     --tv-focus-ring-compact: 0 0 0 3px hsl(var(--primary));
     --tv-focus-ring-compact-strong: 0 0 0 4px hsl(var(--primary));
     --tv-poster-focus-ring:
@@ -1257,14 +1293,11 @@
   }
 
   html.tv-mode.tv-4k .tv-ui .tv-scroll-row {
-    gap: 1rem;
-    padding-inline: 3rem;
-    padding-block: 1.25rem 1rem;
+    padding-block: 1rem 1.25rem;
   }
 
   html.tv-mode.tv-4k .tv-ui .tv-row-section > h2 {
     margin-bottom: 0.5rem;
-    padding-inline: 3rem;
     font-size: 1.15rem;
   }
 

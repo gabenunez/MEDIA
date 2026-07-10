@@ -1,12 +1,17 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { and, eq, isNotNull } from "drizzle-orm";
 import type { DatabaseInstance } from "../db/index.js";
 import { mediaItems, movieFiles, tvEpisodes, watchProgress } from "../db/schema.js";
 
 const PLEX_DB_FILENAME = "com.plexapp.plugins.library.db";
+const execFileAsync = promisify(execFile);
+let plexSystemScan: { at: number; paths: string[] } | null = null;
+let plexSystemScanPromise: Promise<string[]> | null = null;
 const PLEX_SCAN_MAX_MS = 1500;
 const PLEX_SCAN_MAX_DIRECTORIES = 6000;
 const PLEX_SCAN_MAX_DEPTH = 7;
@@ -206,13 +211,62 @@ function quickFindPlexDatabases(): string[] {
   return found;
 }
 
-export function detectPlexLibraryDatabase(customPath?: string): PlexDetectionResult {
+async function scanEntireSystemForPlexDatabases(): Promise<string[]> {
+  if (plexSystemScan && Date.now() - plexSystemScan.at < 5 * 60 * 1000) {
+    return plexSystemScan.paths;
+  }
+  if (plexSystemScanPromise) return plexSystemScanPromise;
+
+  plexSystemScanPromise = scanEntireSystemForPlexDatabasesUncached();
+  try {
+    const paths = await plexSystemScanPromise;
+    plexSystemScan = { at: Date.now(), paths };
+    return paths;
+  } finally {
+    plexSystemScanPromise = null;
+  }
+}
+
+async function scanEntireSystemForPlexDatabasesUncached(): Promise<string[]> {
+  if (process.platform === "win32") return quickFindPlexDatabases();
+
+  try {
+    const { stdout } = await execFileAsync(
+      "find",
+      [
+        "/",
+        "-xdev",
+        "-type",
+        "f",
+        "-name",
+        PLEX_DB_FILENAME,
+        "-print",
+      ],
+      {
+        timeout: 120_000,
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true,
+      },
+    );
+    return stdout.split("\n").map((candidate) => candidate.trim()).filter(Boolean);
+  } catch (err) {
+    // Keep partial stdout if find encountered permission errors or timed out.
+    const partial = (err as { stdout?: string }).stdout ?? "";
+    const found = partial.split("\n").map((candidate) => candidate.trim()).filter(Boolean);
+    return found.length > 0 ? found : quickFindPlexDatabases();
+  }
+}
+
+export async function detectPlexLibraryDatabase(
+  customPath?: string,
+): Promise<PlexDetectionResult> {
   const knownCandidates = customPath
     ? [path.resolve(customPath)]
     : getPlexDatabaseCandidates();
+  const systemCandidates = customPath ? [] : await scanEntireSystemForPlexDatabases();
   const candidates = customPath
     ? knownCandidates
-    : [...new Set([...knownCandidates, ...quickFindPlexDatabases()])];
+    : [...new Set([...knownCandidates, ...systemCandidates.map((item) => path.resolve(item))])];
 
   const existing = candidates.filter((candidate) => {
     try {
@@ -447,7 +501,7 @@ export async function previewPlexImport(
   db: DatabaseInstance,
   customPath?: string,
 ): Promise<PlexImportPreview> {
-  const detection = detectPlexLibraryDatabase(customPath);
+  const detection = await detectPlexLibraryDatabase(customPath);
   if (!detection.detected || !detection.dbPath) {
     return {
       detected: false,
@@ -489,7 +543,7 @@ export async function importPlexWatchProgress(
   db: DatabaseInstance,
   options: { plexDbPath?: string; overwrite?: boolean } = {},
 ): Promise<PlexImportResult> {
-  const detection = detectPlexLibraryDatabase(options.plexDbPath);
+  const detection = await detectPlexLibraryDatabase(options.plexDbPath);
   if (!detection.detected || !detection.dbPath) {
     throw new Error(detection.warning ?? "Plex library database not found.");
   }

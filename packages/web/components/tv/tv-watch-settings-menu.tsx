@@ -115,7 +115,7 @@ export function TvWatchPopover({
     <div
       data-tv-watch-menu=""
       className={cn(
-        "absolute bottom-full right-0 z-50 mb-2 rounded-md border border-border bg-card p-1 shadow-xl",
+        "absolute bottom-full right-0 z-50 mb-2 max-h-[min(70vh,32rem)] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-md border border-border bg-card p-1 shadow-xl",
         className,
       )}
     >
@@ -129,5 +129,8 @@ export function tvWatchMenuOptionClassName(extra?: string) {
 }
 
 export function tvWatchPopoverOptionClassName(...extra: Array<string | false | null | undefined>) {
-  return cn("w-full rounded px-3 py-1.5 text-left text-sm", ...extra);
+  return cn(
+    "min-h-10 w-full whitespace-normal break-words rounded px-3 py-2 text-left text-sm leading-snug",
+    ...extra,
+  );
 }

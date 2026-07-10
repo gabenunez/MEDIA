@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.153 — 2026-07-10
+
+### Fix
+
+- **Android TV** — Back from native playback uses WebView history when available instead of always stopping the player
+- **Android TV** — defer stopping ExoPlayer until after the destination route paints (no black flash leaving watch)
+- **TV** — shared row/gutter spacing tokens across all views; 4K uses higher image quality (90) on posters, heroes, and playback backdrops
+- **TV** — home focus lands on the first video poster (Continue Watching) instead of browse cards
+- **TV** — watch subtitle/quality menus scroll and wrap long labels on 4K displays
+- **Server** — Plex import runs a full-system `find` for the library DB (cached 5 min) in addition to known paths
+
 ## 0.1.152 — 2026-07-10
 
 ### Fix

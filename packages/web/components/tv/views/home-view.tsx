@@ -8,7 +8,7 @@ import { TvPoster } from "@/components/tv/tv-poster";
 import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { TvBrowseCard } from "@/components/tv/tv-see-all-tile";
 import { useDocumentTitle } from "@/lib/use-document-title";
-import { focusPrimaryContentItem } from "@/lib/tv-focus";
+import { focusFirstHomeVideoItem, focusPrimaryContentItem } from "@/lib/tv-focus";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { LibraryIcon } from "@/components/navbar";
 import { preloadPosterList } from "@/lib/prefetch-artwork";
@@ -59,7 +59,12 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
 
   useEffect(() => {
     if (!loaded) return;
-    requestAnimationFrame(() => focusPrimaryContentItem());
+    requestAnimationFrame(() => {
+      // Continue Watching is rendered first, so this selects the most
+      // recently played video when available. Otherwise it selects the first
+      // available poster before any browse/action cards.
+      if (!focusFirstHomeVideoItem()) focusPrimaryContentItem();
+    });
   }, [loaded]);
 
   if (!loaded) {

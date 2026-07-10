@@ -74,15 +74,21 @@ export function TvShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onWatch = pathname.startsWith("/watch");
+    let stopFrame: number | null = null;
     if (wasOnWatchRef.current && !onWatch) {
       if (nativeTvPlayerAvailable()) {
+        // Let the destination page paint over the native surface first. The
+        // old order exposed the Activity's black background for one frame.
         document.documentElement.removeAttribute("data-native-video");
         setNativeWebOverlayAlpha(1);
-        stopNativePlayback();
+        stopFrame = requestAnimationFrame(() => stopNativePlayback());
       }
       document.querySelector("video")?.pause();
     }
     wasOnWatchRef.current = onWatch;
+    return () => {
+      if (stopFrame !== null) cancelAnimationFrame(stopFrame);
+    };
   }, [pathname]);
 
   const handleLogout = () => {

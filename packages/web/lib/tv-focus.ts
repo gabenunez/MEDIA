@@ -131,6 +131,16 @@ export function focusPrimaryContentItem() {
   if (item) focusTvItem(item);
 }
 
+/** Focus the first actual video tile on the TV home page, not a browse card. */
+export function focusFirstHomeVideoItem(): boolean {
+  const main = document.querySelector("main");
+  if (!main) return false;
+  const item = main.querySelector<HTMLElement>("[data-tv-video-item]");
+  if (!item) return false;
+  focusTvItem(item);
+  return true;
+}
+
 /** Focus the first selectable row inside a watch settings / subtitle panel. */
 export function focusFirstWatchMenuItem(panel?: ParentNode | null) {
   const root =

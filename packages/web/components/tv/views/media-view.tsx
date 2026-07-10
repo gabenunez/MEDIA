@@ -5,6 +5,7 @@ import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import { Loader2, Play } from "lucide-react";
 import { tvImageUrl } from "@/lib/tv-image";
+import { isTv4KClient } from "@/lib/tv-mode-detect";
 import { routes } from "@/lib/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
@@ -176,6 +177,7 @@ function TvMediaViewContent({
   const metaLabel = [typeLabel, media.year].filter(Boolean).join(" · ");
   const showRelated = !serverShell && related.length > 0;
   const showThemeWaveform = media.hasThemeMusic && (includeTheme || serverShell);
+  const tvImageQuality = isTv4KClient() ? 90 : 80;
 
   const page = (
     <div className="pb-6">
@@ -186,8 +188,9 @@ function TvMediaViewContent({
               src={backdropUrl}
               alt=""
               fill
-              priority
-              sizes="100vw"
+                  priority
+                  quality={tvImageQuality}
+                  sizes="100vw"
               className="object-cover"
             />
           ) : (
@@ -210,6 +213,7 @@ function TvMediaViewContent({
                   width={112}
                   height={168}
                   priority
+                  quality={tvImageQuality}
                   sizes="7rem"
                   className="aspect-[2/3] w-full rounded-md poster-shadow"
                 />
@@ -327,6 +331,7 @@ function TvMediaViewContent({
                         alt=""
                         fill
                         priority
+                        quality={tvImageQuality}
                         sizes="6.75rem"
                         className="object-cover"
                       />

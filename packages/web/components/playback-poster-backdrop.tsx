@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { usePreloadedImage } from "@/lib/use-preloaded-image";
 import { MediaImage } from "@/components/media-image";
+import { isTv4KClient } from "@/lib/tv-mode-detect";
 
 interface PlaybackPosterBackdropProps {
   posterUrl: string | null;
@@ -28,6 +29,7 @@ export function PlaybackPosterBackdrop({
       alt=""
       fill
       priority
+      quality={isTv4KClient() ? 90 : 80}
       sizes="100vw"
       className={cn(
         "pointer-events-none z-[1] object-contain transition-opacity duration-150",
