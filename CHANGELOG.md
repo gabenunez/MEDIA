@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.144 — 2026-07-10
+
+### Fix
+
+- **Server** — graceful shutdown stops all active HLS encoders on SIGTERM/SIGINT instead of leaving orphaned ffmpeg or crashing on async exit bookkeeping
+- **Server** — `restart-prod.sh` waits for old API/web processes to exit before starting replacements (fixes EADDRINUSE on 8097 and mid-playback ffmpeg kills)
+- **Server** — `start-prod.sh` supervisor lock prevents duplicate production stacks from racing the same ports
+
 ## 0.1.143 — 2026-07-10
 
 ### Fix
