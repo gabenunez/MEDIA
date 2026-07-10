@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.149 — 2026-07-10
+
+### Fix
+
+- **Android TV** — keep splash visible until TV content is actually ready (`data-tv-content-ready`) instead of timing out at 15s on slow loads
+- **Android TV** — lighter splash animation (static title gradient, simpler ring pulse) to reduce UI-thread jank on boot
+
+### Enhancement
+
+- **Playback** — prefetch theme music when hovering/focusing posters so media pages start theme audio faster
+- **UI** — theme music waveform uses primary/accent gradient bars; dedupe concurrent theme blob fetches
+
 ## 0.1.148 — 2026-07-10
 
 ### Fix
