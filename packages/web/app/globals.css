@@ -150,6 +150,17 @@
     scroll-margin-block: 2rem;
   }
 
+  /* Keep the final desktop card out from underneath the scroll arrow. */
+  .scroll-row-content {
+    padding-right: 5rem;
+  }
+
+  @media (min-width: 640px) {
+    .scroll-row-content {
+      padding-right: 6rem;
+    }
+  }
+
   /* —— Side nav —— */
   .tv-ui [data-tv-item].tv-focus-nav {
     color: hsl(var(--muted-foreground));

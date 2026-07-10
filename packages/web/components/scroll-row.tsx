@@ -119,11 +119,16 @@ export function ScrollRow({
       )}
 
       <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-24 bg-gradient-to-l from-background via-background/75 to-transparent sm:block"
+      />
+
+      <div
         ref={scrollerRef}
         onPointerEnter={handlePointerEnterRow}
         onPointerLeave={handlePointerLeaveRow}
         className={cn(
-          "scrollbar-hide flex snap-x gap-4 overflow-x-auto pb-3",
+          "scroll-row-content scrollbar-hide flex snap-x gap-4 overflow-x-auto pb-3",
           contentClassName,
         )}
       >

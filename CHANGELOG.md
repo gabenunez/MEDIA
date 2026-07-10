@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.156 — 2026-07-10
+
+### Fix
+
+- **UI** — desktop scroll rows pad the trailing edge and fade the right side so the last poster is not hidden under the scroll arrow
+
 ## 0.1.155 — 2026-07-10
 
 ### Fix
