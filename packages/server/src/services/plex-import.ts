@@ -7,6 +7,9 @@ import type { DatabaseInstance } from "../db/index.js";
 import { mediaItems, movieFiles, tvEpisodes, watchProgress } from "../db/schema.js";
 
 const PLEX_DB_FILENAME = "com.plexapp.plugins.library.db";
+const PLEX_SCAN_MAX_MS = 1500;
+const PLEX_SCAN_MAX_DIRECTORIES = 6000;
+const PLEX_SCAN_MAX_DEPTH = 7;
 
 /** Plex metadata_type values we care about for playback state. */
 const PLEX_METADATA_MOVIE = 1;
@@ -70,6 +73,23 @@ interface ReelMediaIndex {
 export function getPlexDatabaseCandidates(): string[] {
   const home = os.homedir();
   const dirs: string[] = [];
+  const plexDbPath =
+    process.env.PLEX_DB_PATH ??
+    process.env.PLEX_LIBRARY_DB ??
+    process.env.PLEX_DATABASE_PATH;
+  const plexRoot = process.env.PLEX_HOME ?? process.env.PLEX_CONFIG_DIR;
+
+  if (plexDbPath?.trim()) {
+    dirs.push(plexDbPath.trim());
+  }
+  if (plexRoot?.trim()) {
+    dirs.push(
+      path.join(
+        plexRoot.trim(),
+        "Library/Application Support/Plex Media Server/Plug-in Support/Databases",
+      ),
+    );
+  }
 
   if (process.platform === "darwin") {
     dirs.push(
@@ -82,6 +102,9 @@ export function getPlexDatabaseCandidates(): string[] {
   } else if (process.platform === "linux") {
     dirs.push(
       "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-in Support/Databases",
+      "/var/snap/plexmediaserver/common/Library/Application Support/Plex Media Server/Plug-in Support/Databases",
+      "/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases",
+      "/plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases",
       path.join(
         home,
         "Library/Application Support/Plex Media Server/Plug-in Support/Databases",
@@ -100,17 +123,100 @@ export function getPlexDatabaseCandidates(): string[] {
   }
 
   const unique = [...new Set(dirs.map((dir) => path.resolve(dir)))];
-  return unique.map((dir) => path.join(dir, PLEX_DB_FILENAME));
+  return unique.map((candidate) =>
+    path.basename(candidate) === PLEX_DB_FILENAME
+      ? candidate
+      : path.join(candidate, PLEX_DB_FILENAME),
+  );
+}
+
+/**
+ * Bounded fallback search for installations in custom folders or containers.
+ * This intentionally searches likely data roots only, never the whole disk.
+ */
+function quickFindPlexDatabases(): string[] {
+  const home = os.homedir();
+  const roots = process.platform === "win32"
+    ? [home, process.env.LOCALAPPDATA, process.env.PROGRAMDATA]
+    : process.platform === "darwin"
+      ? [home, "/Volumes", "/Library/Application Support"]
+      : [home, "/var/lib", "/var/snap", "/config", "/plex", "/mnt", "/media", "/opt", "/srv"];
+  const found: string[] = [];
+  const queue: Array<{ dir: string; depth: number }> = [];
+  const visited = new Set<string>();
+  const deadline = Date.now() + PLEX_SCAN_MAX_MS;
+
+  for (const root of roots) {
+    if (root?.trim()) queue.push({ dir: root, depth: 0 });
+  }
+
+  while (
+    queue.length > 0 &&
+    found.length < 8 &&
+    visited.size < PLEX_SCAN_MAX_DIRECTORIES &&
+    Date.now() < deadline
+  ) {
+    const current = queue.pop();
+    if (!current || current.depth > PLEX_SCAN_MAX_DEPTH) continue;
+
+    let realDir: string;
+    try {
+      realDir = fs.realpathSync(current.dir);
+    } catch {
+      continue;
+    }
+    if (visited.has(realDir)) continue;
+    visited.add(realDir);
+
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(realDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (entry.name === PLEX_DB_FILENAME) {
+        const candidate = path.join(realDir, entry.name);
+        try {
+          if (fs.statSync(candidate).isFile() && fs.accessSync(candidate, fs.constants.R_OK) === undefined) {
+            found.push(candidate);
+          }
+        } catch {
+          // Ignore files that disappear or are not readable.
+        }
+        continue;
+      }
+
+      if (
+        !entry.isDirectory() ||
+        current.depth >= PLEX_SCAN_MAX_DEPTH ||
+        entry.name === "node_modules" ||
+        entry.name === ".git" ||
+        entry.name === "proc" ||
+        entry.name === "sys" ||
+        entry.name === "dev"
+      ) {
+        continue;
+      }
+      queue.push({ dir: path.join(realDir, entry.name), depth: current.depth + 1 });
+    }
+  }
+
+  return found;
 }
 
 export function detectPlexLibraryDatabase(customPath?: string): PlexDetectionResult {
-  const candidates = customPath
+  const knownCandidates = customPath
     ? [path.resolve(customPath)]
     : getPlexDatabaseCandidates();
+  const candidates = customPath
+    ? knownCandidates
+    : [...new Set([...knownCandidates, ...quickFindPlexDatabases()])];
 
   const existing = candidates.filter((candidate) => {
     try {
-      return fs.statSync(candidate).isFile();
+      return fs.statSync(candidate).isFile() && (fs.accessSync(candidate, fs.constants.R_OK), true);
     } catch {
       return false;
     }
@@ -122,7 +228,7 @@ export function detectPlexLibraryDatabase(customPath?: string): PlexDetectionRes
       dbPath: null,
       candidates,
       warning:
-        "No Plex library database found. Install Plex Media Server or provide the path to com.plexapp.plugins.library.db.",
+        "No readable Plex library database found. If Plex runs in Docker or on another machine, enter the host-mounted path to com.plexapp.plugins.library.db. MEDIA! cannot read a database that only exists on a remote Plex server.",
     };
   }
 
