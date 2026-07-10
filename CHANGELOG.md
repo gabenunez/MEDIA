@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.151 — 2026-07-10
+
+### Fix
+
+- **TV** — 4K layout polish: larger posters (10rem), row spacing, nav chrome, focus rings, and poster image `sizes` for sharper grids on 2160p displays
+
 ## 0.1.150 — 2026-07-10
 
 ### Fix
