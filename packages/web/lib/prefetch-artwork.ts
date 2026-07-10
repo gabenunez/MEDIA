@@ -1,6 +1,7 @@
 import { api, type MediaItem } from "@/lib/api";
 import { nextOptimizedImageUrl } from "@/lib/next-image-url";
 import { prefetchMediaPage } from "@/lib/use-media-page-data";
+import { prefetchThemeMusic } from "@/components/theme-music-player";
 
 const inflight = new Set<string>();
 
@@ -27,6 +28,7 @@ type PosterLike = Pick<MediaItem, "id" | "posterPath" | "backdropPath">;
 export function prefetchPosterNavigation(item: PosterLike): void {
   if (!Number.isFinite(item.id)) return;
   prefetchMediaPage(item.id);
+  prefetchThemeMusic(item.id);
   preloadImageUrl(api.imageUrl(item.posterPath));
   preloadImageUrl(api.imageUrl(item.backdropPath ?? item.posterPath));
 }

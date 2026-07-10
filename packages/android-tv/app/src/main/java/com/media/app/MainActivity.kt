@@ -46,7 +46,6 @@ class MainActivity : AppCompatActivity() {
     private var splashDismissed = false
     private val splashHandler = Handler(Looper.getMainLooper())
     private var splashPollRunnable: Runnable? = null
-    private var splashTimeoutRunnable: Runnable? = null
 
     // System speech recognizer (Google) runs in its own process, so the app needs no
     // RECORD_AUDIO permission — unlike an in-process SpeechRecognizer.
@@ -345,7 +344,7 @@ class MainActivity : AppCompatActivity() {
                           if(document.querySelector('[data-tv-watch-player]'))return true;
                           var shell=document.querySelector('.tv-ui');
                           var main=document.querySelector('.tv-ui main');
-                          return !!(shell&&main&&main.children.length>0);
+                          return !!(shell&&main&&main.hasAttribute('data-tv-content-ready'));
                         })();
                         """.trimIndent(),
                     ) { result ->
@@ -361,14 +360,10 @@ class MainActivity : AppCompatActivity() {
             }
         splashPollRunnable = poll
 
-        val timeout =
-            Runnable {
-                dismissSplash()
-            }
-        splashTimeoutRunnable = timeout
-
         splashHandler.post(poll)
-        splashHandler.postDelayed(timeout, SPLASH_TIMEOUT_MS)
+        // Keep the branded splash visible while the page is still loading;
+        // revealing an empty background and painting cards afterward feels
+        // like a broken app. Individual TV views mark real content ready.
     }
 
     private fun dismissSplash() {
@@ -388,8 +383,6 @@ class MainActivity : AppCompatActivity() {
     private fun cancelSplashWatch() {
         splashPollRunnable?.let { splashHandler.removeCallbacks(it) }
         splashPollRunnable = null
-        splashTimeoutRunnable?.let { splashHandler.removeCallbacks(it) }
-        splashTimeoutRunnable = null
     }
 
     private fun buildLaunchUrl(baseUrl: String): String {
@@ -689,7 +682,6 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_SERVER_URL = "server_url"
         private const val USER_AGENT_TOKEN = "MediaAndroidTV"
         private const val SPLASH_POLL_MS = 100L
-        private const val SPLASH_TIMEOUT_MS = 15_000L
         private const val SPLASH_FADE_MS = 250L
         private const val PAUSE_WEB_PLAYBACK_JS =
             "(function(){var video=document.querySelector('video');if(video&&!video.paused){video.pause();}})();"

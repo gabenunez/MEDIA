@@ -2,12 +2,10 @@ package com.media.app
 
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Shader
 import android.util.AttributeSet
@@ -25,7 +23,7 @@ class SplashHeroView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : FrameLayout(context, attrs) {
     private var bangAnimator: AnimatorSet? = null
-    private val ringAnimators = mutableListOf<ValueAnimator>()
+    private val ringAnimators = mutableListOf<AnimatorSet>()
 
     init {
         clipChildren = false
@@ -94,23 +92,21 @@ class SplashHeroView @JvmOverloads constructor(
     }
 
     private fun startRingPulse(view: View, startDelay: Long) {
-        view.scaleX = 0.55f
-        view.scaleY = 0.55f
-        view.alpha = 0.65f
-        val animator =
-            ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 5500L
-                this.startDelay = startDelay
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = LinearInterpolator()
-                addUpdateListener { update ->
-                    val t = update.animatedFraction
-                    val scale = 0.55f + t * 0.8f
-                    view.scaleX = scale
-                    view.scaleY = scale
-                    view.alpha = 0.65f * (1f - t)
-                }
-            }
+        val scaleX = ObjectAnimator.ofFloat(view, SCALE_X, 0.55f, 1.35f).apply {
+            repeatCount = ObjectAnimator.INFINITE
+        }
+        val scaleY = ObjectAnimator.ofFloat(view, SCALE_Y, 0.55f, 1.35f).apply {
+            repeatCount = ObjectAnimator.INFINITE
+        }
+        val alpha = ObjectAnimator.ofFloat(view, ALPHA, 0.65f, 0f).apply {
+            repeatCount = ObjectAnimator.INFINITE
+        }
+        val animator = AnimatorSet().apply {
+            playTogether(scaleX, scaleY, alpha)
+            duration = 5500L
+            this.startDelay = startDelay
+            interpolator = LinearInterpolator()
+        }
         animator.start()
         ringAnimators += animator
     }
@@ -160,8 +156,6 @@ class GradientShiftTextView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : AppCompatTextView(context, attrs) {
     private var gradient: LinearGradient? = null
-    private val gradientMatrix = Matrix()
-    private var gradientAnimator: ValueAnimator? = null
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -182,28 +176,13 @@ class GradientShiftTextView @JvmOverloads constructor(
     }
 
     fun startGradientAnimation() {
-        gradientAnimator?.cancel()
-        gradientAnimator =
-            ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 10_000L
-                repeatCount = ValueAnimator.INFINITE
-                repeatMode = ValueAnimator.REVERSE
-                interpolator = AccelerateDecelerateInterpolator()
-                addUpdateListener { update ->
-                    val width = width.toFloat()
-                    if (width <= 0f) return@addUpdateListener
-                    val shift = (update.animatedFraction - 0.5f) * width
-                    gradientMatrix.setTranslate(shift, 0f)
-                    gradient?.setLocalMatrix(gradientMatrix)
-                    invalidate()
-                }
-                start()
-            }
+        // Keep the first frame cheap on Android TV. Animating a text shader
+        // requires a full text invalidate every frame; the rings and bang
+        // provide motion without forcing the title through the UI thread.
     }
 
     fun stopGradientAnimation() {
-        gradientAnimator?.cancel()
-        gradientAnimator = null
+        // Gradient is intentionally static; no per-frame shader invalidation.
     }
 
     override fun onDetachedFromWindow() {

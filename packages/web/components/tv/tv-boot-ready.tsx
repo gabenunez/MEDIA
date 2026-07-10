@@ -34,6 +34,7 @@ export function TvBootReadyProvider({ children }: { children: ReactNode }) {
 
   const markPageReady = useCallback(() => {
     setPageReady(true);
+    document.querySelector("main")?.setAttribute("data-tv-content-ready", "");
   }, []);
 
   useEffect(() => {

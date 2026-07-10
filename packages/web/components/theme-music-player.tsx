@@ -18,6 +18,7 @@ const FADE_MS = 1800;
 const MAX_PLAY_MS = 42_000;
 
 const themeBlobCache = new Map<number, Blob>();
+const themeBlobInflight = new Map<number, Promise<Blob>>();
 
 function fadeVolume(
   audio: HTMLAudioElement,
@@ -47,15 +48,33 @@ async function loadThemeBlob(mediaId: number, signal: AbortSignal): Promise<Blob
   const cached = themeBlobCache.get(mediaId);
   if (cached) return cached;
 
-  const res = await fetch(api.themeMusicUrl(mediaId), {
-    credentials: "include",
-    signal,
-  });
-  if (!res.ok) throw new Error("Theme unavailable");
+  const pending = themeBlobInflight.get(mediaId);
+  if (pending) return pending;
 
-  const blob = await res.blob();
-  themeBlobCache.set(mediaId, blob);
-  return blob;
+  const request = (async () => {
+    const res = await fetch(api.themeMusicUrl(mediaId), {
+      credentials: "include",
+      signal,
+    });
+    if (!res.ok) throw new Error("Theme unavailable");
+
+    const blob = await res.blob();
+    themeBlobCache.set(mediaId, blob);
+    return blob;
+  })();
+
+  themeBlobInflight.set(mediaId, request);
+  try {
+    return await request;
+  } finally {
+    themeBlobInflight.delete(mediaId);
+  }
+}
+
+/** Warm theme audio on carousel hover/focus without creating playback state. */
+export function prefetchThemeMusic(mediaId: number): void {
+  if (!Number.isFinite(mediaId)) return;
+  void loadThemeBlob(mediaId, new AbortController().signal).catch(() => {});
 }
 
 function tryAttachAnalyser(element: HTMLAudioElement): AnalyserNode | null {
@@ -314,6 +333,7 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
     if (!ctx) return;
 
     const buffer = new Uint8Array(64);
+    let barGradient: CanvasGradient | null = null;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -321,6 +341,14 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
       canvas.width = Math.floor(rect.width * dpr);
       canvas.height = Math.floor(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const styles = getComputedStyle(document.documentElement);
+      const primary = styles.getPropertyValue("--primary").trim() || "174 84% 52%";
+      const accent = styles.getPropertyValue("--accent").trim() || "78 86% 60%";
+      barGradient = ctx.createLinearGradient(0, 0, rect.width, 0);
+      barGradient.addColorStop(0, `hsl(${primary} / 0.28)`);
+      barGradient.addColorStop(0.55, `hsl(${primary} / 0.5)`);
+      barGradient.addColorStop(1, `hsl(${accent} / 0.42)`);
     };
 
     resize();
@@ -342,16 +370,16 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
         node.getByteFrequencyData(buffer.subarray(0, node.frequencyBinCount));
       }
 
-      const barCount = 56;
-      const gap = 2;
+      const barCount = 48;
+      const gap = 3;
       const barWidth = (width - gap * (barCount - 1)) / barCount;
       if (barWidth < 1) {
         frameRef.current = requestAnimationFrame(draw);
         return;
       }
 
-      const midY = height * 0.62;
-      const radius = Math.min(barWidth / 2, height * 0.21);
+      const midY = height * 0.68;
+      const radius = Math.min(barWidth / 2, height * 0.16);
 
       for (let i = 0; i < barCount; i++) {
         const sample =
@@ -359,16 +387,18 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
             ? buffer[Math.floor((i / barCount) * buffer.length)] / 255
             : 0.12 + Math.sin(performance.now() / 280 + i * 0.35) * 0.06;
 
-        const amplitude = Math.max(0.06, sample);
-        const barHeight = amplitude * height * 0.42;
-        const x = i * (barWidth + gap);
-        const alpha = 0.12 + amplitude * 0.38;
+         const amplitude = Math.max(0.04, sample);
+         const barHeight = amplitude * height * 0.3;
+         const x = i * (barWidth + gap);
 
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-        ctx.beginPath();
-        ctx.roundRect(x, midY - barHeight, barWidth, barHeight * 2, radius);
-        ctx.fill();
-      }
+         ctx.fillStyle = barGradient ?? "hsl(174 84% 52% / 0.35)";
+         ctx.globalAlpha = 0.35 + amplitude * 0.5;
+         ctx.beginPath();
+         ctx.roundRect(x, midY - barHeight, barWidth, barHeight * 2, radius);
+         ctx.fill();
+       }
+
+       ctx.globalAlpha = 1;
 
       frameRef.current = requestAnimationFrame(draw);
     };
