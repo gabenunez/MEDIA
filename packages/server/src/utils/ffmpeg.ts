@@ -21,7 +21,10 @@ const IDLE_SESSION_MS = 2 * 60 * 1000;
  * cleanup — killing it mid-encode leaves a partial playlist and freezes that
  * viewer's playback.
  */
-const ACTIVELY_SERVING_MS = 20 * 1000;
+// Live playlist reloads can pause briefly (tab throttle, segment lag). Keep
+// the encode alive longer than one reload interval so capacity cleanup never
+// kills a viewer mid-buffer.
+const ACTIVELY_SERVING_MS = 90 * 1000;
 export const PRUNE_CACHE_MS = 60 * 60 * 1000;
 const FFMPEG_CACHE_MS = 5 * 60 * 1000;
 let ffmpegAvailabilityCache: { available: boolean; checkedAt: number } | null = null;
@@ -487,6 +490,11 @@ export function startHlsTranscode(
   if (startSeconds > 0) {
     args.push("-ss", String(startSeconds));
   }
+  // 4K re-encodes must stay ahead of realtime or the client buffer never grows.
+  // Prefer speed over compression efficiency at 2160p; lower tiers keep veryfast.
+  const x264Preset = quality === "2160p" ? "ultrafast" : "veryfast";
+  const x264Tune = quality === "2160p" ? ["-tune", "zerolatency"] : [];
+
   args.push(
     "-i",
     filePath,
@@ -506,7 +514,8 @@ export function startHlsTranscode(
     "-pix_fmt",
     "yuv420p",
     "-preset",
-    "veryfast",
+    x264Preset,
+    ...x264Tune,
     "-threads",
     "0",
     "-crf",
@@ -654,6 +663,10 @@ export function startHlsRemux(
     "hls",
     "-hls_time",
     String(segmentDuration),
+    // Allow segment cuts off keyframes so long-GOP HEVC sources still produce
+    // roughly hls_time-sized segments (copy mode can't force keyframes).
+    "-break_non_keyframes",
+    "1",
     "-hls_list_size",
     "0",
     "-hls_playlist_type",

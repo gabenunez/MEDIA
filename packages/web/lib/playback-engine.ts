@@ -1,9 +1,11 @@
 import type Hls from "hls.js";
 import {
   createPlaybackHls,
+  getContiguousBufferedAhead,
   playlistM3u8HasEndList,
   RECOVERY_FORGIVE_PROGRESS_SECONDS,
   resolveRecoveryBudget,
+  resolveStallWatchdogAction,
   startDirectPlaybackWithResume,
 } from "@/lib/playback-utils";
 
@@ -113,12 +115,11 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   let stallWatchdog: ReturnType<typeof setInterval> | null = null;
   let lastPlaybackAdvanceMs = Date.now();
   let lastPlaybackPosition = 0;
-  // Number of consecutive stall-watchdog nudges that didn't unstick the
-  // playhead. Escalates: small nudge → pipeline reset → fatal (quality
-  // fallback), so playback never hangs forever.
+  // Consecutive decoder-wedge nudges (only when buffer data is present).
+  // Waiting on a growing encode edge uses waitGrowTicks instead and must
+  // never escalate to startLoad/pipeline-reset.
   let consecutiveStallNudges = 0;
-  const maxStallNudgesBeforeReset = 3;
-  const maxStallNudgesBeforeFatal = 6;
+  let waitGrowTicks = 0;
   // Whether `#EXT-X-ENDLIST` has appeared in the loaded manifest. Once true,
   // this must never be reverted to false — LevelUpdated callbacks can still
   // fire with an older/stale manifest string during hls.js reload races.
@@ -145,6 +146,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       lastPlaybackPosition = video.currentTime;
       lastPlaybackAdvanceMs = Date.now();
       consecutiveStallNudges = 0;
+      waitGrowTicks = 0;
       // A pipeline reset that led to sustained healthy playback is re-armed
       // so a later, unrelated wedge can be recovered the same way instead of
       // going straight to fatal.
@@ -274,18 +276,14 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       hls.on(HlsConstructor.Events.FRAG_BUFFERED, onBufferUpdate);
       hls.on(HlsConstructor.Events.BUFFER_APPENDED, onBufferUpdate);
 
-      // Safety-net watchdog for a genuinely wedged playhead. hls.js handles
-      // normal buffering/reloading and most gap-nudging (nudgeOnVideoHole);
-      // this only fires when playback has not advanced for a sustained period
-      // while it should be playing. It never "refreshes" via startLoad (that
-      // resets the loader). It escalates: micro-nudge → pipeline reset →
-      // fatal (quality fallback), so playback can never hang forever.
+      // Safety-net for a wedged playhead. Growing-transcode rebuffer (no
+      // ENDLIST, no runway) is healthy — only escalate when decoder is stuck
+      // on buffered data, or the playlist is finished and still frozen.
+      // Never call startLoad() on the wait-grow path (that aborts buffering).
       stallWatchdog = setInterval(() => {
         if (!hls) return;
         if (video.paused) return;
         if (video.seeking) return;
-        // A premature `ended` at a growing edge: clear the ended latch so
-        // hls.js's already-running loader/reload can continue.
         if (video.ended) {
           if (!playlistHasEndList) {
             recoverHlsPlaybackAtPlaylistEnd(video, hls);
@@ -295,33 +293,45 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
 
         trackPlaybackAdvance();
 
-        // Playing normally — nothing to do.
-        if (Date.now() - lastPlaybackAdvanceMs < 4000) return;
-        // The player has buffered data ahead but simply isn't advancing (e.g.
-        // decoder hiccup) — a tiny nudge unsticks it.
+        const bufferAheadSeconds = getContiguousBufferedAhead(video);
         const stuckWithData =
-          video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA;
+          video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
+          bufferAheadSeconds >= 0.25;
 
-        consecutiveStallNudges += 1;
+        const decision = resolveStallWatchdogAction({
+          msSinceAdvance: Date.now() - lastPlaybackAdvanceMs,
+          bufferAheadSeconds,
+          stuckWithData,
+          playlistHasEndList,
+          consecutiveStallNudges,
+          waitGrowTicks,
+          didAttemptPipelineReset,
+        });
 
-        if (consecutiveStallNudges >= maxStallNudgesBeforeFatal) {
-          consecutiveStallNudges = 0;
+        consecutiveStallNudges = decision.nextStallNudges;
+        waitGrowTicks = decision.nextWaitGrowTicks;
+
+        if (decision.action === "none") return;
+
+        if (decision.action === "wait-grow") {
+          // Encoder still writing segments; keep the element ready to play.
+          void video.play().catch(() => {});
+          return;
+        }
+
+        if (decision.action === "fatal") {
           onFatalError();
           lastPlaybackAdvanceMs = Date.now();
           return;
         }
 
-        if (consecutiveStallNudges >= maxStallNudgesBeforeReset) {
-          if (!didAttemptPipelineReset) {
-            attemptPipelineReset();
-          } else {
-            onFatalError();
-          }
+        if (decision.action === "pipeline-reset") {
+          attemptPipelineReset();
           lastPlaybackAdvanceMs = Date.now();
           return;
         }
 
-        // Micro-nudge: skip past a tiny buffer hole / kick the decoder.
+        // Micro-nudge past a tiny hole / kick a wedged decoder.
         if (stuckWithData) {
           video.currentTime = video.currentTime + 0.1;
         }

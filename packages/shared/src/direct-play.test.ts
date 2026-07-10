@@ -155,4 +155,14 @@ describe("pickTranscodeQualityForPlayback", () => {
       pickTranscodeQualityForPlayback(["original", "480p", "720p"], 800, 1920),
     ).toBe("720p");
   });
+
+  it("keeps source-matched 2160p for 4K originals when available", () => {
+    expect(
+      pickTranscodeQualityForPlayback(
+        ["original", "480p", "720p", "1080p", "2160p"],
+        1604,
+        3840,
+      ),
+    ).toBe("2160p");
+  });
 });

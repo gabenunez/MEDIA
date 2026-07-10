@@ -242,9 +242,12 @@ function effectiveOriginalPlaybackMode(
     if (isTvClient()) {
       return "remux";
     }
+    // Browser can't decode HEVC: re-encode at source resolution (e.g. 4K→2160p).
     return streamInfo.transcodingEnabled ? "transcode" : "unsupported";
   }
 
+  // Keep remux for original (video copy + AAC). TrueHD/DTS/etc. can't direct-play
+  // in browsers, but remux preserves full HEVC/HDR video quality and resolution.
   return mode;
 }
 
@@ -673,6 +676,100 @@ export function getContiguousBufferedAhead(
   }
 
   return Math.max(0, contiguousEnd - t);
+}
+
+/**
+ * Stall-watchdog decision for growing HLS (no ENDLIST until encode finishes).
+ *
+ * Waiting at the live encode edge with no buffer ahead is healthy — do NOT
+ * pipeline-reset or fatal. Only escalate when the decoder is wedged with
+ * buffered data, or the playlist is truly finished (ENDLIST) and still stuck.
+ */
+export type StallWatchdogAction =
+  | "none"
+  | "wait-grow"
+  | "nudge"
+  | "pipeline-reset"
+  | "fatal";
+
+export const STALL_ADVANCE_TIMEOUT_MS = 4000;
+export const STALL_WAIT_GROW_BUFFER_SECONDS = 1;
+/** ~60s of wait-grow ticks (watchdog interval 2s) before treating encode as dead. */
+export const STALL_MAX_WAIT_GROW_TICKS = 30;
+export const STALL_MAX_NUDGES_BEFORE_RESET = 3;
+export const STALL_MAX_NUDGES_BEFORE_FATAL = 6;
+
+export function resolveStallWatchdogAction(options: {
+  msSinceAdvance: number;
+  bufferAheadSeconds: number;
+  stuckWithData: boolean;
+  playlistHasEndList: boolean;
+  consecutiveStallNudges: number;
+  waitGrowTicks: number;
+  didAttemptPipelineReset: boolean;
+  maxNudgesBeforeReset?: number;
+  maxNudgesBeforeFatal?: number;
+  maxWaitGrowTicks?: number;
+  advanceTimeoutMs?: number;
+  waitGrowBufferSeconds?: number;
+}): { action: StallWatchdogAction; nextStallNudges: number; nextWaitGrowTicks: number } {
+  const advanceTimeoutMs = options.advanceTimeoutMs ?? STALL_ADVANCE_TIMEOUT_MS;
+  const waitGrowBufferSeconds =
+    options.waitGrowBufferSeconds ?? STALL_WAIT_GROW_BUFFER_SECONDS;
+  const maxNudgesBeforeReset =
+    options.maxNudgesBeforeReset ?? STALL_MAX_NUDGES_BEFORE_RESET;
+  const maxNudgesBeforeFatal =
+    options.maxNudgesBeforeFatal ?? STALL_MAX_NUDGES_BEFORE_FATAL;
+  const maxWaitGrowTicks = options.maxWaitGrowTicks ?? STALL_MAX_WAIT_GROW_TICKS;
+
+  if (options.msSinceAdvance < advanceTimeoutMs) {
+    return { action: "none", nextStallNudges: 0, nextWaitGrowTicks: 0 };
+  }
+
+  // Growing encode edge: no ENDLIST, little/no runway, element not sitting on data.
+  const waitingOnGrow =
+    !options.playlistHasEndList &&
+    options.bufferAheadSeconds < waitGrowBufferSeconds &&
+    !options.stuckWithData;
+
+  if (waitingOnGrow) {
+    const nextWaitGrowTicks = options.waitGrowTicks + 1;
+    if (nextWaitGrowTicks >= maxWaitGrowTicks) {
+      return {
+        action: "fatal",
+        nextStallNudges: 0,
+        nextWaitGrowTicks: 0,
+      };
+    }
+    return {
+      action: "wait-grow",
+      nextStallNudges: 0,
+      nextWaitGrowTicks,
+    };
+  }
+
+  const nextStallNudges = options.consecutiveStallNudges + 1;
+
+  if (nextStallNudges >= maxNudgesBeforeFatal) {
+    return { action: "fatal", nextStallNudges: 0, nextWaitGrowTicks: 0 };
+  }
+
+  if (nextStallNudges >= maxNudgesBeforeReset) {
+    if (!options.didAttemptPipelineReset) {
+      return {
+        action: "pipeline-reset",
+        nextStallNudges,
+        nextWaitGrowTicks: 0,
+      };
+    }
+    return { action: "fatal", nextStallNudges: 0, nextWaitGrowTicks: 0 };
+  }
+
+  return {
+    action: "nudge",
+    nextStallNudges,
+    nextWaitGrowTicks: 0,
+  };
 }
 
 export function buildPlaybackTitle(

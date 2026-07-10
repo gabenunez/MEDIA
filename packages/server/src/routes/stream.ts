@@ -627,10 +627,15 @@ export async function streamRoutes(
 
       if (!session || deadButIncomplete) {
         const lastServed = session?.lastServedSegmentIndex ?? -1;
+        const isResume = deadButIncomplete;
         session = startTranscode();
         session.lastServedSegmentIndex = lastServed;
 
-        const ready = await waitForFirstSegment(outputDir, 90_000, 4);
+        // New sessions: 2 segments (~12s) so the client can start sooner and
+        // keep buffering. Resume after a dead encode: 1 segment is enough to
+        // re-enter the playlist without another ~24s cold wait.
+        const minSegments = isResume ? 1 : 2;
+        const ready = await waitForFirstSegment(outputDir, 90_000, minSegments);
         if (!ready) {
           stopHlsSession(sessionId);
           const logPath = path.join(outputDir, "ffmpeg.log");

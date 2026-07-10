@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamInfo } from "./api.js";
 import {
   getPlaybackRestartSeconds,
@@ -10,6 +10,7 @@ import {
   RECOVERY_FORGIVE_PROGRESS_SECONDS,
   resolveRecoveryBudget,
   resolveSpuriousRecovery,
+  resolveStallWatchdogAction,
   type SpuriousRecoveryState,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
@@ -111,6 +112,90 @@ describe("resolvePlaybackStream", () => {
 
     expect(result.usingHls).toBe(false);
     expect(result.audioCompatNotice).toMatch(/container/i);
+  });
+
+  it("uses full-resolution 2160p HLS when browser cannot remux HEVC original", () => {
+    const result = resolvePlaybackStream(
+      "original",
+      makeStreamInfo({
+        fileName: "Ready Player One (2018) 2160p.mkv",
+        mimeType: "video/x-matroska",
+        videoCodec: "hevc",
+        audioCodec: "truehd",
+        height: 1604,
+        width: 3840,
+        availableQualities: ["original", "480p", "720p", "1080p", "2160p"],
+        transcodingEnabled: true,
+        dynamicRange: {
+          dolbyVision: false,
+          dolbyVisionProfile: null,
+          hdr10: true,
+          hlg: false,
+        },
+      }),
+    );
+
+    // No HEVC in jsdom → remux rejected → source-matched 2160p transcode.
+    expect(result).toEqual({
+      usingHls: true,
+      hlsQuality: "2160p",
+      audioCompatNotice: null,
+    });
+  });
+});
+
+describe("resolvePlaybackStream with browser HEVC", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => false,
+    }));
+    vi.doMock("./tv-mode-detect.js", () => ({
+      isTvClient: () => false,
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("remuxes HEVC original (full quality) when the browser can decode HEVC", async () => {
+    const canPlayType = vi.fn((type: string) =>
+      type.includes("hvc1") || type.includes("hev1") ? "probably" : "",
+    );
+    vi.stubGlobal("document", {
+      createElement: () => ({ canPlayType }),
+    });
+
+    const { resolvePlaybackStream: resolveWithHevc } = await import(
+      "./playback-utils.js"
+    );
+    const result = resolveWithHevc(
+      "original",
+      makeStreamInfo({
+        fileName: "Ready Player One (2018) 2160p.mkv",
+        mimeType: "video/x-matroska",
+        videoCodec: "hevc",
+        audioCodec: "truehd",
+        height: 1604,
+        width: 3840,
+        availableQualities: ["original", "480p", "720p", "1080p", "2160p"],
+        transcodingEnabled: true,
+        dynamicRange: {
+          dolbyVision: false,
+          dolbyVisionProfile: null,
+          hdr10: true,
+          hlg: false,
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      usingHls: true,
+      hlsQuality: "remux",
+      audioCompatNotice: null,
+    });
   });
 });
 
@@ -363,6 +448,98 @@ describe("getContiguousBufferedAhead", () => {
     } as HTMLVideoElement;
 
     expect(getContiguousBufferedAhead(video)).toBeCloseTo(4, 1);
+  });
+});
+
+describe("resolveStallWatchdogAction", () => {
+  const base = {
+    msSinceAdvance: 5000,
+    bufferAheadSeconds: 0,
+    stuckWithData: false,
+    playlistHasEndList: false,
+    consecutiveStallNudges: 0,
+    waitGrowTicks: 0,
+    didAttemptPipelineReset: false,
+  };
+
+  it("treats encode-edge rebuffer as wait-grow (no pipeline reset)", () => {
+    expect(resolveStallWatchdogAction(base)).toEqual({
+      action: "wait-grow",
+      nextStallNudges: 0,
+      nextWaitGrowTicks: 1,
+    });
+  });
+
+  it("does not escalate wait-grow into pipeline-reset across many ticks", () => {
+    let waitGrowTicks = 0;
+    let consecutiveStallNudges = 0;
+    for (let i = 0; i < 10; i++) {
+      const decision = resolveStallWatchdogAction({
+        ...base,
+        waitGrowTicks,
+        consecutiveStallNudges,
+      });
+      expect(decision.action).toBe("wait-grow");
+      waitGrowTicks = decision.nextWaitGrowTicks;
+      consecutiveStallNudges = decision.nextStallNudges;
+    }
+    expect(consecutiveStallNudges).toBe(0);
+  });
+
+  it("nudges when the decoder is stuck with buffered data", () => {
+    expect(
+      resolveStallWatchdogAction({
+        ...base,
+        bufferAheadSeconds: 8,
+        stuckWithData: true,
+      }),
+    ).toEqual({
+      action: "nudge",
+      nextStallNudges: 1,
+      nextWaitGrowTicks: 0,
+    });
+  });
+
+  it("pipeline-resets after repeated stuck-with-data nudges", () => {
+    expect(
+      resolveStallWatchdogAction({
+        ...base,
+        bufferAheadSeconds: 8,
+        stuckWithData: true,
+        consecutiveStallNudges: 2,
+      }),
+    ).toEqual({
+      action: "pipeline-reset",
+      nextStallNudges: 3,
+      nextWaitGrowTicks: 0,
+    });
+  });
+
+  it("fatals only after prolonged wait-grow (dead encoder)", () => {
+    expect(
+      resolveStallWatchdogAction({
+        ...base,
+        waitGrowTicks: 29,
+      }),
+    ).toEqual({
+      action: "fatal",
+      nextStallNudges: 0,
+      nextWaitGrowTicks: 0,
+    });
+  });
+
+  it("returns none while playback is advancing", () => {
+    expect(
+      resolveStallWatchdogAction({
+        ...base,
+        msSinceAdvance: 500,
+        bufferAheadSeconds: 0,
+      }),
+    ).toEqual({
+      action: "none",
+      nextStallNudges: 0,
+      nextWaitGrowTicks: 0,
+    });
   });
 });
 
