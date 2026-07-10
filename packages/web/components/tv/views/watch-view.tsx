@@ -1122,6 +1122,10 @@ export function TvWatchView() {
           tv: true,
           onFatalError,
           onBufferUpdate: () => updateBufferedPositionRef.current(),
+          onBuffering: (nextBuffering, midPlayback) => {
+            setBuffering(nextBuffering);
+            setBufferingMidPlayback(midPlayback);
+          },
           onSeekComplete: (seconds) => setCurrentTime(seconds),
           onSourceReady: notifyWebPlaybackSourceReady,
         });
@@ -1438,10 +1442,18 @@ export function TvWatchView() {
         revealControls(true);
       },
       onPause: () => {
+        if (videoRef.current?.getAttribute("data-buffer-gate") === "1") {
+          return;
+        }
         setIsPlaying(false);
         revealControls(false);
       },
-      onSaveProgress: saveProgress,
+      onSaveProgress: () => {
+        if (videoRef.current?.getAttribute("data-buffer-gate") === "1") {
+          return;
+        }
+        saveProgress();
+      },
       onBufferUpdate: updateBufferedPosition,
       onEnded: () => {
         const video = videoRef.current;
@@ -1456,7 +1468,11 @@ export function TvWatchView() {
             playlistRelativeSeconds: video.duration,
           })
         ) {
-          const absoluteResume = hlsStartOffsetRef.current + video.currentTime;
+          const absoluteResume = Math.max(
+            hlsStartOffsetRef.current + video.currentTime,
+            lastStableAbsoluteSecondsRef.current,
+          );
+          lastStableAbsoluteSecondsRef.current = absoluteResume;
           setBuffering(true);
 
           const decision = resolveSpuriousRecovery({
@@ -1466,7 +1482,7 @@ export function TvWatchView() {
           });
           spuriousRecoveryStateRef.current = decision.next;
 
-          if (decision.action === "recover" && hlsRef.current) {
+          if (hlsRef.current) {
             recoverHlsPlaybackAtPlaylistEnd(video, hlsRef.current);
           } else {
             pendingStreamStartRef.current = absoluteResume;

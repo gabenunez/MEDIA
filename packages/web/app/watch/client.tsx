@@ -604,6 +604,11 @@ function WatchDesktopClient() {
           startAt,
           onFatalError,
           onBufferUpdate: () => updateBufferedPositionRef.current(),
+          onBuffering: (nextBuffering, midPlayback) => {
+            playbackBufferingRef.current = nextBuffering || midPlayback;
+            setBuffering(nextBuffering);
+            setBufferingMidPlayback(midPlayback);
+          },
           onSeekComplete: (seconds) => setCurrentTime(seconds),
           onSourceReady: notifyWebPlaybackSourceReady,
         });
@@ -696,10 +701,19 @@ function WatchDesktopClient() {
         revealControls(true);
       },
       onPause: () => {
+        // Engine buffer-gate holds pause the element without user intent.
+        if (videoRef.current?.getAttribute("data-buffer-gate") === "1") {
+          return;
+        }
         setIsPlaying(false);
         revealControls(false);
       },
-      onSaveProgress: saveProgress,
+      onSaveProgress: () => {
+        if (videoRef.current?.getAttribute("data-buffer-gate") === "1") {
+          return;
+        }
+        saveProgress();
+      },
       onBufferUpdate: updateBufferedPosition,
       onEnded: () => {
         const video = videoRef.current;
@@ -714,7 +728,13 @@ function WatchDesktopClient() {
             playlistRelativeSeconds: video.duration,
           })
         ) {
-          const absoluteResume = hlsStartOffsetRef.current + video.currentTime;
+          // Never lose the viewer's spot: pin to the later of live playhead
+          // and last stable progress (guards against currentTime briefly 0).
+          const absoluteResume = Math.max(
+            hlsStartOffsetRef.current + video.currentTime,
+            lastStableAbsoluteSecondsRef.current,
+          );
+          lastStableAbsoluteSecondsRef.current = absoluteResume;
           setBuffering(true);
 
           const decision = resolveSpuriousRecovery({
@@ -724,10 +744,10 @@ function WatchDesktopClient() {
           });
           spuriousRecoveryStateRef.current = decision.next;
 
-          if (decision.action === "recover" && hlsRef.current) {
-            // A growing transcode will produce the next segment — replay in
-            // place and let the engine's manifest poll + stall watchdog pick
-            // it up. Avoids a disruptive full restart on transient encoder lag.
+          // Prefer in-place recovery (no seek, no stream restart). Only
+          // rebuild the HLS session when the element is gone — still at the
+          // exact pinned absolute second, never a skip or rewind.
+          if (hlsRef.current) {
             recoverHlsPlaybackAtPlaylistEnd(video, hlsRef.current);
           } else {
             pendingStreamStartRef.current = absoluteResume;

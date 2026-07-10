@@ -699,6 +699,66 @@ export const STALL_MAX_WAIT_GROW_TICKS = 30;
 export const STALL_MAX_NUDGES_BEFORE_RESET = 3;
 export const STALL_MAX_NUDGES_BEFORE_FATAL = 6;
 
+/** Growing HLS buffer gate — keep a consistent runway ahead of the playhead. */
+export const HLS_MIN_START_BUFFER_SECONDS = 18;
+export const HLS_MIN_PLAY_BUFFER_SECONDS = 8;
+export const HLS_RESUME_BUFFER_SECONDS = 24;
+export const HLS_START_BUFFER_TIMEOUT_MS = 45_000;
+export const HLS_START_BUFFER_FALLBACK_SECONDS = 6;
+
+export type BufferGateAction = "wait" | "play" | "hold" | "resume";
+
+/**
+ * Decide whether to hold playback while the forward buffer refills.
+ * Keeps growing-transcode streams from stuttering segment-by-segment.
+ */
+export function resolveBufferGateAction(options: {
+  bufferAheadSeconds: number;
+  playlistHasEndList: boolean;
+  hasStartedPlayback: boolean;
+  holdingForBuffer: boolean;
+  userWantsPlay: boolean;
+  msSinceLoad: number;
+  minStartBufferSeconds?: number;
+  minPlayBufferSeconds?: number;
+  resumeBufferSeconds?: number;
+  startBufferTimeoutMs?: number;
+  startBufferFallbackSeconds?: number;
+}): BufferGateAction {
+  if (!options.userWantsPlay) return "wait";
+
+  const minStart = options.minStartBufferSeconds ?? HLS_MIN_START_BUFFER_SECONDS;
+  const minPlay = options.minPlayBufferSeconds ?? HLS_MIN_PLAY_BUFFER_SECONDS;
+  const resumeAt = options.resumeBufferSeconds ?? HLS_RESUME_BUFFER_SECONDS;
+  const startTimeout = options.startBufferTimeoutMs ?? HLS_START_BUFFER_TIMEOUT_MS;
+  const startFallback =
+    options.startBufferFallbackSeconds ?? HLS_START_BUFFER_FALLBACK_SECONDS;
+
+  // Finished stream: never hold for more buffer.
+  if (options.playlistHasEndList) {
+    if (!options.hasStartedPlayback) return "play";
+    return options.holdingForBuffer ? "resume" : "play";
+  }
+
+  if (!options.hasStartedPlayback) {
+    if (options.bufferAheadSeconds >= minStart) return "play";
+    if (
+      options.msSinceLoad >= startTimeout &&
+      options.bufferAheadSeconds >= startFallback
+    ) {
+      return "play";
+    }
+    return "wait";
+  }
+
+  if (options.holdingForBuffer) {
+    return options.bufferAheadSeconds >= resumeAt ? "resume" : "hold";
+  }
+
+  if (options.bufferAheadSeconds < minPlay) return "hold";
+  return "play";
+}
+
 export function resolveStallWatchdogAction(options: {
   msSinceAdvance: number;
   bufferAheadSeconds: number;
@@ -984,16 +1044,18 @@ export function createPlaybackHls(
   return new HlsConstructor({
     startPosition: 0,
     backBufferLength: tv ? 120 : 90,
-    // Buffer generously ahead of the playhead. With accurate segment
-    // durations from the server, hls.js fills this without creating holes.
-    maxBufferLength: 60,
+    // Deep forward buffer so playback isn't segment-by-segment at the live edge.
+    maxBufferLength: tv ? 90 : 120,
     maxMaxBufferLength: tv ? 360 : 600,
-    maxBufferSize: tv ? 300 * 1000 * 1000 : 100 * 1000 * 1000,
+    // 4K remux segments are large; allow a big MSE buffer (bytes).
+    maxBufferSize: tv ? 400 * 1000 * 1000 : 250 * 1000 * 1000,
     maxBufferHole: 0.5,
     highBufferWatchdogPeriod: 2,
-    nudgeOnVideoHole: true,
-    nudgeOffset: 0.2,
-    nudgeMaxRetry: 8,
+    // Never auto-skip holes — that jumps the viewer ahead. Buffer-gate holds
+    // instead until the next segment arrives at the same playhead.
+    nudgeOnVideoHole: false,
+    nudgeOffset: 0,
+    nudgeMaxRetry: 0,
     // Keep video.duration finite (the growing playlist length) so the seek
     // bar and premature-`ended` detection work.
     liveDurationInfinity: false,
@@ -1005,14 +1067,15 @@ export function createPlaybackHls(
     liveSyncDurationCount: 10,
     liveMaxLatencyDurationCount: Number.POSITIVE_INFINITY,
     maxLiveSyncPlaybackRate: 1,
+    // Discover new growing-playlist segments quickly.
     manifestLoadingMaxRetry: 8,
-    manifestLoadingRetryDelay: 1000,
+    manifestLoadingRetryDelay: 500,
     manifestLoadingMaxRetryTimeout: 64000,
     levelLoadingMaxRetry: 8,
-    levelLoadingRetryDelay: 1000,
+    levelLoadingRetryDelay: 500,
     levelLoadingMaxRetryTimeout: 64000,
-    fragLoadingMaxRetry: 10,
-    fragLoadingRetryDelay: 1000,
+    fragLoadingMaxRetry: 12,
+    fragLoadingRetryDelay: 500,
     fragLoadingMaxRetryTimeout: 64000,
     appendErrorMaxRetry: 6,
     xhrSetup: (xhr) => {

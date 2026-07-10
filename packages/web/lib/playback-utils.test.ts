@@ -11,6 +11,7 @@ import {
   resolveRecoveryBudget,
   resolveSpuriousRecovery,
   resolveStallWatchdogAction,
+  resolveBufferGateAction,
   type SpuriousRecoveryState,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
@@ -448,6 +449,87 @@ describe("getContiguousBufferedAhead", () => {
     } as HTMLVideoElement;
 
     expect(getContiguousBufferedAhead(video)).toBeCloseTo(4, 1);
+  });
+});
+
+describe("playhead stability (no auto skip/rewind)", () => {
+  it("getPlaybackRestartSeconds never jumps ahead of stable by more than 3s", () => {
+    expect(
+      getPlaybackRestartSeconds({
+        usingHls: true,
+        hlsStartOffset: 100,
+        relativeSeconds: 50, // would be absolute 150
+        stableAbsoluteSeconds: 120,
+      }),
+    ).toBe(120);
+  });
+
+  it("getPlaybackRestartSeconds follows a normal live playhead", () => {
+    expect(
+      getPlaybackRestartSeconds({
+        usingHls: true,
+        hlsStartOffset: 100,
+        relativeSeconds: 22,
+        stableAbsoluteSeconds: 120,
+      }),
+    ).toBe(122);
+  });
+});
+
+describe("resolveBufferGateAction", () => {
+  const base = {
+    bufferAheadSeconds: 0,
+    playlistHasEndList: false,
+    hasStartedPlayback: false,
+    holdingForBuffer: false,
+    userWantsPlay: true,
+    msSinceLoad: 1000,
+  };
+
+  it("waits for a deep start buffer before first play", () => {
+    expect(
+      resolveBufferGateAction({ ...base, bufferAheadSeconds: 10 }),
+    ).toBe("wait");
+    expect(
+      resolveBufferGateAction({ ...base, bufferAheadSeconds: 18 }),
+    ).toBe("play");
+  });
+
+  it("holds mid-playback when runway drops, resumes when refilled", () => {
+    expect(
+      resolveBufferGateAction({
+        ...base,
+        hasStartedPlayback: true,
+        bufferAheadSeconds: 4,
+      }),
+    ).toBe("hold");
+    expect(
+      resolveBufferGateAction({
+        ...base,
+        hasStartedPlayback: true,
+        holdingForBuffer: true,
+        bufferAheadSeconds: 12,
+      }),
+    ).toBe("hold");
+    expect(
+      resolveBufferGateAction({
+        ...base,
+        hasStartedPlayback: true,
+        holdingForBuffer: true,
+        bufferAheadSeconds: 24,
+      }),
+    ).toBe("resume");
+  });
+
+  it("does not hold after ENDLIST", () => {
+    expect(
+      resolveBufferGateAction({
+        ...base,
+        hasStartedPlayback: true,
+        bufferAheadSeconds: 1,
+        playlistHasEndList: true,
+      }),
+    ).toBe("play");
   });
 });
 
