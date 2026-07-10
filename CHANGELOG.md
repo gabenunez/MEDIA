@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.155 — 2026-07-10
+
+### Fix
+
+- **Deploy** — `restart-prod.sh` uses port listeners (not `pgrep`) to detect stale processes, force-kills stubborn listeners, and always starts the replacement (fixes in-app updates that leave the server offline)
+
 ## 0.1.154 — 2026-07-10
 
 ### Fix
