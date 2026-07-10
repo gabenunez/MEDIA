@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.132 — 2026-07-09
+
+### Fix
+
+- **Playback** — harden growing transcode recovery: FRAG_PARSED resume, BUFFER_STALLED_ERROR refresh, monotonic ENDLIST tracking, startLoad(position) instead of no-op loadLevel reassignment
+- **Playback** — improve spurious-ended detection with playlist-edge math and finite VTT-offset guard; tighten hls.js buffer tuning (back/max buffer, hole, nudge retries)
+- **Playback** — prevent energy suck: Atomics.wait sleep helper avoids tight spin, partial transcode-dir cleanup, safer kill handling
+- **Server** — /info perf + safety: reuse single ffprobe for metadata + range, guard stat/lstat throws, remove filePath leak from API, add strong ETag + 304 conditional GET helper for HLS playlists/segments
+- **Test** — stabilize ffmpeg windowing test for 300-segment retention (30 min at 6 s) and increase MAX_CONCURRENT_TRANSCODES to 4
+
 ## 0.1.131 — 2026-07-09
 
 ### Fix
