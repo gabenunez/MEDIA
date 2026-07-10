@@ -477,6 +477,12 @@ export function startHlsTranscode(
     preset.maxrate,
     "-bufsize",
     preset.bufsize,
+    // Force a keyframe exactly at every segment boundary so ffmpeg emits
+    // uniform, on-target segments instead of GOP-aligned segments that can be
+    // far longer than -hls_time (a long source GOP otherwise yields 10s+
+    // segments, breaking client buffer/live-edge math).
+    "-force_key_frames",
+    `expr:gte(t,n_forced*${segmentDuration})`,
     "-c:a",
     "aac",
     "-b:a",
@@ -734,58 +740,198 @@ export function pruneOldHlsSegments(
   }
 }
 
+/** One media segment parsed from ffmpeg's playlist, with its own tags. */
+interface ParsedHlsSegment {
+  index: number;
+  uri: string;
+  /** Tag lines (#EXTINF, #EXT-X-DISCONTINUITY, etc.) that precede this URI. */
+  tags: string[];
+}
+
+interface ParsedHlsPlaylist {
+  /** Header tags before the first segment (VERSION, TARGETDURATION, ...). */
+  header: string[];
+  segments: ParsedHlsSegment[];
+  hasEndList: boolean;
+}
+
+/**
+ * Parse ffmpeg's own master.m3u8. Modern ffmpeg (5.x+) writes this file
+ * incrementally with ACCURATE per-segment `#EXTINF` durations, the correct
+ * `#EXT-X-TARGETDURATION`, discontinuities, and appends `#EXT-X-ENDLIST` on
+ * completion. Serving it verbatim (only rewriting segment URIs) is far more
+ * robust than synthesizing a playlist with assumed 6.0s durations — a
+ * duration mismatch breaks hls.js buffer/live-edge math and stalls playback.
+ */
+export function parseFfmpegPlaylist(m3u8: string): ParsedHlsPlaylist | null {
+  const rawLines = m3u8.split(/\r?\n/);
+  const header: string[] = [];
+  const segments: ParsedHlsSegment[] = [];
+  let pendingTags: string[] = [];
+  let hasEndList = false;
+  let seenFirstSegment = false;
+
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+
+    if (trimmed === "#EXT-X-ENDLIST") {
+      hasEndList = true;
+      continue;
+    }
+
+    if (trimmed.startsWith("#")) {
+      // Header-only tags stay in the header; per-segment tags (EXTINF,
+      // DISCONTINUITY, PROGRAM-DATE-TIME, BYTERANGE, KEY, MAP) attach to the
+      // next segment URI.
+      const isSegmentScopedTag =
+        trimmed.startsWith("#EXTINF") ||
+        trimmed.startsWith("#EXT-X-DISCONTINUITY") ||
+        trimmed.startsWith("#EXT-X-PROGRAM-DATE-TIME") ||
+        trimmed.startsWith("#EXT-X-BYTERANGE") ||
+        trimmed.startsWith("#EXT-X-KEY") ||
+        trimmed.startsWith("#EXT-X-MAP");
+
+      if (isSegmentScopedTag) {
+        pendingTags.push(trimmed);
+      } else if (!seenFirstSegment) {
+        header.push(trimmed);
+      }
+      continue;
+    }
+
+    // A media segment URI.
+    const match = trimmed.match(/segment_(\d+)\.ts/);
+    if (!match) {
+      // Unknown URI form — skip its pending tags to stay consistent.
+      pendingTags = [];
+      continue;
+    }
+    seenFirstSegment = true;
+    segments.push({
+      index: parseInt(match[1], 10),
+      uri: trimmed,
+      tags: pendingTags,
+    });
+    pendingTags = [];
+  }
+
+  if (!header.some((line) => line === "#EXTM3U")) {
+    // ffmpeg always writes #EXTM3U first; its absence means the file is being
+    // written and we caught it mid-flush.
+    return null;
+  }
+
+  return { header, segments, hasEndList };
+}
+
+/**
+ * Build the media playlist served to the client from ffmpeg's real playlist.
+ *
+ * - Preserves ffmpeg's accurate per-segment durations and header tags.
+ * - Applies consumption-based windowing/pruning (same policy as before).
+ * - Only emits `#EXT-X-ENDLIST` when ffmpeg did AND the process is done, so a
+ *   still-growing session is never prematurely marked complete.
+ * - Keeps `#EXT-X-PLAYLIST-TYPE:EVENT` while in progress so hls.js treats it
+ *   as a growing (reloadable) playlist.
+ */
 export function generateHlsPlaylist(
   outputDir: string,
   segmentDuration: number,
   inProgress: boolean,
   lastServedSegmentIndex = -1,
 ): string | null {
-  const allSegments = listHlsSegments(outputDir).filter((name) => {
+  const playlistPath = path.join(outputDir, "master.m3u8");
+  let raw: string;
+  try {
+    raw = fs.readFileSync(playlistPath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  const parsed = parseFfmpegPlaylist(raw);
+  if (!parsed) return null;
+
+  // Only keep segments whose files actually exist on disk with content — the
+  // playlist can reference a segment ffmpeg has announced but not fully
+  // flushed yet.
+  const existing = parsed.segments.filter((seg) => {
     try {
-      return fs.statSync(path.join(outputDir, name)).size > 0;
+      return fs.statSync(path.join(outputDir, seg.uri)).size > 0;
     } catch {
       return false;
     }
   });
 
-  if (allSegments.length === 0) return null;
+  if (existing.length === 0) return null;
 
-  // Trail the retention window behind the client's own consumption point,
-  // not behind the newest segment written — the encoder can race ahead of
-  // playback (see pruneOldHlsSegments), so windowing off segment count alone
-  // can prune or hide segments the client hasn't reached yet.
+  // Trail the retention window behind the client's own consumption point, not
+  // behind the newest segment written — the encoder can race ahead of
+  // playback, so windowing off segment count alone can prune or hide segments
+  // the client hasn't reached yet.
   const minSegmentIndex = Math.max(
     0,
     lastServedSegmentIndex - HLS_PLAYLIST_WINDOW_SEGMENTS,
   );
 
-  if (inProgress) {
+  if (inProgress && minSegmentIndex > 0) {
     pruneOldHlsSegments(outputDir, minSegmentIndex);
   }
 
-  const segments =
+  const windowed =
     minSegmentIndex > 0
-      ? allSegments.filter((name) => parseHlsSegmentIndex(name) >= minSegmentIndex)
-      : allSegments;
+      ? existing.filter((seg) => seg.index >= minSegmentIndex)
+      : existing;
 
-  const mediaSequence = parseInt(segments[0]?.match(/\d+/)?.[0] ?? "0", 10);
-  const targetDuration = Math.max(segmentDuration + 1, 6);
-  const lines = [
+  if (windowed.length === 0) return null;
+
+  // Rebuild the header, guaranteeing the tags hls.js needs and dropping any
+  // ENDLIST that ffmpeg wrote (we re-add it below only when truly complete).
+  const targetDurationLine = parsed.header.find((line) =>
+    line.startsWith("#EXT-X-TARGETDURATION"),
+  );
+  const versionLine =
+    parsed.header.find((line) => line.startsWith("#EXT-X-VERSION")) ??
+    "#EXT-X-VERSION:6";
+  const independentLine = parsed.header.find(
+    (line) => line === "#EXT-X-INDEPENDENT-SEGMENTS",
+  );
+
+  const targetDuration = targetDurationLine
+    ? targetDurationLine
+    : `#EXT-X-TARGETDURATION:${Math.max(segmentDuration, 1)}`;
+
+  const lines: string[] = [
     "#EXTM3U",
-    "#EXT-X-VERSION:3",
-    `#EXT-X-TARGETDURATION:${targetDuration}`,
-    `#EXT-X-MEDIA-SEQUENCE:${mediaSequence}`,
+    versionLine,
+    targetDuration,
+    `#EXT-X-MEDIA-SEQUENCE:${windowed[0].index}`,
   ];
+
+  if (independentLine) {
+    lines.push(independentLine);
+  }
 
   if (inProgress) {
     lines.push("#EXT-X-PLAYLIST-TYPE:EVENT");
+  } else {
+    lines.push("#EXT-X-PLAYLIST-TYPE:VOD");
   }
 
-  for (const segment of segments) {
-    lines.push(`#EXTINF:${segmentDuration}.0,`, segment);
+  for (const seg of windowed) {
+    // Drop a leading DISCONTINUITY on the very first windowed segment — it is
+    // only meaningful relative to a prior segment that is no longer present.
+    const tags =
+      seg === windowed[0]
+        ? seg.tags.filter((tag) => tag !== "#EXT-X-DISCONTINUITY")
+        : seg.tags;
+    for (const tag of tags) {
+      lines.push(tag);
+    }
+    lines.push(seg.uri);
   }
 
-  if (!inProgress && isTranscodeOutputComplete(outputDir)) {
+  if (!inProgress && parsed.hasEndList && isTranscodeOutputComplete(outputDir)) {
     lines.push("#EXT-X-ENDLIST");
   }
 

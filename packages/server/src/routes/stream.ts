@@ -623,13 +623,29 @@ export async function streamRoutes(
         }
       }
 
-      const inProgress = isTranscodeInProgress(sessionId);
-      const playlist = generateHlsPlaylist(
+      let inProgress = isTranscodeInProgress(sessionId);
+      let playlist = generateHlsPlaylist(
         outputDir,
         config.transcoding.hls_segment_duration,
         inProgress,
         session.lastServedSegmentIndex,
       );
+
+      // The playlist file can be caught mid-flush by ffmpeg (empty/partial).
+      // While the session is still encoding, briefly retry instead of killing
+      // a healthy transcode.
+      if (!playlist && inProgress) {
+        const ready = await waitForFirstSegment(outputDir, 3_000, 1);
+        if (ready) {
+          inProgress = isTranscodeInProgress(sessionId);
+          playlist = generateHlsPlaylist(
+            outputDir,
+            config.transcoding.hls_segment_duration,
+            inProgress,
+            session.lastServedSegmentIndex,
+          );
+        }
+      }
 
       if (!playlist) {
         stopHlsSession(sessionId);
