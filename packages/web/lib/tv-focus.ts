@@ -94,6 +94,16 @@ export function focusEpisodeItem(episodeId: number): boolean {
   return true;
 }
 
+/** Focus the primary Play action on a TV media detail page. */
+export function focusMediaPlayItem(): boolean {
+  const main = document.querySelector("main");
+  if (!main) return false;
+  const item = main.querySelector<HTMLElement>("[data-tv-media-play]");
+  if (!item) return false;
+  focusTvItem(item);
+  return true;
+}
+
 /** Focus the first focusable item inside main content (skips side nav and page chrome). */
 export function focusFirstContentItem() {
   const main = document.querySelector("main");

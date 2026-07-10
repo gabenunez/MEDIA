@@ -943,8 +943,9 @@
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label {
-    width: auto !important;
+    width: max-content !important;
     min-width: 52px !important;
+    max-width: none !important;
     gap: 10px !important;
     padding-inline: 16px !important;
     border-radius: 9999px !important;
@@ -968,16 +969,19 @@
     transform: translateX(1px);
   }
 
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label span:not(.watch-control-icon) {
+  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label .watch-control-label {
+    display: inline-block !important;
+    flex: 0 0 auto !important;
+    width: max-content !important;
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
     font-size: 14px !important;
     line-height: 1 !important;
     font-weight: 600 !important;
     letter-spacing: 0.01em !important;
     color: #fff !important;
-    max-width: 10rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   /* Size only the root SVG — never path children (that breaks Lucide geometry) */

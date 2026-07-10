@@ -40,11 +40,17 @@ async function waitForApi(maxMs = 30_000) {
 }
 
 function stopProcess(child) {
-  if (!child || child.killed) return;
-  child.kill("SIGTERM");
-  setTimeout(() => {
-    if (!child.killed) child.kill("SIGKILL");
-  }, 2_000).unref();
+  if (!child || child.pid == null) return;
+  try {
+    // Kill the whole prerender API group (node + ffprobe/youtube-dl children).
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // already exited
+    }
+  }
 }
 
 let apiProcess = null;
@@ -84,6 +90,7 @@ try {
   if (fs.existsSync(serverEntry)) {
     apiProcess = spawn("node", [serverEntry], {
       cwd: repoRoot,
+      detached: true,
       env: {
         ...process.env,
         MEDIA_API_ONLY: "1",
@@ -92,6 +99,7 @@ try {
       },
       stdio: "pipe",
     });
+    apiProcess.unref();
 
     apiReady = await waitForApi();
     if (apiReady) {

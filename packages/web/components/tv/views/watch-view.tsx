@@ -2400,7 +2400,9 @@ export function TvWatchView() {
                       <span className="watch-control-icon">
                         <Settings2 size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
                       </span>
-                      <span>{qualityLabel(quality, sourceHeight, sourceWidth)}</span>
+                      <span className="watch-control-label">
+                        {qualityLabel(quality, sourceHeight, sourceWidth)}
+                      </span>
                     </TvFocusButton>
                     {qualityMenuOpen && (
                       <TvWatchPopover className="min-w-40">

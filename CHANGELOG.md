@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.146 — 2026-07-10
+
+### Fix
+
+- **Deploy** — skip library scans during build-time prerender API and kill the whole process group on teardown so in-app updates do not hang after “Build application”
+- **TV** — focus Play on movie detail pages; stop refetch from stealing focus after Favorite/season selection
+- **TV** — watch quality button label no longer truncates (full width + `watch-control-label`)
+
 ## 0.1.145 — 2026-07-10
 
 ### Fix

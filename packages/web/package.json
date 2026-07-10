@@ -1,6 +1,6 @@
 {
   "name": "@media-app/web",
-  "version": "0.1.145",
+  "version": "0.1.146",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",

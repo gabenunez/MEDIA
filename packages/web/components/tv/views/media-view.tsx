@@ -15,7 +15,7 @@ import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music
 import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
 import { resolveNextEpisodeTarget } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
-import { focusEpisodeItem, focusFirstContentItem } from "@/lib/tv-focus";
+import { focusEpisodeItem, focusFirstContentItem, focusMediaPlayItem } from "@/lib/tv-focus";
 import { cn } from "@/lib/utils";
 import { MediaImage } from "@/components/media-image";
 import type { MediaItem } from "@/lib/api";
@@ -128,31 +128,38 @@ function TvMediaViewContent({
 }) {
   const [selectedSeason, setSelectedSeason] = useState(0);
   const nextEpisodeIdRef = useRef<number | null>(null);
+  const initializedMediaIdRef = useRef<number | null>(null);
 
   useMarkTvBootReadyWhen(true);
 
   useDocumentTitle(includeDocumentTitle ? media.title : null);
 
   useEffect(() => {
+    // API refreshes replace the media object. Do not steal focus after the
+    // viewer selects Favorite, a season, or any other media-page control.
+    if (initializedMediaIdRef.current === media.id) return;
+    if (media.type === "tv" && !media.seasons?.length) return;
+
+    initializedMediaIdRef.current = media.id;
+    let nextEpisodeId: number | null = null;
     if (media.type === "tv" && media.seasons?.length) {
       const target = resolveNextEpisodeTarget(media.seasons);
       setSelectedSeason(target?.seasonIndex ?? 0);
-      nextEpisodeIdRef.current = target?.episodeId ?? null;
+      nextEpisodeId = target?.episodeId ?? null;
+      nextEpisodeIdRef.current = nextEpisodeId;
     } else {
       setSelectedSeason(0);
       nextEpisodeIdRef.current = null;
     }
-  }, [media]);
 
-  useEffect(() => {
     requestAnimationFrame(() => {
-      const nextEpisodeId = nextEpisodeIdRef.current;
+      if (media.type === "movie" && focusMediaPlayItem()) return;
       if (media.type === "tv" && nextEpisodeId != null && focusEpisodeItem(nextEpisodeId)) {
         return;
       }
       focusFirstContentItem();
     });
-  }, [media]);
+  }, [media.id, media.type, media.seasons]);
 
   const backdropUrl = tvImageUrl(media.backdropPath ?? media.posterPath);
   const posterUrl = tvImageUrl(media.posterPath);
@@ -232,6 +239,7 @@ function TvMediaViewContent({
                 >
                   <TvFocusLink
                     href={routes.watch("movie", movieFile.id, media.id)}
+                    data-tv-media-play=""
                     className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
                   >
                     <Play className="h-4 w-4 fill-current" />

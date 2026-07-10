@@ -136,9 +136,11 @@ async function main() {
     });
   }
 
-  scanner.initializeLibraries().catch((err) => {
-    app.log.error(err, "Failed to initialize libraries");
-  });
+  if (process.env.MEDIA_PRERENDER_BUILD !== "1") {
+    scanner.initializeLibraries().catch((err) => {
+      app.log.error(err, "Failed to initialize libraries");
+    });
+  }
 
   const killed = killOrphanFfmpegInCache(config.transcoding.cache_dir);
   if (killed > 0) {
