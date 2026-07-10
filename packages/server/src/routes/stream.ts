@@ -40,6 +40,12 @@ import {
 } from "../utils/thumbnails.js";
 import { createStreamSessionId } from "../utils/stream-session.js";
 import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
+import {
+  matchConditionalGet,
+  setStrongEtag,
+  strongEtagForSize,
+  strongEtagForString,
+} from "../utils/http-cache.js";
 
 interface StreamParams {
   fileId: string;
@@ -195,7 +201,10 @@ export async function streamRoutes(
     );
   }
 
-  async function resolveStreamMetadata(file: StreamFile): Promise<{
+  async function resolveStreamMetadata(
+    file: StreamFile,
+    probeIn?: Awaited<ReturnType<typeof probeFile>>,
+  ): Promise<{
     height: number | null;
     width: number | null;
     durationMs: number | null;
@@ -214,7 +223,7 @@ export async function streamRoutes(
       };
     }
 
-    const probe = await probeFile(file.filePath);
+    const probe = probeIn ?? (await probeFile(file.filePath));
     return {
       height: file.height ?? probe?.height ?? null,
       width: file.width ?? probe?.width ?? null,
@@ -225,9 +234,12 @@ export async function streamRoutes(
     };
   }
 
-  async function resolveSourceHeight(file: StreamFile): Promise<number | null> {
+  async function resolveSourceHeight(
+    file: StreamFile,
+    probeIn?: Awaited<ReturnType<typeof probeFile>>,
+  ): Promise<number | null> {
     if (file.height) return file.height;
-    const probe = await probeFile(file.filePath);
+    const probe = probeIn ?? (await probeFile(file.filePath));
     return probe?.height ?? null;
   }
 
@@ -283,9 +295,20 @@ export async function streamRoutes(
         return reply.status(404).send({ error: "File not found" });
       }
 
-      const stats = fs.statSync(file.filePath);
-      const lstat = fs.lstatSync(file.filePath);
-      const isSymlink = lstat.isSymbolicLink();
+      let stats: fs.Stats | null = null;
+      try {
+        stats = fs.statSync(file.filePath);
+      } catch {
+        return reply.status(404).send({ error: "File not found" });
+      }
+
+      let isSymlink = false;
+      try {
+        isSymlink = fs.lstatSync(file.filePath).isSymbolicLink();
+      } catch {
+        isSymlink = false;
+      }
+
       let symlinkTarget: string | null = null;
       if (isSymlink) {
         try {
@@ -297,17 +320,24 @@ export async function streamRoutes(
           symlinkTarget = null;
         }
       }
+
       const ext = path.extname(file.filePath);
       const mimeType = mime.lookup(ext) || "application/octet-stream";
-      const metadata = await resolveStreamMetadata(file);
+
+      // Probe once — metadata + dynamic range come from the same ffprobe.
+      // Avoid double ffprobe (metadata then probe) which magnifies load on seek storms.
       const probe = await probeFile(file.filePath);
-      const artwork = await resolvePlaybackArtwork(fileId, type);
-      const progress = await db.query.watchProgress.findFirst({
-        where: and(
-          eq(watchProgress.itemType, type),
-          eq(watchProgress.itemId, fileId),
-        ),
-      });
+      const metadata = await resolveStreamMetadata(file, probe);
+
+      const [artwork, progress] = await Promise.all([
+        resolvePlaybackArtwork(fileId, type),
+        db.query.watchProgress.findFirst({
+          where: and(
+            eq(watchProgress.itemType, type),
+            eq(watchProgress.itemId, fileId),
+          ),
+        }),
+      ]);
 
       const thumbDir = thumbnailCacheDir(config.transcoding.cache_dir, type, fileId);
       const thumbCached = getCachedThumbnailPaths(thumbDir);
@@ -326,7 +356,6 @@ export async function streamRoutes(
         mimeType,
         fileSize: stats.size,
         fileName: path.basename(file.filePath),
-        filePath: file.filePath,
         isSymlink,
         symlinkTarget,
         width: metadata.width,
@@ -334,7 +363,7 @@ export async function streamRoutes(
         durationMs: metadata.durationMs,
         videoCodec: metadata.videoCodec,
         audioCodec: metadata.audioCodec,
-        bitrate: metadata.bitrate,
+        bitrate: metadata.bitrate ?? probe?.bitrate ?? null,
         availableQualities: getAvailableQualities(metadata.height, metadata.width),
         transcodingEnabled: config.transcoding.enabled,
         directPlayAudioSupported: isBrowserDirectPlayAudioSupported(
@@ -449,7 +478,20 @@ export async function streamRoutes(
         return reply.status(404).send({ error: "File not found" });
       }
 
-      const stats = fs.statSync(file.filePath);
+      const stats = (() => {
+        try {
+          return fs.statSync(file.filePath);
+        } catch {
+          return null;
+        }
+      })();
+      if (!stats) {
+        return reply.status(404).send({ error: "File not found" });
+      }
+      const etag = strongEtagForSize(stats.size, stats.mtimeMs);
+      setStrongEtag(reply, etag);
+      if (matchConditionalGet(request, reply, etag)) return;
+
       const ext = path.extname(file.filePath);
       const mimeType = mime.lookup(ext) || "video/mp4";
       const range = request.headers.range;
@@ -515,7 +557,9 @@ export async function streamRoutes(
         return reply.status(404).send({ error: "File not found" });
       }
 
-      const sourceHeight = await resolveSourceHeight(file);
+      const probe = await probeFile(file.filePath);
+      const metadata = await resolveStreamMetadata(file, probe);
+      const sourceHeight = file.height ?? probe?.height ?? null;
 
       if (hlsQuality !== "remux" && !parseTranscodeQuality(hlsQuality)) {
         return reply.status(400).send({
@@ -533,11 +577,6 @@ export async function streamRoutes(
         fileId,
         sessionId,
       );
-
-      const [metadata, probe] = await Promise.all([
-        resolveStreamMetadata(file),
-        probeFile(file.filePath),
-      ]);
 
       const videoCodec = metadata.videoCodec ?? probe?.videoCodec ?? null;
       if (hlsQuality === "remux" && !isHlsVideoCopySupported(videoCodec)) {
@@ -616,6 +655,12 @@ export async function streamRoutes(
         },
       );
 
+      const etag = strongEtagForString(rewritten);
+      setStrongEtag(reply, etag);
+      // Do not 304 during in-progress (growing) playlist — client needs fresh manifest,
+      // but we still include ETag for post-complete caching.
+      if (!inProgress && matchConditionalGet(request, reply, etag)) return;
+
       setMediaCorsHeaders(request, reply);
       reply.header("Content-Type", "application/vnd.apple.mpegurl");
       if (inProgress) {
@@ -677,6 +722,12 @@ export async function streamRoutes(
         } else {
           return reply.status(404).send({ error: "Segment not found" });
         }
+      }
+
+      {
+        const etag = strongEtagForSize(segmentStats.size, segmentStats.mtimeMs);
+        setStrongEtag(reply, etag);
+        if (matchConditionalGet(request, reply, etag)) return;
       }
 
       setMediaCorsHeaders(request, reply);

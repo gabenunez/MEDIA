@@ -58,9 +58,14 @@ function shiftCueTimestampLine(line: string, offsetSeconds: number): string | nu
   return `${formatVttTimestamp(startSeconds)} --> ${formatVttTimestamp(endSeconds)}${settings}`;
 }
 
-/** Shift all cue timestamps so they align with a relative HLS timeline. */
+/** Shift all cue timestamps so they align with a relative HLS timeline.
+ * NOTE(formatting): shifts timestamps **only**; re-uses formatVttTimestamp for
+ * both start/end so hh:mm:ss.mmm precision is preserved. offset=0 fast-path
+ * returns the exact input string unmodified so callers don't trigger cache
+ * churn or unnecessary re-renders on the subtitle path.
+ */
 export function shiftVttByOffset(vtt: string, offsetSeconds: number): string {
-  if (offsetSeconds <= 0) return vtt;
+  if (offsetSeconds <= 0 || !Number.isFinite(offsetSeconds)) return vtt;
 
   const normalized = vtt.replace(/\r\n/g, "\n").trimEnd();
   const blocks = normalized.split(/\n\s*\n/);
