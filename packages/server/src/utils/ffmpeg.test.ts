@@ -66,6 +66,7 @@ describe("generateHlsPlaylist", () => {
     const playlist = generateHlsPlaylist(dir, 6, true, -1);
 
     expect(playlist).toContain("#EXT-X-MEDIA-SEQUENCE:0");
+    expect(playlist).toContain("#EXT-X-PLAYLIST-TYPE:EVENT");
     expect(playlist).toContain("segment_000.ts");
     expect(fs.existsSync(path.join(dir, "segment_000.ts"))).toBe(true);
   });

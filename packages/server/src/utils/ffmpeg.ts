@@ -777,6 +777,10 @@ export function generateHlsPlaylist(
     `#EXT-X-MEDIA-SEQUENCE:${mediaSequence}`,
   ];
 
+  if (inProgress) {
+    lines.push("#EXT-X-PLAYLIST-TYPE:EVENT");
+  }
+
   for (const segment of segments) {
     lines.push(`#EXTINF:${segmentDuration}.0,`, segment);
   }

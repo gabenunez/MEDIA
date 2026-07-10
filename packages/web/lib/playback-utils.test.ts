@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamInfo } from "./api.js";
 import {
   getPlaybackRestartSeconds,
+  getContiguousBufferedAhead,
   getScrubberBufferedRanges,
   isSpuriousHlsEnded,
   nextStableAbsoluteSeconds,
   playlistM3u8HasEndList,
+  RECOVERY_FORGIVE_PROGRESS_SECONDS,
+  resolveRecoveryBudget,
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
@@ -327,6 +330,21 @@ describe("playlistM3u8HasEndList", () => {
   });
 });
 
+describe("getContiguousBufferedAhead", () => {
+  it("ignores disconnected prefetch islands ahead of the playhead", () => {
+    const video = {
+      currentTime: 20,
+      buffered: {
+        length: 2,
+        start: (i: number) => (i === 0 ? 0 : 48),
+        end: (i: number) => (i === 0 ? 24 : 54),
+      },
+    } as HTMLVideoElement;
+
+    expect(getContiguousBufferedAhead(video)).toBeCloseTo(4, 1);
+  });
+});
+
 describe("shouldRefreshGrowingPlaylist", () => {
   it("keeps refreshing once playback catches up to the partial duration while ENDLIST is absent", () => {
     expect(
@@ -354,7 +372,20 @@ describe("shouldRefreshGrowingPlaylist", () => {
     ).toBe(false);
   });
 
-  it("does not refresh mid-playback with a healthy buffer", () => {
+  it("does not refresh mid-playback with a healthy buffer once ENDLIST is present", () => {
+    expect(
+      shouldRefreshGrowingPlaylist({
+        playlistHasEndList: true,
+        playlistDurationSeconds: 600,
+        currentTimeSeconds: 100,
+        bufferedAheadSeconds: 60,
+        waitingForData: false,
+        isNearBufferEdge: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps refreshing during an in-progress transcode even with a large buffer", () => {
     expect(
       shouldRefreshGrowingPlaylist({
         playlistHasEndList: false,
@@ -364,7 +395,7 @@ describe("shouldRefreshGrowingPlaylist", () => {
         waitingForData: false,
         isNearBufferEdge: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("refreshes when the buffer runs low even mid-playlist", () => {
@@ -378,5 +409,67 @@ describe("shouldRefreshGrowingPlaylist", () => {
         isNearBufferEdge: false,
       }),
     ).toBe(true);
+  });
+});
+
+describe("resolveRecoveryBudget", () => {
+  const base = {
+    spentBudget: 0,
+    maxBudget: 4,
+    currentPositionSeconds: 0,
+    positionAtLastRecoverySeconds: 0,
+  };
+
+  it("allows the first recovery and counts it", () => {
+    expect(resolveRecoveryBudget(base)).toEqual({
+      allowed: true,
+      nextSpentBudget: 1,
+    });
+  });
+
+  it("blocks recovery once the budget is exhausted without healthy playback", () => {
+    expect(
+      resolveRecoveryBudget({
+        ...base,
+        spentBudget: 4,
+        currentPositionSeconds: 120,
+        positionAtLastRecoverySeconds: 119,
+      }),
+    ).toEqual({ allowed: false, nextSpentBudget: 4 });
+  });
+
+  it("forgives the budget after sustained playback and re-allows recovery", () => {
+    const progressed =
+      100 + RECOVERY_FORGIVE_PROGRESS_SECONDS;
+    expect(
+      resolveRecoveryBudget({
+        ...base,
+        spentBudget: 4,
+        currentPositionSeconds: progressed,
+        positionAtLastRecoverySeconds: 100,
+      }),
+    ).toEqual({ allowed: true, nextSpentBudget: 1 });
+  });
+
+  it("does not forgive when progress is below the threshold", () => {
+    expect(
+      resolveRecoveryBudget({
+        ...base,
+        spentBudget: 3,
+        currentPositionSeconds: 100 + RECOVERY_FORGIVE_PROGRESS_SECONDS - 1,
+        positionAtLastRecoverySeconds: 100,
+      }),
+    ).toEqual({ allowed: true, nextSpentBudget: 4 });
+  });
+
+  it("treats a backward jump (seek/reset) as not healed", () => {
+    expect(
+      resolveRecoveryBudget({
+        ...base,
+        spentBudget: 4,
+        currentPositionSeconds: 10,
+        positionAtLastRecoverySeconds: 500,
+      }),
+    ).toEqual({ allowed: false, nextSpentBudget: 4 });
   });
 });

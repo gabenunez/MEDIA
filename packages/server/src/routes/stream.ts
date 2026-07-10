@@ -727,7 +727,12 @@ export async function streamRoutes(
       {
         const etag = strongEtagForSize(segmentStats.size, segmentStats.mtimeMs);
         setStrongEtag(reply, etag);
-        if (matchConditionalGet(request, reply, etag)) return;
+        if (
+          !isTranscodeInProgress(sessionId) &&
+          matchConditionalGet(request, reply, etag)
+        ) {
+          return;
+        }
       }
 
       setMediaCorsHeaders(request, reply);

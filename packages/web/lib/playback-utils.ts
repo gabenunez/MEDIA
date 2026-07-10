@@ -110,6 +110,56 @@ export function resolvePlaybackStartSeconds({
   return initialResumeSeconds ?? 0;
 }
 
+/**
+ * Minimum seconds of *sustained* playback progress after a recovery before
+ * that recovery is "forgiven" and the budget is credited back. A stream can
+ * hit several transient network/media blips across a multi-hour session; a
+ * monotonic counter would permanently disarm recovery after a handful of
+ * them even though every one succeeded. Requiring real forward progress
+ * before crediting the budget keeps a genuinely broken stream (blip → blip →
+ * blip with no playback in between) from looping forever.
+ */
+export const RECOVERY_FORGIVE_PROGRESS_SECONDS = 30;
+
+/**
+ * Decide whether an HLS recovery attempt is allowed, given how much healthy
+ * playback has elapsed since the last recovery. Returns the next recovery
+ * state to store.
+ *
+ * `spentBudget` is the number of unforgiven recovery attempts. When the
+ * playhead has advanced at least `RECOVERY_FORGIVE_PROGRESS_SECONDS` past the
+ * position captured at the last recovery, the stream has demonstrably
+ * healed, so the accumulated budget is credited back before this attempt is
+ * counted.
+ */
+export function resolveRecoveryBudget({
+  spentBudget,
+  maxBudget,
+  currentPositionSeconds,
+  positionAtLastRecoverySeconds,
+  forgiveAfterSeconds = RECOVERY_FORGIVE_PROGRESS_SECONDS,
+}: {
+  spentBudget: number;
+  maxBudget: number;
+  currentPositionSeconds: number;
+  positionAtLastRecoverySeconds: number;
+  forgiveAfterSeconds?: number;
+}): { allowed: boolean; nextSpentBudget: number } {
+  const progressedSinceLastRecovery =
+    currentPositionSeconds - positionAtLastRecoverySeconds;
+  const healed =
+    Number.isFinite(progressedSinceLastRecovery) &&
+    progressedSinceLastRecovery >= forgiveAfterSeconds;
+
+  const effectiveSpent = healed ? 0 : spentBudget;
+
+  if (effectiveSpent >= maxBudget) {
+    return { allowed: false, nextSpentBudget: effectiveSpent };
+  }
+
+  return { allowed: true, nextSpentBudget: effectiveSpent + 1 };
+}
+
 export type PlaybackHlsQuality = StreamQuality | "remux";
 
 import { isTvClient } from "@/lib/tv-mode-detect";
@@ -517,6 +567,17 @@ export function shouldRefreshGrowingPlaylist({
     currentTimeSeconds >= playlistDurationSeconds - 0.5;
   if (atSourceEnd) return false;
 
+  // Growing transcode: keep polling until ENDLIST appears. A healthy buffer
+  // does not mean ffmpeg has finished encoding — new segments must still be
+  // discovered even when prefetch islands inflate raw bufferedAhead.
+  if (!playlistHasEndList) {
+    return (
+      waitingForData ||
+      isNearBufferEdge ||
+      bufferedAheadSeconds < 120
+    );
+  }
+
   return waitingForData || isNearBufferEdge || bufferedAheadSeconds < 45;
 }
 
@@ -534,6 +595,47 @@ export function getVideoBufferedEnd(video: HTMLVideoElement): number {
   }
 
   return ranges.end(ranges.length - 1);
+}
+
+/**
+ * Seconds of media buffered contiguously ahead of the playhead.
+ * Ignores disconnected prefetch islands that hls.js may load past the
+ * current consumption point — using raw buffered.end() for those islands
+ * makes growing-transcode refresh think the buffer is healthy and stop
+ * polling for new segments.
+ */
+export function getContiguousBufferedAhead(
+  video: HTMLVideoElement,
+  maxGapSeconds = 4,
+): number {
+  const end = getVideoBufferedEnd(video);
+  if (end <= 0) return 0;
+  const ahead = end - video.currentTime;
+  if (ahead <= 0) return 0;
+
+  // If the playhead sits in a gap before `end`, the contiguous runway is
+  // shorter than the naive buffered-end delta.
+  const ranges = getVideoBufferedRanges(video);
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  const t = video.currentTime;
+  let anchorIdx = sorted.findIndex(
+    (range) => t >= range.start - 0.05 && t <= range.end + maxGapSeconds,
+  );
+  if (anchorIdx < 0) {
+    anchorIdx = sorted.findIndex(
+      (range) => range.start >= t && range.start - t <= maxGapSeconds,
+    );
+  }
+  if (anchorIdx < 0) return 0;
+
+  let contiguousEnd = sorted[anchorIdx].end;
+  for (let i = anchorIdx + 1; i < sorted.length; i++) {
+    const next = sorted[i];
+    if (next.start - contiguousEnd > maxGapSeconds) break;
+    contiguousEnd = Math.max(contiguousEnd, next.end);
+  }
+
+  return Math.max(0, contiguousEnd - t);
 }
 
 export function buildPlaybackTitle(
