@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.154 — 2026-07-10
+
+### Fix
+
+- **Android TV** — native subtitle hot-swap always re-prepares ExoPlayer and re-shows SubtitleView when tracks change (fixes missing cues after switching subtitles mid-playback)
+
 ## 0.1.153 — 2026-07-10
 
 ### Fix
