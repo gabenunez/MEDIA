@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.140 — 2026-07-10
+
+### Fix
+
+- **UI** — home hero title uses solid colors instead of gradient `background-clip:text` so "MEDIA!" paints reliably on hard reload and TV WebView
+- **UI** — Inter `font-display: swap` so text always renders on slow networks
+- **Subtitles** — default cue color is white with outline (web + native TV); migrate legacy black-on-transparent prefs
+
+### UI
+
+- **Document titles** — absolute `Page · MEDIA!` metadata on all routes for consistent SSR/hard-load tab titles
+
 ## 0.1.139 — 2026-07-10
 
 ### Fix
