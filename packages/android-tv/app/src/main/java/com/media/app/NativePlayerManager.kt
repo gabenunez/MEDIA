@@ -120,6 +120,15 @@ class NativePlayerManager(
                     emitState()
                 }
 
+                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                    // SubtitleView can briefly be hidden/reset when a subtitle
+                    // media item is swapped while playback is already ready.
+                    // Reassert it when ExoPlayer publishes the new text track.
+                    playerView.subtitleView?.visibility = View.VISIBLE
+                    applyStoredSubtitleStyles()
+                    emitState()
+                }
+
                 override fun onVideoSizeChanged(videoSize: VideoSize) {
                     updateHdrOutput(exoPlayer)
                     applySdUpscaleEffect(exoPlayer)
@@ -191,11 +200,13 @@ class NativePlayerManager(
                 .build()
 
         exoPlayer.replaceMediaItem(0, buildMediaItem(currentPayload!!))
-        if (exoPlayer.playbackState == Player.STATE_IDLE) {
-            exoPlayer.prepare()
-        }
+        // Explicitly prepare every hot-swapped item. Relying on the existing
+        // READY state can leave the new text renderer unprepared until the
+        // entire video is reopened.
+        exoPlayer.prepare()
         exoPlayer.seekTo(position)
         exoPlayer.playWhenReady = wasPlaying
+        playerView.subtitleView?.visibility = View.VISIBLE
         applyStoredSubtitleStyles()
         emitState()
         return true
