@@ -72,16 +72,16 @@ describe("generateHlsPlaylist", () => {
 
   it("windows the playlist and prunes disk relative to what the client has actually requested", () => {
     const dir = createTempHlsDir();
-    writeSegments(dir, 300);
+    // Window is HLS_PLAYLIST_WINDOW_SEGMENTS (300). With 400 segments on disk
+    // and client having consumed through 330, window trails consumption (30..).
+    writeSegments(dir, 400);
 
-    // Client has consumed up through segment 150; the 120-segment window
-    // trails behind that point, not behind the newest (299th) segment.
-    const playlist = generateHlsPlaylist(dir, 6, true, 150);
+    const playlist = generateHlsPlaylist(dir, 6, true, 330);
 
     expect(playlist).toContain("#EXT-X-MEDIA-SEQUENCE:30");
     expect(playlist).not.toContain("segment_029.ts");
     expect(playlist).toContain("segment_030.ts");
-    expect(playlist).toContain("segment_299.ts");
+    expect(playlist).toContain("segment_399.ts");
     expect(fs.existsSync(path.join(dir, "segment_029.ts"))).toBe(false);
     expect(fs.existsSync(path.join(dir, "segment_030.ts"))).toBe(true);
   });

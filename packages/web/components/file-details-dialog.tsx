@@ -85,8 +85,8 @@ export function FileDetailsDialog({
                   label="Location"
                   value={
                     streamInfo.isSymlink
-                      ? `${streamInfo.filePath} (symlink)`
-                      : streamInfo.filePath
+                      ? `${streamInfo.filePath ?? streamInfo.fileName} (symlink)`
+                      : (streamInfo.filePath ?? streamInfo.fileName)
                   }
                 />
               <DetailRow label="File size" value={formatFileSize(streamInfo.fileSize)} />

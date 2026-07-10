@@ -49,13 +49,10 @@ export function recoverHlsPlaybackAtPlaylistEnd(
   const resumeAt = Math.max(0, video.currentTime - 0.25);
   if (hls) {
     try {
-      if (hls.currentLevel >= 0) {
-        hls.loadLevel = hls.currentLevel;
-      }
+      hls.startLoad(resumeAt);
     } catch {
-      // ignore — startLoad below still nudges loading
+      // ignore — next poll will retry
     }
-    hls.startLoad(resumeAt);
   }
   // Browsers keep ended=true until the playhead moves after a seek.
   video.pause();
@@ -83,13 +80,10 @@ export function catchUpHlsPlayback(
   }
 
   try {
-    if (hls.currentLevel >= 0) {
-      hls.loadLevel = hls.currentLevel;
-    }
+    hls.startLoad(video.currentTime);
   } catch {
-    // ignore
+    // ignore — next poll will retry
   }
-  hls.startLoad(video.currentTime);
 }
 
 /**
@@ -148,10 +142,18 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   let waitingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   let lastPlaybackAdvanceMs = Date.now();
   let lastPlaybackPosition = 0;
-  // Whether `#EXT-X-ENDLIST` has appeared in the loaded manifest. Use
-  // `details.endList`, not `details.live` — VoD-style growing transcodes are
-  // not live but also don't have ENDLIST until ffmpeg finishes.
+  // Whether `#EXT-X-ENDLIST` has appeared in the loaded manifest. Once true,
+  // this must never be reverted to false — LevelUpdated callbacks can still
+  // fire with an older/stale manifest string during hls.js reload races.
   let playlistHasEndList = false;
+  // ENDLIST, when present, may appear in a manifest that gets replaced by a
+  // poll from a still-growing session. Track the first time we observe
+  // #EXT-X-ENDLIST so we never revert on a stale poll.
+  const onManifestSawEndList = (m3u8: string) => {
+    if (!playlistHasEndList && playlistM3u8HasEndList(m3u8)) {
+      playlistHasEndList = true;
+    }
+  };
 
   const clearTimers = () => {
     if (manifestPollTimer) {
@@ -245,21 +247,37 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       video.addEventListener("timeupdate", onTimeUpdate);
 
       hls.on(HlsConstructor.Events.MANIFEST_PARSED, () => {
+        // startLoad(0) after MANIFEST_PARSED ensures the first frag fetch
+        // fires synchronously on schedule — required when the player raced
+        // ahead of the transcode and the playlist contains only 1 frag so far.
         hls?.startLoad(0);
         lastPlaybackPosition = 0;
         lastPlaybackAdvanceMs = Date.now();
         startManifestPolling();
         onSourceReady?.();
+        // Don't call play() here — the element may not yet have its source
+        // buffer attached (FRAG not parsed). Let the first FRAG_PARSED or
+        // BUFFER_APPENDED trigger playback, with this as fallback.
         video.play().catch(() => {});
       });
 
+      hls.on(HlsConstructor.Events.FRAG_PARSED, () => {
+        if (video.paused && !video.ended) {
+          video.play().catch(() => {});
+        }
+      });
+
       hls.on(HlsConstructor.Events.LEVEL_UPDATED, (_, data) => {
-        playlistHasEndList = playlistM3u8HasEndList(data.details.m3u8);
+        onManifestSawEndList(data.details.m3u8);
         onBufferUpdate();
       });
 
       hls.on(HlsConstructor.Events.ERROR, (_, data) => {
         if (!data.fatal) {
+          if (data.details === HlsConstructor.ErrorDetails.BUFFER_STALLED_ERROR) {
+            maybeRefreshPlaylist();
+            return;
+          }
           if (
             hls &&
             (data.details === HlsConstructor.ErrorDetails.FRAG_LOAD_ERROR ||
@@ -275,6 +293,10 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
         if (hls && hlsRecoveryAttempts < maxHlsRecoveryAttempts) {
           hlsRecoveryAttempts += 1;
           if (data.type === HlsConstructor.ErrorTypes.NETWORK_ERROR) {
+            // Network failure during a growing transcode — refresh manifest
+            // rather than bailing straight to fatal; segments may just not
+            // exist yet.
+            hls.startLoad();
             maybeRefreshPlaylist();
             return;
           }

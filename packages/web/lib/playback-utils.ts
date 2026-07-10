@@ -457,13 +457,28 @@ export function isSpuriousHlsEnded({
 }): boolean {
   if (!usingHls) return false;
 
-  const effectiveSourceDuration = Math.max(
-    sourceDurationSeconds,
-    hlsStartOffset + (playlistRelativeSeconds ?? 0) + 8,
-  );
+  // When we have a finite playlist duration (from video.duration), prefer it
+  // over sourceDuration which can be huge. For HLS sessions that started at a
+  // non-zero offset, playlist duration is relative to the session start. The
+  // absolute file position is offset+relative. We compare absolute vs the
+  // absolute source duration when sourceDuration is available, but inflate the
+  // reported playlist edge by at least 8 s so a transient video.duration blip
+  // on the new transcode edge doesn't become "real end".
+  //
+  // When sourceDuration is unknown (0), fall back to the playlist length as
+  // lower-bound and treat "ended" before it as spurious.
+  const playlistEdge = playlistRelativeSeconds ?? 0;
+  const effectiveSourceDuration =
+    sourceDurationSeconds > 0
+      ? Math.max(sourceDurationSeconds, hlsStartOffset + playlistEdge + 8)
+      : hlsStartOffset + playlistEdge + 8;
+
   if (effectiveSourceDuration <= 0) return false;
 
   const absoluteSeconds = hlsStartOffset + relativeSeconds;
+  // For sessions started mid-file, "ended" after only a few seconds is almost
+  // certainly a growing-playlist boundary. Require getting within 8 s of the
+  // *known* source end before trusting ended as real.
   return absoluteSeconds < effectiveSourceDuration - 8;
 }
 
@@ -725,12 +740,17 @@ export function createPlaybackHls(
 
   return new HlsConstructor({
     startPosition: 0,
-    backBufferLength: tv ? 60 : 90,
-    maxBufferLength: tv ? 120 : 120,
-    maxMaxBufferLength: tv ? 300 : 600,
-    maxBufferSize: tv ? 200 * 1000 * 1000 : 100 * 1000 * 1000,
-    maxBufferHole: 4,
+    backBufferLength: tv ? 120 : 90,
+    maxBufferLength: tv ? 180 : 120,
+    maxMaxBufferLength: tv ? 360 : 600,
+    maxBufferSize: tv ? 300 * 1000 * 1000 : 100 * 1000 * 1000,
+    maxBufferHole: tv ? 2 : 4,
     nudgeOnVideoHole: true,
+    nudgeOffset: 0.15,
+    nudgeMaxRetry: 5,
+    liveDurationInfinity: true,
+    enableWorker: true,
+    progressive: false,
     // Prefetching ahead of the playhead creates buffer holes on growing transcodes.
     startFragPrefetch: false,
     // Load sequentially from the buffer end, not from the live edge.
@@ -740,10 +760,11 @@ export function createPlaybackHls(
     maxLiveSyncPlaybackRate: 1,
     manifestLoadingMaxRetry: 6,
     manifestLoadingRetryDelay: 1000,
-    levelLoadingMaxRetry: 4,
-    levelLoadingRetryDelay: 1000,
-    fragLoadingMaxRetry: 6,
-    fragLoadingRetryDelay: 1000,
+    levelLoadingMaxRetry: 6,
+    levelLoadingRetryDelay: 800,
+    fragLoadingMaxRetry: 8,
+    fragLoadingRetryDelay: 800,
+    appendErrorMaxRetry: 6,
     xhrSetup: (xhr) => {
       xhr.withCredentials = true;
     },

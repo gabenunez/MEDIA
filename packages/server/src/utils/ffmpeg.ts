@@ -1,7 +1,7 @@
 import { execFile, execSync, spawn, type ChildProcess } from "node:child_process";
-import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
+import { promisify } from "node:util";
 import type { HlsQuality, TranscodeQuality } from "@media-app/shared";
 import {
   TRANSCODE_PRESETS,
@@ -13,13 +13,13 @@ import {
 import { createStreamFilePrefix } from "./stream-session.js";
 
 const execFileAsync = promisify(execFile);
-const MAX_CONCURRENT_TRANSCODES = 2;
+const MAX_CONCURRENT_TRANSCODES = 4;
 const IDLE_SESSION_MS = 2 * 60 * 1000;
-const PRUNE_CACHE_MS = 60 * 60 * 1000;
+export const PRUNE_CACHE_MS = 60 * 60 * 1000;
 const FFMPEG_CACHE_MS = 5 * 60 * 1000;
 let ffmpegAvailabilityCache: { available: boolean; checkedAt: number } | null = null;
-/** Max segments kept on disk and in the live playlist (~12 min at 6s segments). */
-export const HLS_PLAYLIST_WINDOW_SEGMENTS = 120;
+/** Max segments retained on disk and in the live playlist (~30 min at 6 s). */
+export const HLS_PLAYLIST_WINDOW_SEGMENTS = 300;
 
 export interface ProbeResult {
   durationMs: number;
@@ -289,14 +289,39 @@ function isTranscodeOutputComplete(outputDir: string): boolean {
 export function clearTranscodeOutput(outputDir: string): void {
   if (!fs.existsSync(outputDir)) return;
   for (const entry of fs.readdirSync(outputDir)) {
-    fs.unlinkSync(path.join(outputDir, entry));
+    try {
+      fs.unlinkSync(path.join(outputDir, entry));
+    } catch {
+      // file may be in use by ffmpeg — will be cleaned on next retry
+    }
   }
 }
 
 function sleepMs(ms: number): void {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+    return;
+  } catch {
+    // Atomics.wait may be unavailable on some runtimes — fall through
+  }
+
+  try {
+    execSync(`sleep ${ms / 1000}`, { stdio: "ignore", timeout: ms + 100 });
+    return;
+  } catch {
+    // execSync unavailable or timed out — final fallback
+  }
+
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
-    // Allow FFmpeg to release file handles before retrying removal.
+    try {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+    } catch {
+      // Very old Node without Atomics.wait — yield via Date check only
+      // Intentionally minimal spin; this path is only reached in degraded envs
+      // eslint-disable-next-line no-empty
+      for (let i = 0; i < 1_000; i++) {}
+    }
   }
 }
 
@@ -368,9 +393,22 @@ export function removeTranscodeDir(outputDir: string): boolean {
         fs.rmdirSync(outputDir);
         return true;
       } catch {
-        // retry outer loop
+        // retry outer loop — ffmpeg may still hold a file handle
       }
     }
+  }
+
+  // Last resort: try to clean individual files; even partial cleanup frees space
+  try {
+    for (const entry of fs.readdirSync(outputDir)) {
+      try {
+        fs.unlinkSync(path.join(outputDir, entry));
+      } catch {
+        // skip busy file
+      }
+    }
+  } catch {
+    // dir already gone or unreadable
   }
 
   return !fs.existsSync(outputDir);
@@ -660,6 +698,8 @@ function hasCompleteHlsPlaylist(outputDir: string): boolean {
   if (!fs.existsSync(playlistPath)) return false;
 
   try {
+    const stat = fs.statSync(playlistPath);
+    if (stat.size === 0) return false;
     const content = fs.readFileSync(playlistPath, "utf-8");
     return content.includes("#EXTINF") && content.includes("#EXT-X-ENDLIST");
   } catch {
@@ -761,10 +801,19 @@ export function getHlsSession(sessionId: string): HlsSession | undefined {
 export function stopHlsSession(sessionId: string): void {
   const session = activeSessions.get(sessionId);
   if (!session) return;
-  session.process?.kill("SIGTERM");
+  try {
+    session.process?.kill("SIGTERM");
+  } catch {
+    // already exited
+  }
   activeSessions.delete(sessionId);
   killFfmpegInDir(session.outputDir);
-  removeTranscodeDir(session.outputDir);
+  try {
+    removeTranscodeDir(session.outputDir);
+  } catch (err) {
+    // Must never throw — caller is inside request handling / cleanup timers.
+    console.warn(`Failed to remove transcode dir ${session.outputDir}:`, err);
+  }
 }
 
 export function stopTranscodeSessionsForMedia(

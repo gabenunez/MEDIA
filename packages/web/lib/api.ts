@@ -248,7 +248,8 @@ export interface StreamInfo {
   mimeType: string;
   fileSize: number;
   fileName: string;
-  filePath: string;
+  /** Removed from API response for security; kept optional for backward compat. */
+  filePath?: string;
   isSymlink: boolean;
   symlinkTarget?: string | null;
   width?: number | null;
