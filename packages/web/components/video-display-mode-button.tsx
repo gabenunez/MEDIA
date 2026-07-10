@@ -45,9 +45,9 @@ export function VideoDisplayModeButton({
         onClick={onCycle}
         aria-label={`Display: ${label}. ${hint}`}
         title={hint}
-        className={cn("h-12 w-12", className)}
+        className={className}
       >
-        <DisplayModeIcon mode={mode} className="h-5 w-5" />
+        <DisplayModeIcon mode={mode} />
       </TvFocusButton>
     );
   }

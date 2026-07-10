@@ -1165,6 +1165,16 @@ export function TvWatchView() {
     };
   }, [fileId, type]);
 
+  // Steady-cadence buffer status refresh — buffer events are sparse and stop
+  // while paused, so poll video.buffered directly to keep the bar consistent.
+  useEffect(() => {
+    if (!fileId || Number.isNaN(fileId)) return;
+    const interval = setInterval(() => {
+      updateBufferedPositionRef.current();
+    }, 500);
+    return () => clearInterval(interval);
+  }, [fileId]);
+
   useEffect(() => {
     activeSubtitleRef.current = activeSubtitle;
   }, [activeSubtitle]);
@@ -1603,6 +1613,7 @@ export function TvWatchView() {
   const seekPreviewMaxWidth = isTv4KClient() ? 224 : 200;
 
   const controlButtonClassName = "watch-control-btn";
+  const controlIconButtonClassName = cn("h-11 w-11 shrink-0", controlButtonClassName);
 
   const handleWatchBack = useCallback((): boolean => {
     if (countdown) {
@@ -2200,31 +2211,31 @@ export function TvWatchView() {
                 data-tv-content-row=""
                 data-tv-watch-controls=""
                 data-tv-watch-transport-row=""
-                className="flex items-center justify-between gap-2"
+                className="flex items-center justify-between gap-3"
               >
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <TvFocusButton
                     variant="nav"
                     onClick={() => skipRelative(-10)}
                     aria-label="Back 10 seconds"
-                    className={cn("h-10 w-10", controlButtonClassName)}
+                    className={controlIconButtonClassName}
                   >
-                    <SkipBack className="h-5 w-5" />
+                    <SkipBack />
                   </TvFocusButton>
 
                   <TvFocusButton
                     ref={playButtonRef}
                     variant="nav"
                     onClick={togglePlay}
-                    className={cn("h-10 w-10", controlButtonClassName)}
+                    className={controlIconButtonClassName}
                     aria-label={bufferingMidPlayback ? "Buffering" : isPlaying ? "Pause" : "Play"}
                   >
                     {bufferingMidPlayback ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <Loader2 className="animate-spin text-primary" />
                     ) : isPlaying ? (
-                      <Pause className="h-5 w-5" />
+                      <Pause />
                     ) : (
-                      <Play className="h-5 w-5 fill-current" />
+                      <Play className="fill-current" />
                     )}
                   </TvFocusButton>
 
@@ -2232,23 +2243,24 @@ export function TvWatchView() {
                     variant="nav"
                     onClick={() => skipRelative(30)}
                     aria-label="Forward 30 seconds"
-                    className={cn("h-10 w-10", controlButtonClassName)}
+                    className={controlIconButtonClassName}
                   >
-                    <SkipForward className="h-5 w-5" />
+                    <SkipForward />
                   </TvFocusButton>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <VideoDisplayModeButton
                     variant="tv"
                     mode={videoDisplayMode}
                     onCycle={cycleVideoDisplayModeSetting}
-                    className={cn("h-10 w-10", controlButtonClassName)}
+                    className={controlIconButtonClassName}
                   />
 
                   <div className="relative">
                     <TvFocusButton
                       variant="nav"
+                      selected={activeSubtitle !== null}
                       aria-label={activeSubtitle === null ? "Subtitles off" : "Subtitles on"}
                       onClick={() => {
                         setQualityMenuOpen(false);
@@ -2259,13 +2271,9 @@ export function TvWatchView() {
                         });
                         revealControls(false);
                       }}
-                      className={cn(
-                        "h-10 w-10",
-                        controlButtonClassName,
-                        activeSubtitle !== null && "text-primary",
-                      )}
+                      className={controlIconButtonClassName}
                     >
-                      <Subtitles className="h-4 w-4" />
+                      <Subtitles />
                     </TvFocusButton>
                     {subtitleMenuOpen && (
                       <TvWatchPopover className="min-w-56">
@@ -2290,21 +2298,13 @@ export function TvWatchView() {
                                   closeMenus();
                                   revealControls(false);
                                 }}
-                                className={tvWatchPopoverOptionClassName(
-                                  activeSubtitle === null && "bg-primary/10 text-primary",
-                                )}
+                                className={tvWatchPopoverOptionClassName()}
                               >
                                 Off
                               </TvFocusButton>
                             )}
                             {subtitles.map((sub) => (
-                              <div
-                                key={sub.id}
-                                className={cn(
-                                  "flex items-center gap-1 rounded px-1 py-0.5",
-                                  activeSubtitle === sub.id && "bg-primary/10",
-                                )}
-                              >
+                              <div key={sub.id} className="flex items-center gap-1 rounded px-1 py-0.5">
                                 <TvFocusButton
                                   variant="default"
                                   selected={activeSubtitle === sub.id}
@@ -2313,10 +2313,7 @@ export function TvWatchView() {
                                     closeMenus();
                                     revealControls(false);
                                   }}
-                                  className={tvWatchPopoverOptionClassName(
-                                    "min-w-0 flex-1",
-                                    activeSubtitle === sub.id && "text-primary",
-                                  )}
+                                  className={tvWatchPopoverOptionClassName("min-w-0 flex-1")}
                                 >
                                   {formatSubtitleLabel(sub)}
                                 </TvFocusButton>
@@ -2353,7 +2350,7 @@ export function TvWatchView() {
                                   setPanelOpen(false);
                                   setSubtitleSearchOpen(true);
                                 }}
-                                className={tvWatchPopoverOptionClassName("text-primary")}
+                                className={tvWatchPopoverOptionClassName()}
                               >
                                 Search online…
                               </TvFocusButton>
@@ -2378,12 +2375,13 @@ export function TvWatchView() {
                         revealControls(false);
                       }}
                       disabled={!transcodingEnabled && quality === "original"}
-                      className={cn("h-10 gap-1.5 px-2", controlButtonClassName)}
+                      className={cn(
+                        "watch-control-btn--label h-11 shrink-0",
+                        controlButtonClassName,
+                      )}
                     >
-                      <Settings2 className="h-4 w-4" />
-                      <span className="max-w-32 truncate text-xs">
-                        {qualityLabel(quality, sourceHeight, sourceWidth)}
-                      </span>
+                      <Settings2 />
+                      <span>{qualityLabel(quality, sourceHeight, sourceWidth)}</span>
                     </TvFocusButton>
                     {qualityMenuOpen && (
                       <TvWatchPopover className="min-w-40">
@@ -2400,7 +2398,6 @@ export function TvWatchView() {
                                 revealControls(false);
                               }}
                               className={tvWatchPopoverOptionClassName(
-                                quality === option && "bg-primary/10 text-primary",
                                 option !== "original" &&
                                   !transcodingEnabled &&
                                   "cursor-not-allowed opacity-50",

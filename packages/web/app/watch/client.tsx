@@ -631,6 +631,19 @@ function WatchDesktopClient() {
     };
   }, [fileId, type, quality, streamGeneration, initialResumeSeconds, streamInfo]);
 
+  // Keep the buffer status bar in sync on a steady cadence. Buffer events
+  // (`progress`, hls.js BUFFER_APPENDED) are sparse and browser-throttled, and
+  // stop entirely while paused — so relying on them alone leaves the displayed
+  // buffered range stale. Polling video.buffered directly guarantees the bar
+  // consistently reflects how much is actually buffered ahead, playing or not.
+  useEffect(() => {
+    if (!fileId || Number.isNaN(fileId)) return;
+    const interval = setInterval(() => {
+      updateBufferedPositionRef.current();
+    }, 500);
+    return () => clearInterval(interval);
+  }, [fileId]);
+
   useEffect(() => {
     return () => {
       void api.stopStream(fileId, type).catch(() => {});

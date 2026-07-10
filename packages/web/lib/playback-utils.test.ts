@@ -203,6 +203,26 @@ describe("getScrubberBufferedRanges", () => {
       ),
     ).toEqual([{ start: 25, end: 60 }]);
   });
+
+  it("reports a growing buffer consistently while the playhead is fixed (paused)", () => {
+    // Simulates polling video.buffered while paused at 20s as hls.js keeps
+    // appending ahead — the reported bar end must track the growing buffer.
+    const playhead = 20;
+    const ends = [24, 30, 42, 60];
+    const reported = ends.map(
+      (end) => getScrubberBufferedRanges([{ start: 0, end }], playhead)[0].end,
+    );
+    expect(reported).toEqual([24, 30, 42, 60]);
+    // Monotonically non-decreasing — never regresses.
+    for (let i = 1; i < reported.length; i++) {
+      expect(reported[i]).toBeGreaterThanOrEqual(reported[i - 1]);
+    }
+  });
+
+  it("returns an empty bar when nothing is buffered ahead", () => {
+    expect(getScrubberBufferedRanges([], 20)).toEqual([]);
+    expect(getScrubberBufferedRanges([{ start: 0, end: 20 }], 20)).toEqual([]);
+  });
 });
 
 describe("resolvePlaybackStartSeconds", () => {
