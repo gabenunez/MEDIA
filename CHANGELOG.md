@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.134 — 2026-07-09
+
+### Fix
+
+- **Playback** — smarter spurious-`ended` recovery at growing transcode edges: coalesce rapid repeats, replay in place by default, only full-restart after sustained failure without forward progress (desktop + TV)
+
 ## 0.1.133 — 2026-07-09
 
 ### Fix
