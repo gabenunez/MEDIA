@@ -4,6 +4,8 @@ Self-hosted movies and TV. One Node app, SQLite, FFmpeg for transcoding.
 
 **[github.com/gabenunez/media-app](https://github.com/gabenunez/media-app)**
 
+![MEDIA! home screen — library stats, recently added, and continue watching](docs/screenshots/home.png)
+
 ## Install
 
 **Linux VPS**
