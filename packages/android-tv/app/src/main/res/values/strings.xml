@@ -10,7 +10,7 @@
     <string name="manual_setup">Enter server manually</string>
     <string name="manual_setup_heading">Or enter manually</string>
     <string name="host_label">Server address</string>
-    <string name="host_hint">185.162.184.10</string>
+    <string name="host_hint">192.168.1.10</string>
     <string name="port_label">Port</string>
     <string name="port_hint">8096</string>
     <string name="password_label">Password</string>

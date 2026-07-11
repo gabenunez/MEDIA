@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.158 — 2026-07-11
+
+### Docs
+
+- **README** — home screen screenshot
+
+### Fix
+
+- **Android TV** — use generic local IP in pairing placeholders instead of a specific public host
+
+### Enhancement
+
+- **Scripts** — `download-demo-media.sh` for freely-licensed demo library content
+
 ## 0.1.157 — 2026-07-10
 
 ### Refactor
