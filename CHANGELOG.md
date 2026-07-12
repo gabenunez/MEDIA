@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.159 — 2026-07-11
+
+### Enhancement
+
+- **Docker** — official image (`ghcr.io/gabenunez/media-app`) with compose, entrypoint, multi-arch CI publish, and docs
+- **Updates** — container installs disable in-app self-update and show `docker compose pull` guidance instead
+- **CI** — drop pnpm Actions cache so the workflow uses zero cache storage
+
+### Docs
+
+- **README** — Docker as the recommended install path
+
 ## 0.1.158 — 2026-07-11
 
 ### Docs

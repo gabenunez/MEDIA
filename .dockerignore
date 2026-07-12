@@ -1,0 +1,28 @@
+# Keep the build context lean and avoid leaking local state into the image.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+packages/web/out
+
+# Local runtime state / secrets — never copy into the image.
+config.yaml
+config.yml
+data/
+*.db
+*.db-journal
+.env
+.env.*
+
+# Android app is not part of the server image.
+packages/android-tv
+
+# VCS, CI, docs, editor noise.
+.git
+.github
+*.log
+.DS_Store
+*.tsbuildinfo
+docs
+README.md
+CHANGELOG.md

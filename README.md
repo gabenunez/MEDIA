@@ -8,7 +8,32 @@ Self-hosted movies and TV. One Node app, SQLite, FFmpeg for transcoding.
 
 ## Install
 
-**Linux VPS**
+**Docker (recommended)**
+
+```yaml
+# docker-compose.yml
+services:
+  media:
+    image: ghcr.io/gabenunez/media-app:latest
+    container_name: media
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./config:/config
+      - ./data:/data
+      - /path/to/movies:/media/movies:ro
+      - /path/to/tv:/media/tv:ro
+```
+
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:8096`, then add libraries in **Settings** using the
+container paths (e.g. `/media/movies`). Full guide: **[docs/docker.md](docs/docker.md)**.
+
+**Linux VPS (no Docker)**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gabenunez/media-app/main/install.sh | bash
@@ -25,7 +50,10 @@ pnpm install && pnpm build && pnpm start
 
 Dev with hot reload: `./scripts/dev.sh`
 
-**Update:** Settings → Updates in the app, or `./update.sh`
+**Update**
+
+- **Docker:** `docker compose pull && docker compose up -d`
+- **Other installs:** Settings → Updates in the app, or `./update.sh`
 
 ## Setup
 

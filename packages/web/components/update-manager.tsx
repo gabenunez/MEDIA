@@ -135,6 +135,14 @@ export function UpdateManager() {
                       )}
                       Update now
                     </Button>
+                  ) : status.container ? (
+                    <p className="text-sm text-muted-foreground">
+                      Running in Docker. Update with{" "}
+                      <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">
+                        docker compose pull &amp;&amp; docker compose up -d
+                      </code>
+                      .
+                    </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       In-app updates are not available on this install. Use the shell updater

@@ -44,6 +44,8 @@ export interface UpdateStatus {
   publishedAt: string | null;
   updateSupported: boolean;
   updateInProgress: boolean;
+  /** True when running inside the Docker image (update via `docker pull`). */
+  container: boolean;
   installDir: string;
   updateProgress: UpdateProgress | null;
   updateCheckWarning: string | null;
@@ -533,7 +535,15 @@ export function isUpdateInProgress(): boolean {
   return false;
 }
 
+/** True when running inside the official Docker image. */
+export function isContainerInstall(): boolean {
+  return process.env.MEDIA_CONTAINER === "1";
+}
+
 function isUpdateSupported(installDir: string): boolean {
+  // In-app self-update rewrites the working tree. Inside a container that is
+  // discarded on the next image pull, so updates happen via `docker pull`.
+  if (isContainerInstall()) return false;
   const updateScript = path.join(installDir, "scripts/update.sh");
   return fs.existsSync(updateScript) && fs.existsSync(installDir);
 }
@@ -714,6 +724,7 @@ export async function checkForUpdates(
       ...cachedCheck.status,
       updateInProgress,
       updateSupported,
+      container: isContainerInstall(),
       updateCheckWarning: cachedCheck.status.updateCheckWarning ?? null,
     });
   }
@@ -762,6 +773,7 @@ export async function checkForUpdates(
     publishedAt,
     updateSupported,
     updateInProgress,
+    container: isContainerInstall(),
     installDir,
     updateCheckWarning,
   });

@@ -147,6 +147,7 @@ export interface UpdateStatus {
   publishedAt: string | null;
   updateSupported: boolean;
   updateInProgress: boolean;
+  container?: boolean;
   installDir: string;
   updateProgress: UpdateProgress | null;
   updateCheckWarning: string | null;
