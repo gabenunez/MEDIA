@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.161 — 2026-07-12
+
+### Fix
+
+- **Android TV** — stop calling Media3 `setVideoEffects` for HDR/Dolby Vision (including empty-list "no-ops"), which was tone-mapping HDR to SDR on many TV SoCs; engage the HDR window before prepare and never demote based on incomplete ExoPlayer ColorInfo
+
+### Tooling
+
+- **Deploy** — `deploy-android-tv.sh` prunes stale/offline adb sessions, restarts a stuck adb daemon, waits for USB debugging authorization, and retries wireless connect more reliably
+
 ## 0.1.160 — 2026-07-12
 
 ### Fix
