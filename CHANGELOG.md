@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.168 — 2026-07-13
+
+### Fix
+
+- **Images** — `/api/images/*` is public again so Next `/_next/image` can fetch posters without a session (optimizer does not forward cookies; 401 JSON was surfacing as HTTP 400 “not a valid image”)
+
 ## 0.1.167 — 2026-07-13
 
 ### Fix

@@ -286,7 +286,10 @@ export function isPublicPath(pathname: string, passwordRequired: boolean): boole
   if (
     pathname === "/api/health" ||
     pathname === "/api/auth/status" ||
-    pathname === "/api/auth/login"
+    pathname === "/api/auth/login" ||
+    // Opaque hashed artwork files — required so Next `/_next/image` can fetch
+    // without a browser session cookie (optimizer does not forward auth).
+    pathname.startsWith("/api/images/")
   ) {
     return true;
   }
