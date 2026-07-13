@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.166 — 2026-07-13
+
+### Fix
+
+- **Routing** — `useBrowserPathname` strips `public_prefix` so TV/desktop route matching works under a reverse-proxy base path
+
 ## 0.1.165 — 2026-07-13
 
 ### Fix

@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
+import { stripBasePath } from "@/lib/base-path";
 
 const pathnameListeners = new Set<() => void>();
 let historyPatched = false;
@@ -53,7 +54,7 @@ export function useBrowserPathname(): string {
 
   return useSyncExternalStore(
     subscribeToBrowserPathname,
-    () => window.location.pathname,
+    () => stripBasePath(window.location.pathname),
     () => nextPathname,
   );
 }
