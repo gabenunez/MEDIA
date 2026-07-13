@@ -83,7 +83,7 @@ inside containers and points you to this command instead.
 Pin a specific version instead of `latest` for reproducible deploys:
 
 ```yaml
-image: ghcr.io/gabenunez/media-app:v0.1.160
+image: ghcr.io/gabenunez/media-app:v0.1.161
 ```
 
 ---

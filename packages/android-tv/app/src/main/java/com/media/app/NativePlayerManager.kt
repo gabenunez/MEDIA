@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import androidx.media3.common.C
-import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -80,7 +79,9 @@ class NativePlayerManager(
                 .buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, payload.subtitleUrl.isNullOrBlank())
                 .build()
-        if (payload.isHdr) {
+        // Engage HDR window color mode before prepare so the first frame is
+        // already presented on an HDR surface (late flips often stay SDR).
+        if (payload.isHdr || payload.dolbyVision) {
             setHdrContentActive(true)
         }
         mediaSessionManager?.release()
@@ -245,8 +246,11 @@ class NativePlayerManager(
     }
 
     private fun applySdUpscaleEffect(exoPlayer: ExoPlayer) {
-        if (hdrContentActive) {
-            exoPlayer.setVideoEffects(emptyList())
+        // Media3's setVideoEffects() switches rendering onto the GPU video-graph
+        // path, which tone-maps HDR/DV to SDR on most Android TV SoCs. Never
+        // touch effects for HDR content — and never call setVideoEffects with
+        // an empty list as a "no-op", since that still enables the graph.
+        if (isHdrPayload() || hdrContentActive) {
             return
         }
 
@@ -256,14 +260,12 @@ class NativePlayerManager(
         val metrics = playerView.context.resources.displayMetrics
         val screenMax = maxOf(metrics.widthPixels, metrics.heightPixels)
         if (screenMax < 2160 || sourceH > 576) {
-            exoPlayer.setVideoEffects(emptyList<Effect>())
             return
         }
 
         // Upscale SD to 720p in the GPU pipeline before the display scaler — softer on 4K TVs.
         val targetH = 720
         if (sourceH >= targetH) {
-            exoPlayer.setVideoEffects(emptyList<Effect>())
             return
         }
 
@@ -323,17 +325,20 @@ class NativePlayerManager(
         mediaSessionManager?.release()
         mediaSessionManager = null
         playerView.player = null
-        player?.setVideoEffects(emptyList())
         player?.release()
         player = null
     }
 
+    private fun isHdrPayload(): Boolean {
+        val payload = currentPayload ?: return false
+        return payload.isHdr || payload.dolbyVision
+    }
+
     private fun isHdrFormat(exoPlayer: ExoPlayer): Boolean {
-        // Dolby Vision is declared up front by the server; a DV elementary
-        // stream does not always surface an ST2084/HLG transfer function via
-        // ExoPlayer's ColorInfo, so trusting only the transfer would wrongly
-        // downgrade DV playback to SDR. Keep HDR engaged for DV content.
-        if (currentPayload?.dolbyVision == true) return true
+        // Server probe is authoritative. ExoPlayer ColorInfo is often missing
+        // or incomplete for MKV HDR10 (transfer stays UNSPECIFIED), and a
+        // false "SDR" reading would flip the window out of COLOR_MODE_HDR.
+        if (isHdrPayload()) return true
 
         val format = exoPlayer.videoFormat ?: return hdrContentActive
 
@@ -349,16 +354,17 @@ class NativePlayerManager(
 
     private fun updateHdrOutput(exoPlayer: ExoPlayer) {
         if (exoPlayer.playbackState != Player.STATE_READY) return
-        setHdrContentActive(isHdrFormat(exoPlayer))
+        // Only ever promote to HDR from the decoder; never demote a payload
+        // that already declared HDR/DV (incomplete ColorInfo must not win).
+        if (isHdrFormat(exoPlayer)) {
+            setHdrContentActive(true)
+        }
     }
 
     private fun setHdrContentActive(active: Boolean) {
         if (hdrContentActive == active) return
         hdrContentActive = active
         onHdrContentChanged(active)
-        if (active) {
-            player?.setVideoEffects(emptyList())
-        }
     }
 
     private fun buildMediaItem(request: PlaybackPayload): MediaItem {
