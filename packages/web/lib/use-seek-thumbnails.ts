@@ -85,7 +85,7 @@ export function useSeekThumbnails(
     let attempts = 0;
     const maxAttempts = 40;
     const retryDelayMs = 3_000;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let timer: number | null = null;
 
     const scheduleRetry = () => {
       if (cancelled || attempts >= maxAttempts) return;

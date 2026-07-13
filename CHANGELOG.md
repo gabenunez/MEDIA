@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.172 — 2026-07-13
+
+### Fix
+
+- **Build** — seek-thumbnail retry timer typed as `number` so production Next typecheck accepts `window.setTimeout`
+
 ## 0.1.171 — 2026-07-13
 
 ### Fix
