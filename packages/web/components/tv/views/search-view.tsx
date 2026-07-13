@@ -65,7 +65,7 @@ export function TvSearchView() {
         <p className="py-12 text-center text-muted-foreground">No results found.</p>
       )}
 
-      {!loading && results.length > 0 && (
+      {results.length > 0 && (
         <>
           <TvSectionLabel>{results.length} results</TvSectionLabel>
           <TvGrid>

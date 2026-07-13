@@ -12,8 +12,12 @@ import { Loader2 } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { api } from "@/lib/api";
 import { invalidateApiCache } from "@/lib/api-cache";
+import { withBasePath } from "@/lib/base-path";
 import { routes } from "@/lib/routes";
-import { androidTvShellSupportsLogout, notifyAndroidLogout } from "@/lib/android-bridge";
+import {
+  androidTvShellSupportsLogout,
+  notifyAndroidLogout,
+} from "@/lib/android-bridge";
 import { isTvClient } from "@/lib/tv-mode-detect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         notifyAndroidLogout();
         return;
       }
-      window.location.href = `${window.location.origin}${routes.home()}?tv=1`;
+      window.location.href = `${window.location.origin}${withBasePath(routes.home())}?tv=1`;
       return;
     }
 
@@ -95,7 +99,11 @@ export function useAuth() {
   return context;
 }
 
-function LoginGate({ onLogin }: { onLogin: (password: string) => Promise<void> }) {
+function LoginGate({
+  onLogin,
+}: {
+  onLogin: (password: string) => Promise<void>;
+}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -121,7 +129,9 @@ function LoginGate({ onLogin }: { onLogin: (password: string) => Promise<void> }
           <MediaIcon className="h-12 w-12" />
           <div>
             <h1 className="text-2xl font-bold">MEDIA!</h1>
-            <p className="text-sm text-muted-foreground">Enter your password to continue</p>
+            <p className="text-sm text-muted-foreground">
+              Enter your password to continue
+            </p>
           </div>
         </div>
 
@@ -135,8 +145,16 @@ function LoginGate({ onLogin }: { onLogin: (password: string) => Promise<void> }
             autoComplete="current-password"
           />
           {error && <p className="text-sm text-red-400">{error}</p>}
-          <Button type="submit" className="w-full" disabled={submitting || !password}>
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Unlock"}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={submitting || !password}
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Unlock"
+            )}
           </Button>
         </form>
       </div>

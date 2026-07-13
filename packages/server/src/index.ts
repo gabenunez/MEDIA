@@ -15,7 +15,7 @@ import { streamRoutes, subtitleRoutes } from "./routes/stream.js";
 import { subtitleSearchRoutes } from "./routes/subtitles-search.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { castRoutes } from "./routes/cast.js";
-import { AuthService, isCastMediaPath, isInternalMediaApiPath, isInternalMediaApiRequest, isPublicPath } from "./services/auth.js";
+import { AuthService, isCastMediaPath, isPublicPath } from "./services/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { updateRoutes } from "./routes/updates.js";
 import { resolveLegacyRouteRedirect, resolveSpaIndexFile } from "@media-app/shared";
@@ -47,21 +47,6 @@ async function main() {
 
   app.addHook("onRequest", async (request, reply) => {
     const pathname = request.url.split("?")[0] ?? request.url;
-    const isLocalClient =
-      request.ip === "127.0.0.1" ||
-      request.ip === "::1" ||
-      request.ip === "::ffff:127.0.0.1" ||
-      request.socket?.remoteAddress === "127.0.0.1" ||
-      request.socket?.remoteAddress === "::1" ||
-      request.socket?.remoteAddress === "::ffff:127.0.0.1";
-
-    if (
-      isInternalMediaApiRequest(pathname, request.headers) ||
-      (isLocalClient && isInternalMediaApiPath(pathname))
-    ) {
-      return;
-    }
-
     const passwordRequired = auth.isPasswordRequired();
 
     if (!passwordRequired || isPublicPath(pathname, passwordRequired)) {

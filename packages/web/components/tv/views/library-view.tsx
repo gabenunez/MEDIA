@@ -118,7 +118,7 @@ export function TvLibraryView() {
         trailing={trailing}
       />
 
-      {loading ? (
+      {loading && items.length === 0 ? (
         <div className="flex min-h-[35vh] items-center justify-center">
           <Loader2 className="h-9 w-9 animate-spin text-primary" />
         </div>

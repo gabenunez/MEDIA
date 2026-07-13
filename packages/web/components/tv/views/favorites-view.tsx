@@ -49,7 +49,7 @@ export function TvFavoritesView() {
     focusFirstContentItem();
   }, [loading, filter, page]);
 
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-9 w-9 animate-spin text-primary" />

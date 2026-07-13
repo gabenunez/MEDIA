@@ -132,7 +132,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
           </aside>
         )}
 
-        <main className="min-w-0 flex-1 overflow-y-auto pb-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto bg-background pb-6">{children}</main>
       </div>
     </TvSpatialNav>
   );

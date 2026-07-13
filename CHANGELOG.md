@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.162 — 2026-07-13
+
+### Fix
+
+- **Routing** — app routes no longer bake in `public_prefix`; callers apply the base path only when needed (fixes double-prefix and broken TV navigation under a reverse-proxy prefix)
+- **Auth** — remove localhost/internal API auth bypass so password-protected installs always require a session
+
+### TV
+
+- **Route loading** — solid spinner overlay instead of desktop skeleton flash; keep existing grid content visible while refreshing
+- **Watch** — stop native ExoPlayer immediately on leave; use the TV subtitle appearance panel
+- **Shell** — paint main content background during route transitions to avoid a transparent flash
+
 ## 0.1.161 — 2026-07-12
 
 ### Fix

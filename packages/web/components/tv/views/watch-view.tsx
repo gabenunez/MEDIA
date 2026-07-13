@@ -40,7 +40,7 @@ import {
 } from "@/lib/watch-helpers";
 import { is4KSource, isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
-import { DesktopSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
+import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
@@ -379,8 +379,9 @@ export function TvWatchView() {
     saveProgressRef.current();
 
     if (usesNativePlayer) {
-      // TvShell stops ExoPlayer after the destination route paints. Bringing
-      // the WebView forward here prevents a native-surface/background flash.
+      // Stop immediately; route-level cleanup remains a safety net. Bringing
+      // the WebView forward prevents a native-surface/background flash.
+      stopNativePlayback();
       setNativeWebOverlayAlpha(1);
     } else {
       videoRef.current?.pause();
@@ -2301,9 +2302,7 @@ export function TvWatchView() {
                     {subtitleMenuOpen && (
                       <TvWatchPopover className="w-[min(32rem,calc(100vw-2rem))]">
                         {subtitleAppearanceOpen ? (
-                          <DesktopSubtitleAppearancePanel
-                            onBack={() => setSubtitleAppearanceOpen(false)}
-                          />
+                          <TvSubtitleAppearancePanel nativePlayback={usesNativePlayer} />
                         ) : (
                           <TvWatchMenuList>
                             {subtitleListError ? (
