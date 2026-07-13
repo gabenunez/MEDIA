@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.165 — 2026-07-13
+
+### Fix
+
+- **Images** — Next `images.localPatterns` includes `public_prefix` so poster/backdrop URLs under a reverse-proxy base path are allowed
+
 ## 0.1.164 — 2026-07-13
 
 ### Fix

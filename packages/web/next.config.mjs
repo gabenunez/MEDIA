@@ -12,6 +12,8 @@ function normalizePublicPrefix(value) {
 }
 
 const publicPrefix = normalizePublicPrefix(process.env.MEDIA_PUBLIC_PREFIX);
+// Next validates the full source pathname, including basePath, for local images.
+const localImagePath = `${publicPrefix}/api/images/**`;
 
 function buildImageRemotePatterns() {
   /** @type {import('next').NextConfig['images']['remotePatterns']} */
@@ -73,7 +75,7 @@ const nextConfig = {
     minimumCacheTTL: 86_400,
     localPatterns: [
       {
-        pathname: "/api/images/**",
+        pathname: localImagePath,
       },
     ],
     remotePatterns: buildImageRemotePatterns(),
