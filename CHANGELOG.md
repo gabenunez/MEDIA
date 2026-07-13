@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.169 — 2026-07-13
+
+### Fix
+
+- **Playback** — HLS playlists emit relative segment URIs (and cast bases include `public_prefix`) so remux/transcode segments stay under `/reel` instead of 404ing at `/api/stream/...`
+
 ## 0.1.168 — 2026-07-13
 
 ### Fix

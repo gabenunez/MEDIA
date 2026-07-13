@@ -699,8 +699,18 @@ export async function streamRoutes(
       const rewritten = playlist.replace(
         /segment_\d+\.ts/g,
         (match) => {
-          const segmentPath = `/api/stream/${fileId}/hls/${match}?type=${type}&quality=${hlsQuality}&start=${Math.floor(startSeconds)}${tokenSuffix}`;
-          return useAbsolute ? toAbsoluteUrl(baseUrl, segmentPath) : segmentPath;
+          const query = `type=${type}&quality=${hlsQuality}&start=${Math.floor(startSeconds)}${tokenSuffix}`;
+          if (useAbsolute) {
+            // castBase already includes public_prefix when configured.
+            return toAbsoluteUrl(
+              baseUrl,
+              `/api/stream/${fileId}/hls/${match}?${query}`,
+            );
+          }
+          // Prefer relative URIs so reverse-proxy prefixes on the playlist URL
+          // (e.g. /reel/api/stream/.../master.m3u8) carry through to segments.
+          // Absolute /api/stream/... paths bypass the proxy and 404 at the site root.
+          return `${match}?${query}`;
         },
       );
 

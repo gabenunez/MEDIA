@@ -50,11 +50,40 @@ export function getCastBaseUrl(
     (typeof forwardedProto === "string" ? forwardedProto : request.protocol) ??
     "http";
 
-  if (host && !host.startsWith("127.0.0.1") && !host.startsWith("localhost")) {
-    return `${protocol}://${host}`;
+  const origin =
+    host && !host.startsWith("127.0.0.1") && !host.startsWith("localhost")
+      ? `${protocol}://${host}`
+      : getLanBaseUrl(config.server.port);
+
+  return withPublicPrefix(config, origin);
+}
+
+/** Prefix an origin or path with server.public_prefix (e.g. /reel). */
+export function withPublicPrefix(config: AppConfig, value: string): string {
+  const prefix = normalizePublicPrefix(config.server.public_prefix);
+  if (!prefix) return value;
+
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    const url = new URL(value);
+    if (url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) {
+      return `${url.origin}${url.pathname === "/" ? "" : url.pathname}`;
+    }
+    const path = url.pathname === "/" ? prefix : `${prefix}${url.pathname}`;
+    return `${url.origin}${path}`;
   }
 
-  return getLanBaseUrl(config.server.port);
+  const normalized = value.startsWith("/") ? value : `/${value}`;
+  if (normalized === prefix || normalized.startsWith(`${prefix}/`)) {
+    return normalized;
+  }
+  return normalized === "/" ? `${prefix}/` : `${prefix}${normalized}`;
+}
+
+function normalizePublicPrefix(value: string | undefined): string {
+  if (!value || value === "/") return "";
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
 export function toAbsoluteUrl(baseUrl: string, path: string): string {
