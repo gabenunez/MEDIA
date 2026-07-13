@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.167 — 2026-07-13
+
+### Fix
+
+- **Images** — allow both `/api/images/**` and `{public_prefix}/api/images/**` in Next `localPatterns` (Next may validate before or after stripping basePath)
+
 ## 0.1.166 — 2026-07-13
 
 ### Fix
