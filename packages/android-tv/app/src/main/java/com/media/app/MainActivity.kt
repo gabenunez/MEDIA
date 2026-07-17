@@ -306,18 +306,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun performLogout(reload: Boolean = true) {
+    fun performLogout() {
         pauseAllPlayback()
         val sessionToken = SessionPreferences.getSessionToken(this)
+        val url = serverUrl
         executor.execute {
-            ServerConnector.logout(serverUrl, sessionToken)
+            ServerConnector.logout(url, sessionToken)
             runOnUiThread {
-                SessionPreferences.clearSessionToken(this)
+                // Forget the saved server entirely — TV must re-enter address/password.
                 clearSessionCookie()
-                if (reload) {
-                    resetSplashForLoad()
-                    webView.loadUrl(buildLaunchUrl(serverUrl))
-                }
+                openSetup(resetServer = true)
             }
         }
     }
@@ -325,26 +323,11 @@ class MainActivity : AppCompatActivity() {
     private fun showAccountMenu() {
         AlertDialog.Builder(this)
             .setTitle(R.string.account_menu_title)
-            .setItems(
-                arrayOf(
-                    getString(R.string.log_out),
-                    getString(R.string.change_server),
-                ),
-            ) { _, which ->
-                when (which) {
-                    0 -> performLogout()
-                    1 -> openSetup(resetServer = true)
-                }
+            .setItems(arrayOf(getString(R.string.log_out))) { _, _ ->
+                performLogout()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
-    }
-
-    private fun resetSplashForLoad() {
-        cancelSplashWatch()
-        splashDismissed = false
-        splashOverlay.alpha = 1f
-        splashOverlay.visibility = View.VISIBLE
     }
 
     private fun scheduleSplashDismissWatch() {
@@ -601,7 +584,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun logout() {
             runOnUiThread {
-                performLogout(reload = true)
+                performLogout()
             }
         }
 

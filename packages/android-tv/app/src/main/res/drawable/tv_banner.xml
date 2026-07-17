@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 320x180 TV launcher banner (TV-LB, TV-BN) — icon + wordmark with comfortable padding -->
+<!-- 320x180 TV home-row banner — compact icon + wordmark with clear padding -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="320dp"
     android:height="180dp"
@@ -9,12 +9,12 @@
         android:fillColor="@color/media_background"
         android:pathData="M0,0 H320 V180 H0 Z" />
 
-    <!-- Launcher icon tile (~64dp), vertically centered -->
+    <!-- Icon tile ~48dp, vertically centered -->
     <group
-        android:translateX="36"
-        android:translateY="58"
-        android:scaleX="0.60"
-        android:scaleY="0.60">
+        android:translateX="44"
+        android:translateY="66"
+        android:scaleX="0.44"
+        android:scaleY="0.44">
         <path
             android:fillColor="@color/media_icon_background"
             android:pathData="M20.25,37.125 A16.875,16.875 0 0 1 37.125,20.25 H71.125 A16.875,16.875 0 0 1 87.75,37.125 V71.125 A16.875,16.875 0 0 1 71.125,87.75 H37.125 A16.875,16.875 0 0 1 20.25,71.125 V37.125 Z" />
@@ -29,12 +29,12 @@
             android:pathData="M74.5,66 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
     </group>
 
-    <!-- MEDIA! wordmark (~36dp tall), vertically centered -->
+    <!-- MEDIA! wordmark ~28dp tall, vertically centered -->
     <group
-        android:translateX="122"
-        android:translateY="72"
-        android:scaleX="0.72"
-        android:scaleY="0.72">
+        android:translateX="118"
+        android:translateY="76"
+        android:scaleX="0.56"
+        android:scaleY="0.56">
         <!-- M -->
         <path
             android:fillColor="@color/media_text"

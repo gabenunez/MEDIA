@@ -10,8 +10,8 @@ class AuthenticatedHttpDataSourceFactory(
 ) : HttpDataSource.Factory {
     private val upstream = DefaultHttpDataSource.Factory()
         .setAllowCrossProtocolRedirects(true)
-        .setConnectTimeoutMs(20_000)
-        .setReadTimeoutMs(20_000)
+        .setConnectTimeoutMs(30_000)
+        .setReadTimeoutMs(60_000)
         .setUserAgent("MediaAndroidTV/1.1 ExoPlayer")
 
     override fun createDataSource(): HttpDataSource {

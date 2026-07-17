@@ -60,6 +60,11 @@ label span {
   color: var(--muted);
 }
 
+label span.optional {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
 input {
   width: 100%;
   border: 1px solid #27272a;

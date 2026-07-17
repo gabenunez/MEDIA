@@ -20,15 +20,17 @@ data class PlaybackPayload(
             return try {
                 val obj = JSONObject(json)
                 PlaybackPayload(
-                    url = obj.getString("url"),
+                    url = PlaybackUrl.sanitize(obj.getString("url")),
                     title = obj.optString("title", "MEDIA!"),
-                    posterUrl = obj.optString("posterUrl").takeIf { it.isNotBlank() },
+                    posterUrl = obj.optString("posterUrl").takeIf { it.isNotBlank() }
+                        ?.let(PlaybackUrl::sanitize),
                     fileId = obj.getInt("fileId"),
                     itemType = obj.getString("itemType"),
                     startSeconds = obj.optDouble("startSeconds", 0.0),
                     durationMs = obj.optLong("durationMs", 0L),
                     isHls = obj.optBoolean("isHls", false),
-                    subtitleUrl = obj.optString("subtitleUrl").takeIf { it.isNotBlank() },
+                    subtitleUrl = obj.optString("subtitleUrl").takeIf { it.isNotBlank() }
+                        ?.let(PlaybackUrl::sanitize),
                     isHdr = obj.optBoolean("isHdr", false),
                     dolbyVision = obj.optBoolean("dolbyVision", false),
                 )

@@ -2,7 +2,10 @@ package com.media.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.KeyEvent
+import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -18,6 +21,7 @@ class SetupActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var hostInput: EditText
     private lateinit var portInput: EditText
+    private lateinit var portField: View
     private lateinit var statusText: TextView
     private lateinit var connectButton: Button
     private lateinit var qrCodeImage: ImageView
@@ -41,6 +45,7 @@ class SetupActivity : AppCompatActivity() {
 
         hostInput = findViewById(R.id.hostInput)
         portInput = findViewById(R.id.portInput)
+        portField = findViewById(R.id.portField)
         statusText = findViewById(R.id.statusText)
         connectButton = findViewById(R.id.connectButton)
         qrCodeImage = findViewById(R.id.qrCodeImage)
@@ -61,9 +66,31 @@ class SetupActivity : AppCompatActivity() {
         portInput.showSoftInputOnFocus = false
         prepareManualInput(hostInput)
         prepareManualInput(portInput)
+        hostInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                syncPortFieldVisibility()
+            }
+        })
+        syncPortFieldVisibility()
 
         startPairingServer()
         connectButton.post { connectButton.requestFocus() }
+    }
+
+    private fun hostLooksLikeAbsoluteUrl(value: String): Boolean {
+        val trimmed = value.trim()
+        return trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+    }
+
+    private fun syncPortFieldVisibility() {
+        val absolute = hostLooksLikeAbsoluteUrl(hostInput.text.toString())
+        portField.visibility = if (absolute) View.GONE else View.VISIBLE
+        if (absolute) {
+            portInput.text = null
+        }
     }
 
     override fun onDestroy() {

@@ -14,7 +14,9 @@ import { createStreamFilePrefix } from "./stream-session.js";
 
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_TRANSCODES = 4;
-const IDLE_SESSION_MS = 2 * 60 * 1000;
+// A well-buffered 4K client may go several minutes without requesting a new
+// playlist or segment. Do not kill its encoder while playback is still valid.
+const IDLE_SESSION_MS = 10 * 60 * 1000;
 /**
  * A session accessed within this window is considered actively serving a
  * client and must never be reclaimed for capacity or reaped by same-file

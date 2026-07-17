@@ -6,13 +6,13 @@
     <string name="setup_subheading">Scan the QR code with your phone to enter your server address and password. Your phone must be on the same Wi‑Fi as this TV.</string>
     <string name="setup_subtitle">Enter your server address and sign in</string>
     <string name="server_url_label">Server address</string>
-    <string name="server_url_hint">http://192.168.1.10:8096</string>
+    <string name="server_url_hint">https://media.example.com/reel</string>
     <string name="manual_setup">Enter server manually</string>
     <string name="manual_setup_heading">Or enter manually</string>
     <string name="host_label">Server address</string>
-    <string name="host_hint">192.168.1.10</string>
+    <string name="host_hint">https://media.example.com/reel</string>
     <string name="port_label">Port</string>
-    <string name="port_hint">8096</string>
+    <string name="port_hint">optional</string>
     <string name="password_label">Password</string>
     <string name="password_hint">Optional</string>
     <string name="connect">Connect</string>

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.177 — 2026-07-17
+
+### TV
+
+- **Setup** — accept HTTPS server URLs without a port (and path prefixes like `/reel`); port is optional for public hosts
+- **Auth** — sign-out forgets the saved server and returns to setup instead of only the password gate
+- **Playback** — collapse double public-prefix stream URLs (`/reel/reel/...`) before ExoPlayer; recover from stalls/errors before surfacing failure; longer HTTP timeouts
+- **Icons** — Android TV menu circle uses a padded MediaIcon tile; home-row banner and adaptive icon tightened
+
+### Fix
+
+- **Transcode** — keep idle HLS encoder sessions alive longer (10m) so well-buffered 4K clients are not killed mid-playback
+
 ## 0.1.176 — 2026-07-14
 
 ### Fix

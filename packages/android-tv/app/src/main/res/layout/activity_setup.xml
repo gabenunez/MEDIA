@@ -129,6 +129,7 @@
                     </LinearLayout>
 
                     <LinearLayout
+                        android:id="@+id/portField"
                         android:layout_width="120dp"
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
@@ -150,7 +151,6 @@
                             android:imeOptions="actionDone"
                             android:inputType="number"
                             android:paddingHorizontal="16dp"
-                            android:text="8096"
                             android:textColor="@color/media_text"
                             android:textColorHint="@color/media_text_muted"
                             android:textSize="18sp" />

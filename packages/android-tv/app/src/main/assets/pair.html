@@ -16,12 +16,20 @@
     <form id="pairForm">
       <label>
         <span>Server address</span>
-        <input id="host" name="host" type="text" inputmode="url" autocomplete="off" placeholder="192.168.1.10 or media.example.com" required />
+        <input
+          id="host"
+          name="host"
+          type="text"
+          inputmode="url"
+          autocomplete="off"
+          placeholder="https://media.example.com/reel"
+          required
+        />
       </label>
 
-      <label>
-        <span>Port</span>
-        <input id="port" name="port" type="number" inputmode="numeric" value="8096" required />
+      <label id="portField">
+        <span>Port <span class="optional">(optional for https:// URLs)</span></span>
+        <input id="port" name="port" type="number" inputmode="numeric" placeholder="8096 for LAN" />
       </label>
 
       <label id="passwordField">
@@ -34,13 +42,16 @@
       <button id="submit" type="submit">Connect TV</button>
     </form>
 
-    <p class="hint">Your phone must be on the same Wi‑Fi network as your TV.</p>
+    <p class="hint">Use a full URL like https://media.example.com/reel, or a LAN address like 192.168.1.10. Your phone must be on the same Wi‑Fi network as your TV.</p>
   </main>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token") || "";
     const form = document.getElementById("pairForm");
+    const hostInput = document.getElementById("host");
+    const portInput = document.getElementById("port");
+    const portField = document.getElementById("portField");
     const errorEl = document.getElementById("error");
     const submitBtn = document.getElementById("submit");
 
@@ -48,6 +59,21 @@
       errorEl.textContent = message;
       errorEl.hidden = !message;
     }
+
+    function hostLooksLikeAbsoluteUrl(value) {
+      return /^https?:\/\//i.test(value.trim());
+    }
+
+    function syncPortField() {
+      const absolute = hostLooksLikeAbsoluteUrl(hostInput.value);
+      portField.hidden = absolute;
+      if (absolute) {
+        portInput.value = "";
+      }
+    }
+
+    hostInput.addEventListener("input", syncPortField);
+    syncPortField();
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -61,8 +87,8 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             token,
-            host: document.getElementById("host").value.trim(),
-            port: document.getElementById("port").value.trim(),
+            host: hostInput.value.trim(),
+            port: hostLooksLikeAbsoluteUrl(hostInput.value) ? "" : portInput.value.trim(),
             password: document.getElementById("password").value.trim(),
           }),
         });

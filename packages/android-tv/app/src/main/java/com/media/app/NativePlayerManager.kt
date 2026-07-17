@@ -3,6 +3,7 @@ package com.media.app
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -37,6 +38,11 @@ class NativePlayerManager(
     private var subtitleStylesJson: String? = null
     private var lastWatchNextUpdateMs = 0L
     private var playbackEnded = false
+    private var lastPlaybackPositionMs = 0L
+    private var lastPlaybackProgressAtMs = 0L
+    private var stallRecoveryAttempts = 0
+    private var stallRecoveryPending = false
+    private var playbackFailureReported = false
 
     private val progressRunnable = object : Runnable {
         override fun run() {
@@ -52,6 +58,11 @@ class NativePlayerManager(
         seekApplied = false
         lastWatchNextUpdateMs = 0L
         playbackEnded = false
+        lastPlaybackPositionMs = 0L
+        lastPlaybackProgressAtMs = System.currentTimeMillis()
+        stallRecoveryAttempts = 0
+        stallRecoveryPending = false
+        playbackFailureReported = false
 
         releasePlayer()
         playerView.visibility = View.VISIBLE
@@ -143,7 +154,14 @@ class NativePlayerManager(
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
-                    emitJs("window.__mediaNativePlayer?.onError?.()")
+                    Log.e(
+                        TAG,
+                        "ExoPlayer error code=${error.errorCode} (${error.errorCodeName}) url=${payload.url}",
+                        error,
+                    )
+                    if (!schedulePlaybackRecovery(exoPlayer, "error")) {
+                        reportPlaybackFailure()
+                    }
                     emitState()
                 }
             },
@@ -155,6 +173,7 @@ class NativePlayerManager(
 
     fun pause() {
         player?.pause()
+        lastPlaybackProgressAtMs = System.currentTimeMillis()
         emitState()
     }
 
@@ -175,6 +194,7 @@ class NativePlayerManager(
     fun currentPositionMs(): Long = player?.currentPosition ?: 0L
 
     fun resume() {
+        lastPlaybackProgressAtMs = System.currentTimeMillis()
         player?.play()
         emitState()
     }
@@ -242,6 +262,8 @@ class NativePlayerManager(
         playerView.scaleY = 1f
         currentPayload = null
         playbackEnded = false
+        stallRecoveryPending = false
+        playbackFailureReported = false
         onPlaybackStopped()
     }
 
@@ -417,6 +439,21 @@ class NativePlayerManager(
 
     private fun emitState() {
         val exoPlayer = player ?: return
+        val now = System.currentTimeMillis()
+        val currentPositionMs = exoPlayer.currentPosition
+        if (currentPositionMs > lastPlaybackPositionMs) {
+            lastPlaybackPositionMs = currentPositionMs
+            lastPlaybackProgressAtMs = now
+            stallRecoveryAttempts = 0
+        } else if (
+            exoPlayer.playWhenReady &&
+            exoPlayer.playbackState == Player.STATE_BUFFERING &&
+            now - lastPlaybackProgressAtMs >= STALL_TIMEOUT_MS
+        ) {
+            if (!schedulePlaybackRecovery(exoPlayer, "buffering watchdog")) {
+                reportPlaybackFailure()
+            }
+        }
         val durationMs = when {
             exoPlayer.duration > 0 -> exoPlayer.duration
             (currentPayload?.durationMs ?: 0L) > 0 -> currentPayload!!.durationMs
@@ -443,6 +480,34 @@ class NativePlayerManager(
         }
 
         emitJs("window.__mediaNativePlayer?.onState?.($payload)")
+    }
+
+    private fun schedulePlaybackRecovery(exoPlayer: ExoPlayer, reason: String): Boolean {
+        if (stallRecoveryPending || exoPlayer !== player) return true
+        if (stallRecoveryAttempts >= MAX_STALL_RECOVERY_ATTEMPTS) return false
+
+        stallRecoveryAttempts++
+        stallRecoveryPending = true
+        val positionMs = exoPlayer.currentPosition
+        Log.w(
+            TAG,
+            "Recovering playback attempt=$stallRecoveryAttempts reason=$reason positionMs=$positionMs",
+        )
+        handler.postDelayed({
+            if (exoPlayer !== player || playbackEnded) return@postDelayed
+            stallRecoveryPending = false
+            lastPlaybackProgressAtMs = System.currentTimeMillis()
+            exoPlayer.seekTo(positionMs.coerceAtLeast(0L))
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = true
+        }, RECOVERY_DELAY_MS)
+        return true
+    }
+
+    private fun reportPlaybackFailure() {
+        if (playbackFailureReported) return
+        playbackFailureReported = true
+        emitJs("window.__mediaNativePlayer?.onError?.()")
     }
 
     private fun buildBufferedRanges(exoPlayer: ExoPlayer): org.json.JSONArray {
@@ -479,7 +544,11 @@ class NativePlayerManager(
     }
 
     companion object {
+        private const val TAG = "MediaNativePlayer"
         private const val PROGRESS_INTERVAL_MS = 500L
         private const val WATCH_NEXT_UPDATE_INTERVAL_MS = 15_000L
+        private const val STALL_TIMEOUT_MS = 45_000L
+        private const val RECOVERY_DELAY_MS = 500L
+        private const val MAX_STALL_RECOVERY_ATTEMPTS = 3
     }
 }
