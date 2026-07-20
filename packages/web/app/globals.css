@@ -63,6 +63,27 @@
     overflow: hidden;
     height: 100%;
     min-height: 100%;
+    /* Solid paint — multi-layer body gradients are expensive on Android TV WebView. */
+    background-image: none;
+    background-color: hsl(var(--background));
+  }
+
+  html.tv-mode .glass,
+  html.tv-mode .backdrop-blur,
+  html.tv-mode .backdrop-blur-sm,
+  html.tv-mode .backdrop-blur-md,
+  html.tv-mode .backdrop-blur-lg {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  html.tv-mode .poster-shadow {
+    box-shadow: none;
+  }
+
+  html.tv-mode .signal-grid {
+    background-image: none;
+    background-color: hsl(var(--muted));
   }
 
   html.tv-mode [data-web-only] {
@@ -1048,10 +1069,8 @@
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn[data-tv-focused] {
     background-color: rgb(255 255 255 / 0.2) !important;
     color: #fff !important;
-    border-color: #fff !important;
-    box-shadow:
-      0 0 0 2px rgb(0 0 0 / 0.55),
-      0 0 0 4px #fff !important;
+    border: 2px solid #fff !important;
+    box-shadow: none !important;
     transform: none !important;
   }
 

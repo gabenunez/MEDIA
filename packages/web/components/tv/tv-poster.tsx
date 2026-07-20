@@ -1,15 +1,15 @@
 "use client";
 
 import { memo, useCallback } from "react";
-import { tvImageUrl } from "@/lib/tv-image";
+import { TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import type { MediaItem } from "@/lib/api";
 import Link from "next/link";
 import { tvPosterLinkClassName } from "@/components/tv/tv-focus-link";
-import { prefetchPosterNavigation } from "@/lib/prefetch-artwork";
+import { prefetchPosterFocus } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
 import { Clapperboard, Tv } from "lucide-react";
-import { isTv4KClient, isTvClient } from "@/lib/tv-mode-detect";
+import { isTvClient } from "@/lib/tv-mode-detect";
 import { MediaImage } from "@/components/media-image";
 
 interface TvPosterProps {
@@ -19,7 +19,7 @@ interface TvPosterProps {
   linkClassName?: string;
   progress?: number;
   subtitle?: string;
-  /** Load immediately — use for the first visible row only. */
+  /** Next.js priority decode — use for the first visible tiles only. */
   priority?: boolean;
 }
 
@@ -34,18 +34,20 @@ export const TvPoster = memo(function TvPoster({
 }: TvPosterProps) {
   const imageUrl = tvImageUrl(item.posterPath);
   const linkHref = href ?? routes.media(item.id);
+  const onTv = isTvClient();
   // Android TV WebView often never loads lazy images inside horizontal rows/grids.
-  const loadImmediately = isTvClient() || priority;
+  // Keep eager decode on TV, but only mark the first few tiles as priority.
+  const loading = onTv || priority ? ("eager" as const) : ("lazy" as const);
 
   const warmNavigation = useCallback(() => {
-    prefetchPosterNavigation(item);
+    prefetchPosterFocus(item);
   }, [item]);
 
   return (
     <div className={cn("tv-poster-tile shrink-0", className)}>
       <Link
         href={linkHref}
-        prefetch
+        prefetch={!onTv}
         data-tv-item=""
         data-tv-video-item=""
         tabIndex={0}
@@ -64,9 +66,10 @@ export const TvPoster = memo(function TvPoster({
               src={imageUrl}
               alt=""
               fill
-              priority={loadImmediately}
-              quality={isTv4KClient() ? 90 : 80}
-              sizes="(min-width: 1920px) 10rem, 8rem"
+              priority={priority}
+              loading={loading}
+              quality={TV_LIST_IMAGE_QUALITY}
+              sizes="(min-width: 1920px) 10rem, 7.5rem"
               className="object-cover"
             />
           ) : (
@@ -91,7 +94,7 @@ export const TvPoster = memo(function TvPoster({
             </div>
           )}
         </div>
-        <p className="tv-poster-title mt-2 line-clamp-2 text-sm font-medium leading-snug text-muted-foreground transition-colors">
+        <p className="tv-poster-title mt-2 line-clamp-2 text-sm font-medium leading-snug text-muted-foreground">
           {item.title}
         </p>
         {subtitle && (

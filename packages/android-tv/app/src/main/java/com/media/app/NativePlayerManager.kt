@@ -46,11 +46,20 @@ class NativePlayerManager(
     private var hasReachedReady = false
     private var stallRecoveryRunnable: Runnable? = null
 
+    /** When true, JS chrome is hidden — emit progress less often to cut WebView work. */
+    private var uiOverlayVisible = true
+
     private val progressRunnable = object : Runnable {
         override fun run() {
             emitState()
-            handler.postDelayed(this, PROGRESS_INTERVAL_MS)
+            val interval =
+                if (uiOverlayVisible) PROGRESS_INTERVAL_MS else PROGRESS_INTERVAL_HIDDEN_MS
+            handler.postDelayed(this, interval)
         }
+    }
+
+    fun setUiOverlayVisible(visible: Boolean) {
+        uiOverlayVisible = visible
     }
 
     fun play(serverUrl: String, sessionToken: String?, payload: PlaybackPayload) {
@@ -206,8 +215,14 @@ class NativePlayerManager(
     fun currentPositionMs(): Long = player?.currentPosition ?: 0L
 
     fun resume() {
+        val exoPlayer = player ?: return
         lastPlaybackProgressAtMs = System.currentTimeMillis()
-        player?.play()
+        // After a permanent error ExoPlayer sits in IDLE; play() alone is a no-op
+        // until prepare() rebuilds the pipeline — that felt like a stuck "pause".
+        if (exoPlayer.playerError != null || exoPlayer.playbackState == Player.STATE_IDLE) {
+            exoPlayer.prepare()
+        }
+        exoPlayer.play()
         emitState()
     }
 
@@ -232,7 +247,9 @@ class NativePlayerManager(
         if (payload.subtitleUrl == normalizedUrl) return true
 
         val position = exoPlayer.currentPosition
-        val wasPlaying = exoPlayer.isPlaying
+        // Use playWhenReady, not isPlaying — isPlaying is false while buffering,
+        // and writing that back would permanently pause after a subtitle hot-swap.
+        val shouldResume = exoPlayer.playWhenReady
 
         currentPayload = payload.copy(subtitleUrl = normalizedUrl)
 
@@ -249,7 +266,7 @@ class NativePlayerManager(
         markPlaybackProgress(position)
         exoPlayer.prepare()
         exoPlayer.seekTo(position)
-        exoPlayer.playWhenReady = wasPlaying
+        exoPlayer.playWhenReady = shouldResume
         playerView.subtitleView?.visibility = View.VISIBLE
         applyStoredSubtitleStyles()
         emitState()
@@ -464,13 +481,19 @@ class NativePlayerManager(
             markPlaybackProgress(currentPositionMs)
             stallRecoveryAttempts = 0
         } else if (
+            !playbackFailureReported &&
             exoPlayer.playWhenReady &&
             exoPlayer.playbackState == Player.STATE_BUFFERING &&
             now - lastPlaybackProgressAtMs >= stallTimeoutMs()
         ) {
-            if (!schedulePlaybackRecovery(exoPlayer, "buffering watchdog")) {
-                reportPlaybackFailure()
-            }
+            // Do not seek+prepare on a buffering stall — that throws away the
+            // existing buffer and often leaves progressive/direct-play stuck.
+            // Hand off to the web remux/HLS ladder instead.
+            Log.w(
+                TAG,
+                "Buffering stall after ${stallTimeoutMs()}ms — failing through to remux/HLS",
+            )
+            reportPlaybackFailure()
         }
         val durationMs = when {
             exoPlayer.duration > 0 -> exoPlayer.duration
@@ -488,7 +511,10 @@ class NativePlayerManager(
                 "isBuffering",
                 exoPlayer.playbackState == Player.STATE_BUFFERING,
             )
-            .put("ready", exoPlayer.playbackState == Player.STATE_READY)
+            // Sticky: web treats ready&&buffering as "mid-playback rebuffer".
+            // ExoPlayer STATE_READY and STATE_BUFFERING are mutually exclusive,
+            // so a momentary ready flag made mid-buffer UI impossible.
+            .put("ready", hasReachedReady)
 
         if (System.currentTimeMillis() - lastWatchNextUpdateMs >= WATCH_NEXT_UPDATE_INTERVAL_MS) {
             currentPayload?.let {
@@ -606,12 +632,15 @@ class NativePlayerManager(
     companion object {
         private const val TAG = "MediaNativePlayer"
         private const val PROGRESS_INTERVAL_MS = 500L
+        /** While watch chrome is hidden, keep progress warm without thrashing React. */
+        private const val PROGRESS_INTERVAL_HIDDEN_MS = 1500L
         private const val WATCH_NEXT_UPDATE_INTERVAL_MS = 15_000L
-        /** After first READY, how long buffering may stall before local recovery. */
-        private const val STALL_TIMEOUT_MS = 30_000L
-        /** Cold open (esp. 4K/HLS) may buffer >30s before the first frame. */
+        /** After first READY, how long buffering may stall before remux/HLS handoff. */
+        private const val STALL_TIMEOUT_MS = 45_000L
+        /** Cold open (esp. 4K/HLS) may buffer >45s before the first frame. */
         private const val INITIAL_BUFFER_GRACE_MS = 90_000L
         private const val RECOVERY_DELAY_MS = 500L
-        private const val MAX_STALL_RECOVERY_ATTEMPTS = 2
+        /** Transient network errors only — buffering watchdog fails through instead. */
+        private const val MAX_STALL_RECOVERY_ATTEMPTS = 1
     }
 }

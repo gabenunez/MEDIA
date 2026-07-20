@@ -25,6 +25,10 @@ export interface NativePlaybackState {
   bufferedRanges?: Array<{ start: number; end: number }>;
   isPlaying: boolean;
   isBuffering: boolean;
+  /**
+   * Sticky: true after ExoPlayer has reached READY at least once this session.
+   * Combined with isBuffering this means mid-playback rebuffer (not cold start).
+   */
   ready: boolean;
 }
 
@@ -100,9 +104,14 @@ export function syncNativePlaybackState(): void {
   getAndroidBridge()?.syncPlaybackState?.();
 }
 
+let lastNativeWebOverlayAlpha: number | null = null;
+
 /** Hide the WebView layer during native playback so it does not dim ExoPlayer below. */
 export function setNativeWebOverlayAlpha(alpha: number): void {
-  getAndroidBridge()?.setWebOverlayAlpha?.(alpha);
+  const clamped = alpha <= 0 ? 0 : alpha >= 1 ? 1 : alpha;
+  if (lastNativeWebOverlayAlpha === clamped) return;
+  lastNativeWebOverlayAlpha = clamped;
+  getAndroidBridge()?.setWebOverlayAlpha?.(clamped);
 }
 
 /** Native TV startup splash — dismiss once web UI is painted. */

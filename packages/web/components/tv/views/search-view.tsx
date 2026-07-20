@@ -69,8 +69,14 @@ export function TvSearchView() {
         <>
           <TvSectionLabel>{results.length} results</TvSectionLabel>
           <TvGrid>
-            {results.map((item) => (
-              <TvPoster key={item.id} item={item} linkClassName="w-full" className="min-w-0" />
+            {results.map((item, index) => (
+              <TvPoster
+                key={item.id}
+                item={item}
+                priority={index < 8}
+                linkClassName="w-full"
+                className="min-w-0"
+              />
             ))}
           </TvGrid>
         </>

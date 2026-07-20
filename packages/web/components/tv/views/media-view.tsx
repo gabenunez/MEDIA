@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import { Loader2, Play } from "lucide-react";
-import { tvImageUrl } from "@/lib/tv-image";
-import { isTv4KClient } from "@/lib/tv-mode-detect";
+import { TV_HERO_IMAGE_QUALITY, TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
@@ -162,8 +161,8 @@ function TvMediaViewContent({
     });
   }, [media.id, media.type, media.seasons]);
 
-  const backdropUrl = tvImageUrl(media.backdropPath ?? media.posterPath);
-  const posterUrl = tvImageUrl(media.posterPath);
+  const backdropUrl = tvImageUrl(media.backdropPath ?? media.posterPath, { hd: true });
+  const posterUrl = tvImageUrl(media.posterPath, { hd: true });
   const seasons = media.seasons ?? [];
   const episodes = seasons[selectedSeason]?.episodes ?? [];
   const movieFile = media.files?.[0];
@@ -177,7 +176,6 @@ function TvMediaViewContent({
   const metaLabel = [typeLabel, media.year].filter(Boolean).join(" · ");
   const showRelated = !serverShell && related.length > 0;
   const showThemeWaveform = media.hasThemeMusic && (includeTheme || serverShell);
-  const tvImageQuality = isTv4KClient() ? 90 : 80;
 
   const page = (
     <div className="pb-6">
@@ -189,7 +187,7 @@ function TvMediaViewContent({
               alt=""
               fill
                   priority
-                  quality={tvImageQuality}
+                  quality={TV_HERO_IMAGE_QUALITY}
                   sizes="100vw"
               className="object-cover"
             />
@@ -213,7 +211,7 @@ function TvMediaViewContent({
                   width={112}
                   height={168}
                   priority
-                  quality={tvImageQuality}
+                  quality={TV_HERO_IMAGE_QUALITY}
                   sizes="7rem"
                   className="aspect-[2/3] w-full rounded-md poster-shadow"
                 />
@@ -303,7 +301,7 @@ function TvMediaViewContent({
             data-tv-vertical=""
             className="flex flex-col gap-1.5"
           >
-            {episodes.map((ep) => {
+            {episodes.map((ep, episodeIndex) => {
               const episodeActionLabel = getPlaybackButtonLabel(
                 ep.watchProgress?.positionMs,
                 ep.watchProgress?.durationMs ?? ep.durationMs,
@@ -330,8 +328,9 @@ function TvMediaViewContent({
                         src={tvImageUrl(ep.stillPath)}
                         alt=""
                         fill
-                        priority
-                        quality={tvImageQuality}
+                        priority={episodeIndex < 8}
+                        loading="eager"
+                        quality={TV_LIST_IMAGE_QUALITY}
                         sizes="6.75rem"
                         className="object-cover"
                       />

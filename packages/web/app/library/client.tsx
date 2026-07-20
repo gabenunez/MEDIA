@@ -29,7 +29,7 @@ export function LibraryClient({
   initialList?: LibraryInitialList | null;
 }) {
   const isTvMode = useTvMode();
-  if (isTvMode) return <TvLibraryView />;
+  if (isTvMode) return <TvLibraryView initialList={initialList} />;
   return <LibraryDesktopClient initialList={initialList} />;
 }
 

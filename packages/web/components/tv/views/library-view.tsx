@@ -5,6 +5,7 @@ import { useLibraryRouteContext } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import { LibraryBig, Loader2 } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
+import type { PaginatedPageData } from "@/lib/server-api";
 import { routes } from "@/lib/routes";
 import { TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvPageHeader, TvPagination, TvSectionLabel } from "@/components/tv/tv-page-header";
@@ -14,15 +15,34 @@ import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 
-export function TvLibraryView() {
+type LibraryInitialList = {
+  kind: "library" | "deck";
+  id: number;
+  page: PaginatedPageData<MediaItem> | null;
+  title?: string;
+  subtitle?: string;
+};
+
+export function TvLibraryView({
+  initialList = null,
+}: {
+  initialList?: LibraryInitialList | null;
+}) {
   const isClient = useIsClient();
   const { libraryId, deckId } = useLibraryRouteContext();
-  const [items, setItems] = useState<MediaItem[]>([]);
+  const seed =
+    initialList &&
+    ((initialList.kind === "library" && initialList.id === libraryId) ||
+      (initialList.kind === "deck" && initialList.id === deckId))
+      ? initialList
+      : null;
+
+  const [items, setItems] = useState<MediaItem[]>(seed?.page?.items ?? []);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [title, setTitle] = useState("Browse");
+  const [totalPages, setTotalPages] = useState(seed?.page?.totalPages ?? 1);
+  const [totalItems, setTotalItems] = useState(seed?.page?.total ?? seed?.page?.items.length ?? 0);
+  const [loading, setLoading] = useState(!seed?.page);
+  const [title, setTitle] = useState(seed?.title ?? "Browse");
 
   const isDeck = !Number.isNaN(deckId) && deckId > 0;
   const isLibrary = !Number.isNaN(libraryId) && libraryId > 0;
@@ -38,17 +58,24 @@ export function TvLibraryView() {
   useEffect(() => {
     if (!isDeck && !isLibrary) return;
 
+    if (page === 1 && seed?.page) {
+      setItems(seed.page.items);
+      setTotalPages(seed.page.totalPages);
+      setTotalItems(seed.page.total ?? seed.page.items.length);
+      if (seed.title) setTitle(seed.title);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     if (isDeck) {
-      api
-        .getDeck(deckId)
-        .then((deck) => setTitle(deck.name))
-        .catch(console.warn);
-
-      api
-        .getDeckItems(deckId, page)
-        .then((data) => {
+      void Promise.all([
+        api.getDeck(deckId).catch(() => null),
+        api.getDeckItems(deckId, page),
+      ])
+        .then(([deck, data]) => {
+          if (deck) setTitle(deck.name);
           setItems(data.items);
           setTotalPages(data.totalPages);
           setTotalItems(data.total ?? data.items.length);
@@ -68,7 +95,7 @@ export function TvLibraryView() {
       })
       .catch(console.warn)
       .finally(() => setLoading(false));
-  }, [libraryId, deckId, page, isDeck, isLibrary]);
+  }, [libraryId, deckId, page, isDeck, isLibrary, seed]);
 
   useEffect(() => {
     if (loading) return;
@@ -130,8 +157,14 @@ export function TvLibraryView() {
             {totalItems > 0 ? `${totalItems} titles` : "Titles"}
           </TvSectionLabel>
           <TvGrid className="mb-4">
-            {items.map((item) => (
-              <TvPoster key={item.id} item={item} linkClassName="w-full" className="min-w-0" />
+            {items.map((item, index) => (
+              <TvPoster
+                key={item.id}
+                item={item}
+                priority={index < 8}
+                linkClassName="w-full"
+                className="min-w-0"
+              />
             ))}
           </TvGrid>
 

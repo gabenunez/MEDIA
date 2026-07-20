@@ -2,8 +2,11 @@
 
 const TV_SCROLL_BEHAVIOR: ScrollBehavior = "auto";
 const HORIZONTAL_SCROLL_PADDING = 32;
+const MAIN_RECT_CACHE_MS = 48;
 
 let tvFocusedElement: HTMLElement | null = null;
+let mainRectCache: DOMRect | null = null;
+let mainRectCacheAt = 0;
 
 /** Sync focus ring attribute without scanning the whole document. */
 export function syncTvFocusedAttribute(el: HTMLElement) {
@@ -14,11 +17,26 @@ export function syncTvFocusedAttribute(el: HTMLElement) {
   el.setAttribute("data-tv-focused", "");
 }
 
-function isRowVisibleInMain(row: HTMLElement): boolean {
+function getMainRect(): DOMRect | null {
+  const now = performance.now();
+  if (mainRectCache && now - mainRectCacheAt < MAIN_RECT_CACHE_MS) {
+    return mainRectCache;
+  }
   const main = document.querySelector("main");
-  if (!main) return true;
+  if (!main) {
+    mainRectCache = null;
+    mainRectCacheAt = now;
+    return null;
+  }
+  mainRectCache = main.getBoundingClientRect();
+  mainRectCacheAt = now;
+  return mainRectCache;
+}
 
-  const mainRect = main.getBoundingClientRect();
+function isRowVisibleInMain(row: HTMLElement): boolean {
+  const mainRect = getMainRect();
+  if (!mainRect) return true;
+
   const rowRect = row.getBoundingClientRect();
   const margin = 24;
 

@@ -213,6 +213,14 @@ export function TvWatchView() {
   const nativeHlsRecoveryAttemptsRef = useRef(0);
   const startNextEpisodeCountdownRef = useRef<() => void>(() => {});
   const controlsRevealedAtRef = useRef<number | null>(null);
+  const showControlsRef = useRef(true);
+  const panelOpenRef = useRef(false);
+  const nativePaintTimeRef = useRef(0);
+  const nativePlayingPaintRef = useRef<boolean | null>(null);
+  const nativeBufferingPaintRef = useRef<boolean | null>(null);
+  const nativeMidBufferPaintRef = useRef<boolean | null>(null);
+  const lastBufferedRangesKeyRef = useRef("");
+  const playbackHasBegunRef = useRef(false);
 
   const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
 
@@ -363,7 +371,7 @@ export function TvWatchView() {
     prefetchMenuTracks();
   }, [subtitleMenuOpen, prefetchMenuTracks]);
 
-  const posterUrl = tvImageUrl(posterPath);
+  const posterUrl = tvImageUrl(posterPath, { hd: true });
   const tvImageQuality = isTv4KClient() ? 90 : 80;
 
   const backHref =
@@ -708,6 +716,13 @@ export function TvWatchView() {
   );
 
   useEffect(() => {
+    document.documentElement.setAttribute("data-tv-watch-active", "true");
+    return () => {
+      document.documentElement.removeAttribute("data-tv-watch-active");
+    };
+  }, []);
+
+  useEffect(() => {
     if (!usesNativePlayer) return;
 
     document.documentElement.setAttribute("data-native-video", "true");
@@ -715,7 +730,16 @@ export function TvWatchView() {
     applySubtitleStyles(readSubtitleStyles());
     return registerNativePlayerHandlers({
       onState: (state) => {
-        setCurrentTime(state.currentTime);
+        currentTimeRef.current = state.currentTime;
+        const controlsNeedPaint = showControlsRef.current || panelOpenRef.current;
+        // While chrome is hidden, keep time in refs only — avoid full watch-tree re-renders.
+        if (
+          controlsNeedPaint &&
+          Math.abs(state.currentTime - nativePaintTimeRef.current) >= 0.25
+        ) {
+          nativePaintTimeRef.current = state.currentTime;
+          setCurrentTime(state.currentTime);
+        }
         if (state.duration > 0) setDuration(state.duration);
         if (!state.isBuffering) {
           const absoluteTime = usingHlsRef.current
@@ -736,11 +760,26 @@ export function TvWatchView() {
         } else if (nativePausedAtRef.current === null) {
           nativePausedAtRef.current = Date.now();
         }
-        setIsPlaying(state.isPlaying);
-        setBuffering(state.isBuffering && !state.ready);
-        setBufferingMidPlayback(state.isBuffering && state.ready);
+        if (nativePlayingPaintRef.current !== state.isPlaying) {
+          nativePlayingPaintRef.current = state.isPlaying;
+          setIsPlaying(state.isPlaying);
+        }
+        const initialBuffering = state.isBuffering && !state.ready && !playbackHasBegunRef.current;
+        // Prefer sticky native `ready`; fall back to local begun flag for older APKs
+        // where ready was momentary STATE_READY (mutually exclusive with buffering).
+        const midBuffering =
+          state.isBuffering && (state.ready || playbackHasBegunRef.current);
+        if (nativeBufferingPaintRef.current !== initialBuffering) {
+          nativeBufferingPaintRef.current = initialBuffering;
+          setBuffering(initialBuffering);
+        }
+        if (nativeMidBufferPaintRef.current !== midBuffering) {
+          nativeMidBufferPaintRef.current = midBuffering;
+          setBufferingMidPlayback(midBuffering);
+        }
         if (state.ready || state.isPlaying || state.buffered > 0.5) {
-          setPlaybackHasBegun(true);
+          playbackHasBegunRef.current = true;
+          setPlaybackHasBegun((begun) => begun || true);
         }
         if (
           state.ready &&
@@ -749,6 +788,7 @@ export function TvWatchView() {
         ) {
           void syncNativeSubtitles({ restartOnFailure: false });
         }
+        if (!controlsNeedPaint) return;
         const offset = hlsStartOffsetRef.current;
         const relativeRanges =
           state.bufferedRanges && state.bufferedRanges.length > 0
@@ -760,12 +800,17 @@ export function TvWatchView() {
           relativeRanges,
           state.currentTime,
         );
-        setBufferedRanges(
-          scrubberRanges.map((range) => ({
-            start: range.start + offset,
-            end: range.end + offset,
-          })),
-        );
+        const absoluteRanges = scrubberRanges.map((range) => ({
+          start: range.start + offset,
+          end: range.end + offset,
+        }));
+        const rangesKey = absoluteRanges
+          .map((range) => `${range.start.toFixed(1)}-${range.end.toFixed(1)}`)
+          .join("|");
+        if (rangesKey !== lastBufferedRangesKeyRef.current) {
+          lastBufferedRangesKeyRef.current = rangesKey;
+          setBufferedRanges(absoluteRanges);
+        }
       },
       onError: () => {
         const session = nativePlaySessionRef.current;
@@ -859,6 +904,7 @@ export function TvWatchView() {
     menuReturnFocusRef.current = null;
     setShowControls(true);
     setPlaybackHasBegun(false);
+    playbackHasBegunRef.current = false;
     lastStableAbsoluteSecondsRef.current = 0;
     hlsStartOffsetRef.current = 0;
     setHlsStartOffset(0);
@@ -1268,7 +1314,12 @@ export function TvWatchView() {
       : null;
   const displayedProgress = scrubPreview ?? optimisticProgressPercent ?? progress;
   progressRef.current = displayedProgress;
-  currentTimeRef.current = currentTime;
+  showControlsRef.current = showControls;
+  panelOpenRef.current = panelOpen;
+  // Native onState owns currentTimeRef; don't clobber it with stale React state.
+  if (!usesNativePlayer) {
+    currentTimeRef.current = currentTime;
+  }
   const toTimelinePercent = (seconds: number) =>
     absoluteDurationMs > 0
       ? Math.min(100, Math.max(0, ((seconds * 1000) / absoluteDurationMs) * 100))
@@ -1403,6 +1454,8 @@ export function TvWatchView() {
       ? nativeIsPlayingRef.current
       : Boolean(videoRef.current && !videoRef.current.paused);
 
+    // Mid-rebuffer reports isPlaying=false even though playWhenReady is true.
+    // Treat that as "nudge resume" (re-prepare if idle) instead of a real pause.
     if (playing) {
       pausePlayback();
       return;
@@ -1620,10 +1673,21 @@ export function TvWatchView() {
     (usesNativePlayer && showMidPlaybackBuffering);
 
   useEffect(() => {
+    if (!usesNativePlayer || !controlsVisible) return;
+    setCurrentTime(currentTimeRef.current);
+  }, [usesNativePlayer, controlsVisible]);
+
+  useEffect(() => {
     if (!usesNativePlayer) return;
     // Only raise the WebView layer for controls and blocking dialogs — never for
     // the loading spinner, which was covering ExoPlayer and causing black screens.
-    setNativeWebOverlayAlpha(nativeWebOverlayRaised ? 1 : 0);
+    // Debounce hide so brief focus blips don't thrash WebView compositing.
+    if (nativeWebOverlayRaised) {
+      setNativeWebOverlayAlpha(1);
+      return;
+    }
+    const timer = window.setTimeout(() => setNativeWebOverlayAlpha(0), 120);
+    return () => window.clearTimeout(timer);
   }, [usesNativePlayer, nativeWebOverlayRaised]);
 
   const timelinePreviewPercent = scrubPreview ?? optimisticProgressPercent ?? progress;

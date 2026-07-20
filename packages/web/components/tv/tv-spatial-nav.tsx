@@ -7,14 +7,25 @@ const NAV_COOLDOWN_MS = 50;
 const NAV_REPEAT_COOLDOWN_MS = 32;
 /** No throttle when holding left/right across a poster row. */
 const NAV_SCROLL_ROW_REPEAT_COOLDOWN_MS = 0;
+const CONTENT_ROWS_CACHE_MS = 48;
+
+let contentRowsCache: HTMLElement[] | null = null;
+let contentRowsCacheAt = 0;
+
+function invalidateContentRowsCache() {
+  contentRowsCache = null;
+  contentRowsCacheAt = 0;
+}
 
 function isTvFocusable(el: HTMLElement) {
-  return (
-    !el.hasAttribute("disabled") &&
-    el.offsetParent !== null &&
-    !el.closest("[inert]") &&
-    el.tabIndex !== -1
-  );
+  if (el.hasAttribute("disabled") || el.tabIndex === -1) return false;
+  if (el.hidden || el.getAttribute("aria-hidden") === "true") return false;
+  if (el.closest("[inert]")) return false;
+  // Prefer Chromium checkVisibility — avoids offsetParent layout thrash on every D-pad tick.
+  if (typeof el.checkVisibility === "function") {
+    return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+  }
+  return el.style.display !== "none" && el.style.visibility !== "hidden";
 }
 
 function getRowItems(row: Element) {
@@ -22,9 +33,19 @@ function getRowItems(row: Element) {
 }
 
 function getContentRows() {
+  const now = performance.now();
+  if (contentRowsCache && now - contentRowsCacheAt < CONTENT_ROWS_CACHE_MS) {
+    return contentRowsCache;
+  }
   const main = document.querySelector("main");
-  if (!main) return [];
-  return Array.from(main.querySelectorAll<HTMLElement>("[data-tv-content-row]"));
+  if (!main) {
+    contentRowsCache = [];
+    contentRowsCacheAt = now;
+    return contentRowsCache;
+  }
+  contentRowsCache = Array.from(main.querySelectorAll<HTMLElement>("[data-tv-content-row]"));
+  contentRowsCacheAt = now;
+  return contentRowsCache;
 }
 
 function getScopedContentRows(active: HTMLElement) {
@@ -64,6 +85,17 @@ function estimateGridColumns(items: HTMLElement[]): number {
   return cols || 1;
 }
 
+function getGridColumns(row: Element, items: HTMLElement[]): number {
+  const cached = row.getAttribute("data-tv-cols");
+  if (cached) {
+    const parsed = Number.parseInt(cached, 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  const cols = estimateGridColumns(items);
+  row.setAttribute("data-tv-cols", String(cols));
+  return cols;
+}
+
 function moveInGridRow(
   active: HTMLElement,
   direction: "left" | "right" | "up" | "down",
@@ -75,7 +107,7 @@ function moveInGridRow(
   const index = items.indexOf(active);
   if (index === -1) return false;
 
-  const cols = estimateGridColumns(items);
+  const cols = getGridColumns(row, items);
 
   if (direction === "right" && index < items.length - 1) {
     focusItem(items[index + 1]);
@@ -399,6 +431,12 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
   return false;
 }
 
+function isWatchPlayerActive() {
+  // Set by watch-view while native/web playback chrome is mounted — cheap attribute read.
+  return document.documentElement.hasAttribute("data-native-video")
+    || document.documentElement.hasAttribute("data-tv-watch-active");
+}
+
 export function TvSpatialNav({ children }: { children: ReactNode }) {
   useEffect(() => {
     let lastMoveAt = 0;
@@ -442,7 +480,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       const active = document.activeElement as HTMLElement | null;
       if (!active?.hasAttribute("data-tv-item")) return;
 
-      if (document.querySelector("[data-tv-watch-player]")) {
+      if (isWatchPlayerActive()) {
         if (active.hasAttribute("data-tv-watch-scrub")) return;
         const inWatchMenu = active.closest("[data-tv-watch-menu]");
         if (
@@ -473,6 +511,11 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       if (now - lastMoveAt < cooldown) return;
       lastMoveAt = now;
 
+      // Row list can change after vertical moves; keep cache fresh for the next tick.
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        invalidateContentRowsCache();
+      }
+
       if (e.key === "ArrowRight") {
         moveHorizontal(active, "right");
         return;
@@ -502,6 +545,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("focusin", onFocusIn);
+      invalidateContentRowsCache();
     };
   }, []);
 

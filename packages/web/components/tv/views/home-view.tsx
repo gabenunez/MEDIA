@@ -17,6 +17,7 @@ import type { HomeData } from "@/lib/server-api";
 export function TvHomeView({ initialData = null }: { initialData?: HomeData | null }) {
   useDocumentTitle("Home");
   const [loaded, setLoaded] = useState(Boolean(initialData));
+  const [showBrowseRow, setShowBrowseRow] = useState(false);
   const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>(
     initialData?.continueWatching ?? [],
   );
@@ -27,6 +28,7 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
   const [libraries, setLibraries] = useState(initialData?.libraries ?? []);
   const [decks, setDecks] = useState(initialData?.decks ?? []);
 
+  // Dismiss splash as soon as primary rows can paint — don't wait on browse cards.
   useMarkTvBootReadyWhen(loaded);
 
   useEffect(() => {
@@ -54,8 +56,23 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
             backdropPath: item.posterPath,
           }))
         : recentlyAdded;
-    preloadPosterList(seed, 10);
+    preloadPosterList(seed, 8);
   }, [loaded, continueWatching, recentlyAdded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const idle =
+      typeof window.requestIdleCallback === "function"
+        ? window.requestIdleCallback
+        : (cb: IdleRequestCallback) =>
+            window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 }), 1);
+    const cancel =
+      typeof window.cancelIdleCallback === "function"
+        ? window.cancelIdleCallback
+        : window.clearTimeout;
+    const handle = idle(() => setShowBrowseRow(true), { timeout: 180 });
+    return () => cancel(handle as number);
+  }, [loaded]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -155,7 +172,11 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
         </TvRow>
       )}
 
-      {(decks.length > 0 || libraries.length > 0 || continueWatching.length > 0 || recentlyAdded.length > 0) && (
+      {showBrowseRow &&
+        (decks.length > 0 ||
+          libraries.length > 0 ||
+          continueWatching.length > 0 ||
+          recentlyAdded.length > 0) && (
         <section className="tv-row-section mb-5">
           <h2 className="mb-2 px-8 text-base font-semibold tracking-tight text-muted-foreground">
             Browse

@@ -123,7 +123,7 @@ function LoginGate({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-md border border-border/80 bg-card p-8 shadow-2xl">
         <div className="mb-6 flex items-center gap-3">
           <MediaIcon className="h-12 w-12" />

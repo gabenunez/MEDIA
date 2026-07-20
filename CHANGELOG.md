@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.179 — 2026-07-20
+
+### TV
+
+- **Playback** — fix mid-play freezes that looked like permanent pauses: sticky native `ready` so rebuffers show a spinner; `resume()` re-prepares IDLE/errored ExoPlayer; buffering stalls fail through to remux/HLS instead of destructive seek+prepare
+- **Playback** — subtitle hot-swap preserves `playWhenReady` so a rebuffer cannot permanently pause the stream
+- **Perf** — cut watch-chrome React re-renders while controls are hidden; debounce WebView overlay alpha/z-order thrash; slow native progress ticks when chrome is hidden
+- **Browse** — stop marking every poster as Next `priority`; lighter focus prefetch; drop `WebView.clearCache` on memory pressure (was causing poster reload storms)
+
 ## 0.1.178 — 2026-07-17
 
 ### TV

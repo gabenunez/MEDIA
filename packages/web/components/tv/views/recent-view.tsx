@@ -67,8 +67,14 @@ export function TvRecentView() {
             {totalItems > 0 ? `${totalItems} titles` : `${items.length} titles`}
           </TvSectionLabel>
           <TvGrid className="mb-4">
-            {items.map((item) => (
-              <TvPoster key={item.id} item={item} linkClassName="w-full" className="min-w-0" />
+            {items.map((item, index) => (
+              <TvPoster
+                key={item.id}
+                item={item}
+                priority={index < 8}
+                linkClassName="w-full"
+                className="min-w-0"
+              />
             ))}
           </TvGrid>
           <TvPagination page={page} totalPages={totalPages} onPageChange={setPage} />

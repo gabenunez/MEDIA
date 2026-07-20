@@ -3,7 +3,6 @@ package com.media.app
 import android.annotation.SuppressLint
 import android.app.SearchManager
 import android.content.ActivityNotFoundException
-import android.content.ComponentCallbacks2
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
@@ -249,6 +248,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             webView.setBackgroundColor(Color.BLACK)
             webView.alpha = 1f
+            lastWebOverlayAlpha = 1f
+            webOverlayInFront = true
+            nativePlayer.setUiOverlayVisible(true)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
                 webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             }
@@ -274,14 +276,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private var lastWebOverlayAlpha: Float = 1f
+    private var webOverlayInFront: Boolean = true
+
     private fun applyNativeWebOverlayAlpha(alpha: Float) {
         val clamped = alpha.coerceIn(0f, 1f)
+        if (clamped == lastWebOverlayAlpha) return
+        lastWebOverlayAlpha = clamped
         webView.alpha = clamped
-        if (clamped <= 0f) {
+        nativePlayer.setUiOverlayVisible(clamped > 0f)
+        val wantWebInFront = clamped > 0f
+        if (wantWebInFront == webOverlayInFront) return
+        webOverlayInFront = wantWebInFront
+        if (wantWebInFront) {
+            webView.bringToFront()
+        } else {
             // Keep the WebView from compositing over ExoPlayer while controls are hidden.
             nativePlayerView.bringToFront()
-        } else {
-            webView.bringToFront()
         }
     }
 
@@ -467,13 +478,6 @@ class MainActivity : AppCompatActivity() {
         nativePlayer.release()
         webView.destroy()
         super.onDestroy()
-    }
-
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW && ::webView.isInitialized) {
-            webView.clearCache(true)
-        }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -683,7 +687,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SERVER_URL = "server_url"
         private const val USER_AGENT_TOKEN = "MediaAndroidTV"
-        private const val SPLASH_POLL_MS = 100L
+        private const val SPLASH_POLL_MS = 300L
         private const val SPLASH_FADE_MS = 250L
         private const val PAUSE_WEB_PLAYBACK_JS =
             "(function(){var video=document.querySelector('video');if(video&&!video.paused){video.pause();}})();"

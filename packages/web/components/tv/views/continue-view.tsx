@@ -67,9 +67,10 @@ export function TvContinueView() {
             {totalItems > 0 ? `${totalItems} in progress` : `${items.length} in progress`}
           </TvSectionLabel>
           <TvGrid className="mb-4">
-            {items.map((item) => (
+            {items.map((item, index) => (
               <TvPoster
                 key={item.id}
+                priority={index < 8}
                 item={{
                   id: item.mediaId,
                   libraryId: 0,
