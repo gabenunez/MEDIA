@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.182 — 2026-07-20
+
+### TV
+
+- **Playback** — remux SD/HD MKV/WebM on native ExoPlayer by default (video copy + AAC) to avoid progressive-stream stutter; 4K and Dolby Vision stay on direct play
+
 ## 0.1.181 — 2026-07-20
 
 ### Library

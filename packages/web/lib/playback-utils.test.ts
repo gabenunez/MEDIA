@@ -204,7 +204,33 @@ describe("resolvePlaybackStream with native TV player", () => {
     vi.resetModules();
   });
 
-  it("prefers direct play for MKV on native ExoPlayer", async () => {
+  it("remuxes SD/HD MKV on native ExoPlayer to avoid progressive stutter", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    // The Ant Bully (2006) 720p — h264 + ac3 MKV stuttered on direct play.
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "The Ant Bully (2006) 720p.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "h264",
+          audioCodec: "ac3",
+          height: 720,
+          width: 1280,
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: true,
+      hlsQuality: "remux",
+      audioCompatNotice: null,
+    });
+  });
+
+  it("keeps 4K MKV on direct play for native ExoPlayer", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
     }));
@@ -217,6 +243,40 @@ describe("resolvePlaybackStream with native TV player", () => {
           mimeType: "video/x-matroska",
           videoCodec: "hevc",
           audioCodec: "ac3",
+          height: 2160,
+          width: 3840,
+          availableQualities: ["original", "480p", "720p", "1080p", "2160p"],
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: false,
+      audioCompatNotice: null,
+    });
+  });
+
+  it("keeps Dolby Vision MKV on direct play even when SD/HD", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "movie.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "hevc",
+          audioCodec: "eac3",
+          height: 1080,
+          width: 1920,
+          dynamicRange: {
+            hdr10: false,
+            hdr10Plus: false,
+            hlg: false,
+            dolbyVision: true,
+            label: "Dolby Vision",
+          },
           transcodingEnabled: true,
         }),
       ),
