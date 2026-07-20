@@ -225,6 +225,21 @@ function effectiveOriginalPlaybackMode(
       return "remux";
     }
 
+    // Progressive MKV/WebM over HTTP often micro-stutters on ExoPlayer for
+    // SD/HD (codecs decode fine; the container/path is the problem). Prefer
+    // HLS remux (video copy + AAC) which stays smooth. Keep 4K and Dolby
+    // Vision on direct play — remux adds server work and can strip DV.
+    if (
+      nativeMode === "direct" &&
+      streamInfo.transcodingEnabled &&
+      containerPrefersHlsRemux(streamInfo.fileName) &&
+      !is4KSource(streamInfo.height, streamInfo.width) &&
+      isHlsVideoCopySupported(streamInfo.videoCodec) &&
+      !streamInfo.dynamicRange?.dolbyVision
+    ) {
+      return "remux";
+    }
+
     return nativeMode;
   }
 
