@@ -13,7 +13,10 @@ function webInternalBase(): string {
   return `http://127.0.0.1:${port}`;
 }
 
-export async function revalidateMediaPage(mediaId: number): Promise<void> {
+export async function revalidateMediaPage(
+  mediaId: number,
+  options?: { alsoHome?: boolean },
+): Promise<void> {
   if (!Number.isFinite(mediaId) || mediaId <= 0) return;
 
   const tag = mediaPageCacheTag(mediaId);
@@ -25,7 +28,11 @@ export async function revalidateMediaPage(mediaId: number): Promise<void> {
         "Content-Type": "application/json",
         [MEDIA_INTERNAL_HEADER]: MEDIA_INTERNAL_TOKEN,
       },
-      body: JSON.stringify({ tag }),
+      body: JSON.stringify({
+        tag,
+        mediaId,
+        paths: options?.alsoHome === false ? undefined : ["/", "/library/", "/recent/", "/favorites/"],
+      }),
     });
 
     if (!res.ok) {

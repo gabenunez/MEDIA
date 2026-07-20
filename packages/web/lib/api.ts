@@ -591,6 +591,17 @@ export const api = {
     fetchApi<{ success: boolean; item: MediaItem }>(`/api/media/${mediaId}/match`, {
       method: "POST",
       body: JSON.stringify({ tmdbId }),
+    }).then((result) => {
+      // Drop client caches before the page navigates so the new listing paints.
+      invalidateApiCache(`media:${mediaId}`);
+      invalidateApiCache("home");
+      invalidateApiCache("search:");
+      invalidateApiCache("library:");
+      invalidateApiCache("deck:");
+      invalidateApiCache("recent:");
+      invalidateApiCache("favorites:");
+      invalidateApiCache("continue:");
+      return result;
     }),
   checkForUpdates: (force = false) =>
     fetchApi<UpdateStatus>(`/api/updates/check${force ? "?force=1" : ""}`),

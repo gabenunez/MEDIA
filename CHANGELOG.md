@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.181 — 2026-07-20
+
+### Library
+
+- **Match** — bust Next ISR and client caches immediately when applying a Fix match so the new listing paints on reload
+
 ## 0.1.180 — 2026-07-20
 
 ### Library

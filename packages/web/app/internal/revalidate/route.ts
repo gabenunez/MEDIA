@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { tag?: string; mediaId?: number } = {};
+  let body: { tag?: string; mediaId?: number; paths?: string[] } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -43,5 +43,12 @@ export async function POST(request: Request) {
     revalidatePath(`/media/${pathId}/`);
   }
 
-  return NextResponse.json({ revalidated: true, tag });
+  const extraPaths = Array.isArray(body.paths) ? body.paths : [];
+  for (const path of extraPaths) {
+    if (typeof path === "string" && path.startsWith("/")) {
+      revalidatePath(path);
+    }
+  }
+
+  return NextResponse.json({ revalidated: true, tag, paths: extraPaths });
 }

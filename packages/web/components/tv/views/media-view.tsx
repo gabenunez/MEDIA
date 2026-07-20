@@ -406,7 +406,7 @@ function TvMediaViewContent({
         tv
         onMatched={() => {
           invalidateApiCache(`media:${media.id}`);
-          window.location.reload();
+          window.location.assign(window.location.pathname + window.location.search);
         }}
       />
     </div>

@@ -325,7 +325,7 @@ export class ScannerService {
         .where(eq(mediaItems.id, item.id))
         .returning();
 
-      void revalidateMediaPage(item.id);
+      await revalidateMediaPage(item.id);
       void this.themes.syncForMediaItem(updated);
       return updated;
     }
@@ -360,7 +360,7 @@ export class ScannerService {
       .returning();
 
     await this.refreshTvEpisodes(item.id, match.id);
-    void revalidateMediaPage(item.id);
+    await revalidateMediaPage(item.id);
     void this.themes.syncForMediaItem(updated);
     return updated;
   }

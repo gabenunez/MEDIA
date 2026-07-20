@@ -159,7 +159,8 @@ export function MediaHero({ media }: { media: MediaDetail }) {
         currentImdbId={media.imdbId}
         currentTmdbId={media.tmdbId}
         onMatched={() => {
-          window.location.reload();
+          // Hard navigation so SSR/ISR cannot serve the pre-match page shell.
+          window.location.assign(window.location.pathname + window.location.search);
         }}
       />
     </section>
