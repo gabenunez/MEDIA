@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.183 — 2026-07-23
+
+### TV
+
+- **Playback** — stop defaulting SD/HD MKV/WebM to HLS remux on native ExoPlayer; that path buffered after ~2 minutes when the remux session fell behind. Prefer progressive direct play again; remux remains the stall/error fallback
+
 ## 0.1.182 — 2026-07-20
 
 ### TV
