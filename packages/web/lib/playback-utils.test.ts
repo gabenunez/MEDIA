@@ -204,12 +204,12 @@ describe("resolvePlaybackStream with native TV player", () => {
     vi.resetModules();
   });
 
-  it("remuxes SD/HD MKV on native ExoPlayer to avoid progressive stutter", async () => {
+  it("prefers direct play for SD/HD MKV on native ExoPlayer", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
-    // The Ant Bully (2006) 720p — h264 + ac3 MKV stuttered on direct play.
+    // Do not default these to HLS remux — that caused mid-play underruns on TV.
     expect(
       resolveNative(
         "original",
@@ -222,6 +222,31 @@ describe("resolvePlaybackStream with native TV player", () => {
           width: 1280,
           transcodingEnabled: true,
         }),
+      ),
+    ).toEqual({
+      usingHls: false,
+      audioCompatNotice: null,
+    });
+  });
+
+  it("remuxes SD/HD MKV on native ExoPlayer only when forceRemux is set", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "The Ant Bully (2006) 720p.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "h264",
+          audioCodec: "ac3",
+          height: 720,
+          width: 1280,
+          transcodingEnabled: true,
+        }),
+        { forceRemux: true },
       ),
     ).toEqual({
       usingHls: true,

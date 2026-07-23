@@ -225,21 +225,11 @@ function effectiveOriginalPlaybackMode(
       return "remux";
     }
 
-    // Progressive MKV/WebM over HTTP often micro-stutters on ExoPlayer for
-    // SD/HD (codecs decode fine; the container/path is the problem). Prefer
-    // HLS remux (video copy + AAC) which stays smooth. Keep 4K and Dolby
-    // Vision on direct play — remux adds server work and can strip DV.
-    if (
-      nativeMode === "direct" &&
-      streamInfo.transcodingEnabled &&
-      containerPrefersHlsRemux(streamInfo.fileName) &&
-      !is4KSource(streamInfo.height, streamInfo.width) &&
-      isHlsVideoCopySupported(streamInfo.videoCodec) &&
-      !streamInfo.dynamicRange?.dolbyVision
-    ) {
-      return "remux";
-    }
-
+    // Prefer progressive direct play on native TV. Defaulting SD/HD MKV to HLS
+    // remux (v0.1.182) fixed micro-stutter for some titles but caused reliable
+    // mid-play buffer underruns once ExoPlayer burned through its ~2 min
+    // forward buffer and the remux session fell behind or restarted. Remux
+    // remains the stall/error fallback via forceRemux — not the default.
     return nativeMode;
   }
 
