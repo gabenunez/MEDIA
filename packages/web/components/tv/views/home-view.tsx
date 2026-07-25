@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Heart, Layers, Loader2, Play, Sparkles } from "lucide-react";
+import { useAuth } from "@/components/auth-gate";
 import { api, type ContinueWatchingItem, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { TvPoster } from "@/components/tv/tv-poster";
@@ -16,6 +17,8 @@ import type { HomeData } from "@/lib/server-api";
 
 export function TvHomeView({ initialData = null }: { initialData?: HomeData | null }) {
   useDocumentTitle("Home");
+  const { loading: authLoading, required, authenticated } = useAuth();
+  const unlocked = !authLoading && (!required || authenticated);
   const [loaded, setLoaded] = useState(Boolean(initialData));
   const [showBrowseRow, setShowBrowseRow] = useState(false);
   const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>(
@@ -75,14 +78,16 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
   }, [loaded]);
 
   useEffect(() => {
-    if (!loaded) return;
+    // Wait until auth unlocks — focusing while LoginGate is open loses the
+    // race to password autoFocus, then unmount dumps focus onto the sidebar.
+    if (!loaded || !unlocked) return;
     requestAnimationFrame(() => {
       // Continue Watching is rendered first, so this selects the most
       // recently played video when available. Otherwise it selects the first
       // available poster before any browse/action cards.
       if (!focusFirstHomeVideoItem()) focusPrimaryContentItem();
     });
-  }, [loaded]);
+  }, [loaded, unlocked]);
 
   if (!loaded) {
     return (

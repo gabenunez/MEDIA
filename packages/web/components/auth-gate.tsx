@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -19,6 +20,11 @@ import {
   notifyAndroidLogout,
 } from "@/lib/android-bridge";
 import { isTvClient } from "@/lib/tv-mode-detect";
+import {
+  focusFirstContentItem,
+  focusFirstHomeVideoItem,
+  focusPrimaryContentItem,
+} from "@/lib/tv-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -37,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [required, setRequired] = useState(false);
   const [authenticated, setAuthenticated] = useState(true);
+  const wasLockedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     const status = await api.getAuthStatus();
@@ -81,11 +88,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const locked = required && !authenticated;
 
+  // After unlock, LoginGate unmounts and the browser drops focus on the first
+  // tabbable (sidebar Home). Put focus back on the main content for TV.
+  useEffect(() => {
+    if (loading) return;
+    const justUnlocked = wasLockedRef.current && !locked;
+    wasLockedRef.current = locked;
+    if (!justUnlocked || !isTvClient()) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      if (!focusFirstHomeVideoItem()) {
+        focusPrimaryContentItem();
+        if (!document.activeElement?.hasAttribute("data-tv-item")) {
+          focusFirstContentItem();
+        }
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, locked]);
+
   return (
     <AuthContext.Provider
       value={{ loading, required, authenticated, refresh, login, logout }}
     >
-      {children}
+      <div
+        className="contents"
+        inert={locked && !loading ? true : undefined}
+      >
+        {children}
+      </div>
       {!loading && locked && <LoginGate onLogin={login} />}
     </AuthContext.Provider>
   );

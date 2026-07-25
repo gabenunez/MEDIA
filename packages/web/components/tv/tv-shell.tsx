@@ -144,7 +144,15 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               <TvNavButton href={routes.search()} label="Search" active={searchActive}>
                 <Search className="h-5 w-5" />
               </TvNavButton>
-              {showLogout && <TvLogoutButton onLogout={handleLogout} />}
+              {/* Keep mounted so unlock doesn't reshuffle nav focus targets. */}
+              {required ? (
+                <div
+                  className={showLogout ? undefined : "hidden"}
+                  aria-hidden={showLogout ? undefined : true}
+                >
+                  <TvLogoutButton onLogout={handleLogout} />
+                </div>
+              ) : null}
             </nav>
         </aside>
 
