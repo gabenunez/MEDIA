@@ -1,6 +1,11 @@
 "use client";
 
-import { focusTvItem, syncTvFocusedAttribute } from "@/lib/tv-focus";
+import {
+  focusFirstContentItem,
+  focusFirstHomeVideoItem,
+  focusTvItem,
+  syncTvFocusedAttribute,
+} from "@/lib/tv-focus";
 import { useEffect, type ReactNode } from "react";
 
 const NAV_COOLDOWN_MS = 50;
@@ -478,7 +483,21 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       }
 
       const active = document.activeElement as HTMLElement | null;
-      if (!active?.hasAttribute("data-tv-item")) return;
+      if (!active?.hasAttribute("data-tv-item")) {
+        // After login (or any focus loss), activeElement can be body / a
+        // non-TV control. Own the D-pad so WebView native nav can't yank
+        // selection back to the sidebar.
+        e.preventDefault();
+        const lastFocused = document.querySelector<HTMLElement>(
+          "[data-tv-item][data-tv-focused]",
+        );
+        if (lastFocused && isTvFocusable(lastFocused)) {
+          focusItem(lastFocused);
+        } else if (!focusFirstHomeVideoItem()) {
+          focusFirstContentItem();
+        }
+        return;
+      }
 
       if (isWatchPlayerActive()) {
         if (active.hasAttribute("data-tv-watch-scrub")) return;

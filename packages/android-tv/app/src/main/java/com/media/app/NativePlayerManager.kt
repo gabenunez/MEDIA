@@ -84,12 +84,11 @@ class NativePlayerManager(
         playerView.visibility = View.VISIBLE
 
         val mediaSourceFactory = authenticatedMediaSourceFactory(sessionToken)
-        // Progressive low-bitrate SD (e.g. 1.4 Mbps 480p) fills a 120s buffer in
-        // seconds, then ExoPlayer stops reading until ~minBuffer remains — ~90s of
-        // idle HTTP/disk. Symlink/NAS targets often stall on that first refill, so
-        // playback buffers a couple minutes in every time. Keep a deep buffer for
-        // HLS (growing remux/transcode); tighten progressive so the connection
-        // stays warm.
+        // ExoPlayer loads until maxBuffer, then idles until buffer falls to
+        // minBuffer. Keep min high so refill starts well before the playhead
+        // catches up, and max deep enough that TV stays minutes ahead.
+        // Progressive stays a bit tighter than HLS so low-bitrate SD on a NAS
+        // doesn't sit idle ~90s after filling a huge buffer (v0.1.184).
         val loadControl =
             if (payload.isHls) {
                 DefaultLoadControl.Builder()
@@ -100,6 +99,10 @@ class NativePlayerManager(
                         HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
                     )
                     .setBackBuffer(HLS_BACK_BUFFER_MS, true)
+                    // Prefer time targets over the default byte cap so 4K remux
+                    // actually reaches the multi-minute forward buffer.
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .setTargetBufferBytes(HLS_TARGET_BUFFER_BYTES)
                     .build()
             } else {
                 DefaultLoadControl.Builder()
@@ -110,6 +113,7 @@ class NativePlayerManager(
                         PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
                     )
                     .setBackBuffer(PROGRESSIVE_BACK_BUFFER_MS, true)
+                    .setPrioritizeTimeOverSizeThresholds(true)
                     .build()
             }
         val exoPlayer =
@@ -666,17 +670,20 @@ class NativePlayerManager(
         /** Transient network errors only — buffering watchdog fails through instead. */
         private const val MAX_STALL_RECOVERY_ATTEMPTS = 1
 
-        // HLS / remux / transcode — deep forward buffer for growing playlists.
-        private const val HLS_MIN_BUFFER_MS = 30_000
-        private const val HLS_MAX_BUFFER_MS = 120_000
+        // HLS / remux / transcode — deep forward buffer; resume refill with ~90s
+        // still ahead so loading isn't gated on "almost empty".
+        private const val HLS_MIN_BUFFER_MS = 90_000
+        private const val HLS_MAX_BUFFER_MS = 240_000
         private const val HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
         private const val HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 15_000
-        private const val HLS_BACK_BUFFER_MS = 60_000
+        private const val HLS_BACK_BUFFER_MS = 90_000
+        /** ~4 min of ~25 Mbps 4K, or longer for lighter remux. */
+        private const val HLS_TARGET_BUFFER_BYTES = 200 * 1024 * 1024
 
-        // Progressive direct play — shorter max so HTTP/disk never sit idle ~90s
-        // after a low-bitrate SD file fills the buffer in a few seconds.
-        private const val PROGRESSIVE_MIN_BUFFER_MS = 15_000
-        private const val PROGRESSIVE_MAX_BUFFER_MS = 50_000
+        // Progressive direct play — further ahead than v0.1.184, but resume
+        // early (min≈max gap ~40s) so HTTP/disk stay warm without a long idle.
+        private const val PROGRESSIVE_MIN_BUFFER_MS = 50_000
+        private const val PROGRESSIVE_MAX_BUFFER_MS = 90_000
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
         private const val PROGRESSIVE_BACK_BUFFER_MS = 30_000

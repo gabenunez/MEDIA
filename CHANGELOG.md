@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.186 — 2026-07-24
+
+### TV
+
+- **Focus after login** — unlock no longer dumps focus on the sidebar Home button; home posters take focus, the shell is `inert` while locked, and D-pad recovers to content if WebView focus is lost
+- **Playback (APK 1.5.6)** — ExoPlayer resumes buffering earlier and stays further ahead (HLS ~4 min / refill at 90s; progressive 90s / refill at 50s) so TV does not wait until the buffer is nearly empty
+
 ## 0.1.185 — 2026-07-24
 
 ### TV
