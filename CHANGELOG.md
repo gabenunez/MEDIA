@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.187 — 2026-07-27
+
+### TV
+
+- **Playback (APK 1.5.8)** — ExoPlayer progressive LoadControl uses continuous top-up (`min=max=50s`, Media3 defaults) so HTTP/NAS no longer idles between refills and mid-show underruns. HLS remux uses `min=max=90s` with a matching byte budget so the advertised forward buffer is actually reachable
+- **Buffering UI** — debounce the mid-playback “Buffering…” overlay (~700ms) so sub-second ExoPlayer blips do not flash on screen
+
 ## 0.1.186 — 2026-07-24
 
 ### TV
