@@ -219,6 +219,7 @@ export function TvWatchView() {
   const nativePlayingPaintRef = useRef<boolean | null>(null);
   const nativeBufferingPaintRef = useRef<boolean | null>(null);
   const nativeMidBufferPaintRef = useRef<boolean | null>(null);
+  const nativeMidBufferDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastBufferedRangesKeyRef = useRef("");
   const playbackHasBegunRef = useRef(false);
 
@@ -770,7 +771,20 @@ export function TvWatchView() {
         }
         if (nativeMidBufferPaintRef.current !== midBuffering) {
           nativeMidBufferPaintRef.current = midBuffering;
-          setBufferingMidPlayback(midBuffering);
+          // Ignore sub-second ExoPlayer BUFFERING blips so progressive
+          // micro-underruns do not flash "Buffering…" mid-show.
+          if (nativeMidBufferDebounceRef.current) {
+            clearTimeout(nativeMidBufferDebounceRef.current);
+            nativeMidBufferDebounceRef.current = null;
+          }
+          if (!midBuffering) {
+            setBufferingMidPlayback(false);
+          } else {
+            nativeMidBufferDebounceRef.current = setTimeout(() => {
+              nativeMidBufferDebounceRef.current = null;
+              setBufferingMidPlayback(true);
+            }, 700);
+          }
         }
         if (state.ready || state.isPlaying || state.buffered > 0.5) {
           playbackHasBegunRef.current = true;
@@ -880,6 +894,10 @@ export function TvWatchView() {
   useEffect(() => {
     if (!usesNativePlayer) return;
     return () => {
+      if (nativeMidBufferDebounceRef.current) {
+        clearTimeout(nativeMidBufferDebounceRef.current);
+        nativeMidBufferDebounceRef.current = null;
+      }
       document.documentElement.removeAttribute("data-native-video");
       setNativeWebOverlayAlpha(1);
       stopNativePlayback();
@@ -1048,6 +1066,10 @@ export function TvWatchView() {
     if (usesNativePlayer) {
       setError(null);
       setBuffering(true);
+      if (nativeMidBufferDebounceRef.current) {
+        clearTimeout(nativeMidBufferDebounceRef.current);
+        nativeMidBufferDebounceRef.current = null;
+      }
       setBufferingMidPlayback(false);
 
       hlsStartOffsetRef.current = usingHls ? startAt : 0;

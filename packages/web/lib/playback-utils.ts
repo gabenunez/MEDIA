@@ -993,9 +993,9 @@ export function createPlaybackHls(
     startPosition: 0,
     backBufferLength: tv ? 120 : 90,
     // Deep forward buffer so playback isn't segment-by-segment at the live edge.
-    // TV: keep ~3–4 min ahead when the growing playlist allows it.
-    maxBufferLength: tv ? 180 : 120,
-    maxMaxBufferLength: tv ? 480 : 600,
+    // TV remux playlists grow live — keep ~2 min ahead, not 3–4 (starves at encode tip).
+    maxBufferLength: tv ? 120 : 120,
+    maxMaxBufferLength: tv ? 360 : 600,
     // 4K remux segments are large; allow a big MSE buffer (bytes).
     maxBufferSize: tv ? 400 * 1000 * 1000 : 250 * 1000 * 1000,
     maxBufferHole: 0.5,
