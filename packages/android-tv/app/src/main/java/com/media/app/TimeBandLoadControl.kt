@@ -22,7 +22,7 @@ import kotlin.math.min
  * moment buffered crosses min, `targetBufferSizeReached` is already true for
  * typical 4K bitrates (~380MB holds only ~40–60s). Loading then stops at **min**
  * instead of **max**, collapsing the min/max hysteresis band into min-watermark
- * cancel/reopen thrash on HTTP Range streams — mid-play BUFFERING even on a
+ * Range cancel/reopen thrash on HTTP Range streams — mid-play BUFFERING even on a
  * stable LAN.
  *
  * This subclass keeps the intended time-band hysteresis: only [maxBufferMs]
@@ -30,7 +30,7 @@ import kotlin.math.min
  */
 @UnstableApi
 class TimeBandLoadControl private constructor(
-    allocator: DefaultAllocator,
+    private val allocator: DefaultAllocator,
     private val minBufferMs: Int,
     private val maxBufferMs: Int,
     bufferForPlaybackMs: Int,
@@ -53,6 +53,8 @@ class TimeBandLoadControl private constructor(
     private val maxBufferUs = Util.msToUs(maxBufferMs.toLong())
     private var isLoading = false
 
+    fun allocatedBytes(): Long = allocator.totalBytesAllocated.toLong()
+
     override fun onPrepared(playerId: PlayerId) {
         isLoading = false
         super.onPrepared(playerId)
@@ -68,10 +70,15 @@ class TimeBandLoadControl private constructor(
         // Match DefaultLoadControl: never treat the floor as < 500ms.
         minUs = max(minUs, 500_000L)
 
+        val bufferedMs = parameters.bufferedDurationUs / 1000L
+        val wasLoading = isLoading
         when {
             parameters.bufferedDurationUs < minUs -> isLoading = true
             parameters.bufferedDurationUs >= maxBufferUs -> isLoading = false
             // Between min and max: keep prior loading state (true hysteresis).
+        }
+        if (isLoading != wasLoading) {
+            PlaybackDiag.onLoadControl(isLoading, bufferedMs, allocatedBytes())
         }
         return isLoading
     }

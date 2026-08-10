@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.193 — 2026-08-09
+
+### TV
+
+- **Playback (APK 1.5.15)** — progressive streams use 4MB chunked HTTP Ranges (45s read timeout) so a hung unbounded Range cannot drain the forward buffer; transfer-stall watchdog reopens after 12s with no bytes
+- **Diagnostics** — structured `MediaPlaybackDiag` logs (buffer ahead, LoadControl pause/resume, HTTP Range open/close/throughput, buffering enter/exit); pull with `scripts/tv-playback-logs.sh`
+
 ## 0.1.192 — 2026-08-09
 
 ### Fix

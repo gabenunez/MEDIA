@@ -14,6 +14,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.effect.Presentation
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
@@ -56,6 +57,12 @@ class NativePlayerManager(
     private var wasBuffering = false
     /** Timestamps of mid-playback rebuffer starts (after first READY). */
     private val midRebufferAtMs = ArrayDeque<Long>()
+    private var activeLoadControl: TimeBandLoadControl? = null
+    private var transferListener: DiagTransferListener? = null
+    private var lastBandwidthEstimate: Long = 0L
+    private var lastEmittedPlaybackState: Int = Player.STATE_IDLE
+    /** Wall clock when ahead started draining with no HTTP byte progress. */
+    private var transferStallSinceMs = 0L
 
     /** When true, JS chrome is hidden — emit progress less often to cut WebView work. */
     private var uiOverlayVisible = true
@@ -92,13 +99,26 @@ class NativePlayerManager(
         sdUpscaleApplied = false
         wasBuffering = false
         midRebufferAtMs.clear()
+        lastBandwidthEstimate = 0L
+        lastEmittedPlaybackState = Player.STATE_IDLE
+        transferStallSinceMs = 0L
         cancelSeekCoalesce()
         cancelStallRecovery()
 
         releasePlayer()
         playerView.visibility = View.VISIBLE
 
-        val mediaSourceFactory = authenticatedMediaSourceFactory(sessionToken)
+        val diagTransfers = DiagTransferListener()
+        transferListener = diagTransfers
+        // Progressive: clamp each Range to 4MB so a hung socket cannot drain the
+        // ~110s buffer (see 1.5.14 logs: one len=-1 transfer open for 508s).
+        // HLS segments are already bounded — leave them unchunked.
+        val mediaSourceFactory =
+            authenticatedMediaSourceFactory(
+                sessionToken = sessionToken,
+                transferListener = diagTransfers,
+                chunkBytes = if (payload.isHls) 0L else PROGRESSIVE_HTTP_CHUNK_BYTES,
+            )
         // Time-band LoadControl (see TimeBandLoadControl): fill to max, pause
         // until min, refill. DefaultLoadControl also stops when the byte target
         // is hit once buffered>=min — that collapsed this band into min-watermark
@@ -124,6 +144,7 @@ class NativePlayerManager(
                     PROGRESSIVE_BACK_BUFFER_MS,
                 )
             }
+        activeLoadControl = loadControl
         val exoPlayer =
             ExoPlayer.Builder(playerView.context)
                 .setMediaSourceFactory(mediaSourceFactory)
@@ -149,9 +170,45 @@ class NativePlayerManager(
         mediaSessionManager?.release()
         mediaSessionManager = PlaybackMediaSessionManager(playerView.context, exoPlayer)
 
+        PlaybackDiag.beginSession(
+            fileId = payload.fileId,
+            isHls = payload.isHls,
+            url = payload.url,
+            startSeconds = payload.startSeconds,
+            durationMs = payload.durationMs,
+            apkVersion = apkVersionName(),
+        )
+
         exoPlayer.setMediaItem(buildMediaItem(payload))
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
+
+        exoPlayer.addAnalyticsListener(
+            object : AnalyticsListener {
+                override fun onBandwidthEstimate(
+                    eventTime: AnalyticsListener.EventTime,
+                    totalLoadTimeMs: Int,
+                    totalBytesLoaded: Long,
+                    bitrateEstimate: Long,
+                ) {
+                    lastBandwidthEstimate = bitrateEstimate
+                }
+
+                override fun onLoadError(
+                    eventTime: AnalyticsListener.EventTime,
+                    loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+                    mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+                    error: java.io.IOException,
+                    wasCanceled: Boolean,
+                ) {
+                    PlaybackDiag.onTransferError(
+                        "${error.javaClass.simpleName}:${error.message ?: "-"} canceled=$wasCanceled",
+                        loadEventInfo.bytesLoaded,
+                        loadEventInfo.loadDurationMs,
+                    )
+                }
+            },
+        )
 
         exoPlayer.addListener(
             object : Player.Listener {
@@ -208,13 +265,19 @@ class NativePlayerManager(
                         "ExoPlayer error code=${error.errorCode} (${error.errorCodeName}) url=${payload.url}",
                         error,
                     )
+                    PlaybackDiag.onPlayerError(
+                        error.errorCode,
+                        error.errorCodeName,
+                        error.message,
+                        bufferAheadMs(exoPlayer),
+                    )
                     // Permanent failures (HTTP 4xx, unsupported container, decoder
                     // init) should hand off to the web remux/HLS ladder immediately
                     // instead of burning local seek+prepare retries.
                     if (!isTransientPlaybackError(error) ||
                         !schedulePlaybackRecovery(exoPlayer, "error", maxAttempts = 1)
                     ) {
-                        reportPlaybackFailure()
+                        reportPlaybackFailure("player-error:${error.errorCodeName}")
                     }
                     emitState()
                 }
@@ -285,6 +348,11 @@ class NativePlayerManager(
         cancelStallRecovery()
         didAttemptSoftStallRecovery = false
         lastUserSeekAtMs = System.currentTimeMillis()
+        PlaybackDiag.onSeek(
+            targetMs = targetMs,
+            fromMs = exoPlayer.currentPosition,
+            aheadMs = bufferAheadMs(exoPlayer),
+        )
         markPlaybackProgress(targetMs)
         exoPlayer.seekTo(targetMs)
         exoPlayer.playWhenReady = true
@@ -349,8 +417,13 @@ class NativePlayerManager(
         if (!playbackEnded) {
             saveProgress(player?.currentPosition ?: 0L, ended = false)
         }
+        if (currentPayload != null) {
+            PlaybackDiag.endSession(if (playbackEnded) "ended" else "stop")
+        }
         setHdrContentActive(false)
         releasePlayer()
+        activeLoadControl = null
+        transferListener = null
         playerView.visibility = View.GONE
         playerView.scaleX = 1f
         playerView.scaleY = 1f
@@ -541,6 +614,8 @@ class NativePlayerManager(
         val playbackState = exoPlayer.playbackState
         val buffering = playbackState == Player.STATE_BUFFERING
         val stalledClockMs = now - lastPlaybackProgressAtMs
+        val aheadMs = bufferAheadMs(exoPlayer)
+        val allocBytes = activeLoadControl?.allocatedBytes() ?: 0L
 
         // Viewer wants play but the pipeline went IDLE (error cleared poorly,
         // or a subtitle swap left us unprepared) — rebuild instead of spinning.
@@ -551,6 +626,7 @@ class NativePlayerManager(
             exoPlayer.playerError == null
         ) {
             Log.w(TAG, "playWhenReady with IDLE — re-preparing")
+            PlaybackDiag.event("IDLE_REPREPARE", "posMs" to currentPositionMs, "aheadMs" to aheadMs)
             exoPlayer.prepare()
             exoPlayer.playWhenReady = true
         }
@@ -563,6 +639,16 @@ class NativePlayerManager(
             handlePlaybackStall(exoPlayer, buffering, playbackState, stalledClockMs)
         }
 
+        if (playbackState != lastEmittedPlaybackState) {
+            PlaybackDiag.onStateChanged(
+                playbackStateName(playbackState),
+                currentPositionMs,
+                aheadMs,
+                exoPlayer.isPlaying,
+            )
+            lastEmittedPlaybackState = playbackState
+        }
+
         // Brief underruns that recover never trip the hard stall timer. Count
         // mid-play rebuffer starts and fail through after a cluster of them.
         if (
@@ -572,16 +658,44 @@ class NativePlayerManager(
             buffering &&
             !wasBuffering
         ) {
-            val aheadMs =
-                (exoPlayer.bufferedPosition - exoPlayer.currentPosition).coerceAtLeast(0L)
+            val seekAgeMs =
+                if (lastUserSeekAtMs > 0L) now - lastUserSeekAtMs else -1L
+            PlaybackDiag.onBufferingStart(
+                posMs = currentPositionMs,
+                aheadMs = aheadMs,
+                bufferedMs = exoPlayer.bufferedPosition,
+                totalBufferedMs = exoPlayer.totalBufferedDuration.coerceAtLeast(0L),
+                playWhenReady = exoPlayer.playWhenReady,
+                isPlaying = exoPlayer.isPlaying,
+                seekAgeMs = seekAgeMs,
+                allocatedBytes = allocBytes,
+                videoH = exoPlayer.videoSize.height,
+                bitrateEstimate = lastBandwidthEstimate,
+            )
             Log.w(
                 TAG,
-                "Mid-playback BUFFERING aheadMs=$aheadMs posMs=${exoPlayer.currentPosition} " +
+                "Mid-playback BUFFERING aheadMs=$aheadMs posMs=$currentPositionMs " +
                     "bufferedMs=${exoPlayer.bufferedPosition} state=$playbackState",
             )
             noteMidPlaybackRebuffer(now)
+        } else if (wasBuffering && !buffering) {
+            PlaybackDiag.onBufferingEnd(currentPositionMs, aheadMs)
         }
         wasBuffering = buffering
+
+        if (hasReachedReady) {
+            maybeRecoverStalledTransfer(exoPlayer, now, aheadMs, buffering)
+            PlaybackDiag.maybeHealth(
+                nowMs = now,
+                posMs = currentPositionMs,
+                aheadMs = aheadMs,
+                isPlaying = exoPlayer.isPlaying,
+                buffering = buffering,
+                allocatedBytes = allocBytes,
+                bitrateEstimate = lastBandwidthEstimate,
+            )
+        }
+
         val durationMs = when {
             exoPlayer.duration > 0 -> exoPlayer.duration
             (currentPayload?.durationMs ?: 0L) > 0 -> currentPayload!!.durationMs
@@ -647,6 +761,13 @@ class NativePlayerManager(
                 TAG,
                 "Soft stall recovery after ${stalledClockMs}ms buffering=$buffering state=$playbackState",
             )
+            PlaybackDiag.onStall(
+                "soft-recover",
+                stalledClockMs,
+                buffering,
+                playbackStateName(playbackState),
+                bufferAheadMs(exoPlayer),
+            )
             if (schedulePlaybackRecovery(exoPlayer, "stall-soft", maxAttempts = 1)) {
                 return
             }
@@ -658,7 +779,14 @@ class NativePlayerManager(
             TAG,
             "Playback stall after ${stalledClockMs}ms (limit=${failAfter}ms) buffering=$buffering state=$playbackState — failing through",
         )
-        reportPlaybackFailure()
+        PlaybackDiag.onStall(
+            "fail-through",
+            stalledClockMs,
+            buffering,
+            playbackStateName(playbackState),
+            bufferAheadMs(exoPlayer),
+        )
+        reportPlaybackFailure("stall-timeout")
     }
 
     private fun stallTimeoutMs(): Long {
@@ -687,7 +815,7 @@ class NativePlayerManager(
             TAG,
             "Repeated mid-playback rebuffers (${midRebufferAtMs.size} in ${REBUFFER_ESCALATION_WINDOW_MS}ms) — failing through to remux/HLS",
         )
-        reportPlaybackFailure()
+        reportPlaybackFailure("rebuffer-cluster")
     }
 
     private fun cancelStallRecovery() {
@@ -724,10 +852,12 @@ class NativePlayerManager(
         stallRecoveryAttempts++
         stallRecoveryPending = true
         val positionMs = exoPlayer.currentPosition
+        val aheadMs = bufferAheadMs(exoPlayer)
         Log.w(
             TAG,
             "Recovering playback attempt=$stallRecoveryAttempts/$maxAttempts reason=$reason positionMs=$positionMs",
         )
+        PlaybackDiag.onRecovery(reason, stallRecoveryAttempts, positionMs, aheadMs)
         val runnable = Runnable {
             stallRecoveryRunnable = null
             if (exoPlayer !== player || playbackEnded) {
@@ -745,11 +875,88 @@ class NativePlayerManager(
         return true
     }
 
-    private fun reportPlaybackFailure() {
+    private fun reportPlaybackFailure(reason: String = "unknown") {
         if (playbackFailureReported) return
         playbackFailureReported = true
         cancelStallRecovery()
+        PlaybackDiag.onFailThrough(reason, player?.let { bufferAheadMs(it) } ?: -1L)
         emitJs("window.__mediaNativePlayer?.onError?.()")
+    }
+
+    private fun bufferAheadMs(exoPlayer: ExoPlayer): Long {
+        return (exoPlayer.bufferedPosition - exoPlayer.currentPosition).coerceAtLeast(0L)
+    }
+
+    private fun playbackStateName(state: Int): String {
+        return when (state) {
+            Player.STATE_IDLE -> "IDLE"
+            Player.STATE_BUFFERING -> "BUFFERING"
+            Player.STATE_READY -> "READY"
+            Player.STATE_ENDED -> "ENDED"
+            else -> "UNKNOWN($state)"
+        }
+    }
+
+    private fun apkVersionName(): String {
+        return try {
+            val info = playerView.context.packageManager.getPackageInfo(playerView.context.packageName, 0)
+            info.versionName ?: "unknown"
+        } catch (_: Exception) {
+            "unknown"
+        }
+    }
+
+    /**
+     * If the buffer is draining while a transfer claims to be active but no
+     * bytes arrive for [TRANSFER_STALL_RECOVERY_MS], force a local seek+prepare
+     * to reopen the Range (chunked loads + shorter read timeout are the primary
+     * fix; this is the safety net).
+     */
+    private fun maybeRecoverStalledTransfer(
+        exoPlayer: ExoPlayer,
+        nowMs: Long,
+        aheadMs: Long,
+        buffering: Boolean,
+    ) {
+        if (playbackFailureReported || stallRecoveryPending || didAttemptSoftStallRecovery) {
+            transferStallSinceMs = 0L
+            return
+        }
+        if (lastUserSeekAtMs > 0L && nowMs - lastUserSeekAtMs < SEEK_STALL_SUPPRESS_MS) {
+            transferStallSinceMs = 0L
+            return
+        }
+
+        val transfers = transferListener
+        val lastByteAt = transfers?.lastByteAtMs ?: 0L
+        val openTransfers = transfers?.openTransferCount ?: 0
+        val noByteProgress =
+            lastByteAt > 0L && nowMs - lastByteAt >= TRANSFER_STALL_RECOVERY_MS
+        val draining =
+            (exoPlayer.isPlaying || buffering) &&
+                aheadMs < TRANSFER_STALL_AHEAD_MS &&
+                (openTransfers > 0 || buffering)
+
+        if (!draining || !noByteProgress) {
+            transferStallSinceMs = 0L
+            return
+        }
+
+        if (transferStallSinceMs == 0L) {
+            transferStallSinceMs = nowMs
+            return
+        }
+        if (nowMs - transferStallSinceMs < TRANSFER_STALL_RECOVERY_MS) return
+
+        transferStallSinceMs = 0L
+        PlaybackDiag.onStall(
+            "transfer-stall",
+            nowMs - lastByteAt,
+            buffering,
+            playbackStateName(exoPlayer.playbackState),
+            aheadMs,
+        )
+        schedulePlaybackRecovery(exoPlayer, "transfer-stall", maxAttempts = 1)
     }
 
     private fun buildBufferedRanges(exoPlayer: ExoPlayer): org.json.JSONArray {
@@ -826,5 +1033,10 @@ class NativePlayerManager(
         private const val PROGRESSIVE_BACK_BUFFER_MS = 30_000
         /** Allocator trim hint for ~4K; loading is gated by time band only. */
         private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 512 * 1024 * 1024
+        /** Match server STREAM_READ_HIGH_WATER_MARK family — finite Ranges only. */
+        private const val PROGRESSIVE_HTTP_CHUNK_BYTES = 4L * 1024L * 1024L
+        /** Reopen when ahead is low and no HTTP bytes for this long. */
+        private const val TRANSFER_STALL_RECOVERY_MS = 12_000L
+        private const val TRANSFER_STALL_AHEAD_MS = 60_000L
     }
 }
