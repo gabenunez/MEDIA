@@ -24,6 +24,8 @@ import {
   resolvePlaybackStartSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
+  shouldFailThroughContinuousMidBuffer,
+  NATIVE_SEEK_COALESCE_MS,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
 import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
@@ -225,6 +227,10 @@ export function TvWatchView() {
   const playbackHasBegunRef = useRef(false);
   const midRebufferTimestampsRef = useRef<number[]>([]);
   const webMidBufferingRef = useRef(false);
+  const nativeMidBufferStartedAtRef = useRef<number | null>(null);
+  const lastNativeUserSeekAtRef = useRef<number | null>(null);
+  const skipCoalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSkipDeltaRef = useRef(0);
 
   const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
 
@@ -465,6 +471,59 @@ export function TvWatchView() {
     }
     resumeNativePlayback();
   }, [restartNativeHlsAtCurrentPosition]);
+
+  /** Native onError + web mid-buffer watchdog share this ladder. */
+  const failThroughNativePlayback = useCallback(() => {
+    const session = nativePlaySessionRef.current;
+    if (nativeErrorHandledSessionRef.current >= session) return;
+    nativeErrorHandledSessionRef.current = session;
+    nativeMidBufferStartedAtRef.current = null;
+
+    setBuffering(false);
+    setBufferingMidPlayback(false);
+    captureStreamRestartPosition();
+    const info = streamInfoRef.current;
+    if (
+      !nativeRemuxFallbackRef.current &&
+      !usingHlsRef.current &&
+      info?.transcodingEnabled &&
+      isHlsVideoCopySupported(info.videoCodec)
+    ) {
+      nativeRemuxFallbackRef.current = true;
+      setForceRemux(true);
+      setStreamGeneration((g) => g + 1);
+      return;
+    }
+    if (
+      nativeRemuxFallbackRef.current &&
+      usingHlsRef.current &&
+      !nativeTranscodeFallbackRef.current &&
+      info &&
+      is4KSource(info.height, info.width) &&
+      info.availableQualities.includes("1080p")
+    ) {
+      nativeTranscodeFallbackRef.current = true;
+      setForceRemux(false);
+      setQuality("1080p");
+      setStreamGeneration((g) => g + 1);
+      return;
+    }
+    if (
+      usingHlsRef.current &&
+      info?.transcodingEnabled &&
+      nativeHlsRecoveryAttemptsRef.current < 3
+    ) {
+      nativeHlsRecoveryAttemptsRef.current += 1;
+      restartNativeHlsAtCurrentPosition();
+      return;
+    }
+    setError(
+      "Playback failed. Try Original again or pick a lower quality from the settings menu.",
+    );
+  }, [captureStreamRestartPosition, restartNativeHlsAtCurrentPosition]);
+
+  const failThroughNativePlaybackRef = useRef(failThroughNativePlayback);
+  failThroughNativePlaybackRef.current = failThroughNativePlayback;
 
   useEffect(() => {
     cancelCountdown();
@@ -768,6 +827,26 @@ export function TvWatchView() {
         // where ready was momentary STATE_READY (mutually exclusive with buffering).
         const midBuffering =
           state.isBuffering && (state.ready || playbackHasBegunRef.current);
+        if (midBuffering) {
+          if (nativeMidBufferStartedAtRef.current == null) {
+            nativeMidBufferStartedAtRef.current = Date.now();
+          }
+        } else {
+          nativeMidBufferStartedAtRef.current = null;
+        }
+        if (
+          shouldFailThroughContinuousMidBuffer({
+            bufferingMidPlayback: midBuffering,
+            bufferingStartedAtMs: nativeMidBufferStartedAtRef.current,
+            lastUserSeekAtMs: lastNativeUserSeekAtRef.current,
+            nowMs: Date.now(),
+          })
+        ) {
+          // Backup for hung BUFFERING that never trips native onError (older APK
+          // or a stall clock that never advances). Same remux/HLS ladder.
+          failThroughNativePlaybackRef.current();
+          return;
+        }
         if (nativeBufferingPaintRef.current !== initialBuffering) {
           nativeBufferingPaintRef.current = initialBuffering;
           setBuffering(initialBuffering);
@@ -832,49 +911,7 @@ export function TvWatchView() {
         if (!controlsNeedPaint) return;
       },
       onError: () => {
-        const session = nativePlaySessionRef.current;
-        if (nativeErrorHandledSessionRef.current >= session) return;
-        nativeErrorHandledSessionRef.current = session;
-
-        setBuffering(false);
-        captureStreamRestartPosition();
-        const info = streamInfoRef.current;
-        if (
-          !nativeRemuxFallbackRef.current &&
-          !usingHlsRef.current &&
-          info?.transcodingEnabled &&
-          isHlsVideoCopySupported(info.videoCodec)
-        ) {
-          nativeRemuxFallbackRef.current = true;
-          setForceRemux(true);
-          setStreamGeneration((g) => g + 1);
-          return;
-        }
-        if (
-          nativeRemuxFallbackRef.current &&
-          usingHlsRef.current &&
-          !nativeTranscodeFallbackRef.current &&
-          info &&
-          is4KSource(info.height, info.width) &&
-          info.availableQualities.includes("1080p")
-        ) {
-          nativeTranscodeFallbackRef.current = true;
-          setForceRemux(false);
-          setQuality("1080p");
-          setStreamGeneration((g) => g + 1);
-          return;
-        }
-        if (
-          usingHlsRef.current &&
-          info?.transcodingEnabled &&
-          nativeHlsRecoveryAttemptsRef.current < 3
-        ) {
-          nativeHlsRecoveryAttemptsRef.current += 1;
-          restartNativeHlsAtCurrentPosition();
-          return;
-        }
-        // Keep the user's quality choice on TV — don't silently downgrade further.
-        setError("Playback failed. Try Original again or pick a lower quality from the settings menu.");
+        failThroughNativePlaybackRef.current();
       },
       onEnded: () => {
         const sourceSeconds = (streamInfoRef.current?.durationMs || 0) / 1000;
@@ -919,6 +956,13 @@ export function TvWatchView() {
     nativeTranscodeFallbackRef.current = false;
     nativeHlsRecoveryAttemptsRef.current = 0;
     midRebufferTimestampsRef.current = [];
+    nativeMidBufferStartedAtRef.current = null;
+    lastNativeUserSeekAtRef.current = null;
+    pendingSkipDeltaRef.current = 0;
+    if (skipCoalesceTimerRef.current) {
+      clearTimeout(skipCoalesceTimerRef.current);
+      skipCoalesceTimerRef.current = null;
+    }
     nativePausedAtRef.current = null;
     nativeIsPlayingRef.current = false;
     nativePlaySessionRef.current = 0;
@@ -1080,6 +1124,7 @@ export function TvWatchView() {
       }
       setBufferingMidPlayback(false);
       midRebufferTimestampsRef.current = [];
+      nativeMidBufferStartedAtRef.current = null;
       webMidBufferingRef.current = false;
 
       hlsStartOffsetRef.current = usingHls ? startAt : 0;
@@ -1365,6 +1410,8 @@ export function TvWatchView() {
       lastStableAbsoluteSecondsRef.current = clamped;
 
       if (usesNativePlayer) {
+        lastNativeUserSeekAtRef.current = Date.now();
+        nativeMidBufferStartedAtRef.current = null;
         if (usingHlsPlayback && clamped < hlsStartOffset) {
           pendingStreamStartRef.current = clamped;
           setStreamGeneration((g) => g + 1);
@@ -1433,9 +1480,17 @@ export function TvWatchView() {
 
   const skipRelative = useCallback(
     (deltaSeconds: number) => {
-      seekToAbsolute(
-        (optimisticAbsoluteSeconds ?? absoluteCurrentTime) + deltaSeconds,
-      );
+      // Coalesce rapid skip taps so each press does not interrupt the prior seek.
+      pendingSkipDeltaRef.current += deltaSeconds;
+      if (skipCoalesceTimerRef.current) {
+        clearTimeout(skipCoalesceTimerRef.current);
+      }
+      skipCoalesceTimerRef.current = setTimeout(() => {
+        skipCoalesceTimerRef.current = null;
+        const delta = pendingSkipDeltaRef.current;
+        pendingSkipDeltaRef.current = 0;
+        seekToAbsolute((optimisticAbsoluteSeconds ?? absoluteCurrentTime) + delta);
+      }, NATIVE_SEEK_COALESCE_MS);
     },
     [absoluteCurrentTime, optimisticAbsoluteSeconds, seekToAbsolute],
   );

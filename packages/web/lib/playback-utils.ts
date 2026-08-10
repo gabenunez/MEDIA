@@ -712,6 +712,89 @@ export const REBUFFER_ESCALATION_COUNT = 3;
 export const REBUFFER_ESCALATION_WINDOW_MS = 180_000;
 
 /**
+ * Web-side backup if the native stall watchdog never fires (older APK, hung
+ * bridge). Continuous mid-playback buffering past this → escalate.
+ */
+export const NATIVE_MID_BUFFER_WATCHDOG_MS = 20_000;
+
+/**
+ * After a user scrub/skip, ExoPlayer legitimately buffers while refilling the
+ * Range/segment window. Soft seek+prepare (or fail-through) during this window
+ * cancels that refill and is the main cause of post-seek lag on Android TV.
+ */
+export const NATIVE_SEEK_STALL_SUPPRESS_MS = 12_000;
+/** Coalesce rapid skip taps (-10 / +30) into one seek. */
+export const NATIVE_SEEK_COALESCE_MS = 180;
+
+export type NativeSeekStallWatchdogAction =
+  | "suppress"
+  | "allow-soft-recovery"
+  | "allow-fail-through";
+
+/** True when mid-playback buffering has been continuous long enough to escalate. */
+export function shouldFailThroughContinuousMidBuffer(options: {
+  bufferingMidPlayback: boolean;
+  bufferingStartedAtMs: number | null;
+  nowMs: number;
+  lastUserSeekAtMs?: number | null;
+  timeoutMs?: number;
+  seekSuppressMs?: number;
+}): boolean {
+  if (!options.bufferingMidPlayback || options.bufferingStartedAtMs == null) {
+    return false;
+  }
+  const seekSuppressMs = options.seekSuppressMs ?? NATIVE_SEEK_STALL_SUPPRESS_MS;
+  if (
+    options.lastUserSeekAtMs != null &&
+    options.nowMs - options.lastUserSeekAtMs < seekSuppressMs
+  ) {
+    return false;
+  }
+  const timeoutMs = options.timeoutMs ?? NATIVE_MID_BUFFER_WATCHDOG_MS;
+  return options.nowMs - options.bufferingStartedAtMs >= timeoutMs;
+}
+
+/**
+ * Decide whether the native stall watchdog may soft-recover or fail through.
+ * Recent user seeks always win — interrupting a post-seek refill causes lag.
+ */
+export function resolveSeekStallWatchdogAction(options: {
+  msSinceUserSeek: number | null;
+  msSinceProgress: number;
+  hasReachedReady: boolean;
+  softRecoveryMs?: number;
+  failThroughMs?: number;
+  seekSuppressMs?: number;
+}): NativeSeekStallWatchdogAction {
+  const seekSuppressMs = options.seekSuppressMs ?? NATIVE_SEEK_STALL_SUPPRESS_MS;
+  if (
+    options.msSinceUserSeek != null &&
+    options.msSinceUserSeek >= 0 &&
+    options.msSinceUserSeek < seekSuppressMs
+  ) {
+    return "suppress";
+  }
+
+  const softMs = options.softRecoveryMs ?? 8_000;
+  const failMs = options.failThroughMs ?? 16_000;
+
+  if (!options.hasReachedReady) {
+    return options.msSinceProgress >= failMs ? "allow-fail-through" : "suppress";
+  }
+  if (options.msSinceProgress >= failMs) return "allow-fail-through";
+  if (options.msSinceProgress >= softMs) return "allow-soft-recovery";
+  return "suppress";
+}
+
+/** Latest target wins; dispatch only after taps settle. */
+export function resolveCoalescedSeekTarget(options: {
+  pendingTargetMs: number | null;
+  nextTargetMs: number;
+}): number {
+  return Math.max(0, options.nextTargetMs);
+}
+
+/**
  * Soft playback-rate brake at a growing encode edge. Prefer a tiny slowdown
  * over a hard pause — avoids the old buffer-gate infinite-hold failure mode.
  */

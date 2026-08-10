@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.190 — 2026-08-09
+
+### TV
+
+- **Playback (APK 1.5.12)** — mid-play stalls soft-recover at ~8s and fail through at ~16s (was 45s+); detect frozen READY/IDLE, not only BUFFERING; deeper ~110s drip buffer
+- **Playback** — suppress stall soft-recovery for 12s after scrub/skip so post-seek Range/segment refills are not canceled (fixes laggy playback after skipping); coalesce rapid skip taps
+- **Playback** — web mid-buffer watchdog (20s) as backup fail-through; skip coalesce + seek-suppress mirrored in the watch view
+
+### Tests
+
+- **Playback** — cover seek-stall suppress and continuous mid-buffer fail-through policies
+
 ## 0.1.189 — 2026-08-09
 
 ### TV
