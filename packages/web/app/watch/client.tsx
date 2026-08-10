@@ -1176,7 +1176,7 @@ function WatchDesktopClient() {
 
       {showInitialLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
-          <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/70 px-5 py-3.5 text-sm text-white shadow-xl">
+          <div className="watch-status-chip text-sm">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             {loadingMessage}
           </div>
@@ -1233,10 +1233,10 @@ function WatchDesktopClient() {
               </Button>
             </WatchControlHint>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-white drop-shadow-sm sm:text-lg">
+              <p className="watch-title truncate text-base sm:text-lg">
                 {title}
               </p>
-              <p className="truncate text-xs text-white/60">
+              <p className="watch-meta mt-0.5 truncate">
                 {qualityLabel(quality, streamInfo?.height ?? null, streamInfo?.width ?? null)}
                 {formatDynamicRangeChromeSuffix(streamInfo?.dynamicRange)}
                 {activeSubtitle !== null && " · Subtitles on"}
@@ -1268,7 +1268,7 @@ function WatchDesktopClient() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="watch-control-btn pointer-events-auto h-16 w-16 rounded-full bg-black/55 hover:bg-black/70"
+                className="watch-control-btn watch-control-btn--play pointer-events-auto h-16 w-16"
                 onClick={togglePlay}
                 aria-label="Play"
               >
@@ -1352,10 +1352,13 @@ function WatchDesktopClient() {
                 />
                 </div>
               </div>
-              <span className="hidden shrink-0 font-mono text-xs tabular-nums text-white/85 sm:inline">
+              <span className="watch-scrub-time hidden shrink-0 font-mono tabular-nums sm:inline">
                 {formatDuration(displayedAbsoluteTime * 1000)}
                 {totalDurationSeconds > 0 && (
-                  <> / {formatDuration(totalDurationSeconds * 1000)}</>
+                  <>
+                    <span className="text-white/40"> / </span>
+                    {formatDuration(totalDurationSeconds * 1000)}
+                  </>
                 )}
               </span>
             </div>
@@ -1377,7 +1380,7 @@ function WatchDesktopClient() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="watch-control-btn"
+                    className="watch-control-btn watch-control-btn--play"
                     onClick={togglePlay}
                     aria-label={isPlaying ? "Pause" : "Play"}
                   >
@@ -1400,7 +1403,7 @@ function WatchDesktopClient() {
                   </Button>
                 </WatchControlHint>
 
-                <span className="ml-1 min-w-[4.5rem] font-mono text-xs tabular-nums text-white/75 sm:hidden">
+                <span className="watch-scrub-time ml-1 min-w-[4.5rem] font-mono tabular-nums sm:hidden">
                   {formatDuration(displayedAbsoluteTime * 1000)}
                 </span>
 
@@ -1468,7 +1471,7 @@ function WatchDesktopClient() {
                     </Button>
                   </WatchControlHint>
                   {volumeMenuOpen && (
-                    <div className="absolute bottom-full left-0 z-50 mb-2 rounded-md border border-border bg-card p-3 shadow-xl">
+                    <div className="watch-menu-panel absolute bottom-full left-0 z-50 mb-2.5 p-3">
                       <input
                         type="range"
                         min={0}
@@ -1483,7 +1486,7 @@ function WatchDesktopClient() {
                       />
                       <button
                         type="button"
-                        className="mt-2 block w-full rounded px-2 py-1 text-left text-xs text-muted-foreground hover:bg-muted"
+                        className="watch-menu-item watch-menu-muted mt-2 px-2 py-1 text-xs"
                         onClick={() => {
                           toggleMute();
                           setVolumeMenuOpen(false);
@@ -1511,7 +1514,7 @@ function WatchDesktopClient() {
                       size="sm"
                       className={cn(
                         "watch-control-btn",
-                        activeSubtitle !== null && "text-primary",
+                        activeSubtitle !== null && "border-primary/70 bg-primary/15 text-white",
                       )}
                       onClick={() => {
                         const opening = !subtitleMenuOpen;
@@ -1526,7 +1529,7 @@ function WatchDesktopClient() {
                     </Button>
                   </WatchControlHint>
                   {subtitleMenuOpen && (
-                    <div className="absolute bottom-full right-0 z-50 mb-2 rounded-md border border-border bg-card p-1 shadow-xl">
+                    <div className="watch-menu-panel absolute bottom-full right-0 z-50 mb-2.5 p-1.5">
                       {subtitleAppearanceOpen ? (
                         <DesktopSubtitleAppearancePanel
                           onBack={() => setSubtitleAppearanceOpen(false)}
@@ -1536,15 +1539,13 @@ function WatchDesktopClient() {
                           {subtitleListError ? (
                             <p className="px-3 py-1.5 text-sm text-red-400">{subtitleListError}</p>
                           ) : subtitles.length === 0 ? (
-                            <p className="px-3 py-1.5 text-sm text-muted-foreground">
+                            <p className="watch-menu-muted px-3 py-1.5 text-sm">
                               None available
                             </p>
                           ) : (
                             <button
-                              className={cn(
-                                "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted",
-                                activeSubtitle === null && "bg-primary/10 text-primary",
-                              )}
+                              className="watch-menu-item"
+                              data-active={activeSubtitle === null ? "true" : undefined}
                               onClick={() => {
                                 setActiveSubtitle(null);
                                 setSubtitleMenuOpen(false);
@@ -1556,16 +1557,11 @@ function WatchDesktopClient() {
                           {subtitles.map((sub) => (
                             <div
                               key={sub.id}
-                              className={cn(
-                                "flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted",
-                                activeSubtitle === sub.id && "bg-primary/10",
-                              )}
+                              className="flex items-center gap-1 rounded-lg px-0.5"
                             >
                               <button
-                                className={cn(
-                                  "min-w-0 flex-1 rounded px-2 py-1.5 text-left text-sm",
-                                  activeSubtitle === sub.id && "text-primary",
-                                )}
+                                className="watch-menu-item min-w-0 flex-1"
+                                data-active={activeSubtitle === sub.id ? "true" : undefined}
                                 onClick={() => {
                                   setActiveSubtitle(sub.id);
                                   setSubtitleMenuOpen(false);
@@ -1575,7 +1571,7 @@ function WatchDesktopClient() {
                               </button>
                               {sub.source === "opensubtitles" && (
                                 <button
-                                  className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-red-400"
+                                  className="watch-menu-item watch-menu-muted w-auto shrink-0 px-2 py-1 text-xs hover:text-red-300"
                                   onClick={() => {
                                     void removeSubtitleTrack(sub.id);
                                   }}
@@ -1585,16 +1581,16 @@ function WatchDesktopClient() {
                               )}
                             </div>
                           ))}
-                          <div className="my-1 border-t border-border" />
+                          <div className="watch-menu-divider" />
                           <button
-                            className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted"
+                            className="watch-menu-item"
                             onClick={() => setSubtitleAppearanceOpen(true)}
                           >
                             Customize appearance…
                           </button>
-                          <div className="my-1 border-t border-border" />
+                          <div className="watch-menu-divider" />
                           <button
-                            className="block w-full rounded px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
+                            className="watch-menu-item text-primary"
                             onClick={() => {
                               setSubtitleMenuOpen(false);
                               setSubtitleSearchOpen(true);
@@ -1632,17 +1628,12 @@ function WatchDesktopClient() {
                     </Button>
                   </WatchControlHint>
                   {qualityMenuOpen && (
-                    <div className="absolute bottom-full right-0 z-50 mb-2 min-w-40 rounded-md border border-border bg-card p-1 shadow-xl">
+                    <div className="watch-menu-panel absolute bottom-full right-0 z-50 mb-2.5 min-w-40 p-1.5">
                       {availableQualities.map((option) => (
                         <button
                           key={option}
-                          className={cn(
-                            "block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-muted",
-                            quality === option && "bg-primary/10 text-primary",
-                            option !== "original" &&
-                              !transcodingEnabled &&
-                              "cursor-not-allowed opacity-50",
-                          )}
+                          className="watch-menu-item"
+                          data-active={quality === option ? "true" : undefined}
                           disabled={option !== "original" && !transcodingEnabled}
                           onClick={() => changeQuality(option)}
                         >

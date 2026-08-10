@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.191 — 2026-08-09
+
+### TV
+
+- **Playback (APK 1.5.13)** — `TimeBandLoadControl` fixes mid-play BUFFERING on progressive/high-bitrate: DefaultLoadControl was stopping at the byte target once buffer hit min, collapsing the 108–116s band into Range cancel/reopen thrash; loading now pauses only at max buffer time
+- **Watch UI** — match transport controls, status chips, menus, and title/meta chrome to the scrubber’s teal/dark language (desktop + TV)
+
 ## 0.1.190 — 2026-08-09
 
 ### TV

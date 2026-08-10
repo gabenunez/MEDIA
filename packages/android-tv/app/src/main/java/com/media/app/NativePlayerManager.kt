@@ -13,7 +13,6 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.effect.Presentation
-import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -100,40 +99,30 @@ class NativePlayerManager(
         playerView.visibility = View.VISIBLE
 
         val mediaSourceFactory = authenticatedMediaSourceFactory(sessionToken)
-        // ExoPlayer LoadControl state machine (Media3 DefaultLoadControl):
-        //   buffered < min  → keep loading (if prioritizeTime, even past byte cap)
-        //   buffered >= max → stop loading
-        //   between min/max → keep prior state
-        // Wide min≪max hysteresis makes the scrubber/ahead buffer sawtooth:
-        // drain for (max-min) then burst-refill — feels like the buffer "jumps".
-        // Use a tight band around the target (drip-style top-up) so ahead stays
-        // nearly constant. A few seconds of slack still avoids cancel/reopen
-        // thrash on progressive Range streams without a 20–30s refill jump.
+        // Time-band LoadControl (see TimeBandLoadControl): fill to max, pause
+        // until min, refill. DefaultLoadControl also stops when the byte target
+        // is hit once buffered>=min — that collapsed this band into min-watermark
+        // Range thrash on high-bitrate progressive (mid-play BUFFERING on a
+        // stable LAN). TimeBandLoadControl only pauses at maxBufferMs.
         val loadControl =
             if (payload.isHls) {
-                DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(
-                        HLS_MIN_BUFFER_MS,
-                        HLS_MAX_BUFFER_MS,
-                        HLS_BUFFER_FOR_PLAYBACK_MS,
-                        HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-                    )
-                    .setBackBuffer(HLS_BACK_BUFFER_MS, true)
-                    .setPrioritizeTimeOverSizeThresholds(true)
-                    .setTargetBufferBytes(HLS_TARGET_BUFFER_BYTES)
-                    .build()
+                TimeBandLoadControl.create(
+                    HLS_MIN_BUFFER_MS,
+                    HLS_MAX_BUFFER_MS,
+                    HLS_BUFFER_FOR_PLAYBACK_MS,
+                    HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+                    HLS_TARGET_BUFFER_BYTES,
+                    HLS_BACK_BUFFER_MS,
+                )
             } else {
-                DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(
-                        PROGRESSIVE_MIN_BUFFER_MS,
-                        PROGRESSIVE_MAX_BUFFER_MS,
-                        PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS,
-                        PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-                    )
-                    .setBackBuffer(PROGRESSIVE_BACK_BUFFER_MS, true)
-                    .setPrioritizeTimeOverSizeThresholds(true)
-                    .setTargetBufferBytes(PROGRESSIVE_TARGET_BUFFER_BYTES)
-                    .build()
+                TimeBandLoadControl.create(
+                    PROGRESSIVE_MIN_BUFFER_MS,
+                    PROGRESSIVE_MAX_BUFFER_MS,
+                    PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS,
+                    PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+                    PROGRESSIVE_TARGET_BUFFER_BYTES,
+                    PROGRESSIVE_BACK_BUFFER_MS,
+                )
             }
         val exoPlayer =
             ExoPlayer.Builder(playerView.context)
@@ -583,6 +572,13 @@ class NativePlayerManager(
             buffering &&
             !wasBuffering
         ) {
+            val aheadMs =
+                (exoPlayer.bufferedPosition - exoPlayer.currentPosition).coerceAtLeast(0L)
+            Log.w(
+                TAG,
+                "Mid-playback BUFFERING aheadMs=$aheadMs posMs=${exoPlayer.currentPosition} " +
+                    "bufferedMs=${exoPlayer.bufferedPosition} state=$playbackState",
+            )
             noteMidPlaybackRebuffer(now)
         }
         wasBuffering = buffering
@@ -812,24 +808,23 @@ class NativePlayerManager(
         private const val REBUFFER_ESCALATION_COUNT = 3
         private const val REBUFFER_ESCALATION_WINDOW_MS = 180_000L
 
-        // HLS / remux — ~110s drip band (≈1–2 segments of slack).
+        // HLS / remux — ~110s time band (TimeBandLoadControl; byte cap is allocator only).
         private const val HLS_MIN_BUFFER_MS = 108_000
         private const val HLS_MAX_BUFFER_MS = 116_000
         private const val HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
         private const val HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 10_000
         private const val HLS_BACK_BUFFER_MS = 60_000
-        /** ~116s at ~25 Mbps, with headroom for remux copy bitrates. */
-        private const val HLS_TARGET_BUFFER_BYTES = 420 * 1024 * 1024
+        /** Allocator trim hint — must not gate loading (see TimeBandLoadControl). */
+        private const val HLS_TARGET_BUFFER_BYTES = 512 * 1024 * 1024
 
-        // Progressive — deeper ~110s drip so slow NAS refills don't drain to zero;
-        // keep a tight band so the scrubber ahead stays flat.
+        // Progressive — ~110s time band so slow NAS Range reopens still have runway.
         private const val PROGRESSIVE_MIN_BUFFER_MS = 108_000
         private const val PROGRESSIVE_MAX_BUFFER_MS = 116_000
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
         /** After seek/underrun: enough runway that play doesn't immediately re-stall. */
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
         private const val PROGRESSIVE_BACK_BUFFER_MS = 30_000
-        /** ~116s at ~25 Mbps (4K direct play headroom). */
-        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 380 * 1024 * 1024
+        /** Allocator trim hint for ~4K; loading is gated by time band only. */
+        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 512 * 1024 * 1024
     }
 }
