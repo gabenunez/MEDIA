@@ -44,7 +44,13 @@ class NativePlayerManager(
     private var stallRecoveryPending = false
     private var playbackFailureReported = false
     private var hasReachedReady = false
+    /** One local seek+prepare before failing through mid-play. */
+    private var didAttemptSoftStallRecovery = false
     private var stallRecoveryRunnable: Runnable? = null
+    private var seekCoalesceRunnable: Runnable? = null
+    private var pendingSeekMs: Long? = null
+    /** Wall clock of the last user scrub/skip — suppresses stall recovery while refilling. */
+    private var lastUserSeekAtMs = 0L
     /** Latch so we only enable the GPU upscale graph once per play session. */
     private var sdUpscaleApplied = false
     /** Was ExoPlayer in STATE_BUFFERING on the previous progress tick. */
@@ -81,9 +87,13 @@ class NativePlayerManager(
         stallRecoveryPending = false
         playbackFailureReported = false
         hasReachedReady = false
+        didAttemptSoftStallRecovery = false
+        pendingSeekMs = null
+        lastUserSeekAtMs = 0L
         sdUpscaleApplied = false
         wasBuffering = false
         midRebufferAtMs.clear()
+        cancelSeekCoalesce()
         cancelStallRecovery()
 
         releasePlayer()
@@ -265,12 +275,36 @@ class NativePlayerManager(
     }
 
     fun seekTo(positionMs: Long) {
-        val target = positionMs.coerceAtLeast(0L)
-        // Scrubs (including backward) must reset the stall clock so the
-        // buffering watchdog does not treat a lower position as a stall.
-        markPlaybackProgress(target)
-        player?.seekTo(target)
+        // Coalesce rapid skip taps (-10 / +30) so each tap does not cancel the
+        // previous Range/segment refill — that is what felt "laggy" after skipping.
+        pendingSeekMs = positionMs.coerceAtLeast(0L)
+        cancelSeekCoalesce()
+        val runnable = Runnable {
+            seekCoalesceRunnable = null
+            val target = pendingSeekMs ?: return@Runnable
+            pendingSeekMs = null
+            dispatchUserSeek(target)
+        }
+        seekCoalesceRunnable = runnable
+        handler.postDelayed(runnable, SEEK_COALESCE_MS)
+    }
+
+    private fun dispatchUserSeek(targetMs: Long) {
+        val exoPlayer = player ?: return
+        // Cancel any in-flight soft recovery — a delayed seek+prepare after a
+        // user scrub destroys the new buffer window and leaves playback choppy.
+        cancelStallRecovery()
+        didAttemptSoftStallRecovery = false
+        lastUserSeekAtMs = System.currentTimeMillis()
+        markPlaybackProgress(targetMs)
+        exoPlayer.seekTo(targetMs)
+        exoPlayer.playWhenReady = true
         emitState()
+    }
+
+    private fun cancelSeekCoalesce() {
+        seekCoalesceRunnable?.let { handler.removeCallbacks(it) }
+        seekCoalesceRunnable = null
     }
 
     fun updateSubtitles(subtitleUrl: String?): Boolean {
@@ -320,7 +354,9 @@ class NativePlayerManager(
 
     fun stop() {
         handler.removeCallbacks(progressRunnable)
+        cancelSeekCoalesce()
         cancelStallRecovery()
+        pendingSeekMs = null
         if (!playbackEnded) {
             saveProgress(player?.currentPosition ?: 0L, ended = false)
         }
@@ -513,29 +549,33 @@ class NativePlayerManager(
         val exoPlayer = player ?: return
         val now = System.currentTimeMillis()
         val currentPositionMs = exoPlayer.currentPosition
-        val buffering = exoPlayer.playbackState == Player.STATE_BUFFERING
-        if (currentPositionMs > lastPlaybackPositionMs) {
-            markPlaybackProgress(currentPositionMs)
-            stallRecoveryAttempts = 0
-        } else if (
+        val playbackState = exoPlayer.playbackState
+        val buffering = playbackState == Player.STATE_BUFFERING
+        val stalledClockMs = now - lastPlaybackProgressAtMs
+
+        // Viewer wants play but the pipeline went IDLE (error cleared poorly,
+        // or a subtitle swap left us unprepared) — rebuild instead of spinning.
+        if (
             !playbackFailureReported &&
             exoPlayer.playWhenReady &&
-            buffering &&
-            now - lastPlaybackProgressAtMs >= stallTimeoutMs()
+            playbackState == Player.STATE_IDLE &&
+            exoPlayer.playerError == null
         ) {
-            // Do not seek+prepare on a buffering stall — that throws away the
-            // existing buffer and often leaves progressive/direct-play stuck.
-            // Hand off to the web remux/HLS ladder instead.
-            Log.w(
-                TAG,
-                "Buffering stall after ${stallTimeoutMs()}ms — failing through to remux/HLS",
-            )
-            reportPlaybackFailure()
+            Log.w(TAG, "playWhenReady with IDLE — re-preparing")
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = true
         }
 
-        // Brief underruns that recover never trip the 45s stall timer. Count
-        // mid-play rebuffer starts and fail through after a cluster of them —
-        // that matches "stops every few minutes, buffers, continues".
+        if (currentPositionMs > lastPlaybackPositionMs + 200L) {
+            markPlaybackProgress(currentPositionMs)
+            stallRecoveryAttempts = 0
+            didAttemptSoftStallRecovery = false
+        } else if (!playbackFailureReported && exoPlayer.playWhenReady) {
+            handlePlaybackStall(exoPlayer, buffering, playbackState, stalledClockMs)
+        }
+
+        // Brief underruns that recover never trip the hard stall timer. Count
+        // mid-play rebuffer starts and fail through after a cluster of them.
         if (
             !playbackFailureReported &&
             hasReachedReady &&
@@ -574,8 +614,63 @@ class NativePlayerManager(
         emitJs("window.__mediaNativePlayer?.onState?.($payload)")
     }
 
-    private fun stallTimeoutMs(): Long =
-        if (hasReachedReady) STALL_TIMEOUT_MS else INITIAL_BUFFER_GRACE_MS
+    /**
+     * Mid-play hangs used to sit in BUFFERING for 45s (or forever if the stall
+     * clock was reset / state was READY-but-frozen). Recover locally once, then
+     * fail through quickly so remux/HLS can take over.
+     *
+     * Never soft-recover in the post-seek refill window — that cancels the new
+     * progressive Range / HLS fetch and leaves playback laggy after skip/scrub.
+     * Keep in sync with resolveSeekStallWatchdogAction() in playback-utils.ts.
+     */
+    private fun handlePlaybackStall(
+        exoPlayer: ExoPlayer,
+        buffering: Boolean,
+        playbackState: Int,
+        stalledClockMs: Long,
+    ) {
+        val frozenReady =
+            hasReachedReady &&
+                playbackState == Player.STATE_READY &&
+                !exoPlayer.isPlaying &&
+                !buffering
+        val stuckBuffering = buffering
+        if (!frozenReady && !stuckBuffering) return
+
+        val now = System.currentTimeMillis()
+        if (lastUserSeekAtMs > 0L && now - lastUserSeekAtMs < SEEK_STALL_SUPPRESS_MS) {
+            return
+        }
+
+        val softAfter = if (hasReachedReady) MID_PLAY_SOFT_RECOVERY_MS else Long.MAX_VALUE
+        val failAfter = stallTimeoutMs()
+
+        if (stalledClockMs >= softAfter && !didAttemptSoftStallRecovery && !stallRecoveryPending) {
+            didAttemptSoftStallRecovery = true
+            Log.w(
+                TAG,
+                "Soft stall recovery after ${stalledClockMs}ms buffering=$buffering state=$playbackState",
+            )
+            if (schedulePlaybackRecovery(exoPlayer, "stall-soft", maxAttempts = 1)) {
+                return
+            }
+        }
+
+        if (stalledClockMs < failAfter) return
+
+        Log.w(
+            TAG,
+            "Playback stall after ${stalledClockMs}ms (limit=${failAfter}ms) buffering=$buffering state=$playbackState — failing through",
+        )
+        reportPlaybackFailure()
+    }
+
+    private fun stallTimeoutMs(): Long {
+        if (hasReachedReady) return MID_PLAY_STALL_TIMEOUT_MS
+        // Mid-title remux/HLS restarts already have a playhead — don't wait 90s.
+        val midPlayRestart = (currentPayload?.startSeconds ?: 0.0) > 1.0
+        return if (midPlayRestart) MID_PLAY_START_GRACE_MS else INITIAL_BUFFER_GRACE_MS
+    }
 
     private fun markPlaybackProgress(positionMs: Long) {
         lastPlaybackPositionMs = positionMs.coerceAtLeast(0L)
@@ -700,36 +795,41 @@ class NativePlayerManager(
         /** While watch chrome is hidden, keep progress warm without thrashing React. */
         private const val PROGRESS_INTERVAL_HIDDEN_MS = 1500L
         private const val WATCH_NEXT_UPDATE_INTERVAL_MS = 15_000L
-        /** After first READY, how long buffering may stall before remux/HLS handoff. */
-        private const val STALL_TIMEOUT_MS = 45_000L
-        /** Cold open (esp. 4K/HLS) may buffer >45s before the first frame. */
+        /** After first READY: soft recover, then fail through — never sit for 45s. */
+        private const val MID_PLAY_SOFT_RECOVERY_MS = 8_000L
+        private const val MID_PLAY_STALL_TIMEOUT_MS = 16_000L
+        /** Cold open (esp. 4K/HLS) may buffer before the first frame. */
         private const val INITIAL_BUFFER_GRACE_MS = 90_000L
+        /** Remux/HLS restart mid-title — shorter than cold open. */
+        private const val MID_PLAY_START_GRACE_MS = 35_000L
         private const val RECOVERY_DELAY_MS = 500L
+        /** Match NATIVE_SEEK_STALL_SUPPRESS_MS / NATIVE_SEEK_COALESCE_MS in playback-utils.ts */
+        private const val SEEK_STALL_SUPPRESS_MS = 12_000L
+        private const val SEEK_COALESCE_MS = 180L
         /** Transient network errors only — buffering watchdog fails through instead. */
         private const val MAX_STALL_RECOVERY_ATTEMPTS = 1
         /** Mid-play underruns that recover: escalate after this many in the window. */
         private const val REBUFFER_ESCALATION_COUNT = 3
         private const val REBUFFER_ESCALATION_WINDOW_MS = 180_000L
 
-        // HLS / remux — hold ~100s ahead. Band ≈ one–two segments so refill is a
-        // small top-up, not a 30s burst after draining from 120→90.
-        private const val HLS_MIN_BUFFER_MS = 96_000
-        private const val HLS_MAX_BUFFER_MS = 104_000
+        // HLS / remux — ~110s drip band (≈1–2 segments of slack).
+        private const val HLS_MIN_BUFFER_MS = 108_000
+        private const val HLS_MAX_BUFFER_MS = 116_000
         private const val HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
-        private const val HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 15_000
+        private const val HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 10_000
         private const val HLS_BACK_BUFFER_MS = 60_000
-        /** ~100s at ~25 Mbps, with headroom for remux copy bitrates. */
-        private const val HLS_TARGET_BUFFER_BYTES = 400 * 1024 * 1024
+        /** ~116s at ~25 Mbps, with headroom for remux copy bitrates. */
+        private const val HLS_TARGET_BUFFER_BYTES = 420 * 1024 * 1024
 
-        // Progressive direct play — ~90s target with a ~6s drip band. Ahead stays
-        // nearly flat instead of sawtoothing 75↔100; slack still prevents
-        // per-sample Range cancel/reopen thrash on NAS.
-        private const val PROGRESSIVE_MIN_BUFFER_MS = 88_000
-        private const val PROGRESSIVE_MAX_BUFFER_MS = 94_000
+        // Progressive — deeper ~110s drip so slow NAS refills don't drain to zero;
+        // keep a tight band so the scrubber ahead stays flat.
+        private const val PROGRESSIVE_MIN_BUFFER_MS = 108_000
+        private const val PROGRESSIVE_MAX_BUFFER_MS = 116_000
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
-        private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 8_000
+        /** After seek/underrun: enough runway that play doesn't immediately re-stall. */
+        private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
         private const val PROGRESSIVE_BACK_BUFFER_MS = 30_000
-        /** ~94s at ~25 Mbps (4K direct play headroom). */
-        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 320 * 1024 * 1024
+        /** ~116s at ~25 Mbps (4K direct play headroom). */
+        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 380 * 1024 * 1024
     }
 }

@@ -12,6 +12,9 @@ import {
   RECOVERY_FORGIVE_PROGRESS_SECONDS,
   recordMidPlaybackRebuffer,
   resolveGrowingEdgePlaybackRate,
+  shouldFailThroughContinuousMidBuffer,
+  resolveSeekStallWatchdogAction,
+  NATIVE_SEEK_STALL_SUPPRESS_MS,
   resolveRecoveryBudget,
   resolveSpuriousRecovery,
   resolveStallWatchdogAction,
@@ -589,6 +592,102 @@ describe("recordMidPlaybackRebuffer", () => {
     );
     expect(later.shouldEscalate).toBe(false);
     expect(later.timestampsMs).toEqual([REBUFFER_ESCALATION_WINDOW_MS + 11_000]);
+  });
+});
+
+describe("shouldFailThroughContinuousMidBuffer", () => {
+  it("escalates only after continuous mid-buffering past the timeout", () => {
+    expect(
+      shouldFailThroughContinuousMidBuffer({
+        bufferingMidPlayback: true,
+        bufferingStartedAtMs: 1000,
+        nowMs: 10_000,
+        timeoutMs: 20_000,
+      }),
+    ).toBe(false);
+    expect(
+      shouldFailThroughContinuousMidBuffer({
+        bufferingMidPlayback: true,
+        bufferingStartedAtMs: 1000,
+        nowMs: 22_000,
+        timeoutMs: 20_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not escalate when buffering has cleared", () => {
+    expect(
+      shouldFailThroughContinuousMidBuffer({
+        bufferingMidPlayback: false,
+        bufferingStartedAtMs: 1000,
+        nowMs: 50_000,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not escalate while a recent user seek is still refilling", () => {
+    expect(
+      shouldFailThroughContinuousMidBuffer({
+        bufferingMidPlayback: true,
+        bufferingStartedAtMs: 1000,
+        lastUserSeekAtMs: 15_000,
+        nowMs: 25_000,
+        timeoutMs: 20_000,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("resolveSeekStallWatchdogAction", () => {
+  it("suppresses soft recovery while a recent scrub/skip is refilling", () => {
+    // Regression: post-seek lag on Android TV — soft seek+prepare at ~8s was
+    // canceling the new progressive Range / HLS segment fetch after skip.
+    expect(
+      resolveSeekStallWatchdogAction({
+        msSinceUserSeek: 5_000,
+        msSinceProgress: 5_000,
+        hasReachedReady: true,
+      }),
+    ).toBe("suppress");
+
+    expect(
+      resolveSeekStallWatchdogAction({
+        msSinceUserSeek: NATIVE_SEEK_STALL_SUPPRESS_MS - 1,
+        msSinceProgress: 15_000,
+        hasReachedReady: true,
+      }),
+    ).toBe("suppress");
+  });
+
+  it("allows soft recovery only after the seek suppress window", () => {
+    expect(
+      resolveSeekStallWatchdogAction({
+        msSinceUserSeek: NATIVE_SEEK_STALL_SUPPRESS_MS,
+        msSinceProgress: 9_000,
+        hasReachedReady: true,
+      }),
+    ).toBe("allow-soft-recovery");
+  });
+
+  it("allows fail-through for a true mid-play hang with no recent seek", () => {
+    expect(
+      resolveSeekStallWatchdogAction({
+        msSinceUserSeek: null,
+        msSinceProgress: 16_000,
+        hasReachedReady: true,
+      }),
+    ).toBe("allow-fail-through");
+  });
+
+  it("does not soft-recover during cold start before first READY", () => {
+    expect(
+      resolveSeekStallWatchdogAction({
+        msSinceUserSeek: null,
+        msSinceProgress: 9_000,
+        hasReachedReady: false,
+        failThroughMs: 35_000,
+      }),
+    ).toBe("suppress");
   });
 });
 
