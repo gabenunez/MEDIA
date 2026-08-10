@@ -4,6 +4,7 @@ import {
   getContiguousBufferedAhead,
   playlistM3u8HasEndList,
   RECOVERY_FORGIVE_PROGRESS_SECONDS,
+  resolveGrowingEdgePlaybackRate,
   resolveRecoveryBudget,
   resolveStallWatchdogAction,
   startDirectPlaybackWithResume,
@@ -276,6 +277,19 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
           video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
           bufferAheadSeconds >= 0.25;
 
+        // Soft rate brake at the growing encode tip — prefer a slight slowdown
+        // over a hard underrun pause every couple of minutes.
+        if (userWantsPlay && !video.paused && !video.ended) {
+          const nextRate = resolveGrowingEdgePlaybackRate({
+            playlistHasEndList,
+            bufferAheadSeconds,
+            currentRate: video.playbackRate,
+          });
+          if (Math.abs(video.playbackRate - nextRate) > 0.001) {
+            video.playbackRate = nextRate;
+          }
+        }
+
         const decision = resolveStallWatchdogAction({
           msSinceAdvance: Date.now() - lastPlaybackAdvanceMs,
           bufferAheadSeconds,
@@ -291,7 +305,21 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
 
         if (decision.action === "none") return;
 
-        if (decision.action === "wait-grow" || decision.action === "nudge") {
+        if (decision.action === "wait-grow") {
+          // Keep the element trying to play; hls.js will append the next frag.
+          if (userWantsPlay && video.paused && !video.ended) {
+            void video.play().catch(() => {});
+          }
+          lastPlaybackAdvanceMs = Date.now();
+          return;
+        }
+
+        if (decision.action === "nudge") {
+          // Stuck-with-data: re-issue play() without seeking. A no-op play is
+          // safe; seeking here historically skipped the viewer ahead.
+          if (userWantsPlay) {
+            void video.play().catch(() => {});
+          }
           lastPlaybackAdvanceMs = Date.now();
           return;
         }
@@ -336,6 +364,9 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       video.removeEventListener("pause", onUserPause);
       stopDirectPlayback?.();
       destroyHlsInstance(hls);
+      if (video.playbackRate !== 1) {
+        video.playbackRate = 1;
+      }
     },
   };
 }

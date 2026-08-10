@@ -4,10 +4,14 @@ import {
   getPlaybackRestartSeconds,
   getContiguousBufferedAhead,
   getScrubberBufferedRanges,
+  GROWING_EDGE_PLAYBACK_RATE,
   isSpuriousHlsEnded,
   nextStableAbsoluteSeconds,
   playlistM3u8HasEndList,
+  REBUFFER_ESCALATION_WINDOW_MS,
   RECOVERY_FORGIVE_PROGRESS_SECONDS,
+  recordMidPlaybackRebuffer,
+  resolveGrowingEdgePlaybackRate,
   resolveRecoveryBudget,
   resolveSpuriousRecovery,
   resolveStallWatchdogAction,
@@ -557,6 +561,74 @@ describe("playhead stability (no auto skip/rewind)", () => {
         stableAbsoluteSeconds: 120,
       }),
     ).toBe(122);
+  });
+});
+
+describe("recordMidPlaybackRebuffer", () => {
+  it("escalates after a cluster of mid-play rebuffers", () => {
+    let timestamps: number[] = [];
+    const t0 = 1_000_000;
+
+    for (let i = 0; i < 2; i++) {
+      const result = recordMidPlaybackRebuffer(timestamps, t0 + i * 10_000);
+      timestamps = result.timestampsMs;
+      expect(result.shouldEscalate).toBe(false);
+    }
+
+    const third = recordMidPlaybackRebuffer(timestamps, t0 + 20_000);
+    expect(third.shouldEscalate).toBe(true);
+    expect(third.timestampsMs).toHaveLength(3);
+  });
+
+  it("forgets rebuffers outside the escalation window", () => {
+    const first = recordMidPlaybackRebuffer([], 0);
+    const second = recordMidPlaybackRebuffer(first.timestampsMs, 10_000);
+    const later = recordMidPlaybackRebuffer(
+      second.timestampsMs,
+      REBUFFER_ESCALATION_WINDOW_MS + 11_000,
+    );
+    expect(later.shouldEscalate).toBe(false);
+    expect(later.timestampsMs).toEqual([REBUFFER_ESCALATION_WINDOW_MS + 11_000]);
+  });
+});
+
+describe("resolveGrowingEdgePlaybackRate", () => {
+  it("slows near a growing encode edge and restores after refill", () => {
+    expect(
+      resolveGrowingEdgePlaybackRate({
+        playlistHasEndList: false,
+        bufferAheadSeconds: 2,
+        currentRate: 1,
+      }),
+    ).toBe(GROWING_EDGE_PLAYBACK_RATE);
+
+    expect(
+      resolveGrowingEdgePlaybackRate({
+        playlistHasEndList: false,
+        bufferAheadSeconds: 25,
+        currentRate: GROWING_EDGE_PLAYBACK_RATE,
+      }),
+    ).toBe(1);
+  });
+
+  it("keeps hysteresis between low and resume thresholds", () => {
+    expect(
+      resolveGrowingEdgePlaybackRate({
+        playlistHasEndList: false,
+        bufferAheadSeconds: 10,
+        currentRate: GROWING_EDGE_PLAYBACK_RATE,
+      }),
+    ).toBe(GROWING_EDGE_PLAYBACK_RATE);
+  });
+
+  it("never slows a finished (ENDLIST) playlist", () => {
+    expect(
+      resolveGrowingEdgePlaybackRate({
+        playlistHasEndList: true,
+        bufferAheadSeconds: 0,
+        currentRate: 1,
+      }),
+    ).toBe(1);
   });
 });
 

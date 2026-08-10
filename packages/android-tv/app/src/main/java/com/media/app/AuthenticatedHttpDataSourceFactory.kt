@@ -10,8 +10,10 @@ class AuthenticatedHttpDataSourceFactory(
 ) : HttpDataSource.Factory {
     private val upstream = DefaultHttpDataSource.Factory()
         .setAllowCrossProtocolRedirects(true)
+        // Progressive/NAS refills can pause briefly between Range chunks; keep
+        // the socket patient so a slow disk does not surface as a mid-play stall.
         .setConnectTimeoutMs(30_000)
-        .setReadTimeoutMs(60_000)
+        .setReadTimeoutMs(120_000)
         .setUserAgent("MediaAndroidTV/1.1 ExoPlayer")
 
     override fun createDataSource(): HttpDataSource {
