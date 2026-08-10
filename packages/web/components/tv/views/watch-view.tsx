@@ -805,7 +805,8 @@ export function TvWatchView() {
         ) {
           void syncNativeSubtitles({ restartOnFailure: false });
         }
-        if (!controlsNeedPaint) return;
+        // Keep the scrubber buffer bar fresh even while chrome is hidden so
+        // revealing controls does not show a stale range that then "jumps".
         const offset = hlsStartOffsetRef.current;
         const relativeRanges =
           state.bufferedRanges && state.bufferedRanges.length > 0
@@ -828,6 +829,7 @@ export function TvWatchView() {
           lastBufferedRangesKeyRef.current = rangesKey;
           setBufferedRanges(absoluteRanges);
         }
+        if (!controlsNeedPaint) return;
       },
       onError: () => {
         const session = nativePlaySessionRef.current;
@@ -2279,7 +2281,7 @@ export function TvWatchView() {
             className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
           >
             <div className="watch-chrome-bottom pointer-events-auto px-5 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-8">
-              <div className="group/watch-scrub relative mb-3 flex items-center gap-3 overflow-visible">
+              <div className="group/watch-scrub relative mb-3.5 flex items-center gap-4 overflow-visible">
                 <div
                   data-tv-row=""
                   data-tv-content-row=""
@@ -2297,7 +2299,7 @@ export function TvWatchView() {
                       spriteUrl={thumbnails?.spriteUrl ?? null}
                     />
                   )}
-                  <div className="relative h-5">
+                  <div className="relative h-6">
                     <TvWatchScrubTrack
                       bufferedRanges={bufferedRanges}
                       progress={displayedProgress}
@@ -2325,20 +2327,18 @@ export function TvWatchView() {
                         }
                         setScrubPreview(null);
                       }}
-                      className="absolute inset-x-0 top-1/2 z-[3] h-5 w-full -translate-y-1/2 border-2 border-transparent bg-transparent p-0"
+                      className="absolute inset-x-0 top-1/2 z-[3] h-6 w-full -translate-y-1/2 border-2 border-transparent bg-transparent p-0"
                     />
                   </div>
                 </div>
 
-                <span
-                  className={cn(
-                    "shrink-0 font-mono text-xs tabular-nums text-white/85",
-                    usesNativePlayer && "drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]",
-                  )}
-                >
+                <span className="watch-scrub-time shrink-0 font-mono tabular-nums">
                   {formatDuration(displayedAbsoluteTime * 1000)}
                   {totalDurationSeconds > 0 && (
-                    <> / {formatDuration(totalDurationSeconds * 1000)}</>
+                    <>
+                      <span className="text-white/40"> / </span>
+                      {formatDuration(totalDurationSeconds * 1000)}
+                    </>
                   )}
                 </span>
               </div>

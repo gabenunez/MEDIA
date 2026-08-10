@@ -94,12 +94,11 @@ class NativePlayerManager(
         //   buffered < min  → keep loading (if prioritizeTime, even past byte cap)
         //   buffered >= max → stop loading
         //   between min/max → keep prior state
-        // Progressive MUST use hysteresis (min < max). min=max cancels/reopens the
-        // HTTP Range stream on every watermark flicker and causes mid-show
-        // underruns on NAS/symlink libraries. Keep the idle window short so the
-        // connection does not go cold, but wide enough to avoid load thrashing.
-        // HLS is segment-based so a tighter band is fine; still keep a little
-        // hysteresis plus a byte budget so high-bitrate remux can fill.
+        // Wide min≪max hysteresis makes the scrubber/ahead buffer sawtooth:
+        // drain for (max-min) then burst-refill — feels like the buffer "jumps".
+        // Use a tight band around the target (drip-style top-up) so ahead stays
+        // nearly constant. A few seconds of slack still avoids cancel/reopen
+        // thrash on progressive Range streams without a 20–30s refill jump.
         val loadControl =
             if (payload.isHls) {
                 DefaultLoadControl.Builder()
@@ -712,25 +711,25 @@ class NativePlayerManager(
         private const val REBUFFER_ESCALATION_COUNT = 3
         private const val REBUFFER_ESCALATION_WINDOW_MS = 180_000L
 
-        // HLS / remux — stay ~90–120s ahead. Small hysteresis avoids cancel/reopen
-        // thrash; byte budget + prioritizeTime lets high-bitrate remux fill.
-        private const val HLS_MIN_BUFFER_MS = 90_000
-        private const val HLS_MAX_BUFFER_MS = 120_000
+        // HLS / remux — hold ~100s ahead. Band ≈ one–two segments so refill is a
+        // small top-up, not a 30s burst after draining from 120→90.
+        private const val HLS_MIN_BUFFER_MS = 96_000
+        private const val HLS_MAX_BUFFER_MS = 104_000
         private const val HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
         private const val HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 15_000
         private const val HLS_BACK_BUFFER_MS = 60_000
-        /** ~2 min at ~25 Mbps, with headroom for remux copy bitrates. */
+        /** ~100s at ~25 Mbps, with headroom for remux copy bitrates. */
         private const val HLS_TARGET_BUFFER_BYTES = 400 * 1024 * 1024
 
-        // Progressive direct play — deep forward buffer with short hysteresis.
-        // Refill starts with ~75s still ahead; fill to ~100s. Avoids both long
-        // NAS idle gaps (old max=120/min=15) and min=max Range-request thrash.
-        private const val PROGRESSIVE_MIN_BUFFER_MS = 75_000
-        private const val PROGRESSIVE_MAX_BUFFER_MS = 100_000
+        // Progressive direct play — ~90s target with a ~6s drip band. Ahead stays
+        // nearly flat instead of sawtoothing 75↔100; slack still prevents
+        // per-sample Range cancel/reopen thrash on NAS.
+        private const val PROGRESSIVE_MIN_BUFFER_MS = 88_000
+        private const val PROGRESSIVE_MAX_BUFFER_MS = 94_000
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 8_000
         private const val PROGRESSIVE_BACK_BUFFER_MS = 30_000
-        /** ~100s at ~20 Mbps (4K direct play headroom). */
-        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 280 * 1024 * 1024
+        /** ~94s at ~25 Mbps (4K direct play headroom). */
+        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 320 * 1024 * 1024
     }
 }
