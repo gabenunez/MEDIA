@@ -1280,7 +1280,7 @@ function WatchDesktopClient() {
 
         <div className="watch-chrome-bottom pointer-events-auto px-4 pb-4 pt-16 sm:px-6 sm:pb-5">
           <div className="mx-auto max-w-7xl">
-            <div className="group/watch-scrub relative mb-3 flex items-center gap-3 overflow-visible sm:mb-4">
+            <div className="group/watch-scrub relative mb-3.5 flex items-center gap-3.5 overflow-visible sm:mb-4">
               <div
                 ref={timelineRef}
                 className="relative flex-1 overflow-visible"
@@ -1295,7 +1295,7 @@ function WatchDesktopClient() {
                     spriteUrl={thumbnails?.spriteUrl ?? null}
                   />
                 )}
-                <div className="relative h-5">
+                <div className="relative h-6">
                 <div className="watch-scrub-track absolute inset-x-0 top-1/2 -translate-y-1/2">
                   {bufferedRanges.map((range, index) => {
                     const left = toTimelinePercent(range.start);

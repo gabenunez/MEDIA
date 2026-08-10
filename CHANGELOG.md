@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.189 — 2026-08-09
+
+### TV
+
+- **Playback (APK 1.5.10)** — tighten progressive/HLS LoadControl to a drip band (~90s / ~100s) so forward buffer stays steady instead of sawtoothing between wide min/max watermarks
+- **Watch scrubber** — clearer rail/buffer/progress layers, larger white-ringed playhead, cleaner focus state, and tidier time readout (desktop + TV)
+
 ## 0.1.188 — 2026-08-09
 
 ### TV
