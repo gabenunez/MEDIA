@@ -9,20 +9,26 @@ function apiUrl(path: string): string {
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+  // Fastify 5 rejects Content-Type: application/json with an empty body
+  // (FST_ERR_CTP_EMPTY_JSON_BODY). Only set it when we actually send JSON.
+  const headers = new Headers(options?.headers);
+  if (options?.body != null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const res = await fetch(apiUrl(path), {
     ...options,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {
     let message = `API error: ${res.status}`;
     try {
-      const body = (await res.json()) as { error?: string };
-      if (body.error) message = body.error;
+      const body = (await res.json()) as { error?: string; message?: string };
+      if (body.error && body.error !== "Bad Request") message = body.error;
+      else if (body.message) message = body.message;
+      else if (body.error) message = body.error;
     } catch {
       // ignore parse errors
     }

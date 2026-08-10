@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.192 — 2026-08-09
+
+### Fix
+
+- **Settings** — stop library/deck/favorite/subtitle deletes (and other body-less API calls) from failing with Fastify “Bad Request” when `Content-Type: application/json` was set with an empty body
+
 ## 0.1.191 — 2026-08-09
 
 ### TV
