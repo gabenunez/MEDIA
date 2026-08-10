@@ -158,7 +158,7 @@ function SegmentedControl<T extends string>({
   return (
     <div
       className={cn(
-        "inline-flex max-w-full rounded-md border border-border/70 bg-muted/30 p-0.5",
+        "inline-flex max-w-full rounded-md border border-white/15 bg-white/5 p-0.5",
         disabled && "pointer-events-none opacity-40",
       )}
       role="group"
@@ -172,8 +172,8 @@ function SegmentedControl<T extends string>({
           className={cn(
             "rounded-[5px] px-2 py-0.5 text-[11px] font-medium leading-5 transition-colors",
             value === option.value
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-primary/25 text-white"
+              : "text-white/55 hover:text-white",
           )}
         >
           {option.label}
@@ -186,7 +186,7 @@ function SegmentedControl<T extends string>({
 function SettingRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+      <span className="watch-menu-muted shrink-0 text-xs">{label}</span>
       <div className="min-w-0 text-right">{children}</div>
     </div>
   );
@@ -246,14 +246,14 @@ export function DesktopSubtitleAppearancePanel({ onBack }: { onBack: () => void 
     <div className="w-72">
       <button
         type="button"
-        className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+        className="watch-menu-item flex items-center gap-1"
         onClick={onBack}
       >
         <ChevronLeft className="h-4 w-4 shrink-0 opacity-70" />
         Subtitles
       </button>
 
-      <div className="my-1 border-t border-border" />
+      <div className="watch-menu-divider" />
 
       <div className="px-2 pb-1">
         <SubtitleStylePreview styles={styles} compact />
@@ -277,7 +277,7 @@ export function DesktopSubtitleAppearancePanel({ onBack }: { onBack: () => void 
         </SettingRow>
 
         <div className="px-2 py-1.5">
-          <span className="text-xs text-muted-foreground">Color</span>
+          <span className="watch-menu-muted text-xs">Color</span>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {SUBTITLE_COLOR_OPTIONS.map((option) => (
               <button
@@ -289,7 +289,7 @@ export function DesktopSubtitleAppearancePanel({ onBack }: { onBack: () => void 
                 className={cn(
                   "h-5 w-5 rounded-full border-2 transition-transform hover:scale-105",
                   styles.color === option.value
-                    ? "border-primary ring-2 ring-primary/30"
+                    ? "border-primary"
                     : "border-white/20",
                 )}
                 style={{ backgroundColor: SUBTITLE_SWATCH_COLORS[option.value] }}
@@ -341,15 +341,14 @@ export function DesktopSubtitleAppearancePanel({ onBack }: { onBack: () => void 
         </SettingRow>
       </div>
 
-      <div className="mt-1 border-t border-border px-1 pt-1">
-        <button
-          type="button"
-          className="w-full rounded px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={resetStyles}
-        >
-          Reset to defaults
-        </button>
-      </div>
+      <div className="watch-menu-divider mx-1" />
+      <button
+        type="button"
+        className="watch-menu-item watch-menu-muted text-xs"
+        onClick={resetStyles}
+      >
+        Reset to defaults
+      </button>
     </div>
   );
 }

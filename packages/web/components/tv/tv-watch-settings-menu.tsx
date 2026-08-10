@@ -19,7 +19,7 @@ export function TvWatchSideSheet({
         data-tv-watch-side-sheet=""
         className={cn(
           "relative flex h-full w-[min(24rem,36vw)] min-w-[17rem] flex-col",
-          "border-l border-white/15 bg-background shadow-2xl",
+          "border-l-2 border-white/15 bg-[rgb(8_14_16)] shadow-2xl",
           className,
         )}
       >
@@ -62,9 +62,9 @@ export function TvWatchMenuPanel({
             <ChevronLeft className="h-6 w-6" />
           </TvFocusButton>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-lg font-bold text-white">{title}</h2>
+            <h2 className="watch-title truncate text-lg">{title}</h2>
             {description ? (
-              <p className="mt-0.5 truncate text-sm text-muted-foreground">{description}</p>
+              <p className="mt-0.5 truncate text-sm text-white/55">{description}</p>
             ) : null}
           </div>
         </div>
@@ -114,8 +114,9 @@ export function TvWatchPopover({
   return (
     <div
       data-tv-watch-menu=""
+      data-tv-watch-popover=""
       className={cn(
-        "absolute bottom-full right-0 z-50 mb-2 max-h-[min(70vh,32rem)] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-md border border-border bg-card p-1 shadow-xl",
+        "absolute bottom-full right-0 z-50 mb-2.5 max-h-[min(70vh,32rem)] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-xl border-2 border-white/15 bg-[rgb(8_14_16)] p-1.5 shadow-xl",
         className,
       )}
     >
@@ -130,7 +131,7 @@ export function tvWatchMenuOptionClassName(extra?: string) {
 
 export function tvWatchPopoverOptionClassName(...extra: Array<string | false | null | undefined>) {
   return cn(
-    "min-h-10 w-full whitespace-normal break-words rounded px-3 py-2 text-left text-sm leading-snug",
+    "min-h-10 w-full whitespace-normal break-words rounded-lg px-3 py-2.5 text-left text-sm leading-snug",
     ...extra,
   );
 }

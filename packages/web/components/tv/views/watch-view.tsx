@@ -1811,6 +1811,7 @@ export function TvWatchView() {
   const seekPreviewMaxWidth = isTv4KClient() ? 224 : 200;
 
   const controlIconButtonClassName = "watch-control-btn shrink-0";
+  const playControlButtonClassName = "watch-control-btn watch-control-btn--play shrink-0";
   const controlLabelButtonClassName = "watch-control-btn watch-control-btn--label shrink-0";
 
   const handleWatchBack = useCallback((): boolean => {
@@ -2174,12 +2175,7 @@ export function TvWatchView() {
               usesNativePlayer ? "bg-transparent" : "bg-black/40",
             )}
           >
-            <div
-              className={cn(
-                "flex items-center gap-2.5 rounded-xl border border-white/10 px-4 py-3 text-base text-white",
-                usesNativePlayer ? "bg-black/75" : "bg-background/80",
-              )}
-            >
+            <div className="watch-status-chip text-base">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               {loadingMessage}
             </div>
@@ -2195,7 +2191,7 @@ export function TvWatchView() {
             aria-label="Buffering"
           >
             <div className="flex flex-col items-center gap-3 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-8">
-              <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-black/75 px-4 py-2.5 text-sm text-white">
+              <div className="watch-status-chip text-sm">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 Buffering...
               </div>
@@ -2305,20 +2301,10 @@ export function TvWatchView() {
                 className="flex items-center gap-2 py-0.5"
               >
                 <div className="min-w-0">
-                  <p
-                    className={cn(
-                      "truncate text-base font-semibold text-white",
-                      usesNativePlayer && "drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]",
-                    )}
-                  >
+                  <p className="watch-title truncate text-base">
                     {title || "Playing"}
                   </p>
-                  <p
-                    className={cn(
-                      "text-xs text-white/70",
-                      usesNativePlayer && "drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]",
-                    )}
-                  >
+                  <p className="watch-meta mt-0.5 truncate">
                     {qualityLabel(quality, sourceHeight, sourceWidth)}
                     {formatDynamicRangeChromeSuffix(streamInfo?.dynamicRange)}
                     {activeSubtitle !== null && " · Subtitles on"}
@@ -2421,7 +2407,7 @@ export function TvWatchView() {
                     ref={playButtonRef}
                     variant="watch"
                     onClick={togglePlay}
-                    className={controlIconButtonClassName}
+                    className={playControlButtonClassName}
                     aria-label={bufferingMidPlayback ? "Buffering" : isPlaying ? "Pause" : "Play"}
                   >
                     <span
