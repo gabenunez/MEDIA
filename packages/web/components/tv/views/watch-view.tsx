@@ -20,6 +20,7 @@ import {
   PROGRESS_SAVE_MS,
   getPlaybackRestartSeconds,
   nextStableAbsoluteSeconds,
+  recordMidPlaybackRebuffer,
   resolvePlaybackStartSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
@@ -222,6 +223,8 @@ export function TvWatchView() {
   const nativeMidBufferDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastBufferedRangesKeyRef = useRef("");
   const playbackHasBegunRef = useRef(false);
+  const midRebufferTimestampsRef = useRef<number[]>([]);
+  const webMidBufferingRef = useRef(false);
 
   const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
 
@@ -780,6 +783,8 @@ export function TvWatchView() {
           if (!midBuffering) {
             setBufferingMidPlayback(false);
           } else {
+            // Native APK counts clustered rebuffers and fails through via onError.
+            // Only paint the buffering UI here (debounced).
             nativeMidBufferDebounceRef.current = setTimeout(() => {
               nativeMidBufferDebounceRef.current = null;
               setBufferingMidPlayback(true);
@@ -911,6 +916,7 @@ export function TvWatchView() {
     nativeRemuxFallbackRef.current = false;
     nativeTranscodeFallbackRef.current = false;
     nativeHlsRecoveryAttemptsRef.current = 0;
+    midRebufferTimestampsRef.current = [];
     nativePausedAtRef.current = null;
     nativeIsPlayingRef.current = false;
     nativePlaySessionRef.current = 0;
@@ -1071,6 +1077,8 @@ export function TvWatchView() {
         nativeMidBufferDebounceRef.current = null;
       }
       setBufferingMidPlayback(false);
+      midRebufferTimestampsRef.current = [];
+      webMidBufferingRef.current = false;
 
       hlsStartOffsetRef.current = usingHls ? startAt : 0;
       if (usingHls) {
@@ -1607,9 +1615,31 @@ export function TvWatchView() {
       },
       onDuration: setDuration,
       onBuffering: (nextBuffering, midPlayback) => {
+        const startedMidRebuffer = midPlayback && !webMidBufferingRef.current;
+        webMidBufferingRef.current = midPlayback;
         playbackBufferingRef.current = nextBuffering || midPlayback;
         setBuffering(nextBuffering);
         setBufferingMidPlayback(midPlayback);
+        // WebView (non-native) progressive: escalate clustered underruns to remux.
+        if (
+          startedMidRebuffer &&
+          !usingHlsPlayback &&
+          !nativeRemuxFallbackRef.current &&
+          streamInfoRef.current?.transcodingEnabled &&
+          isHlsVideoCopySupported(streamInfoRef.current.videoCodec)
+        ) {
+          const decision = recordMidPlaybackRebuffer(
+            midRebufferTimestampsRef.current,
+            Date.now(),
+          );
+          midRebufferTimestampsRef.current = decision.timestampsMs;
+          if (decision.shouldEscalate) {
+            nativeRemuxFallbackRef.current = true;
+            captureStreamRestartPosition();
+            setForceRemux(true);
+            setStreamGeneration((g) => g + 1);
+          }
+        }
       },
       onSeekResolved: (actual) => {
         if (optimisticAbsoluteSeconds === null) return;

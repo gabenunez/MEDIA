@@ -707,6 +707,59 @@ export const STALL_MAX_WAIT_GROW_TICKS = 30;
 export const STALL_MAX_NUDGES_BEFORE_RESET = 3;
 export const STALL_MAX_NUDGES_BEFORE_FATAL = 6;
 
+/** Clustered mid-play underruns that recover (not a hard 45s stall). */
+export const REBUFFER_ESCALATION_COUNT = 3;
+export const REBUFFER_ESCALATION_WINDOW_MS = 180_000;
+
+/**
+ * Soft playback-rate brake at a growing encode edge. Prefer a tiny slowdown
+ * over a hard pause — avoids the old buffer-gate infinite-hold failure mode.
+ */
+export const GROWING_EDGE_RATE_LOW_BUFFER_SECONDS = 6;
+export const GROWING_EDGE_RATE_RESUME_BUFFER_SECONDS = 18;
+export const GROWING_EDGE_PLAYBACK_RATE = 0.92;
+
+/**
+ * Record a mid-playback rebuffer and decide whether to escalate (e.g. progressive
+ * → remux). Ignores cold-start buffering before playback has begun.
+ */
+export function recordMidPlaybackRebuffer(
+  priorTimestampsMs: number[],
+  nowMs: number,
+  options?: { windowMs?: number; count?: number },
+): { timestampsMs: number[]; shouldEscalate: boolean } {
+  const windowMs = options?.windowMs ?? REBUFFER_ESCALATION_WINDOW_MS;
+  const count = options?.count ?? REBUFFER_ESCALATION_COUNT;
+  const timestampsMs = priorTimestampsMs
+    .filter((t) => nowMs - t <= windowMs)
+    .concat(nowMs);
+  return {
+    timestampsMs,
+    shouldEscalate: timestampsMs.length >= count,
+  };
+}
+
+/** PlaybackRate to use while waiting on a growing (no-ENDLIST) HLS edge. */
+export function resolveGrowingEdgePlaybackRate(options: {
+  playlistHasEndList: boolean;
+  bufferAheadSeconds: number;
+  currentRate: number;
+  lowBufferSeconds?: number;
+  resumeBufferSeconds?: number;
+  slowRate?: number;
+}): number {
+  if (options.playlistHasEndList) return 1;
+  const low = options.lowBufferSeconds ?? GROWING_EDGE_RATE_LOW_BUFFER_SECONDS;
+  const resume =
+    options.resumeBufferSeconds ?? GROWING_EDGE_RATE_RESUME_BUFFER_SECONDS;
+  const slow = options.slowRate ?? GROWING_EDGE_PLAYBACK_RATE;
+
+  if (options.bufferAheadSeconds < low) return slow;
+  if (options.bufferAheadSeconds >= resume) return 1;
+  // Hysteresis: keep the current rate between low and resume thresholds.
+  return options.currentRate === slow ? slow : 1;
+}
+
 export function resolveStallWatchdogAction(options: {
   msSinceAdvance: number;
   bufferAheadSeconds: number;

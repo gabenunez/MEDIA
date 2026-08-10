@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.188 — 2026-08-09
+
+### TV
+
+- **Playback (APK 1.5.9)** — restore progressive LoadControl hysteresis (`75–100s`) with an explicit byte budget so HTTP/NAS Range streams stop thrashing at `min=max` watermarks; HLS keeps a short `90–120s` band
+- **Playback** — after three mid-play rebuffers in three minutes, fail through to remux/HLS (brief underruns that recover never hit the 45s stall timer)
+- **Playback** — lengthen ExoPlayer HTTP read timeout to 120s for slow progressive/NAS refills
+
+### Playback
+
+- **HLS** — soft playback-rate brake near a growing encode edge, and make stall wait-grow/nudge re-issue `play()` instead of only resetting timers
+- **Server** — larger progressive stream read buffer (`8MB`) to keep disk/NAS reads warm between client refills
+
 ## 0.1.187 — 2026-07-27
 
 ### TV

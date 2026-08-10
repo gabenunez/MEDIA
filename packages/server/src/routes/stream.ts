@@ -76,7 +76,8 @@ type StreamFile = {
   audioCodec?: string | null;
 };
 
-const STREAM_READ_HIGH_WATER_MARK = 2 * 1024 * 1024;
+/** Larger chunks keep progressive/NAS reads warm between ExoPlayer refills. */
+const STREAM_READ_HIGH_WATER_MARK = 8 * 1024 * 1024;
 
 function parseStartSeconds(value?: string): number {
   if (!value) return 0;

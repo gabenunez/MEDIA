@@ -47,6 +47,10 @@ class NativePlayerManager(
     private var stallRecoveryRunnable: Runnable? = null
     /** Latch so we only enable the GPU upscale graph once per play session. */
     private var sdUpscaleApplied = false
+    /** Was ExoPlayer in STATE_BUFFERING on the previous progress tick. */
+    private var wasBuffering = false
+    /** Timestamps of mid-playback rebuffer starts (after first READY). */
+    private val midRebufferAtMs = ArrayDeque<Long>()
 
     /** When true, JS chrome is hidden — emit progress less often to cut WebView work. */
     private var uiOverlayVisible = true
@@ -78,6 +82,8 @@ class NativePlayerManager(
         playbackFailureReported = false
         hasReachedReady = false
         sdUpscaleApplied = false
+        wasBuffering = false
+        midRebufferAtMs.clear()
         cancelStallRecovery()
 
         releasePlayer()
@@ -87,12 +93,13 @@ class NativePlayerManager(
         // ExoPlayer LoadControl state machine (Media3 DefaultLoadControl):
         //   buffered < min  → keep loading (if prioritizeTime, even past byte cap)
         //   buffered >= max → stop loading
-        //   between min/max → keep prior state, BUT byte-cap still forces stop
-        // So max is only reachable when targetBufferBytes can hold that much
-        // media, OR when min≈max (stay in the "< min" branch until filled).
-        // Progressive uses Media3's own default min=max=50s so HTTP/NAS is
-        // continuously topped up. HLS uses min≈max too so remux segments keep
-        // being pulled instead of idling until the buffer is half empty.
+        //   between min/max → keep prior state
+        // Progressive MUST use hysteresis (min < max). min=max cancels/reopens the
+        // HTTP Range stream on every watermark flicker and causes mid-show
+        // underruns on NAS/symlink libraries. Keep the idle window short so the
+        // connection does not go cold, but wide enough to avoid load thrashing.
+        // HLS is segment-based so a tighter band is fine; still keep a little
+        // hysteresis plus a byte budget so high-bitrate remux can fill.
         val loadControl =
             if (payload.isHls) {
                 DefaultLoadControl.Builder()
@@ -116,6 +123,7 @@ class NativePlayerManager(
                     )
                     .setBackBuffer(PROGRESSIVE_BACK_BUFFER_MS, true)
                     .setPrioritizeTimeOverSizeThresholds(true)
+                    .setTargetBufferBytes(PROGRESSIVE_TARGET_BUFFER_BYTES)
                     .build()
             }
         val exoPlayer =
@@ -506,13 +514,14 @@ class NativePlayerManager(
         val exoPlayer = player ?: return
         val now = System.currentTimeMillis()
         val currentPositionMs = exoPlayer.currentPosition
+        val buffering = exoPlayer.playbackState == Player.STATE_BUFFERING
         if (currentPositionMs > lastPlaybackPositionMs) {
             markPlaybackProgress(currentPositionMs)
             stallRecoveryAttempts = 0
         } else if (
             !playbackFailureReported &&
             exoPlayer.playWhenReady &&
-            exoPlayer.playbackState == Player.STATE_BUFFERING &&
+            buffering &&
             now - lastPlaybackProgressAtMs >= stallTimeoutMs()
         ) {
             // Do not seek+prepare on a buffering stall — that throws away the
@@ -524,6 +533,20 @@ class NativePlayerManager(
             )
             reportPlaybackFailure()
         }
+
+        // Brief underruns that recover never trip the 45s stall timer. Count
+        // mid-play rebuffer starts and fail through after a cluster of them —
+        // that matches "stops every few minutes, buffers, continues".
+        if (
+            !playbackFailureReported &&
+            hasReachedReady &&
+            exoPlayer.playWhenReady &&
+            buffering &&
+            !wasBuffering
+        ) {
+            noteMidPlaybackRebuffer(now)
+        }
+        wasBuffering = buffering
         val durationMs = when {
             exoPlayer.duration > 0 -> exoPlayer.duration
             (currentPayload?.durationMs ?: 0L) > 0 -> currentPayload!!.durationMs
@@ -536,10 +559,7 @@ class NativePlayerManager(
             .put("buffered", exoPlayer.bufferedPosition / 1000.0)
             .put("bufferedRanges", buildBufferedRanges(exoPlayer))
             .put("isPlaying", exoPlayer.isPlaying)
-            .put(
-                "isBuffering",
-                exoPlayer.playbackState == Player.STATE_BUFFERING,
-            )
+            .put("isBuffering", buffering)
             // Sticky: web treats ready&&buffering as "mid-playback rebuffer".
             // ExoPlayer STATE_READY and STATE_BUFFERING are mutually exclusive,
             // so a momentary ready flag made mid-buffer UI impossible.
@@ -561,6 +581,23 @@ class NativePlayerManager(
     private fun markPlaybackProgress(positionMs: Long) {
         lastPlaybackPositionMs = positionMs.coerceAtLeast(0L)
         lastPlaybackProgressAtMs = System.currentTimeMillis()
+    }
+
+    private fun noteMidPlaybackRebuffer(nowMs: Long) {
+        midRebufferAtMs.addLast(nowMs)
+        while (
+            midRebufferAtMs.isNotEmpty() &&
+            nowMs - midRebufferAtMs.first() > REBUFFER_ESCALATION_WINDOW_MS
+        ) {
+            midRebufferAtMs.removeFirst()
+        }
+        if (midRebufferAtMs.size < REBUFFER_ESCALATION_COUNT) return
+
+        Log.w(
+            TAG,
+            "Repeated mid-playback rebuffers (${midRebufferAtMs.size} in ${REBUFFER_ESCALATION_WINDOW_MS}ms) — failing through to remux/HLS",
+        )
+        reportPlaybackFailure()
     }
 
     private fun cancelStallRecovery() {
@@ -671,26 +708,29 @@ class NativePlayerManager(
         private const val RECOVERY_DELAY_MS = 500L
         /** Transient network errors only — buffering watchdog fails through instead. */
         private const val MAX_STALL_RECOVERY_ATTEMPTS = 1
+        /** Mid-play underruns that recover: escalate after this many in the window. */
+        private const val REBUFFER_ESCALATION_COUNT = 3
+        private const val REBUFFER_ESCALATION_WINDOW_MS = 180_000L
 
-        // HLS / remux — min≈max so we continuously pull new segments (~90s ahead)
-        // instead of idling after a deep fill. prioritizeTime + byte budget lets
-        // high-bitrate remux actually reach the time target (byte cap alone would
-        // stop loading as soon as buffered >= min).
+        // HLS / remux — stay ~90–120s ahead. Small hysteresis avoids cancel/reopen
+        // thrash; byte budget + prioritizeTime lets high-bitrate remux fill.
         private const val HLS_MIN_BUFFER_MS = 90_000
-        private const val HLS_MAX_BUFFER_MS = 90_000
+        private const val HLS_MAX_BUFFER_MS = 120_000
         private const val HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
         private const val HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 15_000
         private const val HLS_BACK_BUFFER_MS = 60_000
-        /** ~90s at ~25 Mbps, with headroom for remux copy bitrates. */
-        private const val HLS_TARGET_BUFFER_BYTES = 320 * 1024 * 1024
+        /** ~2 min at ~25 Mbps, with headroom for remux copy bitrates. */
+        private const val HLS_TARGET_BUFFER_BYTES = 400 * 1024 * 1024
 
-        // Progressive direct play — Media3 defaults (min=max=50s). Equal watermarks
-        // mean continuous top-up: resume the moment buffer dips below 50s, so
-        // HTTP/NAS never sits idle for tens of seconds between refills.
-        private const val PROGRESSIVE_MIN_BUFFER_MS = 50_000
-        private const val PROGRESSIVE_MAX_BUFFER_MS = 50_000
+        // Progressive direct play — deep forward buffer with short hysteresis.
+        // Refill starts with ~75s still ahead; fill to ~100s. Avoids both long
+        // NAS idle gaps (old max=120/min=15) and min=max Range-request thrash.
+        private const val PROGRESSIVE_MIN_BUFFER_MS = 75_000
+        private const val PROGRESSIVE_MAX_BUFFER_MS = 100_000
         private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
-        private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
+        private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 8_000
         private const val PROGRESSIVE_BACK_BUFFER_MS = 30_000
+        /** ~100s at ~20 Mbps (4K direct play headroom). */
+        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 280 * 1024 * 1024
     }
 }
