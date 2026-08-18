@@ -23,6 +23,7 @@ import { LibraryManager } from "@/components/library-manager";
 import { DeckManager } from "@/components/deck-manager";
 import { UpdateManager } from "@/components/update-manager";
 import { SettingsSection } from "@/components/settings-shell";
+import { AliasManager } from "@/components/alias-manager";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
 export function SettingsClient() {
@@ -226,6 +227,15 @@ export function SettingsClient() {
           )}
         </CardContent>
       </Card>
+
+      <AliasManager
+        initialPath={settings?.downloadsDir ?? ""}
+        onPathChange={(next) =>
+          setSettings((current) =>
+            current ? { ...current, downloadsDir: next } : current,
+          )
+        }
+      />
 
       <SettingsSection
         icon={History}

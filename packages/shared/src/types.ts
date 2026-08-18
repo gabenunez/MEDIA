@@ -43,6 +43,8 @@ export interface AppConfig {
   metadata: MetadataConfig;
   transcoding: TranscodingConfig;
   data_dir: string;
+  /** Completed-torrent / download folder used to find missing library aliases. */
+  downloads_dir?: string;
   auth?: AuthConfig;
   subtitles?: SubtitlesConfig;
 }

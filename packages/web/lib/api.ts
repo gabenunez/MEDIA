@@ -129,6 +129,7 @@ export interface AppSettings {
     opensubtitlesApiKeyPreview: string;
   };
   browseShortcuts: BrowseShortcut[];
+  downloadsDir: string;
 }
 
 export interface PlexImportPreview {
@@ -154,6 +155,34 @@ export interface PlexImportResult {
   samples: {
     unmatchedTitles: string[];
   };
+}
+
+export interface AliasCandidate {
+  sourcePath: string;
+  fileName: string;
+  size: number;
+  kind: "movie" | "episode";
+  title: string;
+  year?: number;
+  season?: number;
+  episode?: number;
+  libraryId: number;
+  libraryName: string;
+  aliasPath: string;
+}
+
+export interface AliasScanResult {
+  downloadPath: string;
+  scanned: number;
+  alreadyAliased: number;
+  skipped: number;
+  candidates: AliasCandidate[];
+}
+
+export interface AliasCreateResult {
+  created: number;
+  failed: Array<{ sourcePath: string; error: string }>;
+  scannedLibraries: number[];
 }
 
 export interface UpdateStatus {
@@ -420,6 +449,21 @@ export const api = {
     fetchApi<PlexImportResult>("/api/settings/plex-import", {
       method: "POST",
       body: JSON.stringify(data ?? {}),
+    }),
+  saveDownloadsDir: (path: string) =>
+    fetchApi<{ success: boolean; downloadsDir: string }>("/api/settings/downloads", {
+      method: "PUT",
+      body: JSON.stringify({ path }),
+    }),
+  scanMissingAliases: (path?: string) =>
+    fetchApi<AliasScanResult>("/api/settings/aliases/scan", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
+  createAliases: (sourcePaths: string[]) =>
+    fetchApi<AliasCreateResult>("/api/settings/aliases", {
+      method: "POST",
+      body: JSON.stringify({ sourcePaths }),
     }),
   browse: (path?: string) =>
     fetchApi<BrowseResult>(

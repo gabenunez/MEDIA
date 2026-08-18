@@ -76,6 +76,10 @@ function normalizeConfig(raw: AppConfig, configDir: string): AppConfig {
     }
   }
 
+  if (config.downloads_dir && !path.isAbsolute(config.downloads_dir)) {
+    config.downloads_dir = path.resolve(configDir, config.downloads_dir);
+  }
+
   fs.mkdirSync(config.data_dir, { recursive: true });
   fs.mkdirSync(path.join(config.data_dir, "cache", "images"), {
     recursive: true,
@@ -200,6 +204,15 @@ export class ConfigManager {
     this.save();
   }
 
+  setDownloadsDir(folderPath: string | null): void {
+    if (!folderPath?.trim()) {
+      delete this.config.downloads_dir;
+    } else {
+      this.config.downloads_dir = path.resolve(folderPath.trim());
+    }
+    this.save();
+  }
+
   save(): void {
     const payload = {
       server: {
@@ -227,6 +240,9 @@ export class ConfigManager {
         ),
       },
       data_dir: toRelative(this.configDir, this.config.data_dir),
+      ...(this.config.downloads_dir
+        ? { downloads_dir: this.config.downloads_dir }
+        : {}),
       auth: {
         password_hash: this.config.auth?.password_hash ?? "",
       },

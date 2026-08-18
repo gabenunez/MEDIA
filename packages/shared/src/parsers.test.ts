@@ -8,6 +8,7 @@ import {
 } from "./parsers/movie.js";
 import {
   extractShowFolder,
+  parseEpisodeFilename,
   parseEpisodeFromPath,
   resolveShowDirectory,
 } from "./parsers/tv.js";
@@ -66,6 +67,20 @@ describe("parseEpisodeFromPath", () => {
     expect(
       parseEpisodeFromPath("/media/tv/Breaking Bad/Season 01/pilot.mkv", libraryRoot),
     ).toBeNull();
+  });
+});
+
+describe("parseEpisodeFilename", () => {
+  it("parses torrent-style SxxExx names without library folders", () => {
+    expect(parseEpisodeFilename("The.Office.S02E01.HDTV.x264.mkv")).toEqual({
+      showName: "The Office",
+      season: 2,
+      episode: 1,
+    });
+  });
+
+  it("returns null for movies", () => {
+    expect(parseEpisodeFilename("Dune.2021.2160p.BluRay.x265.mkv")).toBeNull();
   });
 });
 
