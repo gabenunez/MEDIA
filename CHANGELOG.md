@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.196 — 2026-08-18
+
+### Settings
+
+- **Download aliases** — describe the scan as a download folder, not torrents specifically
+
 ## 0.1.195 — 2026-08-18
 
 ### Settings
