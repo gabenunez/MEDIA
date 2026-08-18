@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.194 — 2026-08-18
+
+### TV
+
+- **Login** — password overlay is a D-pad target again, so a logged-out TV can focus the field, open the keyboard, and unlock
+
 ## 0.1.193 — 2026-08-09
 
 ### TV

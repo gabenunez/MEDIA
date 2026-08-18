@@ -159,6 +159,16 @@ export function focusFirstHomeVideoItem(): boolean {
   return true;
 }
 
+/** Focus the password field (or Unlock) on the TV login overlay. */
+export function focusLoginGateItem(): boolean {
+  const item = document.querySelector<HTMLElement>(
+    "[data-tv-login-gate] [data-tv-item]",
+  );
+  if (!item) return false;
+  focusTvItem(item);
+  return true;
+}
+
 /** Focus the first selectable row inside a watch settings / subtitle panel. */
 export function focusFirstWatchMenuItem(panel?: ParentNode | null) {
   const root =

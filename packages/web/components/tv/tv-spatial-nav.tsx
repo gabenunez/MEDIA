@@ -3,6 +3,7 @@
 import {
   focusFirstContentItem,
   focusFirstHomeVideoItem,
+  focusLoginGateItem,
   focusTvItem,
   syncTvFocusedAttribute,
 } from "@/lib/tv-focus";
@@ -447,12 +448,27 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
     let lastMoveAt = 0;
 
     function onKeyDown(e: KeyboardEvent) {
+      const loginGate = document.querySelector<HTMLElement>("[data-tv-login-gate]");
+      const active = document.activeElement as HTMLElement | null;
+      if (loginGate && !active?.closest("[data-tv-login-gate]")) {
+        const isNavKey =
+          e.key === "Enter" ||
+          e.key === "NumpadEnter" ||
+          e.key === "Select" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight" ||
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown";
+        if (isNavKey) e.preventDefault();
+        focusLoginGateItem();
+        return;
+      }
+
       if (
         e.key === "Enter" ||
         e.key === "NumpadEnter" ||
         e.key === "Select"
       ) {
-        const active = document.activeElement as HTMLElement | null;
         if (
           active?.hasAttribute("data-tv-item") &&
           (active.tagName === "BUTTON" || active.tagName === "A")
@@ -474,20 +490,21 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
 
       const target = e.target as HTMLElement;
       if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.tagName === "SELECT" ||
-        target.isContentEditable
+        !target.hasAttribute("data-tv-item") &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
       ) {
         return;
       }
 
-      const active = document.activeElement as HTMLElement | null;
       if (!active?.hasAttribute("data-tv-item")) {
         // After login (or any focus loss), activeElement can be body / a
         // non-TV control. Own the D-pad so WebView native nav can't yank
         // selection back to the sidebar.
         e.preventDefault();
+        if (focusLoginGateItem()) return;
         const lastFocused = document.querySelector<HTMLElement>(
           "[data-tv-item][data-tv-focused]",
         );
