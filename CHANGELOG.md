@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.195 — 2026-08-18
+
+### Settings
+
+- **Download aliases** — point MEDIA! at a torrent download folder, scan for media files that do not yet have a library symlink, deselect what you do not want, then create the missing aliases
+
 ## 0.1.194 — 2026-08-18
 
 ### TV

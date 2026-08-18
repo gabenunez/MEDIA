@@ -74,6 +74,38 @@ export function parseEpisodeFromPath(
   };
 }
 
+/** Parse season/episode from a torrent-style filename (no library folders). */
+export function parseEpisodeFilename(
+  filename: string,
+): { showName: string; season: number; episode: number } | null {
+  const base = filename.replace(/\.[^.]+$/, "");
+  for (const pattern of EPISODE_PATTERNS) {
+    const match = base.match(pattern);
+    if (!match || match.index === undefined) continue;
+
+    let season: number | undefined;
+    let episode: number | undefined;
+    if (match.length >= 3 && match[1] && match[2]) {
+      season = parseInt(match[1], 10);
+      episode = parseInt(match[2], 10);
+    } else if (match.length >= 2 && match[1]) {
+      episode = parseInt(match[1], 10);
+      season = 1;
+    }
+    if (episode === undefined || Number.isNaN(episode)) continue;
+
+    const showName = cleanShowName(base.slice(0, match.index));
+    if (!showName) continue;
+
+    return {
+      showName,
+      season: season && !Number.isNaN(season) ? season : 1,
+      episode,
+    };
+  }
+  return null;
+}
+
 export function extractShowFolder(filePath: string, libraryRoot: string): string {
   const relative = filePath.startsWith(libraryRoot)
     ? filePath.slice(libraryRoot.length).replace(/^[/\\]+/, "")

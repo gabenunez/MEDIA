@@ -22,6 +22,7 @@ import {
   importPlexWatchProgress,
   previewPlexImport,
 } from "../services/plex-import.js";
+import { AliasService } from "../services/aliases.js";
 import { scheduleServerRestart } from "../services/restart.js";
 import { errorMessage } from "./util.js";
 
@@ -56,6 +57,16 @@ export async function settingsRoutes(
   metadata: MetadataService,
   themes: ThemeService,
 ) {
+  const aliases = new AliasService(configManager, scanner, async () => {
+    const rows = await db.query.libraries.findMany();
+    return rows.map((lib) => ({
+      id: lib.id,
+      name: lib.name,
+      type: lib.type,
+      path: lib.path,
+    }));
+  });
+
   app.get("/api/settings", async () => {
     const config = configManager.get();
     const ffmpegAvailable = await checkFfmpegAvailable();
@@ -82,6 +93,7 @@ export async function settingsRoutes(
       decks: await listDecksWithCounts(db),
       passwordConfigured: Boolean(config.auth?.password_hash?.trim()),
       publicPrefix: config.server.public_prefix ?? "",
+      downloadsDir: config.downloads_dir ?? "",
       metadata: {
         tmdbConfigured: tmdb.configured,
         tmdbApiKeyPreview: tmdb.preview,
@@ -120,6 +132,55 @@ export async function settingsRoutes(
       } catch (err) {
         return reply.status(400).send({
           error: errorMessage(err, "Invalid public_prefix"),
+        });
+      }
+    },
+  );
+
+  app.put<{ Body: { path?: string } }>(
+    "/api/settings/downloads",
+    async (request, reply) => {
+      const folderPath = request.body?.path?.trim() ?? "";
+      if (!folderPath) {
+        configManager.setDownloadsDir(null);
+        return { success: true, downloadsDir: "" };
+      }
+      const validation = validateLibraryPath(folderPath);
+      if (!validation.valid || !validation.resolvedPath) {
+        return reply.status(400).send({
+          error: validation.error ?? "Download folder is not readable",
+        });
+      }
+      configManager.setDownloadsDir(validation.resolvedPath);
+      return { success: true, downloadsDir: validation.resolvedPath };
+    },
+  );
+
+  app.post<{ Body: { path?: string } }>(
+    "/api/settings/aliases/scan",
+    async (request, reply) => {
+      try {
+        return await aliases.scan(request.body?.path);
+      } catch (err) {
+        return reply.status(400).send({
+          error: errorMessage(err, "Failed to scan for missing aliases"),
+        });
+      }
+    },
+  );
+
+  app.post<{ Body: { sourcePaths?: string[] } }>(
+    "/api/settings/aliases",
+    async (request, reply) => {
+      const sourcePaths = request.body?.sourcePaths;
+      if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) {
+        return reply.status(400).send({ error: "Select at least one file" });
+      }
+      try {
+        return await aliases.create(sourcePaths);
+      } catch (err) {
+        return reply.status(400).send({
+          error: errorMessage(err, "Failed to create aliases"),
         });
       }
     },
