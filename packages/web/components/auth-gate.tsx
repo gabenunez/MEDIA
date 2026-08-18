@@ -23,10 +23,13 @@ import { isTvClient } from "@/lib/tv-mode-detect";
 import {
   focusFirstContentItem,
   focusFirstHomeVideoItem,
+  focusLoginGateItem,
   focusPrimaryContentItem,
 } from "@/lib/tv-focus";
+import { tvFocusRingClassName } from "@/components/tv/tv-focus-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type AuthState = {
   loading: boolean;
@@ -138,9 +141,34 @@ function LoginGate({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const onTv = isTvClient();
+
+  useEffect(() => {
+    const focusPassword = () => {
+      const field = passwordRef.current;
+      if (!field) return;
+      if (onTv) {
+        focusLoginGateItem();
+      } else {
+        field.focus();
+      }
+    };
+    focusPassword();
+    const frame = window.requestAnimationFrame(focusPassword);
+    const timeout = window.setTimeout(focusPassword, 120);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [onTv]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!password.trim()) {
+      passwordRef.current?.focus();
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -148,13 +176,20 @@ function LoginGate({
       setPassword("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
+      passwordRef.current?.focus();
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background px-4">
+    <div
+      className={cn(
+        "fixed inset-0 z-[100] flex items-center justify-center bg-background px-4",
+        onTv && "tv-ui",
+      )}
+      data-tv-login-gate={onTv ? "" : undefined}
+    >
       <div className="w-full max-w-md rounded-md border border-border/80 bg-card p-8 shadow-2xl">
         <div className="mb-6 flex items-center gap-3">
           <MediaIcon className="h-12 w-12" />
@@ -166,20 +201,41 @@ function LoginGate({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+          {...(onTv
+            ? { "data-tv-row": "", "data-tv-vertical": "" }
+            : {})}
+        >
           <Input
+            ref={passwordRef}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
             autoFocus
             autoComplete="current-password"
+            enterKeyHint="done"
+            {...(onTv
+              ? {
+                  "data-tv-item": "",
+                  tabIndex: 0,
+                  className: cn(tvFocusRingClassName, "h-14 text-lg"),
+                }
+              : {})}
           />
           {error && <p className="text-sm text-red-400">{error}</p>}
           <Button
             type="submit"
-            className="w-full"
-            disabled={submitting || !password}
+            className={cn("w-full", onTv && tvFocusRingClassName)}
+            disabled={submitting || !password.trim()}
+            {...(onTv
+              ? {
+                  "data-tv-item": "",
+                  tabIndex: 0,
+                }
+              : {})}
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
