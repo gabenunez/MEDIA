@@ -121,7 +121,7 @@ export function AliasManager({
     <SettingsSection
       icon={Link2}
       title="Missing download aliases"
-      description="Point MEDIA! at your torrent download folder, scan for media files that do not yet have a library alias, then create the missing ones."
+      description="Point MEDIA! at your download folder, scan for media files that do not yet have a library alias, then create the missing ones."
     >
       <div className="space-y-4">
         <div className="space-y-2">
