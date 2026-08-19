@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.200 — 2026-08-19
+
+### Fix
+
+- **Build** — allow the password-gate SSR splash in prerender checks so a release can finish after the login rewrite
+
 ## 0.1.199 — 2026-08-19
 
 ### Fix

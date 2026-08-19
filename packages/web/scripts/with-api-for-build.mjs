@@ -56,19 +56,27 @@ function stopProcess(child) {
 let apiProcess = null;
 
 function assertNoMediaLoadingShell(html, sampleName) {
+  const issues = [];
+  if (html.includes("animate-pulse")) issues.push("animate-pulse skeleton");
+  if (html.includes("h-80 w-full")) issues.push("media page skeleton (h-80)");
+  if (html.includes("h-96 w-full")) issues.push("home loading skeleton (h-96)");
+
   const mainStart = html.indexOf("<main>");
   const mainEnd = html.indexOf("</main>");
-  if (mainStart === -1 || mainEnd === -1) {
+  const hasMain = mainStart !== -1 && mainEnd !== -1;
+  // AuthProvider omits app chrome until the client auth check finishes, so
+  // prerendered HTML is an opaque splash without <main>.
+  const authSplashOnly = !hasMain && html.includes('aria-label="Loading"');
+
+  if (!hasMain && !authSplashOnly) {
     throw new Error(`[media] ${sampleName} is missing <main> — build output looks broken`);
   }
 
-  const main = html.slice(mainStart, mainEnd);
-  const issues = [];
-  if (main.includes("animate-pulse")) issues.push("animate-pulse skeleton");
-  if (main.includes("h-80 w-full")) issues.push("media page skeleton (h-80)");
-  if (main.includes("h-96 w-full")) issues.push("home loading skeleton (h-96)");
-  if (!main.includes("font-black") && !main.includes("<h1")) {
-    issues.push("missing hero heading");
+  if (hasMain) {
+    const main = html.slice(mainStart, mainEnd);
+    if (!main.includes("font-black") && !main.includes("<h1")) {
+      issues.push("missing hero heading");
+    }
   }
 
   if (issues.length > 0) {
