@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.208 — 2026-08-19
+
+### Web
+
+- **Home** — remove the decorative LIB/TTL/META telemetry chips from the hero; library counts and metadata status already live elsewhere
+
 ## 0.1.207 — 2026-08-19
 
 ### TV
