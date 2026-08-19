@@ -170,32 +170,46 @@ function validateCastMediaUrl(url: string): void {
 async function ensureCastSession(): Promise<CastSession> {
   const context = cast.framework.CastContext.getInstance();
   let session = context.getCurrentSession();
-  if (session) {
-    return session;
-  }
-
-  try {
-    await context.requestSession();
-  } catch (err) {
-    throw formatCastError(err);
-  }
-
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    session = context.getCurrentSession();
-    if (session) {
-      return session;
+  if (!session) {
+    try {
+      await context.requestSession();
+    } catch (err) {
+      throw formatCastError(err);
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      session = context.getCurrentSession();
+      if (session) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 
-  throw new Error("Could not connect to a Cast device");
+  if (!session) {
+    throw new Error("Could not connect to a Cast device");
+  }
+
+  // Default receiver app needs a beat after SESSION_STARTED before loadMedia.
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  return session;
 }
 
 export function formatCastError(err: unknown, contentUrl?: string): Error {
+  if (err instanceof Error && err.message && !("code" in err)) {
+    return err;
+  }
+
   const code = normalizeCastErrorCode(err);
   const location = contentUrl ? safeCastLocation(contentUrl) : null;
   const locationHint = location ? ` Tried ${location}.` : "";
+
+  if (code === "session_error" || code === "load_media_failed") {
+    return new Error(
+      `Chromecast couldn't load the video.${locationHint} Your TV has to fetch the same HTTPS address as the browser (including /reel if you use a reverse proxy). Check that the TV can reach that host.`,
+    );
+  }
 
   if (err && typeof err === "object") {
     const castErr = err as {
@@ -204,21 +218,15 @@ export function formatCastError(err: unknown, contentUrl?: string): Error {
       code?: string | number;
     };
     if (castErr.description?.trim()) {
-      return new Error(castErr.description);
+      return new Error(`${castErr.description}${locationHint}`);
     }
     if (castErr.message?.trim()) {
-      return new Error(castErr.message);
+      return new Error(`${castErr.message}${locationHint}`);
     }
   }
 
   if (code && CAST_ERROR_HINTS[code]) {
     return new Error(CAST_ERROR_HINTS[code]);
-  }
-
-  if (code === "session_error") {
-    return new Error(
-      `Chromecast couldn't load the video.${locationHint} Your TV has to fetch the same HTTPS address as the browser (including /reel if you use a reverse proxy). Check that the TV can reach that host.`,
-    );
   }
 
   if (err instanceof Error) {
@@ -261,55 +269,22 @@ export async function castMedia(options: CastMediaOptions): Promise<void> {
     media.contentUrl,
     media.contentType,
   );
-  const isHls =
-    media.contentType.includes("mpegurl") ||
-    media.contentUrl.includes(".m3u8");
   // The server emits finite HLS VOD playlists, not live streams.
   mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
   mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
   mediaInfo.metadata.title = media.title;
-
-  if (media.posterUrl) {
-    mediaInfo.metadata.images = [{ url: media.posterUrl }];
-  }
-
-  if (media.subtitleUrl) {
-    mediaInfo.tracks = [
-      {
-        trackId: 1,
-        type: chrome.cast.media.TrackType.TEXT,
-        trackContentId: media.subtitleUrl,
-        trackContentType: "text/vtt",
-        subtype: chrome.cast.media.TextTrackType.SUBTITLES,
-        name: media.subtitleLanguage ?? "Subtitles",
-        language: "en",
-      },
-    ];
-    mediaInfo.textTrackStyle = new chrome.cast.media.TextTrackStyle();
-    mediaInfo.activeTrackIds = [1];
-  }
+  // Do not attach poster images or subtitle tracks on the first load.
+  // The default receiver requires CORS on every track URL; a bad poster or
+  // VTT makes loadMedia fail with session_error before the TV fetches video.
+  // Do not set currentTime either — progressive MP4 + start offset often
+  // fails before the first byte.
 
   const request = new chrome.cast.media.LoadRequest(mediaInfo);
-  if (!isHls && media.startTime && media.startTime > 0) {
-    request.currentTime = media.startTime;
-  }
   request.autoplay = true;
 
   try {
     await session.loadMedia(request);
   } catch (err) {
-    const code = normalizeCastErrorCode(err);
-    if (code === "session_error") {
-      const context = cast.framework.CastContext.getInstance();
-      context.endCurrentSession(true);
-      const retrySession = await ensureCastSession();
-      try {
-        await retrySession.loadMedia(request);
-      } catch (retryErr) {
-        throw formatCastError(retryErr, media.contentUrl);
-      }
-      return;
-    }
     throw formatCastError(err, media.contentUrl);
   }
 }

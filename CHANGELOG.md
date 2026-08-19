@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.204 — 2026-08-19
+
+### Fix
+
+- **Cast** — load only the video URL on Chromecast (no poster, subtitles, or start offset) and stop killing the Cast session on failure, which was aborting playback before the TV fetched the stream
+
 ## 0.1.203 — 2026-08-19
 
 ### Fix
