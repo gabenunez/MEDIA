@@ -19,7 +19,7 @@ export function RecentClient({
   initialPage?: PaginatedPageData<MediaItem> | null;
 }) {
   const isTvMode = useTvMode();
-  if (isTvMode) return <TvRecentView />;
+  if (isTvMode) return <TvRecentView initialPage={initialPage} />;
   return <RecentDesktopClient initialPage={initialPage} />;
 }
 

@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Heart, Loader2, Play, Sparkles } from "lucide-react";
+import { Heart, Play, Sparkles } from "lucide-react";
 import { api, type Library, type LibraryDeck } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import { TvPageHeader, TvSectionLabel } from "@/components/tv/tv-page-header";
+import {
+  TvPageHeader,
+  TvPageLoading,
+  TvPageShell,
+  tvPageMeta,
+} from "@/components/tv/tv-page-header";
 import { TvBrowseCard } from "@/components/tv/tv-see-all-tile";
-import { tvScrollRowClassName } from "@/components/tv/tv-row";
 import { LibraryIcon } from "@/components/navbar";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
@@ -46,11 +50,7 @@ export function TvBrowseView() {
   }, [loading]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-9 w-9 animate-spin text-primary" />
-      </div>
-    );
+    return <TvPageLoading />;
   }
 
   const shortcutCount =
@@ -58,15 +58,18 @@ export function TvBrowseView() {
   const totalEntries = shortcutCount + decks.length + libraries.length;
 
   return (
-    <div className="px-6 py-5">
-      <TvPageHeader backHref={routes.home()} title="Browse" eyebrow="Libraries & decks" />
+    <TvPageShell>
+      <TvPageHeader
+        backHref={routes.home()}
+        title="Browse"
+        subtitle={tvPageMeta([`${totalEntries} collections`])}
+      />
 
-      <TvSectionLabel>{totalEntries} collections</TvSectionLabel>
       <div
         data-tv-row=""
         data-tv-content-row=""
         data-tv-scroll-row=""
-        className={tvScrollRowClassName}
+        className="scrollbar-hide flex gap-4 overflow-x-auto py-1"
       >
         {continueCount > 0 && (
           <TvBrowseCard
@@ -124,6 +127,6 @@ export function TvBrowseView() {
           />
         ))}
       </div>
-    </div>
+    </TvPageShell>
   );
 }

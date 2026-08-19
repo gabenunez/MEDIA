@@ -4,7 +4,6 @@ import { useCallback, type PointerEvent, type ReactNode } from "react";
 import type { MediaItem } from "@/lib/api";
 import { prefetchCarouselPosters } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
-import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import { TvSeeAllTile } from "@/components/tv/tv-see-all-tile";
 
 const tvScrollRowClassName =
@@ -74,10 +73,7 @@ export function TvGrid({ children, className }: TvGridProps) {
       data-tv-row=""
       data-tv-content-row=""
       data-tv-grid=""
-      className={cn(
-        "grid grid-cols-4 gap-x-3 gap-y-6 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6",
-        className,
-      )}
+      className={cn("grid", className)}
     >
       {children}
     </div>

@@ -20,7 +20,7 @@ export function TvSeeAllTile({ href, label, detail, className }: TvSeeAllTilePro
         href={href}
         variant="poster"
         aria-label={label}
-        className="group w-[7.5rem]"
+        className="group w-[var(--tv-poster-width,7.5rem)]"
       >
         <div className="tv-poster-art relative flex aspect-[2/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-primary/35 bg-primary/5">
           <LayoutGrid className="h-8 w-8 text-primary" />
@@ -57,14 +57,14 @@ export function TvBrowseCard({
       href={href}
       variant="card"
       className={cn(
-        "w-44 shrink-0 rounded-lg border border-border/80 bg-card p-3",
+        "w-56 shrink-0 rounded-xl border border-border/80 bg-card p-4",
         className,
       )}
     >
-      {icon ? <div className="mb-1.5">{icon}</div> : null}
-      <p className="truncate text-sm font-semibold">{title}</p>
+      {icon ? <div className="mb-2">{icon}</div> : null}
+      <p className="truncate text-base font-semibold">{title}</p>
       {detail ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
       ) : null}
     </TvFocusLink>
   );

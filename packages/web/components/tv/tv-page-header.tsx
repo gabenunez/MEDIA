@@ -1,56 +1,90 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
+
+/** Shared 10-foot page frame — gutters match home rows. */
+export function TvPageShell({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("tv-page", className)}>{children}</div>;
+}
+
+export function TvPageLoading() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+    </div>
+  );
+}
+
+export function TvEmptyState({
+  children,
+  action,
+}: {
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div
+      data-tv-row=""
+      data-tv-content-row=""
+      className="flex min-h-[40vh] flex-col items-center justify-center px-8 text-center"
+    >
+      <p className="text-2xl font-semibold text-muted-foreground">{children}</p>
+      {action ? <div className="mt-8 flex justify-center">{action}</div> : null}
+    </div>
+  );
+}
+
+/** Join header meta pieces ("208 titles"). */
+export function tvPageMeta(
+  parts: Array<string | false | null | undefined>,
+): string | undefined {
+  const text = parts.filter(Boolean).join(" · ");
+  return text || undefined;
+}
 
 interface TvPageHeaderProps {
   backHref: string;
   backLabel?: string;
   title: string;
-  eyebrow?: ReactNode;
-  trailing?: ReactNode;
+  subtitle?: ReactNode;
   className?: string;
 }
 
-/** Compact TV page chrome: back control + title in one focus row. */
+/** Netflix-style catalog chrome: Back, then a large title. */
 export function TvPageHeader({
   backHref,
   backLabel = "Back",
   title,
-  eyebrow,
-  trailing,
+  subtitle,
   className,
 }: TvPageHeaderProps) {
   return (
-    <div
-      data-tv-row=""
-      data-tv-content-row=""
-      className={cn(
-        "mb-4 flex items-center justify-between gap-4 border-b border-border/60 pb-3",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-3">
+    <header className={cn("mb-8", className)}>
+      <div data-tv-row="" data-tv-content-row="" className="mb-6">
         <TvFocusLink
           href={backHref}
-          aria-label={backLabel}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/70"
+          className="inline-flex h-12 items-center gap-2 rounded-xl px-5 text-base font-semibold"
         >
           <ChevronLeft className="h-5 w-5" />
+          {backLabel}
         </TvFocusLink>
-        <div className="min-w-0">
-          {eyebrow ? (
-            <div className="mb-0.5 text-[11px] font-medium uppercase tracking-wider text-primary">
-              {eyebrow}
-            </div>
-          ) : null}
-          <h1 className="truncate text-lg font-bold leading-tight">{title}</h1>
-        </div>
       </div>
-      {trailing ? <div className="shrink-0 text-xs text-muted-foreground">{trailing}</div> : null}
-    </div>
+      <h1 className="max-w-[18ch] truncate text-[2.5rem] font-black leading-[1.08] tracking-tight">
+        {title}
+      </h1>
+      {subtitle ? (
+        <p className="mt-2 text-lg text-muted-foreground">{subtitle}</p>
+      ) : null}
+    </header>
   );
 }
 
@@ -77,31 +111,33 @@ interface TvPaginationProps {
 export function TvPagination({ page, totalPages, onPageChange, className }: TvPaginationProps) {
   if (totalPages <= 1) return null;
 
+  const changePage = (next: number) => {
+    document.querySelector("main")?.scrollTo({ top: 0 });
+    onPageChange(next);
+  };
+
   return (
     <div
       data-tv-row=""
       data-tv-content-row=""
-      className={cn(
-        "flex items-center justify-center gap-3 border-t border-border/50 pt-4",
-        className,
-      )}
+      className={cn("mt-10 flex items-center justify-center gap-5 pb-4", className)}
     >
       <TvFocusButton
         disabled={page <= 1}
-        onClick={() => onPageChange(page - 1)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium disabled:opacity-40"
+        onClick={() => changePage(page - 1)}
+        className="inline-flex h-14 min-w-[10rem] items-center justify-center gap-2 px-6 text-base font-semibold disabled:opacity-40"
       >
-        <ChevronLeft className="h-4 w-4" /> Prev
+        <ChevronLeft className="h-5 w-5" /> Previous
       </TvFocusButton>
-      <span className="px-2 text-xs tabular-nums text-muted-foreground">
+      <span className="min-w-[5.5rem] text-center text-lg tabular-nums text-muted-foreground">
         {page} / {totalPages}
       </span>
       <TvFocusButton
         disabled={page >= totalPages}
-        onClick={() => onPageChange(page + 1)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium disabled:opacity-40"
+        onClick={() => changePage(page + 1)}
+        className="inline-flex h-14 min-w-[10rem] items-center justify-center gap-2 px-6 text-base font-semibold disabled:opacity-40"
       >
-        Next <ChevronRight className="h-4 w-4" />
+        Next <ChevronRight className="h-5 w-5" />
       </TvFocusButton>
     </div>
   );

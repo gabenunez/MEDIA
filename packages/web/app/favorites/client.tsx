@@ -22,7 +22,7 @@ export function FavoritesClient({
   initialPage?: PaginatedPageData<MediaItem> | null;
 }) {
   const isTvMode = useTvMode();
-  if (isTvMode) return <TvFavoritesView />;
+  if (isTvMode) return <TvFavoritesView initialPage={initialPage} />;
   return <FavoritesDesktopClient initialPage={initialPage} />;
 }
 
