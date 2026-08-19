@@ -21,6 +21,8 @@ interface TvPosterProps {
   subtitle?: string;
   /** Next.js priority decode — use for the first visible tiles only. */
   priority?: boolean;
+  /** Catalog grids use larger artwork than home rows. */
+  layout?: "row" | "grid";
 }
 
 export const TvPoster = memo(function TvPoster({
@@ -31,6 +33,7 @@ export const TvPoster = memo(function TvPoster({
   progress,
   subtitle,
   priority = false,
+  layout = "row",
 }: TvPosterProps) {
   const imageUrl = tvImageUrl(item.posterPath);
   const linkHref = href ?? routes.media(item.id);
@@ -60,7 +63,10 @@ export const TvPoster = memo(function TvPoster({
         onMouseEnter={warmNavigation}
         onFocus={warmNavigation}
       >
-        <div className="tv-poster-art poster-shadow relative aspect-[2/3] overflow-hidden rounded-lg bg-muted">
+        <div className={cn(
+          "tv-poster-art poster-shadow relative aspect-[2/3] overflow-hidden bg-muted",
+          layout === "grid" ? "rounded-xl" : "rounded-lg",
+        )}>
           {imageUrl ? (
             <MediaImage
               src={imageUrl}
@@ -69,7 +75,11 @@ export const TvPoster = memo(function TvPoster({
               priority={priority}
               loading={loading}
               quality={TV_LIST_IMAGE_QUALITY}
-              sizes="(min-width: 1920px) 10rem, 7.5rem"
+              sizes={
+                layout === "grid"
+                  ? "(min-width: 1920px) 20rem, 16rem"
+                  : "(min-width: 1920px) 10rem, 7.5rem"
+              }
               className="object-cover"
             />
           ) : (
@@ -83,7 +93,10 @@ export const TvPoster = memo(function TvPoster({
           )}
 
           {progress !== undefined && progress > 0 && (
-            <div className="absolute inset-x-0 bottom-0 z-10 h-1 bg-white/25">
+            <div className={cn(
+              "absolute inset-x-0 bottom-0 z-10 bg-white/25",
+              layout === "grid" ? "h-1.5" : "h-1",
+            )}>
               <div
                 className={cn(
                   "h-full bg-accent",
@@ -98,7 +111,14 @@ export const TvPoster = memo(function TvPoster({
           {item.title}
         </p>
         {subtitle && (
-          <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{subtitle}</p>
+          <p
+            className={cn(
+              "mt-0.5 line-clamp-1 text-muted-foreground",
+              layout === "grid" ? "text-sm" : "text-xs",
+            )}
+          >
+            {subtitle}
+          </p>
         )}
       </Link>
     </div>

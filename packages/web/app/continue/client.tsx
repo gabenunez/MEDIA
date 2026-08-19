@@ -19,7 +19,7 @@ export function ContinueWatchingClient({
   initialPage?: PaginatedPageData<ContinueWatchingItem> | null;
 }) {
   const isTvMode = useTvMode();
-  if (isTvMode) return <TvContinueView />;
+  if (isTvMode) return <TvContinueView initialPage={initialPage} />;
   return <ContinueWatchingDesktopClient initialPage={initialPage} />;
 }
 

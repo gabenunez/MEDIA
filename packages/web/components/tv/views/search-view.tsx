@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Search } from "lucide-react";
 import { routes } from "@/lib/routes";
-import { TvPageHeader, TvSectionLabel } from "@/components/tv/tv-page-header";
+import {
+  TvEmptyState,
+  TvPageHeader,
+  TvPageShell,
+  tvPageMeta,
+} from "@/components/tv/tv-page-header";
 import { TvGrid } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -38,19 +43,23 @@ export function TvSearchView() {
   }, [searched, loading, results]);
 
   return (
-    <div className="px-6 py-5">
-      <TvPageHeader backHref={routes.home()} title="Search" />
+    <TvPageShell>
+      <TvPageHeader
+        backHref={routes.home()}
+        title="Search"
+        subtitle={tvPageMeta([searched && results.length > 0 && `${results.length} results`])}
+      />
 
-      <div data-tv-row="" data-tv-content-row="" className="mb-4 py-0.5">
-        <div className="relative max-w-2xl">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div data-tv-row="" data-tv-content-row="" className="mb-8 py-0.5">
+        <div className="relative max-w-3xl">
+          <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <input
             ref={inputRef}
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search movies and TV shows..."
-            className="h-11 w-full rounded-lg border border-border bg-card pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+            className="h-14 w-full rounded-xl border border-border bg-card pl-14 pr-5 text-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
           />
         </div>
       </div>
@@ -62,31 +71,29 @@ export function TvSearchView() {
       )}
 
       {!loading && searched && results.length === 0 && (
-        <p className="py-12 text-center text-muted-foreground">No results found.</p>
+        <TvEmptyState>No results found.</TvEmptyState>
       )}
 
       {results.length > 0 && (
-        <>
-          <TvSectionLabel>{results.length} results</TvSectionLabel>
-          <TvGrid>
-            {results.map((item, index) => (
-              <TvPoster
-                key={item.id}
-                item={item}
-                priority={index < 8}
-                linkClassName="w-full"
-                className="min-w-0"
-              />
-            ))}
-          </TvGrid>
-        </>
+        <TvGrid>
+          {results.map((item, index) => (
+            <TvPoster
+              key={item.id}
+              item={item}
+              layout="grid"
+              priority={index < 12}
+              linkClassName="w-full"
+              className="min-w-0 w-full"
+            />
+          ))}
+        </TvGrid>
       )}
 
       {!loading && !searched && (
-        <div className="py-12 text-center text-sm text-muted-foreground">
+        <p className="py-16 text-center text-lg text-muted-foreground">
           Type at least 2 characters to search.
-        </div>
+        </p>
       )}
-    </div>
+    </TvPageShell>
   );
 }

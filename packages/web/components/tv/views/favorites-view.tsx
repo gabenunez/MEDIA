@@ -2,26 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { useFavoritesRouteFilter } from "@/lib/use-route-params";
-import { Loader2 } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
+import type { PaginatedPageData } from "@/lib/server-api";
 import { routes } from "@/lib/routes";
 import { TvFocusLink } from "@/components/tv/tv-focus-link";
-import { TvPageHeader, TvPagination, TvSectionLabel } from "@/components/tv/tv-page-header";
-import { TvGrid, tvScrollRowClassName } from "@/components/tv/tv-row";
+import {
+  TvEmptyState,
+  TvPageHeader,
+  TvPageLoading,
+  TvPageShell,
+  TvPagination,
+  tvPageMeta,
+} from "@/components/tv/tv-page-header";
+import { TvGrid } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusFirstContentItem } from "@/lib/tv-focus";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
-import { cn } from "@/lib/utils";
 
-export function TvFavoritesView() {
+export function TvFavoritesView({
+  initialPage = null,
+}: {
+  initialPage?: PaginatedPageData<MediaItem> | null;
+}) {
   const filter = useFavoritesRouteFilter();
 
-  const [items, setItems] = useState<MediaItem[]>([]);
+  const [items, setItems] = useState<MediaItem[]>(initialPage?.items ?? []);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(initialPage?.totalPages ?? 1);
+  const [totalItems, setTotalItems] = useState(
+    initialPage?.total ?? initialPage?.items.length ?? 0,
+  );
+  const [loading, setLoading] = useState(!initialPage);
 
   useMarkTvBootReadyWhen(!loading);
 
@@ -50,25 +62,22 @@ export function TvFavoritesView() {
   }, [loading, filter, page]);
 
   if (loading && items.length === 0) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-9 w-9 animate-spin text-primary" />
-      </div>
-    );
+    return <TvPageLoading />;
   }
 
-  const trailing =
-    totalPages > 1 ? `Page ${page} of ${totalPages}` : undefined;
-
   return (
-    <div className="px-6 py-5">
-      <TvPageHeader backHref={routes.home()} title="Favorites" trailing={trailing} />
+    <TvPageShell>
+      <TvPageHeader
+        backHref={routes.home()}
+        title="Favorites"
+        subtitle={tvPageMeta([totalItems > 0 && `${totalItems} saved`])}
+      />
 
       <div
         data-tv-row=""
         data-tv-content-row=""
         data-tv-scroll-row=""
-        className={cn(tvScrollRowClassName, "mb-4 gap-2 px-0 py-1")}
+        className="mb-7 flex gap-3 overflow-x-auto py-1"
       >
         {(
           [
@@ -82,7 +91,7 @@ export function TvFavoritesView() {
             href={routes.favorites(option.id === "all" ? undefined : option.id)}
             variant="chip"
             selected={filter === option.id}
-            className="px-4 py-2 text-sm font-semibold"
+            className="px-6 py-3 text-base font-semibold"
           >
             {option.label}
           </TvFocusLink>
@@ -90,39 +99,36 @@ export function TvFavoritesView() {
       </div>
 
       {items.length === 0 ? (
-        <div
-          data-tv-row=""
-          data-tv-content-row=""
-          className="rounded-lg bg-muted/20 px-6 py-12 text-center"
+        <TvEmptyState
+          action={
+            <TvFocusLink
+              href={routes.home()}
+              variant="card"
+              className="inline-flex h-14 items-center rounded-xl bg-primary px-8 text-base font-semibold text-primary-foreground"
+            >
+              Back to home
+            </TvFocusLink>
+          }
         >
-          <p className="mb-4 text-muted-foreground">No favorites yet.</p>
-          <TvFocusLink
-            href={routes.home()}
-            variant="card"
-            className="inline-flex rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
-          >
-            Back to home
-          </TvFocusLink>
-        </div>
+          No favorites yet.
+        </TvEmptyState>
       ) : (
         <>
-          <TvSectionLabel>
-            {totalItems > 0 ? `${totalItems} saved` : `${items.length} saved`}
-          </TvSectionLabel>
-          <TvGrid className="mb-4">
+          <TvGrid>
             {items.map((item, index) => (
               <TvPoster
                 key={item.id}
                 item={item}
-                priority={index < 8}
+                layout="grid"
+                priority={index < 12}
                 linkClassName="w-full"
-                className="min-w-0"
+                className="min-w-0 w-full"
               />
             ))}
           </TvGrid>
           <TvPagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
-    </div>
+    </TvPageShell>
   );
 }

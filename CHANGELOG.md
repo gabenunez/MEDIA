@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.197 — 2026-08-19
+
+### TV
+
+- **Catalog pages** — Recently Added, Continue Watching, Favorites, libraries, Search, and Browse use a 10-foot layout: large title, bigger posters (~6 across on 1080p), and couch-readable chrome instead of a compact website header
+
 ## 0.1.196 — 2026-08-18
 
 ### Settings

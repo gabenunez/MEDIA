@@ -91,15 +91,8 @@ function estimateGridColumns(items: HTMLElement[]): number {
   return cols || 1;
 }
 
-function getGridColumns(row: Element, items: HTMLElement[]): number {
-  const cached = row.getAttribute("data-tv-cols");
-  if (cached) {
-    const parsed = Number.parseInt(cached, 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  const cols = estimateGridColumns(items);
-  row.setAttribute("data-tv-cols", String(cols));
-  return cols;
+function getGridColumns(_row: Element, items: HTMLElement[]): number {
+  return estimateGridColumns(items);
 }
 
 function moveInGridRow(
