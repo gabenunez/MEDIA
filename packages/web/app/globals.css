@@ -1514,8 +1514,12 @@
     background: transparent !important;
   }
 
-  html[data-native-video="true"] [data-tv-watch-video-stage] > *:not([data-tv-watch-controls]) {
+  html[data-native-video="true"] [data-tv-watch-video-stage] > *:not([data-tv-watch-controls]):not([data-tv-watch-next-episode]):not([data-tv-watch-error]) {
     background-color: transparent !important;
+  }
+
+  html[data-native-video="true"] [data-tv-watch-next-episode] {
+    background-color: rgb(0 0 0) !important;
   }
 
   html[data-native-video="true"] [data-tv-watch-player] [class*="backdrop-blur"] {
@@ -1536,6 +1540,42 @@
       rgb(0 0 0 / 0.45) 45%,
       transparent 100%
     ) !important;
+  }
+
+  .tv-ui [data-tv-watch-next-preview] {
+    width: min(42rem, 46vw);
+    aspect-ratio: 16 / 9;
+  }
+
+  .tv-ui [data-tv-watch-next-episode] [data-tv-item].tv-focus-button {
+    min-height: 3.5rem;
+    padding-inline: 1.5rem;
+    font-size: 1.25rem;
+  }
+
+  .tv-ui [data-tv-watch-next-episode] [data-tv-next-play] {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: transparent;
+  }
+
+  .tv-ui [data-tv-watch-next-episode] [data-tv-next-play][data-tv-focused] {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: hsl(var(--accent));
+    box-shadow: none;
+    transform: none;
+  }
+
+  .tv-ui [data-tv-watch-next-episode] [data-tv-next-cancel][data-tv-focused] {
+    background-color: hsl(var(--primary) / 0.22);
+    border-color: hsl(var(--primary));
+    box-shadow: none;
+    transform: none;
+  }
+
+  html.tv-mode.tv-4k .tv-ui [data-tv-watch-next-preview] {
+    width: min(48rem, 46vw);
   }
 
   /* TV watch — compact overlay chrome; video stays full-screen behind controls */

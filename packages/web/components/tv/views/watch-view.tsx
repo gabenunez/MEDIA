@@ -2214,6 +2214,8 @@ export function TvWatchView() {
           <NextEpisodeCountdownOverlay
             countdown={countdown}
             label={countdownLabel}
+            seriesTitle={mediaDetail?.title}
+            fallbackArt={mediaDetail?.backdropPath ?? mediaDetail?.posterPath}
             tv
             onCancel={() => {
               cancelCountdown();

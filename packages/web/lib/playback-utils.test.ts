@@ -22,6 +22,7 @@ import {
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
+  nextEpisodePreviewPath,
 } from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
@@ -953,5 +954,38 @@ describe("resolveSpuriousRecovery", () => {
     expect(result.action).toBe("recover");
     // Progress cleared the accumulated attempts before counting this one.
     expect(result.next.attempts).toBe(1);
+  });
+});
+
+describe("nextEpisodePreviewPath", () => {
+  const episode = {
+    id: 12,
+    episodeNumber: 4,
+    title: "Dinner Party",
+    stillPath: "/stills/dinner.jpg",
+  };
+
+  it("prefers the next episode still", () => {
+    expect(
+      nextEpisodePreviewPath(
+        { episode, seasonNumber: 2 },
+        { title: "The Office", posterPath: "/poster.jpg", backdropPath: "/back.jpg" },
+      ),
+    ).toBe("/stills/dinner.jpg");
+  });
+
+  it("falls back to series backdrop, then poster", () => {
+    expect(
+      nextEpisodePreviewPath(
+        { episode: { ...episode, stillPath: null }, seasonNumber: 2 },
+        { title: "The Office", posterPath: "/poster.jpg", backdropPath: "/back.jpg" },
+      ),
+    ).toBe("/back.jpg");
+    expect(
+      nextEpisodePreviewPath(
+        { episode: { ...episode, stillPath: null }, seasonNumber: 2 },
+        { title: "The Office", posterPath: "/poster.jpg" },
+      ),
+    ).toBe("/poster.jpg");
   });
 });

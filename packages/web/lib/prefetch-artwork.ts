@@ -87,6 +87,15 @@ export function prefetchPosterFocus(item: PosterLike): void {
   pendingNavPrefetch.set(item.id, timer);
 }
 
+/** Warm a 16:9 still / hero so the up-next overlay can paint immediately. */
+export function preloadPlaybackStill(path?: string | null): void {
+  preloadImageUrl(
+    tvImageUrl(path, { hd: true }) ?? api.imageUrl(path),
+    1920,
+    85,
+  );
+}
+
 export function preloadPosterList(
   items: ReadonlyArray<PosterLike>,
   limit = 8,
