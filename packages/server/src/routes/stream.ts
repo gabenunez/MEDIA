@@ -135,26 +135,21 @@ function parseHttpRange(
   };
 }
 
-function setMediaCorsHeaders(request: FastifyRequest, reply: FastifyReply): void {
-  const origin = request.headers.origin;
-  if (origin) {
-    reply
-      .header("Access-Control-Allow-Origin", origin)
-      .header("Access-Control-Allow-Credentials", "true")
-      .header("Vary", "Origin");
-  } else {
-    reply.header("Access-Control-Allow-Origin", "*");
-  }
-
-  // Chromecast's default receiver (gstatic) issues Range GETs and needs these
-  // on the actual media response, not only the OPTIONS preflight.
+function setMediaCorsHeaders(_request: FastifyRequest, reply: FastifyReply): void {
+  // Chromecast's default receiver requires `*` without credentials. Reflecting
+  // Origin + Allow-Credentials: true makes the TV abort before fetching media.
   reply
+    .header("Access-Control-Allow-Origin", "*")
     .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-    .header("Access-Control-Allow-Headers", "Content-Type, Range, Origin")
+    .header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Range, Origin, Accept-Encoding",
+    )
     .header(
       "Access-Control-Expose-Headers",
       "Content-Length, Content-Range, Date, Accept-Ranges, Content-Type",
     );
+  reply.removeHeader("access-control-allow-credentials");
 }
 
 export async function streamRoutes(

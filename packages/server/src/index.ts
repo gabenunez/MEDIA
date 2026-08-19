@@ -43,7 +43,28 @@ async function main() {
 
   const app = Fastify({ logger: true });
 
-  await app.register(cors, { origin: true, credentials: true });
+  // Chromecast's default receiver requires ACAO: * and must not see
+  // Access-Control-Allow-Credentials. The web app is same-origin, so cookie'd
+  // CORS is unnecessary.
+  await app.register(cors, {
+    origin: "*",
+    credentials: false,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Range",
+      "Origin",
+      "Accept-Encoding",
+      "Authorization",
+    ],
+    exposedHeaders: [
+      "Content-Length",
+      "Content-Range",
+      "Date",
+      "Accept-Ranges",
+      "Content-Type",
+    ],
+  });
 
   app.addHook("onRequest", async (request, reply) => {
     // Chromecast CORS preflight has no session cookie; @fastify/cors answers OPTIONS.

@@ -234,6 +234,14 @@ export async function castRoutes(
         : toAbsoluteUrl(castBase, posterPath);
     }
 
+    request.log.info(
+      {
+        castBase,
+        contentUrl: contentUrl.replace(/castToken=[^&]+/g, "castToken=REDACTED"),
+      },
+      "cast prepare",
+    );
+
     return {
       contentUrl,
       contentType,

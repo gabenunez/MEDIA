@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.203 — 2026-08-19
+
+### Fix
+
+- **Cast** — Chromecast stream URLs always include the reverse-proxy prefix (`/reel`) and CORS is `*` without credentials, so the TV can fetch media instead of aborting or hitting the site root
+
 ## 0.1.202 — 2026-08-19
 
 ### Fix
