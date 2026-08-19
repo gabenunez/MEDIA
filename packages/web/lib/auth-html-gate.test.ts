@@ -47,6 +47,13 @@ describe("resolvePostLoginHref", () => {
     expect(
       resolvePostLoginHref({
         pathname: "/login/",
+        search: "",
+        isTv: true,
+      }),
+    ).toBe("/?tv=1");
+    expect(
+      resolvePostLoginHref({
+        pathname: "/login/",
         search: "?tv=1",
         isTv: false,
       }),

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.201 — 2026-08-19
+
+### TV
+
+- **Login** — keep D-pad spatial nav on the password overlay after the library is unmounted until unlock, so a logged-out TV can still focus the field and submit
+
 ## 0.1.200 — 2026-08-19
 
 ### Fix

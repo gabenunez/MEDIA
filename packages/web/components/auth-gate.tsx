@@ -30,6 +30,7 @@ import {
   focusPrimaryContentItem,
 } from "@/lib/tv-focus";
 import { tvFocusRingClassName } from "@/components/tv/tv-focus-link";
+import { TvSpatialNav } from "@/components/tv/tv-spatial-nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -203,7 +204,7 @@ function LoginGate({
     }
   };
 
-  return (
+  const gate = (
     <div
       className={cn(
         "fixed inset-0 z-[200] flex items-center justify-center bg-background px-4",
@@ -268,4 +269,8 @@ function LoginGate({
       </div>
     </div>
   );
+
+  // TvShell (and its spatial nav) is unmounted until unlock — keep D-pad
+  // handling on the overlay so a logged-out TV can still type and submit.
+  return onTv ? <TvSpatialNav>{gate}</TvSpatialNav> : gate;
 }
