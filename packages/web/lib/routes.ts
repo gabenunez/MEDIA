@@ -2,6 +2,7 @@ import type { WatchType } from "@media-app/shared";
 
 export const routes = {
   home: () => "/",
+  login: () => "/login/",
   search: () => "/search/",
   library: (id: number) => `/library/${id}/`,
   deck: (id: number) => `/deck/${id}/`,
