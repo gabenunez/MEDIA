@@ -1,4 +1,4 @@
-import { rewriteCastMediaUrls } from "./cast-url";
+import { rewriteCastMediaUrls, safeCastLocation } from "./cast-url";
 
 let castFrameworkLoaded = false;
 let castOptionsSet = false;
@@ -192,8 +192,10 @@ async function ensureCastSession(): Promise<CastSession> {
   throw new Error("Could not connect to a Cast device");
 }
 
-export function formatCastError(err: unknown): Error {
+export function formatCastError(err: unknown, contentUrl?: string): Error {
   const code = normalizeCastErrorCode(err);
+  const location = contentUrl ? safeCastLocation(contentUrl) : null;
+  const locationHint = location ? ` Tried ${location}.` : "";
 
   if (err && typeof err === "object") {
     const castErr = err as {
@@ -215,7 +217,7 @@ export function formatCastError(err: unknown): Error {
 
   if (code === "session_error") {
     return new Error(
-      "Chromecast couldn't load the video. Your TV has to fetch the same address that's in the browser bar (including HTTPS). Check that the TV can reach that host, and that a firewall isn't blocking it.",
+      `Chromecast couldn't load the video.${locationHint} Your TV has to fetch the same HTTPS address as the browser (including /reel if you use a reverse proxy). Check that the TV can reach that host.`,
     );
   }
 
@@ -304,11 +306,11 @@ export async function castMedia(options: CastMediaOptions): Promise<void> {
       try {
         await retrySession.loadMedia(request);
       } catch (retryErr) {
-        throw formatCastError(retryErr);
+        throw formatCastError(retryErr, media.contentUrl);
       }
       return;
     }
-    throw formatCastError(err);
+    throw formatCastError(err, media.contentUrl);
   }
 }
 

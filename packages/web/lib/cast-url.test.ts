@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rewriteCastMediaUrls, rewriteCastUrlToPageOrigin } from "./cast-url";
+import { rewriteCastMediaUrls, rewriteCastUrlToPageOrigin, safeCastLocation } from "./cast-url";
 
 const page = "https://media.example.com";
 
@@ -41,6 +41,18 @@ describe("rewriteCastUrlToPageOrigin", () => {
       "http://192.168.1.20:8096/reel/api/stream/12?type=movie&castToken=abc";
     expect(rewriteCastUrlToPageOrigin(lan, "http://localhost:8096")).toBe(lan);
   });
+
+  it("adds the public prefix when Fastify omitted it (Apache only proxies /reel)", () => {
+    expect(
+      rewriteCastUrlToPageOrigin(
+        "http://127.0.0.1:8097/api/stream/12?type=movie&castToken=abc",
+        page,
+        "/reel",
+      ),
+    ).toBe(
+      "https://media.example.com/reel/api/stream/12?type=movie&castToken=abc",
+    );
+  });
 });
 
 describe("rewriteCastMediaUrls", () => {
@@ -62,5 +74,15 @@ describe("rewriteCastMediaUrls", () => {
     expect(rewritten.subtitleUrl).toBe(
       "https://media.example.com/reel/api/subtitles/4?castToken=a",
     );
+  });
+});
+
+describe("safeCastLocation", () => {
+  it("strips the query so errors never include a cast token", () => {
+    expect(
+      safeCastLocation(
+        "https://media.example.com/reel/api/stream/12?type=movie&castToken=secret",
+      ),
+    ).toBe("https://media.example.com/reel/api/stream/12");
   });
 });
