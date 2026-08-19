@@ -30,6 +30,15 @@ Or strip the prefix at the proxy and set Next.js `basePath` at build time (not c
 
 If `/reel/media/...` redirects to `/media/...` or returns 404, the proxy is misconfigured.
 
+On HTTPS vhosts, also forward the original scheme so Chromecast (and other clients) do not get `http://` stream URLs:
+
+```apache
+RequestHeader set X-Forwarded-Proto "https"
+RequestHeader set X-Forwarded-Port "443"
+```
+
+Chromecast's built-in receiver loads over HTTPS and will refuse mixed-content HTTP media. The TV fetches your public `/reel/api/stream/...` URL directly — it does not use your desktop as a proxy.
+
 ## Verify
 
 After the host updates config:

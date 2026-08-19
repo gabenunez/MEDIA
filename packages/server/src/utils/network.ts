@@ -40,30 +40,108 @@ export function getLanBaseUrl(port: number): string {
   return `http://${address}:${port}`;
 }
 
+function firstHeader(
+  value: string | string[] | undefined,
+): string | null {
+  if (Array.isArray(value)) return firstHeader(value[0]);
+  if (typeof value !== "string") return null;
+  const token = value.split(",")[0]?.trim();
+  return token || null;
+}
+
+function hostnameOf(host: string): string {
+  if (host.startsWith("[")) {
+    const end = host.indexOf("]");
+    return end === -1 ? host : host.slice(1, end);
+  }
+  return host.split(":")[0] ?? host;
+}
+
+function isLoopbackHost(host: string): boolean {
+  if (!host) return true;
+  const hostname = hostnameOf(host);
+  return (
+    hostname === "127.0.0.1" ||
+    hostname === "localhost" ||
+    hostname === "::1"
+  );
+}
+
+function parseHttpOrigin(value: string | null): URL | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function isCastReceiverHostname(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === "gstatic.com" ||
+    host.endsWith(".gstatic.com") ||
+    host === "google.com" ||
+    host.endsWith(".google.com") ||
+    host.endsWith(".youtube.com") ||
+    host.endsWith(".googleusercontent.com")
+  );
+}
+
+/** Public browser origin Chromecast should fetch — never localhost or the Cast receiver. */
+export function publicOriginFromHeader(value: string | null): string | null {
+  const parsed = parseHttpOrigin(value);
+  if (!parsed || isLoopbackHost(parsed.host)) return null;
+  if (isCastReceiverHostname(parsed.hostname)) return null;
+  return parsed.origin;
+}
+
+/**
+ * Base URL Chromecast uses to fetch streams.
+ *
+ * Prefer the sender page origin (HTTPS behind Apache/nginx) over
+ * x-forwarded-proto. Next rewrites /api to Fastify over HTTP and often
+ * overwrites proto to `http`, which makes Chromecast's HTTPS receiver
+ * refuse the media (mixed content → session_error).
+ *
+ * Ignore Origin from the Cast receiver itself (gstatic) so HLS segment
+ * URLs are not rewritten onto Google's domain.
+ */
 export function getCastBaseUrl(
   request: FastifyRequest,
   config: AppConfig,
+  senderOrigin?: string,
 ): string {
-  const forwardedHost = request.headers["x-forwarded-host"];
-  const host =
-    (typeof forwardedHost === "string" ? forwardedHost.split(",")[0]?.trim() : null) ??
-    request.headers.host ??
-    "";
-  const hostIsInternal =
-    !host ||
-    host.startsWith("127.0.0.1") ||
-    host.startsWith("localhost") ||
-    host.startsWith("[::1]");
+  const fromSender = publicOriginFromHeader(senderOrigin ?? null);
+  if (fromSender) {
+    return withPublicPrefix(config, fromSender);
+  }
 
-  if (hostIsInternal) {
+  const fromOrigin = publicOriginFromHeader(firstHeader(request.headers.origin));
+  if (fromOrigin) {
+    return withPublicPrefix(config, fromOrigin);
+  }
+
+  const fromReferer = publicOriginFromHeader(firstHeader(request.headers.referer));
+  if (fromReferer) {
+    return withPublicPrefix(config, fromReferer);
+  }
+
+  const forwardedHost = firstHeader(request.headers["x-forwarded-host"]);
+  const host = forwardedHost ?? request.headers.host ?? "";
+  if (isLoopbackHost(host)) {
     return withPublicPrefix(config, getLanBaseUrl(config.server.port));
   }
 
-  const forwardedProto = request.headers["x-forwarded-proto"];
-  const protocol =
-    (typeof forwardedProto === "string" ? forwardedProto.split(",")[0]?.trim() : null) ??
-    request.protocol ??
-    "http";
+  const forwarded = firstHeader(request.headers.forwarded);
+  const forwardedProto =
+    firstHeader(request.headers["x-forwarded-proto"]) ??
+    forwarded?.match(/(?:^|[;\s])proto=([^;,\s]+)/i)?.[1] ??
+    (firstHeader(request.headers["x-forwarded-ssl"]) === "on" ? "https" : null);
+
+  const protocol = forwardedProto ?? request.protocol ?? "http";
   return withPublicPrefix(config, `${protocol}://${host}`);
 }
 

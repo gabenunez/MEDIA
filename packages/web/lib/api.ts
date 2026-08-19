@@ -711,7 +711,11 @@ export const api = {
   }) =>
     fetchApi<CastPrepareResponse>("/api/cast/prepare", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        senderOrigin:
+          typeof window !== "undefined" ? window.location.origin : undefined,
+      }),
     }),
   getTvCastStatus: () => fetchApi<TvCastStatusResponse>("/api/cast/tv/status"),
   sendTvCast: (data: {

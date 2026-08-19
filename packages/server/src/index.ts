@@ -46,6 +46,11 @@ async function main() {
   await app.register(cors, { origin: true, credentials: true });
 
   app.addHook("onRequest", async (request, reply) => {
+    // Chromecast CORS preflight has no session cookie; @fastify/cors answers OPTIONS.
+    if (request.method === "OPTIONS") {
+      return;
+    }
+
     const pathname = request.url.split("?")[0] ?? request.url;
     const passwordRequired = auth.isPasswordRequired();
 
