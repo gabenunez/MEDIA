@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Heart } from "lucide-react";
 import { api } from "@/lib/api";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
@@ -48,10 +48,10 @@ export function TvFavoriteButton({
       aria-pressed={favorite}
       aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
       className={cn(
-        "inline-flex items-center gap-3 rounded-xl border px-6 py-3 text-lg font-semibold transition-colors",
+        "inline-flex items-center gap-3 rounded-xl border px-6 py-3 text-lg font-semibold",
         favorite
           ? "border-accent/40 bg-accent/15 text-accent"
-          : "border-border bg-muted/60 text-foreground hover:bg-muted",
+          : "border-border bg-muted/60 text-foreground",
         className,
       )}
     >

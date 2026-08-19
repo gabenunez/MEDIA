@@ -85,9 +85,9 @@ export const TvPoster = memo(function TvPoster({
           ) : (
             <div className="signal-grid flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-sm text-muted-foreground">
               {item.type === "movie" ? (
-                <Clapperboard className="h-8 w-8 text-primary" />
+                <Clapperboard className="h-10 w-10 text-primary" />
               ) : (
-                <Tv className="h-8 w-8 text-primary" />
+                <Tv className="h-10 w-10 text-primary" />
               )}
             </div>
           )}
@@ -107,14 +107,14 @@ export const TvPoster = memo(function TvPoster({
             </div>
           )}
         </div>
-        <p className="tv-poster-title mt-2 line-clamp-2 text-sm font-medium leading-snug text-muted-foreground">
+        <p className="tv-poster-title line-clamp-2 leading-snug text-muted-foreground">
           {item.title}
         </p>
         {subtitle && (
           <p
             className={cn(
-              "mt-0.5 line-clamp-1 text-muted-foreground",
-              layout === "grid" ? "text-sm" : "text-xs",
+              "mt-1 line-clamp-1 text-muted-foreground",
+              layout === "grid" ? "text-base" : "text-sm",
             )}
           >
             {subtitle}

@@ -77,7 +77,7 @@ export function TvFavoritesView({
         data-tv-row=""
         data-tv-content-row=""
         data-tv-scroll-row=""
-        className="mb-7 flex gap-3 overflow-x-auto py-1"
+        className="mb-8 flex gap-4 overflow-x-auto py-1"
       >
         {(
           [
@@ -91,7 +91,7 @@ export function TvFavoritesView({
             href={routes.favorites(option.id === "all" ? undefined : option.id)}
             variant="chip"
             selected={filter === option.id}
-            className="px-6 py-3 text-base font-semibold"
+            className="px-7 py-3.5 text-lg font-semibold"
           >
             {option.label}
           </TvFocusLink>

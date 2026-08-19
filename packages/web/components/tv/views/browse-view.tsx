@@ -68,45 +68,50 @@ export function TvBrowseView() {
       <div
         data-tv-row=""
         data-tv-content-row=""
-        data-tv-scroll-row=""
-        className="scrollbar-hide flex gap-4 overflow-x-auto py-1"
+        data-tv-grid=""
+        data-tv-browse-grid=""
+        className="grid"
       >
         {continueCount > 0 && (
           <TvBrowseCard
+            layout="grid"
             href={routes.continueWatching()}
             title="Continue Watching"
             detail={`${continueCount} in progress`}
             icon={
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent/15 text-accent">
-                <Play className="h-4 w-4 fill-current" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                <Play className="h-6 w-6 fill-current" />
               </div>
             }
           />
         )}
         {recentCount > 0 && (
           <TvBrowseCard
+            layout="grid"
             href={routes.recentlyAdded()}
             title="Recently Added"
             detail={`${recentCount} titles`}
             icon={
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Sparkles className="h-4 w-4" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Sparkles className="h-6 w-6" />
               </div>
             }
           />
         )}
         <TvBrowseCard
+          layout="grid"
           href={routes.favorites()}
           title="Favorites"
           detail="Saved titles"
           icon={
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Heart className="h-4 w-4" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Heart className="h-6 w-6" />
             </div>
           }
         />
         {decks.map((deck) => (
           <TvBrowseCard
+            layout="grid"
             key={deck.id}
             href={routes.deck(deck.id)}
             title={deck.name}
@@ -115,12 +120,13 @@ export function TvBrowseView() {
         ))}
         {libraries.map((lib) => (
           <TvBrowseCard
+            layout="grid"
             key={lib.id}
             href={routes.library(lib.id)}
             title={lib.name}
             detail={`${lib.type === "movies" ? "Movies" : "TV"} · ${lib.itemCount ?? 0} titles`}
             icon={
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <LibraryIcon type={lib.type} />
               </div>
             }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.206 — 2026-08-19
+
+### TV
+
+- **Catalog** — 10-foot scale across Home, Browse, Search, libraries, and title pages: larger posters, type, and remote targets, solid focus borders, and D-pad-reachable search and match overlays (player unchanged)
+
 ## 0.1.205 — 2026-08-19
 
 ### Fix

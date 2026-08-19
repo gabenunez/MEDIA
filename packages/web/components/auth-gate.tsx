@@ -212,12 +212,12 @@ function LoginGate({
       )}
       data-tv-login-gate={onTv ? "" : undefined}
     >
-      <div className="w-full max-w-md rounded-md border border-border/80 bg-card p-8 shadow-2xl">
-        <div className="mb-6 flex items-center gap-3">
-          <MediaIcon className="h-12 w-12" />
+      <div className="tv-login-card rounded-2xl border border-border/80 bg-card shadow-2xl">
+        <div className="mb-8 flex items-center gap-4">
+          <MediaIcon className="h-16 w-16" />
           <div>
-            <h1 className="text-2xl font-bold">MEDIA!</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-4xl font-black tracking-tight">MEDIA!</h1>
+            <p className="mt-1 text-lg text-muted-foreground">
               Enter your password to continue
             </p>
           </div>
@@ -225,7 +225,7 @@ function LoginGate({
 
         <form
           onSubmit={handleSubmit}
-          className="space-y-4"
+          className="space-y-5"
           {...(onTv
             ? { "data-tv-row": "", "data-tv-vertical": "" }
             : {})}
@@ -243,14 +243,14 @@ function LoginGate({
               ? {
                   "data-tv-item": "",
                   tabIndex: 0,
-                  className: cn(tvFocusRingClassName, "h-14 text-lg"),
+                  className: cn(tvFocusRingClassName, "h-16 text-xl"),
                 }
               : {})}
           />
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-base text-red-400">{error}</p>}
           <Button
             type="submit"
-            className={cn("w-full", onTv && tvFocusRingClassName)}
+            className={cn("w-full", onTv && cn(tvFocusRingClassName, "h-16 text-xl"))}
             disabled={submitting || !password.trim()}
             {...(onTv
               ? {

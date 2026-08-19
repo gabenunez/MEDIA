@@ -121,11 +121,12 @@
     height: 100vh;
     max-height: 100vh;
     overflow: hidden;
-    --tv-poster-width: 7.5rem;
-    --tv-grid-poster-min: 15.25rem;
-    --tv-page-gutter: 2rem;
-    --tv-row-gap: 0.75rem;
-    --tv-section-gap: 1.5rem;
+    --tv-poster-width: 10rem;
+    --tv-grid-poster-min: 15.75rem;
+    --tv-browse-card-min: 19rem;
+    --tv-page-gutter: 2.5rem;
+    --tv-row-gap: 1rem;
+    --tv-section-gap: 1.85rem;
     --tv-focus-glow:
       0 0 0 2px hsl(var(--background)),
       0 0 0 4px hsl(var(--primary));
@@ -144,7 +145,7 @@
 
   /* Shared 10-foot spacing rhythm for every TV view. */
   .tv-ui > main {
-    padding-block: 1rem 2rem;
+    padding-block: 1.25rem 2.5rem;
   }
 
   /* Watch is a fixed full-bleed player — drop main padding so loading/player
@@ -160,20 +161,24 @@
   }
 
   .tv-ui .tv-row-section > h2 {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.35rem;
     padding-inline: var(--tv-page-gutter);
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: hsl(var(--foreground) / 0.82);
   }
 
   .tv-ui .tv-scroll-row {
     gap: var(--tv-row-gap);
     padding-inline: var(--tv-page-gutter);
-    padding-block: 0.75rem 1rem;
+    padding-block: 0.85rem 1.15rem;
     scroll-padding-inline: var(--tv-page-gutter);
   }
 
   .tv-ui .tv-page {
-    padding-inline: 3rem;
-    padding-block: 1.75rem 2.5rem;
+    padding-inline: var(--tv-page-gutter);
+    padding-block: 1.75rem 2.75rem;
   }
 
   .tv-ui [data-tv-grid] {
@@ -201,12 +206,11 @@
     color: hsl(var(--foreground) / 0.9);
   }
 
-  .tv-ui [data-tv-grid] a.tv-poster-link[data-tv-focused] .tv-poster-art,
-  .tv-ui [data-tv-grid] a.tv-poster-link:focus .tv-poster-art,
-  .tv-ui [data-tv-grid] a.tv-poster-link:focus-visible .tv-poster-art {
-    box-shadow:
-      0 0 0 3px hsl(var(--background)),
-      0 0 0 6px hsl(var(--primary));
+  .tv-ui [data-tv-browse-grid] {
+    --tv-grid-poster-min: var(--tv-browse-card-min);
+    row-gap: 1.25rem;
+    column-gap: 1.25rem;
+    padding-top: 0.35rem;
   }
 
   .tv-ui [data-tv-content-row] {
@@ -323,6 +327,12 @@
   }
 
   /* Primary-filled action buttons keep their fill; focus adds border on top */
+  .tv-ui [data-tv-item].tv-focus-button.bg-primary,
+  .tv-ui [data-tv-item].tv-focus-card.bg-primary {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
   .tv-ui [data-tv-item].tv-focus-button.bg-primary[data-tv-focused],
   .tv-ui [data-tv-item].tv-focus-card.bg-primary[data-tv-focused] {
     border-color: hsl(var(--accent));
@@ -331,8 +341,8 @@
   }
 
   .tv-ui .tv-scroll-row {
-    scroll-padding-inline: 2rem;
-    scroll-padding-block: 0.875rem;
+    scroll-padding-inline: var(--tv-page-gutter);
+    scroll-padding-block: 1rem;
     scroll-behavior: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -348,19 +358,27 @@
     padding-bottom: 0.125rem;
   }
 
-  .tv-ui .tv-row-section h2 {
-    color: hsl(var(--muted-foreground));
+  .tv-ui .tv-poster-title {
+    margin-top: 0.7rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.3;
   }
 
   .tv-ui .tv-poster-art {
-    transform: scale(1);
+    transform: none;
     transform-origin: center center;
+    border: 2px solid transparent;
   }
 
   .tv-ui a.tv-poster-link[data-tv-focused] .tv-poster-art,
   .tv-ui a.tv-poster-link:focus .tv-poster-art,
-  .tv-ui a.tv-poster-link:focus-visible .tv-poster-art {
-    box-shadow: var(--tv-poster-focus-ring);
+  .tv-ui a.tv-poster-link:focus-visible .tv-poster-art,
+  .tv-ui [data-tv-grid] a.tv-poster-link[data-tv-focused] .tv-poster-art,
+  .tv-ui [data-tv-grid] a.tv-poster-link:focus .tv-poster-art,
+  .tv-ui [data-tv-grid] a.tv-poster-link:focus-visible .tv-poster-art {
+    border-color: hsl(var(--primary));
+    box-shadow: none;
   }
 
 
@@ -382,7 +400,61 @@
   .tv-ui a.tv-poster-link:focus .tv-poster-title,
   .tv-ui a.tv-poster-link:focus-visible .tv-poster-title {
     color: hsl(var(--foreground));
+    font-weight: 700;
+  }
+
+  .tv-media-hero {
+    min-height: 280px;
+    max-height: 42vh;
+  }
+
+  .tv-ui .tv-media-page {
+    padding-bottom: 2.5rem;
+  }
+
+  .tv-ui .tv-media-gutter {
+    padding-inline: var(--tv-page-gutter);
+  }
+
+  .tv-ui .tv-media-title {
+    font-size: clamp(2rem, 4.2vw, 3.15rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+  }
+
+  .tv-ui .tv-media-overview {
+    font-size: 1.15rem;
+    line-height: 1.45;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .tv-ui .tv-media-actions {
+    gap: 0.85rem;
+  }
+
+  .tv-ui .tv-media-actions [data-tv-item] {
+    min-height: 3.5rem;
+    padding-inline: 1.35rem;
+    font-size: 1.125rem;
     font-weight: 600;
+    border-radius: 0.85rem;
+  }
+
+  .tv-ui .tv-episode-still {
+    height: 5.75rem;
+    width: 10.25rem;
+  }
+
+  .tv-ui .tv-search-field {
+    min-height: 4rem;
+    font-size: 1.35rem;
+    border-width: 2px;
+  }
+
+  .tv-ui .tv-login-card {
+    width: min(36rem, 92vw);
+    padding: 2.5rem 2.25rem;
   }
 
   .tv-ui main {
@@ -1493,11 +1565,12 @@
   }
 
   html.tv-mode.tv-4k .tv-ui {
-    --tv-poster-width: 10rem;
-    --tv-grid-poster-min: 17.5rem;
-    --tv-page-gutter: 3rem;
-    --tv-row-gap: 1rem;
-    --tv-section-gap: 2rem;
+    --tv-poster-width: 12rem;
+    --tv-grid-poster-min: 18.5rem;
+    --tv-browse-card-min: 22rem;
+    --tv-page-gutter: 3.25rem;
+    --tv-row-gap: 1.15rem;
+    --tv-section-gap: 2.15rem;
     --tv-focus-ring-compact: 0 0 0 3px hsl(var(--primary));
     --tv-focus-ring-compact-strong: 0 0 0 4px hsl(var(--primary));
     --tv-poster-focus-ring:
@@ -1521,8 +1594,8 @@
   }
 
   html.tv-mode.tv-4k .tv-ui > aside {
-    width: 5rem;
-    padding-block: 1.5rem;
+    width: 5.5rem;
+    padding-block: 1.65rem;
   }
 
   html.tv-mode.tv-4k .tv-ui > aside nav {
@@ -1538,28 +1611,28 @@
   }
 
   html.tv-mode.tv-4k .tv-ui .tv-row-section > h2 {
-    margin-bottom: 0.5rem;
-    font-size: 1.15rem;
+    margin-bottom: 0.55rem;
+    font-size: 1.55rem;
   }
 
   html.tv-mode.tv-4k .tv-ui .tv-page {
-    padding-inline: 3.5rem;
-    padding-block: 2rem 3rem;
+    padding-inline: var(--tv-page-gutter);
+    padding-block: 2.15rem 3.25rem;
   }
 
   html.tv-mode.tv-4k .tv-ui .tv-page h1 {
-    font-size: 3rem;
+    font-size: 3.25rem;
   }
 
   html.tv-mode.tv-4k .tv-ui .tv-poster-title {
-    margin-top: 0.75rem;
-    font-size: 0.95rem;
+    margin-top: 0.8rem;
+    font-size: 1.15rem;
     line-height: 1.3;
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-grid] .tv-poster-title {
-    font-size: 1.15rem;
-    margin-top: 0.85rem;
+    font-size: 1.25rem;
+    margin-top: 0.9rem;
   }
 
   html.tv-mode.tv-4k .tv-ui [data-tv-item].tv-focus-nav,
@@ -1571,9 +1644,18 @@
     width: min(28rem, 34vw);
   }
 
+  .tv-ui [data-tv-watch-side-sheet].tv-media-side-sheet {
+    width: min(42rem, 52vw);
+    min-width: 22rem;
+  }
+
+  html.tv-mode.tv-4k .tv-ui [data-tv-watch-side-sheet].tv-media-side-sheet {
+    width: min(46rem, 48vw);
+  }
+
   html.tv-mode.tv-4k .tv-media-hero {
-    min-height: 260px;
-    max-height: 400px;
+    min-height: 340px;
+    max-height: 48vh;
   }
 
   html.tv-mode.tv-4k .tv-ui video.media-subtitles::cue {
