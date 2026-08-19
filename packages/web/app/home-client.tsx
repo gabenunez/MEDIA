@@ -88,10 +88,6 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
       : null;
   const featuredImage = api.imageUrl(featured?.backdropPath ?? featured?.posterPath);
   const tmdbConfigured = data?.tmdbConfigured;
-  const totalItems = libraries.reduce(
-    (sum, library) => sum + (library.itemCount ?? 0),
-    0,
-  );
   const showEmptyState =
     loaded && !isScanning && (!libraries.length || !recentlyAdded.length);
 
@@ -159,35 +155,6 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
                     <span className="truncate">{continueTarget.title}</span>
                   </Link>
                 ) : null}
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <TelemCell
-                  code="LIB"
-                  label="Libraries"
-                  value={loaded ? libraries.length : null}
-                  fill={loaded ? Math.min(libraries.length / 8, 1) : 0}
-                />
-                <TelemCell
-                  code="TTL"
-                  label="Titles"
-                  value={loaded ? totalItems : null}
-                  fill={loaded ? Math.min(totalItems / 400, 1) : 0}
-                />
-                <TelemCell
-                  code="META"
-                  label="Metadata"
-                  value={
-                    loaded && tmdbConfigured !== undefined
-                      ? tmdbConfigured
-                        ? "On"
-                        : "Off"
-                      : null
-                  }
-                  fill={
-                    loaded && tmdbConfigured !== undefined ? (tmdbConfigured ? 1 : 0.18) : 0
-                  }
-                />
               </div>
 
             {activeScan && (
@@ -443,42 +410,6 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
           </Button>
         </div>
       )}
-    </div>
-  );
-}
-
-function TelemCell({
-  code,
-  label,
-  value,
-  fill,
-}: {
-  code: string;
-  label: string;
-  value: string | number | null;
-  fill: number;
-}) {
-  return (
-    <div className="home-hero-telem-cell min-w-[6.75rem] flex-1 rounded-md px-3.5 py-3 sm:min-w-[7.25rem] sm:px-4">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-[0.58rem] uppercase tracking-[0.24em] text-primary/65">
-          {code}
-        </span>
-        <span className="font-mono text-[0.52rem] uppercase tracking-widest text-muted-foreground/70">
-          {label}
-        </span>
-      </div>
-      {value === null ? (
-        <Skeleton className="mt-2 h-8 w-14" />
-      ) : (
-        <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
-      )}
-      <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-primary/10">
-        <div
-          className="home-hero-telem-bar h-full rounded-full bg-gradient-to-r from-primary to-accent"
-          style={{ width: `${Math.round(Math.max(0, Math.min(fill, 1)) * 100)}%` }}
-        />
-      </div>
     </div>
   );
 }
