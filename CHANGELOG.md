@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.207 — 2026-08-19
+
+### TV
+
+- **Up next** — end-of-episode countdown uses the next episode still (series art as fallback) instead of a black screen, with a 16:9 preview, countdown ring, and 10-foot Play now / Cancel targets
+
+
 ## 0.1.206 — 2026-08-19
 
 ### TV

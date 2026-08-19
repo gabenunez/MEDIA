@@ -1189,6 +1189,8 @@ function WatchDesktopClient() {
         <NextEpisodeCountdownOverlay
           countdown={countdown}
           label={countdownLabel}
+          seriesTitle={mediaDetail?.title}
+          fallbackArt={mediaDetail?.backdropPath ?? mediaDetail?.posterPath}
           onCancel={() => {
             cancelCountdown();
             router.push(backHref);

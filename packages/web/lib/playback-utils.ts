@@ -360,6 +360,8 @@ export interface TvEpisodeSummary {
   title?: string | null;
   episodeNumber: number;
   stillPath?: string | null;
+  overview?: string | null;
+  durationMs?: number | null;
 }
 
 export interface TvSeasonSummary {
@@ -370,6 +372,7 @@ export interface TvSeasonSummary {
 export interface PlaybackMediaDetail {
   title: string;
   posterPath?: string | null;
+  backdropPath?: string | null;
   seasons?: TvSeasonSummary[];
 }
 
@@ -1011,6 +1014,19 @@ export function formatEpisodeLabel(
 ): string {
   const name = episode.title?.trim() || `Episode ${episode.episodeNumber}`;
   return `S${seasonNumber}E${episode.episodeNumber} · ${name}`;
+}
+
+/** Still → series backdrop → poster. Used for the up-next overlay and prefetch. */
+export function nextEpisodePreviewPath(
+  next: NextEpisodeInfo,
+  media?: PlaybackMediaDetail | null,
+): string | null {
+  return (
+    next.episode.stillPath ??
+    media?.backdropPath ??
+    media?.posterPath ??
+    null
+  );
 }
 
 export interface MediaSeasonProgress {

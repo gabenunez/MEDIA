@@ -6,12 +6,14 @@ import { routes } from "@/lib/routes";
 import {
   findNextEpisode,
   formatEpisodeLabel,
+  nextEpisodePreviewPath,
   NEXT_EPISODE_COUNTDOWN_SECONDS,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
   type NextEpisodeInfo,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
+import { preloadPlaybackStill } from "@/lib/prefetch-artwork";
 
 export interface NextEpisodeCountdownState extends NextEpisodeInfo {
   secondsLeft: number;
@@ -64,6 +66,7 @@ export function useNextEpisodeCountdown(options: {
       ...next,
       secondsLeft: NEXT_EPISODE_COUNTDOWN_SECONDS,
     });
+    preloadPlaybackStill(next.episode.stillPath);
 
     void api
       .getStreamInfo(next.episode.id, "episode")
@@ -105,6 +108,13 @@ export function useNextEpisodeCountdown(options: {
 
     beginCountdown(next);
   }, [type, mediaId, media, fileId, beginCountdown]);
+
+  useEffect(() => {
+    if (type !== "episode" || !media) return;
+    const next = findNextEpisode(media, fileId);
+    if (!next) return;
+    preloadPlaybackStill(nextEpisodePreviewPath(next, media));
+  }, [type, media, fileId]);
 
   useEffect(() => {
     if (!media || !pendingStartRef.current) return;
