@@ -1,4 +1,4 @@
-import { rewriteCastMediaUrls, safeCastLocation } from "./cast-url";
+import { rewriteCastMediaUrls, safeCastLocation, toChromecastMediaUrl } from "./cast-url";
 
 let castFrameworkLoaded = false;
 let castOptionsSet = false;
@@ -257,36 +257,43 @@ export async function castMedia(options: CastMediaOptions): Promise<void> {
 
   const pageOrigin =
     typeof window !== "undefined" ? window.location.origin : "";
-  const media = pageOrigin
+  const aligned = pageOrigin
     ? rewriteCastMediaUrls(options, pageOrigin)
     : options;
+  const httpUrl = toChromecastMediaUrl(aligned.contentUrl);
+  const candidates = [
+    httpUrl,
+    ...(httpUrl === aligned.contentUrl ? [] : [aligned.contentUrl]),
+  ];
 
-  validateCastMediaUrl(media.contentUrl);
+  validateCastMediaUrl(candidates[0]);
 
   const session = await ensureCastSession();
 
-  const mediaInfo = new chrome.cast.media.MediaInfo(
-    media.contentUrl,
-    media.contentType,
-  );
-  // The server emits finite HLS VOD playlists, not live streams.
-  mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
-  mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
-  mediaInfo.metadata.title = media.title;
-  // Do not attach poster images or subtitle tracks on the first load.
-  // The default receiver requires CORS on every track URL; a bad poster or
-  // VTT makes loadMedia fail with session_error before the TV fetches video.
-  // Do not set currentTime either — progressive MP4 + start offset often
-  // fails before the first byte.
+  let lastError: unknown;
+  let lastUrl = candidates[0];
+  for (const contentUrl of candidates) {
+    lastUrl = contentUrl;
+    const mediaInfo = new chrome.cast.media.MediaInfo(
+      contentUrl,
+      aligned.contentType,
+    );
+    mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
+    mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.title = aligned.title;
 
-  const request = new chrome.cast.media.LoadRequest(mediaInfo);
-  request.autoplay = true;
+    const request = new chrome.cast.media.LoadRequest(mediaInfo);
+    request.autoplay = true;
 
-  try {
-    await session.loadMedia(request);
-  } catch (err) {
-    throw formatCastError(err, media.contentUrl);
+    try {
+      await session.loadMedia(request);
+      return;
+    } catch (err) {
+      lastError = err;
+    }
   }
+
+  throw formatCastError(lastError, lastUrl);
 }
 
 export function subscribeToCastState(

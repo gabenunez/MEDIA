@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.205 — 2026-08-19
+
+### Fix
+
+- **Cast** — try an HTTP stream URL first so Chromecast can fetch media when it cannot verify a new Let's Encrypt Generation Y (YR1) HTTPS certificate
+
 ## 0.1.204 — 2026-08-19
 
 ### Fix
