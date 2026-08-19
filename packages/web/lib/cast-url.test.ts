@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rewriteCastMediaUrls, rewriteCastUrlToPageOrigin, safeCastLocation } from "./cast-url";
+import { rewriteCastMediaUrls, rewriteCastUrlToPageOrigin, safeCastLocation, toChromecastMediaUrl } from "./cast-url";
 
 const page = "https://media.example.com";
 
@@ -84,5 +84,31 @@ describe("safeCastLocation", () => {
         "https://media.example.com/reel/api/stream/12?type=movie&castToken=secret",
       ),
     ).toBe("https://media.example.com/reel/api/stream/12");
+  });
+});
+
+describe("toChromecastMediaUrl", () => {
+  it("uses HTTP on port 80 so Chromecast does not have to verify Generation Y TLS", () => {
+    expect(
+      toChromecastMediaUrl(
+        "https://media.example.com/reel/api/stream/12?type=movie&castToken=abc",
+      ),
+    ).toBe(
+      "http://media.example.com/reel/api/stream/12?type=movie&castToken=abc",
+    );
+  });
+
+  it("rewrites the HLS base query to HTTP as well", () => {
+    const url = toChromecastMediaUrl(
+      "https://media.example.com/reel/api/stream/12/hls/master.m3u8?cast=1&base=https%3A%2F%2Fmedia.example.com%2Freel&castToken=abc",
+    );
+    const parsed = new URL(url);
+    expect(parsed.protocol).toBe("http:");
+    expect(parsed.searchParams.get("base")).toBe("http://media.example.com/reel");
+  });
+
+  it("leaves localhost URLs unchanged", () => {
+    const lan = "http://192.168.1.20:8096/reel/api/stream/12?castToken=abc";
+    expect(toChromecastMediaUrl(lan)).toBe(lan);
   });
 });

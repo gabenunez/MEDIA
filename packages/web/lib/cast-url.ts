@@ -25,6 +25,44 @@ export function safeCastLocation(url: string): string | null {
 }
 
 /**
+ * Chromecast firmware often cannot verify Let's Encrypt Generation Y (YR1 / Root YR).
+ * Desktop Chrome can; the TV then fails TLS before any stream GET. Port 80 already
+ * serves the reverse-proxy prefix, so give the default receiver a cleartext URL.
+ */
+export function toChromecastMediaUrl(url: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+
+  if (isLoopbackHostname(parsed.hostname) || parsed.protocol === "http:") {
+    return url;
+  }
+
+  parsed.protocol = "http:";
+  parsed.port = "";
+
+  const nestedBase = parsed.searchParams.get("base");
+  if (nestedBase) {
+    try {
+      const baseUrl = new URL(nestedBase);
+      if (!isLoopbackHostname(baseUrl.hostname)) {
+        baseUrl.protocol = "http:";
+        baseUrl.port = "";
+        const path = baseUrl.pathname.replace(/\/$/, "");
+        parsed.searchParams.set("base", `${baseUrl.origin}${path}`);
+      }
+    } catch {
+      // keep original base
+    }
+  }
+
+  return parsed.toString();
+}
+
+/**
  * Chromecast's default receiver is HTTPS. Behind Apache/nginx, Fastify often
  * builds `http://…` stream URLs (Next rewrites overwrite X-Forwarded-Proto).
  * Always pin media to the sender page origin and public_prefix (`/reel`) so
