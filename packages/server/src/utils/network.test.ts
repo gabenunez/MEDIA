@@ -74,4 +74,72 @@ describe("getCastBaseUrl", () => {
       "https://dotpeenge.crios.bysh.me/reel",
     );
   });
+
+  it("prefers the HTTPS Origin header when Next overwrites proto to http", () => {
+    const request = {
+      headers: {
+        host: "127.0.0.1:8097",
+        origin: "https://dotpeenge.crios.bysh.me",
+        "x-forwarded-host": "dotpeenge.crios.bysh.me",
+        "x-forwarded-proto": "http",
+      },
+      protocol: "http",
+    } as unknown as FastifyRequest;
+
+    expect(getCastBaseUrl(request, configWithPrefix("/reel"))).toBe(
+      "https://dotpeenge.crios.bysh.me/reel",
+    );
+  });
+
+  it("uses the sender page origin when Fastify only sees localhost", () => {
+    const request = {
+      headers: {
+        host: "127.0.0.1:8097",
+      },
+      protocol: "http",
+    } as unknown as FastifyRequest;
+
+    expect(
+      getCastBaseUrl(
+        request,
+        configWithPrefix("/reel"),
+        "https://dotpeenge.crios.bysh.me",
+      ),
+    ).toBe("https://dotpeenge.crios.bysh.me/reel");
+  });
+
+  it("ignores localhost sender origins so Chromecast still gets a LAN URL", () => {
+    const request = {
+      headers: {
+        host: "127.0.0.1:8097",
+        origin: "http://localhost:8096",
+      },
+      protocol: "http",
+    } as unknown as FastifyRequest;
+
+    const base = getCastBaseUrl(
+      request,
+      configWithPrefix("/reel"),
+      "http://localhost:8096",
+    );
+    expect(base.startsWith("http://")).toBe(true);
+    expect(base.includes("localhost")).toBe(false);
+    expect(base.endsWith("/reel")).toBe(true);
+  });
+
+  it("does not treat Chromecast's gstatic Origin as the media host", () => {
+    const request = {
+      headers: {
+        host: "127.0.0.1:8097",
+        origin: "https://www.gstatic.com",
+        "x-forwarded-host": "dotpeenge.crios.bysh.me",
+        "x-forwarded-proto": "https",
+      },
+      protocol: "http",
+    } as unknown as FastifyRequest;
+
+    expect(getCastBaseUrl(request, configWithPrefix("/reel"))).toBe(
+      "https://dotpeenge.crios.bysh.me/reel",
+    );
+  });
 });

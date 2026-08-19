@@ -110,9 +110,10 @@ export async function castRoutes(
       title?: string;
       posterPath?: string | null;
       startTimeMs?: number;
+      senderOrigin?: string;
     };
   }>("/api/cast/prepare", async (request, reply) => {
-    const { fileId, type, subtitleId, title, posterPath, startTimeMs } =
+    const { fileId, type, subtitleId, title, posterPath, startTimeMs, senderOrigin } =
       request.body;
 
     if (!fileId || (type !== "movie" && type !== "episode")) {
@@ -136,7 +137,7 @@ export async function castRoutes(
       return reply.status(404).send({ error: "File not found" });
     }
 
-    const castBase = getCastBaseUrl(request, config);
+    const castBase = getCastBaseUrl(request, config, senderOrigin);
     const castToken = auth.createCastToken({
       fileId,
       mediaType: type,

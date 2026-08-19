@@ -1,3 +1,5 @@
+import { rewriteCastMediaUrls } from "./cast-url";
+
 let castFrameworkLoaded = false;
 let castOptionsSet = false;
 let castFrameworkLoading: Promise<void> | null = null;
@@ -213,7 +215,7 @@ export function formatCastError(err: unknown): Error {
 
   if (code === "session_error") {
     return new Error(
-      "Chromecast couldn't load the video. Check that your TV can reach MEDIA! on your network (same Wi-Fi, firewall allows incoming connections on the MEDIA! port).",
+      "Chromecast couldn't load the video. Your TV has to fetch the same address that's in the browser bar (including HTTPS). Check that the TV can reach that host, and that a firewall isn't blocking it.",
     );
   }
 
@@ -242,35 +244,42 @@ export function formatCastError(err: unknown): Error {
 
 export async function castMedia(options: CastMediaOptions): Promise<void> {
   await loadCastFramework();
-  validateCastMediaUrl(options.contentUrl);
+
+  const pageOrigin =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const media = pageOrigin
+    ? rewriteCastMediaUrls(options, pageOrigin)
+    : options;
+
+  validateCastMediaUrl(media.contentUrl);
 
   const session = await ensureCastSession();
 
   const mediaInfo = new chrome.cast.media.MediaInfo(
-    options.contentUrl,
-    options.contentType,
+    media.contentUrl,
+    media.contentType,
   );
   const isHls =
-    options.contentType.includes("mpegurl") ||
-    options.contentUrl.includes(".m3u8");
+    media.contentType.includes("mpegurl") ||
+    media.contentUrl.includes(".m3u8");
   // The server emits finite HLS VOD playlists, not live streams.
   mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
   mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
-  mediaInfo.metadata.title = options.title;
+  mediaInfo.metadata.title = media.title;
 
-  if (options.posterUrl) {
-    mediaInfo.metadata.images = [{ url: options.posterUrl }];
+  if (media.posterUrl) {
+    mediaInfo.metadata.images = [{ url: media.posterUrl }];
   }
 
-  if (options.subtitleUrl) {
+  if (media.subtitleUrl) {
     mediaInfo.tracks = [
       {
         trackId: 1,
         type: chrome.cast.media.TrackType.TEXT,
-        trackContentId: options.subtitleUrl,
+        trackContentId: media.subtitleUrl,
         trackContentType: "text/vtt",
         subtype: chrome.cast.media.TextTrackType.SUBTITLES,
-        name: options.subtitleLanguage ?? "Subtitles",
+        name: media.subtitleLanguage ?? "Subtitles",
         language: "en",
       },
     ];
@@ -279,8 +288,8 @@ export async function castMedia(options: CastMediaOptions): Promise<void> {
   }
 
   const request = new chrome.cast.media.LoadRequest(mediaInfo);
-  if (!isHls && options.startTime && options.startTime > 0) {
-    request.currentTime = options.startTime;
+  if (!isHls && media.startTime && media.startTime > 0) {
+    request.currentTime = media.startTime;
   }
   request.autoplay = true;
 

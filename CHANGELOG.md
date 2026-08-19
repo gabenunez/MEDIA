@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.202 — 2026-08-19
+
+### Fix
+
+- **Cast** — Chromecast from an HTTPS reverse-proxy URL now gives the TV that same HTTPS stream address, instead of HTTP media the built-in receiver refuses to load
+
 ## 0.1.201 — 2026-08-19
 
 ### TV
