@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.199 — 2026-08-19
+
+### Fix
+
+- **Web bundle** — keep prerendered HTML in sync with `_next/static` chunk hashes in the standalone build so JS/CSS no longer 500 after a release
+
 ## 0.1.198 — 2026-08-19
 
 ### Fix
