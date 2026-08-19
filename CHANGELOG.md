@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.198 — 2026-08-19
+
+### Fix
+
+- **Password gate** — logged-out browsers and TVs no longer receive cached library HTML (titles and posters). Unauthenticated page requests are rewritten to a data-free sign-in page, then fully reload after unlock
+
 ## 0.1.197 — 2026-08-19
 
 ### TV

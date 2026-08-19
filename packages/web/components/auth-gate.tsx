@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -13,13 +14,15 @@ import { Loader2 } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { api } from "@/lib/api";
 import { invalidateApiCache } from "@/lib/api-cache";
-import { withBasePath } from "@/lib/base-path";
+import { resolvePostLoginHref } from "@/lib/auth-html-gate";
+import { stripBasePath, withBasePath } from "@/lib/base-path";
 import { routes } from "@/lib/routes";
 import {
   androidTvShellSupportsLogout,
   notifyAndroidLogout,
 } from "@/lib/android-bridge";
 import { isTvClient } from "@/lib/tv-mode-detect";
+import { markTvBootContentReady } from "@/lib/tv-boot-ready";
 import {
   focusFirstContentItem,
   focusFirstHomeVideoItem,
@@ -60,13 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [refresh]);
 
-  const login = useCallback(
-    async (password: string) => {
-      await api.login(password);
-      await refresh();
-    },
-    [refresh],
-  );
+  const login = useCallback(async (password: string) => {
+    await api.login(password);
+  }, []);
 
   const logout = useCallback(async () => {
     invalidateApiCache();
@@ -76,20 +75,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error(err);
     }
 
-    if (isTvClient()) {
-      if (androidTvShellSupportsLogout()) {
-        notifyAndroidLogout();
-        return;
-      }
-      window.location.href = `${window.location.origin}${withBasePath(routes.home())}?tv=1`;
+    if (isTvClient() && androidTvShellSupportsLogout()) {
+      notifyAndroidLogout();
       return;
     }
 
     notifyAndroidLogout();
-    await refresh();
-  }, [refresh]);
+    const home = `${window.location.origin}${withBasePath(routes.home())}`;
+    window.location.replace(isTvClient() ? `${home}?tv=1` : home);
+  }, []);
 
   const locked = required && !authenticated;
+  // Keep the library out of the tree until auth is resolved and unlocked.
+  // Rendering it under the gate (or visibility:hidden) is what leaked posters
+  // before login — and hiding it with CSS is what previously broke TV images.
+  const allowContent = !loading && !locked;
 
   // After unlock, LoginGate unmounts and the browser drops focus on the first
   // tabbable (sidebar Home). Put focus back on the main content for TV.
@@ -114,13 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{ loading, required, authenticated, refresh, login, logout }}
     >
-      <div
-        className="contents"
-        inert={locked && !loading ? true : undefined}
-      >
-        {children}
-      </div>
-      {!loading && locked && <LoginGate onLogin={login} />}
+      {allowContent ? children : null}
+      {loading ? <AuthSplash /> : null}
+      {!loading && locked ? <LoginGate onLogin={login} /> : null}
     </AuthContext.Provider>
   );
 }
@@ -133,6 +129,16 @@ export function useAuth() {
   return context;
 }
 
+function AuthSplash() {
+  return (
+    <div
+      className="fixed inset-0 z-[200] bg-background"
+      role="status"
+      aria-label="Loading"
+    />
+  );
+}
+
 function LoginGate({
   onLogin,
 }: {
@@ -143,6 +149,12 @@ function LoginGate({
   const [submitting, setSubmitting] = useState(false);
   const passwordRef = useRef<HTMLInputElement>(null);
   const onTv = isTvClient();
+
+  useLayoutEffect(() => {
+    // Reveal the TV shell only once the opaque gate is mounted — never while
+    // library rows are still in the document.
+    if (onTv) markTvBootContentReady();
+  }, [onTv]);
 
   useEffect(() => {
     const focusPassword = () => {
@@ -174,6 +186,15 @@ function LoginGate({
     try {
       await onLogin(password);
       setPassword("");
+      window.location.replace(
+        withBasePath(
+          resolvePostLoginHref({
+            pathname: stripBasePath(window.location.pathname),
+            search: window.location.search,
+            isTv: onTv,
+          }),
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
       passwordRef.current?.focus();
@@ -185,7 +206,7 @@ function LoginGate({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-[100] flex items-center justify-center bg-background px-4",
+        "fixed inset-0 z-[200] flex items-center justify-center bg-background px-4",
         onTv && "tv-ui",
       )}
       data-tv-login-gate={onTv ? "" : undefined}
