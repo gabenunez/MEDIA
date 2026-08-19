@@ -8,7 +8,7 @@ import { TV_HERO_IMAGE_QUALITY, TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/
 import { routes } from "@/lib/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
-import { TvSectionLabel } from "@/components/tv/tv-page-header";
+import { TvHistoryBackButton, TvSectionLabel } from "@/components/tv/tv-page-header";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
@@ -68,12 +68,12 @@ function TvMediaViewLegacy() {
     }
 
     return (
-      <div className="px-6 py-16 text-center">
-        <p className="mb-4 text-muted-foreground">Invalid media</p>
+      <div className="tv-ui tv-media-gutter py-16 text-center">
+        <p className="mb-6 text-xl text-muted-foreground">Invalid media</p>
         <div data-tv-row="" data-tv-content-row="" className="flex justify-center">
           <TvFocusLink
             href={routes.home()}
-            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+            className="inline-flex h-14 items-center rounded-xl bg-primary px-8 text-lg font-semibold text-primary-foreground"
           >
             Back to home
           </TvFocusLink>
@@ -182,9 +182,9 @@ function TvMediaViewContent({
   const needsMatch = Boolean(media.needsMatch) || !media.tmdbId;
 
   const page = (
-    <div className="pb-6">
-      <section className="relative mb-5 overflow-hidden">
-        <div className="relative h-[30vh] min-h-[220px] max-h-[320px] tv-media-hero">
+    <div className="tv-media-page">
+      <section className="relative mb-6">
+        <div className="relative overflow-hidden tv-media-hero">
           {backdropUrl ? (
             <MediaImage
               src={backdropUrl}
@@ -198,47 +198,51 @@ function TvMediaViewContent({
           ) : (
             <div className="signal-grid absolute inset-0" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/20" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/50 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/25" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/55 to-transparent" />
           {showThemeWaveform && (
-            <ThemeMusicWaveform className="absolute inset-x-0 bottom-0 h-20 w-full [mask-image:linear-gradient(to_top,black_15%,transparent)]" />
+            <ThemeMusicWaveform className="absolute inset-x-0 bottom-0 h-24 w-full [mask-image:linear-gradient(to_top,black_15%,transparent)]" />
           )}
         </div>
 
-        <div className="relative z-10 -mt-[5.5rem] px-6 sm:-mt-24">
-          <div className="flex gap-4 sm:gap-5">
-            <div className="w-[6.5rem] shrink-0 sm:w-28">
+        <div className="tv-media-gutter absolute inset-x-0 top-5 z-20">
+          <TvHistoryBackButton fallbackHref={routes.home()} />
+        </div>
+
+        <div className="relative z-10 -mt-[7.5rem] tv-media-gutter">
+          <div className="flex gap-6">
+            <div className="w-[10.5rem] shrink-0">
               {posterUrl ? (
                 <MediaImage
                   src={posterUrl}
                   alt=""
-                  width={112}
-                  height={168}
+                  width={168}
+                  height={252}
                   priority
                   quality={TV_HERO_IMAGE_QUALITY}
-                  sizes="7rem"
-                  className="aspect-[2/3] w-full rounded-md poster-shadow"
+                  sizes="10.5rem"
+                  className="aspect-[2/3] w-full rounded-xl poster-shadow"
                 />
               ) : (
-                <div className="signal-grid aspect-[2/3] w-full rounded-md bg-muted" />
+                <div className="signal-grid aspect-[2/3] w-full rounded-xl bg-muted" />
               )}
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col justify-end pb-1">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-primary">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-primary">
                 {metaLabel}
               </p>
-              <h1 className="mb-2 line-clamp-2 text-xl font-black leading-tight sm:text-2xl">
+              <h1 className="tv-media-title mb-3 line-clamp-2">
                 {media.title}
               </h1>
               {media.overview && (
-                <p className="mb-3 line-clamp-2 text-sm leading-snug text-muted-foreground">
+                <p className="tv-media-overview mb-5 line-clamp-3 max-w-4xl">
                   {media.overview}
                 </p>
               )}
 
               {needsMatch && (
-                <p className="mb-2 text-xs text-amber-100/85">
+                <p className="mb-3 text-base text-amber-100/90">
                   Unmatched — pick the correct listing below.
                 </p>
               )}
@@ -246,26 +250,25 @@ function TvMediaViewContent({
               <div
                 data-tv-row=""
                 data-tv-content-row=""
-                className="flex flex-wrap items-center gap-2 py-0.5"
+                className="tv-media-actions flex flex-wrap items-center py-1"
               >
                 {media.type === "movie" && movieFile && (
                   <TvFocusLink
                     href={routes.watch("movie", movieFile.id, media.id)}
                     data-tv-media-play=""
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+                    className="inline-flex items-center gap-3 rounded-xl bg-primary px-6 text-primary-foreground"
                   >
-                    <Play className="h-4 w-4 fill-current" />
+                    <Play className="h-5 w-5 fill-current" />
                     {moviePlaybackLabel}
                   </TvFocusLink>
                 )}
                 <TvFavoriteButton
                   mediaId={media.id}
                   initialFavorite={media.isFavorite}
-                  className="!gap-2 !px-4 !py-2.5 !text-sm"
                 />
                 <TvFocusButton
                   onClick={() => setFixMatchOpen(true)}
-                  className="rounded-lg border border-border/80 bg-background/40 px-4 py-2.5 text-sm text-muted-foreground"
+                  className="rounded-xl px-6 text-muted-foreground"
                 >
                   {needsMatch ? "Match title" : "Wrong match?"}
                 </TvFocusButton>
@@ -276,13 +279,15 @@ function TvMediaViewContent({
       </section>
 
       {media.type === "tv" && seasons.length > 0 && (
-        <section className="px-6">
-          <TvSectionLabel>Seasons</TvSectionLabel>
+        <section>
+          <div className="tv-media-gutter">
+            <TvSectionLabel>Seasons</TvSectionLabel>
+          </div>
           <div
             data-tv-row=""
             data-tv-content-row=""
             data-tv-scroll-row=""
-            className={cn(tvScrollRowClassName, "mb-5 gap-3 px-6")}
+            className={cn(tvScrollRowClassName, "mb-6")}
           >
             {seasons.map((season, idx) => (
               <TvFocusButton
@@ -290,23 +295,24 @@ function TvMediaViewContent({
                 variant="chip"
                 selected={selectedSeason === idx}
                 onClick={() => setSelectedSeason(idx)}
-                className="px-4 py-2 text-sm"
+                className="px-6 py-3 text-lg"
               >
                 {season.name ?? `Season ${season.seasonNumber}`}
               </TvFocusButton>
             ))}
           </div>
 
-          <TvSectionLabel>
-            Episodes
-            {episodes.length > 0 ? ` · ${episodes.length}` : ""}
-          </TvSectionLabel>
-          <div
-            data-tv-row=""
-            data-tv-content-row=""
-            data-tv-vertical=""
-            className="flex flex-col gap-1.5"
-          >
+          <div className="tv-media-gutter">
+            <TvSectionLabel>
+              Episodes
+              {episodes.length > 0 ? ` · ${episodes.length}` : ""}
+            </TvSectionLabel>
+            <div
+              data-tv-row=""
+              data-tv-content-row=""
+              data-tv-vertical=""
+              className="flex flex-col gap-2"
+            >
             {episodes.map((ep, episodeIndex) => {
               const episodeActionLabel = getPlaybackButtonLabel(
                 ep.watchProgress?.positionMs,
@@ -326,9 +332,9 @@ function TvMediaViewContent({
                   href={routes.watch("episode", ep.id, media.id)}
                   variant="card"
                   data-tv-episode-id={ep.id}
-                  className="flex items-center gap-3 px-3 py-2.5"
+                  className="flex items-center gap-4 px-4 py-3"
                 >
-                  <div className="relative h-[3.75rem] w-[6.75rem] shrink-0 overflow-hidden rounded-md bg-muted">
+                  <div className="tv-episode-still relative shrink-0 overflow-hidden rounded-lg bg-muted">
                     {ep.stillPath ? (
                       <MediaImage
                         src={tvImageUrl(ep.stillPath)}
@@ -337,36 +343,36 @@ function TvMediaViewContent({
                         priority={episodeIndex < 8}
                         loading="eager"
                         quality={TV_LIST_IMAGE_QUALITY}
-                        sizes="6.75rem"
+                        sizes="10.25rem"
                         className="object-cover"
                       />
                     ) : (
-                      <div className="flex h-full items-center justify-center font-mono text-base font-bold text-muted-foreground">
+                      <div className="flex h-full items-center justify-center font-mono text-xl font-bold text-muted-foreground">
                         {String(ep.episodeNumber).padStart(2, "0")}
                       </div>
                     )}
                     {progressPct > 0 && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/25">
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25">
                         <div className="h-full bg-accent" style={{ width: `${progressPct}%` }} />
                       </div>
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      <span className="mr-1.5 font-mono text-xs text-primary">
+                    <p className="truncate text-lg font-semibold">
+                      <span className="mr-2 font-mono text-base text-primary">
                         {String(ep.episodeNumber).padStart(2, "0")}
                       </span>
                       {ep.title ?? `Episode ${ep.episodeNumber}`}
                     </p>
                     {ep.overview && (
-                      <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                      <p className="mt-1 line-clamp-2 text-base leading-snug text-muted-foreground">
                         {ep.overview}
                       </p>
                     )}
                   </div>
 
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  <span className="shrink-0 text-base tabular-nums text-muted-foreground">
                     {episodeActionLabel === "Play" && ep.durationMs
                       ? formatDuration(ep.durationMs)
                       : episodeActionLabel}
@@ -374,6 +380,7 @@ function TvMediaViewContent({
                 </TvFocusLink>
               );
             })}
+            </div>
           </div>
         </section>
       )}
@@ -385,7 +392,7 @@ function TvMediaViewContent({
               ? "More films in your library"
               : "More series in your library"
           }
-          className="mt-2"
+          className="mt-8"
           prefetchItems={related}
         >
           {related.map((item) => (

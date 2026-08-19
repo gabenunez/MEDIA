@@ -38,7 +38,7 @@ function TvNavButton({
       title={label}
       {...(active ? { "data-tv-nav-active": "" as const } : {})}
       className={cn(
-        "flex h-11 w-11 items-center justify-center",
+        "flex h-12 w-12 items-center justify-center rounded-xl",
         tvNavItemClassName,
         !active && "text-muted-foreground",
       )}
@@ -55,9 +55,9 @@ function TvLogoutButton({ onLogout }: { onLogout: () => void }) {
       title="Sign out"
       aria-label="Sign out"
       onClick={onLogout}
-      className="flex h-11 w-11 items-center justify-center text-muted-foreground"
+      className="flex h-12 w-12 items-center justify-center rounded-xl text-muted-foreground"
     >
-      <LogOut className="h-5 w-5" />
+      <LogOut className="h-6 w-6" />
     </TvFocusButton>
   );
 }
@@ -112,37 +112,37 @@ export function TvShell({ children }: { children: React.ReactNode }) {
         */}
         <aside
           className={cn(
-            "flex w-[4.25rem] shrink-0 flex-col items-center border-r border-border/50 bg-background/95 py-5 min-h-screen",
+            "flex w-20 shrink-0 flex-col items-center border-r border-border/50 bg-background py-6 min-h-screen",
             onWatch && "invisible pointer-events-none",
           )}
           aria-hidden={onWatch || undefined}
         >
             <div
               data-tv-logo=""
-              className="mb-5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-transparent"
+              className="mb-6 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-transparent"
               aria-hidden="true"
             >
-              <MediaIcon background={false} combined className="h-6 w-6" />
+              <MediaIcon background={false} combined className="h-7 w-7" />
             </div>
 
             <nav
               data-tv-row=""
               data-tv-nav-row=""
               data-tv-vertical=""
-              className="flex flex-col items-center gap-2"
+              className="flex flex-col items-center gap-3"
             >
               <TvNavButton href={routes.home()} label="Home" active={homeActive}>
-                <Home className="h-5 w-5" />
+                <Home className="h-6 w-6" />
               </TvNavButton>
               <TvNavButton
                 href={routes.favorites()}
                 label="Favorites"
                 active={favoritesActive}
               >
-                <Heart className="h-5 w-5" />
+                <Heart className="h-6 w-6" />
               </TvNavButton>
               <TvNavButton href={routes.search()} label="Search" active={searchActive}>
-                <Search className="h-5 w-5" />
+                <Search className="h-6 w-6" />
               </TvNavButton>
               {/* Keep mounted so unlock doesn't reshuffle nav focus targets. */}
               {required ? (

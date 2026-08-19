@@ -9,7 +9,7 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TvFocusButton } from "@/components/tv/tv-focus-link";
+import { TvFocusButton, tvFocusRingClassName } from "@/components/tv/tv-focus-link";
 import { TvWatchSideSheet } from "@/components/tv/tv-watch-settings-menu";
 import { MediaImage } from "@/components/media-image";
 import { cn } from "@/lib/utils";
@@ -180,7 +180,7 @@ export function FixMatchDialog({
 
   const form = (
     <>
-      <p className="text-sm text-muted-foreground">
+      <p className={cn("text-muted-foreground", tv ? "text-base leading-relaxed" : "text-sm")}>
         Search by title, or paste an IMDb link / id to pin the correct listing.
         {currentLabel ? (
           <>
@@ -192,7 +192,9 @@ export function FixMatchDialog({
         )}
       </p>
 
-      <div className={cn("mt-4 grid gap-3", tv ? "grid-cols-1" : "sm:grid-cols-[1fr_6.5rem_auto]")}
+      <div
+        className={cn("mt-4 grid gap-3", tv ? "grid-cols-1" : "sm:grid-cols-[1fr_6.5rem_auto]")}
+        {...(tv ? { "data-tv-row": "", "data-tv-content-row": "" } : {})}
       >
         <Input
           ref={searchInputRef}
@@ -203,7 +205,13 @@ export function FixMatchDialog({
           }}
           placeholder="Beaches, or imdb.com/title/tt0094715"
           aria-label="Title or IMDb link"
-          className={tv ? "h-12 text-base" : undefined}
+          {...(tv
+            ? {
+                "data-tv-item": "",
+                tabIndex: 0 as const,
+                className: cn(tvFocusRingClassName, "h-14 text-lg"),
+              }
+            : {})}
         />
         <Input
           value={year}
@@ -214,14 +222,20 @@ export function FixMatchDialog({
           placeholder="Year"
           inputMode="numeric"
           aria-label="Year"
-          className={tv ? "h-12 text-base" : undefined}
+          {...(tv
+            ? {
+                "data-tv-item": "",
+                tabIndex: 0 as const,
+                className: cn(tvFocusRingClassName, "h-14 text-lg"),
+              }
+            : {})}
         />
         {tv ? (
           <TvFocusButton
             ref={searchButtonRef}
             onClick={() => void runSearch()}
             disabled={loading}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-semibold text-primary-foreground"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -248,7 +262,12 @@ export function FixMatchDialog({
         </p>
       )}
 
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+      <div
+        className="mt-4 min-h-0 flex-1 overflow-y-auto"
+        {...(tv
+          ? { "data-tv-row": "", "data-tv-content-row": "", "data-tv-vertical": "" }
+          : {})}
+      >
         {loading && results.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -314,7 +333,7 @@ export function FixMatchDialog({
                       disabled={applyingId != null}
                       onClick={() => void applyMatch(result)}
                       className={cn(
-                        "flex w-full items-start gap-3 rounded-lg border border-transparent bg-white/5 px-3 py-3",
+                        "flex w-full items-start gap-4 rounded-xl border border-transparent bg-white/5 px-4 py-4",
                         selected && "border-primary/50 bg-primary/10",
                       )}
                     >
@@ -349,27 +368,27 @@ export function FixMatchDialog({
 
   if (tv) {
     return (
-      <TvWatchSideSheet>
+      <TvWatchSideSheet className="tv-media-side-sheet">
         <aside data-tv-watch-menu="" className="flex h-full min-h-0 flex-col">
           <div
             data-tv-row=""
             data-tv-watch-menu-header=""
-            className="flex items-center justify-between gap-3 border-b border-border px-5 py-4"
+            className="flex items-center justify-between gap-3 border-b border-border px-6 py-5"
           >
             <div>
-              <h3 className="text-lg font-semibold">Fix match</h3>
-              <p className="text-sm text-muted-foreground">Pick the right listing</p>
+              <h3 className="text-2xl font-semibold">Fix match</h3>
+              <p className="mt-1 text-base text-muted-foreground">Pick the right listing</p>
             </div>
             <TvFocusButton
               ref={closeButtonRef}
               onClick={onClose}
               aria-label="Close"
-              className="rounded-lg border border-border px-3 py-2"
+              className="rounded-xl border border-border px-4 py-3"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </TvFocusButton>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col px-5 py-4">{form}</div>
+          <div className="flex min-h-0 flex-1 flex-col px-6 py-5">{form}</div>
         </aside>
       </TvWatchSideSheet>
     );

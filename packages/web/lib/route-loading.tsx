@@ -16,8 +16,8 @@ function RouteLoading({ children }: { children: ReactNode }) {
         role="status"
         aria-label="Loading"
       >
-        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-card/90 px-5 py-3 text-sm text-muted-foreground shadow-xl">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
+        <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-card px-7 py-4 text-lg text-muted-foreground">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden />
           Loading...
         </div>
       </div>

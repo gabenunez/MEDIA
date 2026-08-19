@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Search } from "lucide-react";
 import { routes } from "@/lib/routes";
+import { tvFocusRingClassName } from "@/components/tv/tv-focus-link";
+import { cn } from "@/lib/utils";
 import {
   TvEmptyState,
   TvPageHeader,
@@ -39,6 +41,7 @@ export function TvSearchView() {
 
   useEffect(() => {
     if (!searched || loading || results.length === 0) return;
+    if (document.activeElement === inputRef.current) return;
     focusFirstContentItem();
   }, [searched, loading, results]);
 
@@ -50,23 +53,28 @@ export function TvSearchView() {
         subtitle={tvPageMeta([searched && results.length > 0 && `${results.length} results`])}
       />
 
-      <div data-tv-row="" data-tv-content-row="" className="mb-8 py-0.5">
-        <div className="relative max-w-3xl">
-          <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+      <div data-tv-row="" data-tv-content-row="" className="mb-10">
+        <div className="relative max-w-4xl">
+          <Search className="pointer-events-none absolute left-6 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
           <input
             ref={inputRef}
             type="search"
             value={query}
+            data-tv-item=""
+            tabIndex={0}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search movies and TV shows..."
-            className="h-14 w-full rounded-xl border border-border bg-card pl-14 pr-5 text-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+            placeholder="Search movies and TV shows"
+            className={cn(
+              tvFocusRingClassName,
+              "tv-search-field w-full rounded-2xl border-border bg-card pl-16 pr-6 outline-none",
+            )}
           />
         </div>
       </div>
 
       {loading && (
         <div className="flex min-h-[20vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
       )}
 
@@ -90,7 +98,7 @@ export function TvSearchView() {
       )}
 
       {!loading && !searched && (
-        <p className="py-16 text-center text-lg text-muted-foreground">
+        <p className="py-20 text-center text-xl text-muted-foreground">
           Type at least 2 characters to search.
         </p>
       )}

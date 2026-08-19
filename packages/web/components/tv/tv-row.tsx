@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { TvSeeAllTile } from "@/components/tv/tv-see-all-tile";
 
 const tvScrollRowClassName =
-  "tv-scroll-row scrollbar-hide flex gap-3 overflow-x-auto px-8 pt-4 pb-3";
+  "tv-scroll-row scrollbar-hide flex overflow-x-auto";
 
 interface TvRowProps {
   title: string;
@@ -38,10 +38,8 @@ export function TvRow({
   );
 
   return (
-    <section className={cn("tv-row-section mb-5", className)}>
-      <h2 className="mb-2 px-8 text-base font-semibold tracking-tight text-muted-foreground">
-        {title}
-      </h2>
+    <section className={cn("tv-row-section", className)}>
+      <h2 className="tv-row-title">{title}</h2>
       <div
         data-tv-row=""
         data-tv-content-row=""
