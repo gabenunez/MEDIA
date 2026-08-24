@@ -5,6 +5,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -12,12 +14,15 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
+import androidx.media3.common.text.Cue
 import androidx.media3.effect.Presentation
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
 import org.json.JSONObject
+import java.util.concurrent.Executors
 
 class NativePlayerManager(
     private val playerView: PlayerView,
@@ -63,6 +68,11 @@ class NativePlayerManager(
     private var lastEmittedPlaybackState: Int = Player.STATE_IDLE
     /** Wall clock when ahead started draining with no HTTP byte progress. */
     private var transferStallSinceMs = 0L
+    private var overlaySubtitleView: SubtitleView? = null
+    private var overlayCues: List<WebVttCue> = emptyList()
+    private var lastOverlayTexts: List<String> = emptyList()
+    private var subtitleLoadGeneration = 0
+    private val subtitleExecutor = Executors.newSingleThreadExecutor()
 
     /** When true, JS chrome is hidden — emit progress less often to cut WebView work. */
     private var uiOverlayVisible = true
@@ -70,9 +80,17 @@ class NativePlayerManager(
     private val progressRunnable = object : Runnable {
         override fun run() {
             emitState()
+            paintOverlayCues()
             val interval =
                 if (uiOverlayVisible) PROGRESS_INTERVAL_MS else PROGRESS_INTERVAL_HIDDEN_MS
             handler.postDelayed(this, interval)
+        }
+    }
+
+    private val cueRunnable = object : Runnable {
+        override fun run() {
+            paintOverlayCues()
+            handler.postDelayed(this, CUE_INTERVAL_MS)
         }
     }
 
@@ -155,12 +173,13 @@ class NativePlayerManager(
         playerView.player = exoPlayer
         playerView.useController = false
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
-        playerView.subtitleView?.visibility = View.VISIBLE
+        playerView.subtitleView?.visibility = View.GONE
+        ensureOverlaySubtitleView()
         applyStoredSubtitleStyles()
         exoPlayer.trackSelectionParameters =
             exoPlayer.trackSelectionParameters
                 .buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, payload.subtitleUrl.isNullOrBlank())
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                 .build()
         // Engage HDR window color mode before prepare so the first frame is
         // already presented on an HDR surface (late flips often stay SDR).
@@ -226,6 +245,7 @@ class NativePlayerManager(
                             applySdUpscaleEffect(exoPlayer)
                             applyDisplayMode()
                             applyStoredSubtitleStyles()
+                            playerView.subtitleView?.visibility = View.GONE
                             emitState()
                         }
 
@@ -245,11 +265,9 @@ class NativePlayerManager(
                 }
 
                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                    // SubtitleView can briefly be hidden/reset when a subtitle
-                    // media item is swapped while playback is already ready.
-                    // Reassert it when ExoPlayer publishes the new text track.
-                    playerView.subtitleView?.visibility = View.VISIBLE
+                    playerView.subtitleView?.visibility = View.GONE
                     applyStoredSubtitleStyles()
+                    paintOverlayCues()
                     emitState()
                 }
 
@@ -286,6 +304,11 @@ class NativePlayerManager(
 
         handler.removeCallbacks(progressRunnable)
         handler.post(progressRunnable)
+        handler.removeCallbacks(cueRunnable)
+        handler.post(cueRunnable)
+        if (!payload.subtitleUrl.isNullOrBlank()) {
+            updateSubtitles(payload.subtitleUrl)
+        }
     }
 
     fun pause() {
@@ -369,32 +392,43 @@ class NativePlayerManager(
         val payload = currentPayload ?: return false
 
         val normalizedUrl = subtitleUrl?.takeIf { it.isNotBlank() }
-        if (payload.subtitleUrl == normalizedUrl) return true
-
-        val position = exoPlayer.currentPosition
-        // Use playWhenReady, not isPlaying — isPlaying is false while buffering,
-        // and writing that back would permanently pause after a subtitle hot-swap.
-        val shouldResume = exoPlayer.playWhenReady
-
         currentPayload = payload.copy(subtitleUrl = normalizedUrl)
-
         exoPlayer.trackSelectionParameters =
             exoPlayer.trackSelectionParameters
                 .buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, normalizedUrl == null)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                 .build()
 
-        exoPlayer.replaceMediaItem(0, buildMediaItem(currentPayload!!))
-        // Explicitly prepare every hot-swapped item. Relying on the existing
-        // READY state can leave the new text renderer unprepared until the
-        // entire video is reopened.
-        markPlaybackProgress(position)
-        exoPlayer.prepare()
-        exoPlayer.seekTo(position)
-        exoPlayer.playWhenReady = shouldResume
-        playerView.subtitleView?.visibility = View.VISIBLE
-        applyStoredSubtitleStyles()
-        emitState()
+        if (normalizedUrl == null) {
+            subtitleLoadGeneration += 1
+            overlayCues = emptyList()
+            lastOverlayTexts = emptyList()
+            overlaySubtitleView?.setCues(emptyList())
+            return true
+        }
+
+        val generation = ++subtitleLoadGeneration
+        subtitleExecutor.execute {
+            val text = fetchSubtitleText(normalizedUrl)
+            handler.post {
+                if (generation != subtitleLoadGeneration) return@post
+                if (text.isNullOrBlank()) return@post
+                overlayCues = WebVttCueParser.parse(text)
+                lastOverlayTexts = emptyList()
+                paintOverlayCues()
+            }
+        }
+        return true
+    }
+
+    fun setSubtitleVtt(vtt: String): Boolean {
+        player ?: return false
+        currentPayload ?: return false
+        ensureOverlaySubtitleView()
+        subtitleLoadGeneration += 1
+        overlayCues = WebVttCueParser.parse(vtt)
+        lastOverlayTexts = emptyList()
+        paintOverlayCues()
         return true
     }
 
@@ -406,11 +440,12 @@ class NativePlayerManager(
 
     private fun applyStoredSubtitleStyles(): Boolean {
         val json = subtitleStylesJson ?: return false
-        return SubtitleStyleMapper.apply(playerView.subtitleView, json)
+        return SubtitleStyleMapper.apply(overlaySubtitleView ?: playerView.subtitleView, json)
     }
 
     fun stop() {
         handler.removeCallbacks(progressRunnable)
+        handler.removeCallbacks(cueRunnable)
         cancelSeekCoalesce()
         cancelStallRecovery()
         pendingSeekMs = null
@@ -518,6 +553,7 @@ class NativePlayerManager(
 
     fun release() {
         handler.removeCallbacks(progressRunnable)
+        handler.removeCallbacks(cueRunnable)
         releasePlayer()
         playerView.visibility = View.GONE
     }
@@ -528,6 +564,9 @@ class NativePlayerManager(
         playerView.player = null
         player?.release()
         player = null
+        overlayCues = emptyList()
+        lastOverlayTexts = emptyList()
+        overlaySubtitleView?.setCues(emptyList())
     }
 
     private fun isHdrPayload(): Boolean {
@@ -568,6 +607,50 @@ class NativePlayerManager(
         onHdrContentChanged(active)
     }
 
+    private fun ensureOverlaySubtitleView(): SubtitleView {
+        overlaySubtitleView?.let { return it }
+        val view = SubtitleView(playerView.context)
+        val parent: ViewGroup = playerView.overlayFrameLayout ?: playerView
+        parent.addView(
+            view,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        overlaySubtitleView = view
+        applyStoredSubtitleStyles()
+        return view
+    }
+
+    private fun paintOverlayCues() {
+        val view = overlaySubtitleView ?: return
+        val timeSeconds = (player?.currentPosition ?: 0L) / 1000.0
+        val texts = WebVttCueParser.activeTexts(overlayCues, timeSeconds)
+        if (texts == lastOverlayTexts) return
+        lastOverlayTexts = texts
+        view.setCues(texts.map { Cue.Builder().setText(it).build() })
+    }
+
+    private fun fetchSubtitleText(url: String): String? {
+        return try {
+            val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
+            connection.instanceFollowRedirects = true
+            if (!sessionToken.isNullOrBlank()) {
+                connection.setRequestProperty(
+                    "Cookie",
+                    "media_session=$sessionToken; reel_session=$sessionToken",
+                )
+            }
+            connection.inputStream.bufferedReader().use { it.readText() }
+        } catch (err: Exception) {
+            Log.w(TAG, "subtitle fetch failed: ${err.message}")
+            null
+        }
+    }
+
     private fun buildMediaItem(request: PlaybackPayload): MediaItem {
         val builder = MediaItem.Builder()
             .setUri(request.url)
@@ -578,17 +661,6 @@ class NativePlayerManager(
             )
 
         mimeTypeForUrl(request.url)?.let { builder.setMimeType(it) }
-
-        if (!request.subtitleUrl.isNullOrBlank()) {
-            builder.setSubtitleConfigurations(
-                listOf(
-                    MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(request.subtitleUrl))
-                        .setMimeType(MimeTypes.TEXT_VTT)
-                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                        .build(),
-                ),
-            )
-        }
 
         return builder.build()
     }
@@ -995,6 +1067,8 @@ class NativePlayerManager(
     companion object {
         private const val TAG = "MediaNativePlayer"
         private const val PROGRESS_INTERVAL_MS = 500L
+        /** Paint captions independently of chrome so swaps stay on the video clock. */
+        private const val CUE_INTERVAL_MS = 80L
         /** While watch chrome is hidden, keep progress warm without thrashing React. */
         private const val PROGRESS_INTERVAL_HIDDEN_MS = 1500L
         private const val WATCH_NEXT_UPDATE_INTERVAL_MS = 15_000L

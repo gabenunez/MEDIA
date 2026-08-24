@@ -659,6 +659,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun setSubtitleVtt(vtt: String): Boolean {
+            if (!nativePlayer.isActive()) return false
+            runOnUiThread {
+                nativePlayer.setSubtitleVtt(vtt)
+            }
+            return true
+        }
+
+        @JavascriptInterface
         fun setSubtitleStyles(json: String): Boolean {
             runOnUiThread {
                 nativePlayer.applySubtitleStyles(json)

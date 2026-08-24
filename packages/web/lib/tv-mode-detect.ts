@@ -47,7 +47,20 @@ export function isTvClient(): boolean {
   return readStoredTvMode();
 }
 
-/** Detect 4K TV panels for sharper assets and slightly larger 10-foot UI. */
+/** Sharper artwork on 4K panels. Does not change catalog layout scale. */
+export function shouldUseTv4KAssets(
+  screenMax: number,
+  viewportMax: number,
+  dpr: number,
+): boolean {
+  return (
+    screenMax >= 3840 ||
+    (screenMax >= 2160 && dpr >= 1.25) ||
+    (viewportMax >= 1920 && dpr >= 1.5)
+  );
+}
+
+/** Detect 4K TV panels for sharper assets. Layout stays living-room scale. */
 export function initTv4KMode(): boolean {
   if (typeof window === "undefined" || !readStoredTvMode()) return false;
 
@@ -55,12 +68,7 @@ export function initTv4KMode(): boolean {
   const viewportMax = Math.max(window.innerWidth, window.innerHeight);
   const dpr = window.devicePixelRatio || 1;
 
-  const is4KPanel =
-    screenMax >= 3840 ||
-    (screenMax >= 2160 && dpr >= 1.25) ||
-    (viewportMax >= 1920 && dpr >= 1.5);
-
-  if (is4KPanel) {
+  if (shouldUseTv4KAssets(screenMax, viewportMax, dpr)) {
     document.documentElement.classList.add(TV_4K_HTML_CLASS);
     return true;
   }

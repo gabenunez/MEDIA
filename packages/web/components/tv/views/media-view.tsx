@@ -73,7 +73,7 @@ function TvMediaViewLegacy() {
         <div data-tv-row="" data-tv-content-row="" className="flex justify-center">
           <TvFocusLink
             href={routes.home()}
-            className="inline-flex h-14 items-center rounded-xl bg-primary px-8 text-lg font-semibold text-primary-foreground"
+            className="inline-flex h-11 items-center rounded-lg bg-primary px-6 text-lg font-semibold text-primary-foreground"
           >
             Back to home
           </TvFocusLink>

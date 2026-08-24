@@ -48,7 +48,7 @@ export function TvFavoriteButton({
       aria-pressed={favorite}
       aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
       className={cn(
-        "inline-flex items-center gap-3 rounded-xl border px-6 py-3 text-lg font-semibold",
+        "inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-base font-semibold",
         favorite
           ? "border-accent/40 bg-accent/15 text-accent"
           : "border-border bg-muted/60 text-foreground",

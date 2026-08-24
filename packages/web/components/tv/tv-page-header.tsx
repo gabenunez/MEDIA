@@ -6,7 +6,7 @@ import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { withBasePath } from "@/lib/base-path";
 import { cn } from "@/lib/utils";
 
-/** Shared 10-foot page frame — gutters match home rows. */
+/** Shared page frame — gutters match home rows. */
 export function TvPageShell({
   children,
   className,
@@ -20,7 +20,7 @@ export function TvPageShell({
 export function TvPageLoading() {
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
-      <Loader2 className="h-14 w-14 animate-spin text-primary" />
+      <Loader2 className="h-10 w-10 animate-spin text-primary" />
     </div>
   );
 }
@@ -38,8 +38,8 @@ export function TvEmptyState({
       data-tv-content-row=""
       className="flex min-h-[40vh] flex-col items-center justify-center px-8 text-center"
     >
-      <p className="text-3xl font-semibold leading-snug text-muted-foreground">{children}</p>
-      {action ? <div className="mt-10 flex justify-center">{action}</div> : null}
+      <p className="text-xl font-semibold leading-snug text-muted-foreground">{children}</p>
+      {action ? <div className="mt-8 flex justify-center">{action}</div> : null}
     </div>
   );
 }
@@ -60,7 +60,7 @@ interface TvPageHeaderProps {
   className?: string;
 }
 
-/** Netflix-style catalog chrome: Back, then a large title. */
+/** Catalog chrome: Back, then title. */
 export function TvPageHeader({
   backHref,
   backLabel = "Back",
@@ -69,21 +69,21 @@ export function TvPageHeader({
   className,
 }: TvPageHeaderProps) {
   return (
-    <header className={cn("mb-10", className)}>
-      <div data-tv-row="" data-tv-content-row="" className="mb-7">
+    <header className={cn("mb-6", className)}>
+      <div data-tv-row="" data-tv-content-row="" className="mb-4">
         <TvFocusLink
           href={backHref}
-          className="inline-flex h-14 items-center gap-2 rounded-xl px-6 text-lg font-semibold"
+          className="inline-flex h-11 items-center gap-2 rounded-lg px-4 text-base font-semibold"
         >
-          <ChevronLeft className="h-6 w-6" />
+          <ChevronLeft className="h-5 w-5" />
           {backLabel}
         </TvFocusLink>
       </div>
-      <h1 className="max-w-[18ch] truncate text-[2.75rem] font-black leading-[1.08] tracking-tight">
+      <h1 className="max-w-[22ch] truncate text-2xl font-bold leading-tight tracking-tight">
         {title}
       </h1>
       {subtitle ? (
-        <p className="mt-3 text-xl text-muted-foreground">{subtitle}</p>
+        <p className="mt-2 text-base text-muted-foreground">{subtitle}</p>
       ) : null}
     </header>
   );
@@ -112,9 +112,9 @@ export function TvHistoryBackButton({
           }
           window.location.assign(withBasePath(fallbackHref));
         }}
-        className="inline-flex h-14 items-center gap-2 rounded-xl px-6 text-lg font-semibold"
+        className="inline-flex h-11 items-center gap-2 rounded-lg px-4 text-base font-semibold"
       >
-        <ChevronLeft className="h-6 w-6" />
+        <ChevronLeft className="h-5 w-5" />
         {label}
       </TvFocusButton>
     </div>
@@ -128,7 +128,7 @@ interface TvSectionLabelProps {
 
 export function TvSectionLabel({ children, className }: TvSectionLabelProps) {
   return (
-    <h2 className={cn("mb-3 px-0 text-lg font-semibold tracking-wide text-muted-foreground", className)}>
+    <h2 className={cn("mb-2 px-0 text-sm font-semibold tracking-wide text-muted-foreground", className)}>
       {children}
     </h2>
   );
@@ -153,24 +153,24 @@ export function TvPagination({ page, totalPages, onPageChange, className }: TvPa
     <div
       data-tv-row=""
       data-tv-content-row=""
-      className={cn("mt-12 flex items-center justify-center gap-6 pb-6", className)}
+      className={cn("mt-8 flex items-center justify-center gap-4 pb-4", className)}
     >
       <TvFocusButton
         disabled={page <= 1}
         onClick={() => changePage(page - 1)}
-        className="inline-flex h-16 min-w-[11rem] items-center justify-center gap-2 px-7 text-lg font-semibold disabled:opacity-40"
+        className="inline-flex h-12 min-w-[9rem] items-center justify-center gap-2 px-5 text-base font-semibold disabled:opacity-40"
       >
-        <ChevronLeft className="h-6 w-6" /> Previous
+        <ChevronLeft className="h-5 w-5" /> Previous
       </TvFocusButton>
-      <span className="min-w-[6rem] text-center text-xl tabular-nums text-muted-foreground">
+      <span className="min-w-[5rem] text-center text-base tabular-nums text-muted-foreground">
         {page} / {totalPages}
       </span>
       <TvFocusButton
         disabled={page >= totalPages}
         onClick={() => changePage(page + 1)}
-        className="inline-flex h-16 min-w-[11rem] items-center justify-center gap-2 px-7 text-lg font-semibold disabled:opacity-40"
+        className="inline-flex h-12 min-w-[9rem] items-center justify-center gap-2 px-5 text-base font-semibold disabled:opacity-40"
       >
-        Next <ChevronRight className="h-6 w-6" />
+        Next <ChevronRight className="h-5 w-5" />
       </TvFocusButton>
     </div>
   );

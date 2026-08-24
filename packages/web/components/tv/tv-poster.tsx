@@ -77,17 +77,17 @@ export const TvPoster = memo(function TvPoster({
               quality={TV_LIST_IMAGE_QUALITY}
               sizes={
                 layout === "grid"
-                  ? "(min-width: 1920px) 20rem, 16rem"
-                  : "(min-width: 1920px) 10rem, 7.5rem"
+                  ? "(min-width: 1920px) 12rem, 9.5rem"
+                  : "(min-width: 1920px) 8rem, 7.5rem"
               }
               className="object-cover"
             />
           ) : (
             <div className="signal-grid flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-sm text-muted-foreground">
               {item.type === "movie" ? (
-                <Clapperboard className="h-10 w-10 text-primary" />
+                <Clapperboard className="h-8 w-8 text-primary" />
               ) : (
-                <Tv className="h-10 w-10 text-primary" />
+                <Tv className="h-8 w-8 text-primary" />
               )}
             </div>
           )}
