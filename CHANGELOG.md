@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.211 — 2026-08-24
+
+### TV
+
+- **Player** — D-pad arrows show playback chrome again; spatial nav no longer swallows the first remote press while controls are hidden
+
 ## 0.1.210 — 2026-08-23
 
 ### Web
