@@ -28,8 +28,10 @@ function isTvFocusable(el: HTMLElement) {
   if (el.hidden || el.getAttribute("aria-hidden") === "true") return false;
   if (el.closest("[inert]")) return false;
   // Prefer Chromium checkVisibility — avoids offsetParent layout thrash on every D-pad tick.
+  // Do not pass checkOpacity: scroll-row neighbors can be opacity-composited while clipped
+  // and still need to receive focus so the first Right press advances.
   if (typeof el.checkVisibility === "function") {
-    return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    return el.checkVisibility({ checkVisibilityCSS: true });
   }
   return el.style.display !== "none" && el.style.visibility !== "hidden";
 }
@@ -91,8 +93,15 @@ function estimateGridColumns(items: HTMLElement[]): number {
   return cols || 1;
 }
 
-function getGridColumns(_row: Element, items: HTMLElement[]): number {
-  return estimateGridColumns(items);
+function getGridColumns(row: Element, items: HTMLElement[]): number {
+  const cached = row.getAttribute("data-tv-cols");
+  if (cached) {
+    const parsed = Number.parseInt(cached, 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  const cols = estimateGridColumns(items);
+  row.setAttribute("data-tv-cols", String(cols));
+  return cols;
 }
 
 function moveInGridRow(
@@ -440,44 +449,73 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
   useEffect(() => {
     let lastMoveAt = 0;
 
-    function onKeyDown(e: KeyboardEvent) {
+    function resolveTvItem(): HTMLElement | null {
       const loginGate = document.querySelector<HTMLElement>("[data-tv-login-gate]");
-      const active = document.activeElement as HTMLElement | null;
+      if (loginGate) {
+        focusLoginGateItem();
+        const focused = document.activeElement as HTMLElement | null;
+        return focused?.closest("[data-tv-login-gate]") &&
+          focused.hasAttribute("data-tv-item")
+          ? focused
+          : null;
+      }
+
+      const lastFocused = document.querySelector<HTMLElement>(
+        "[data-tv-item][data-tv-focused]",
+      );
+      if (lastFocused && isTvFocusable(lastFocused)) {
+        focusItem(lastFocused);
+        return lastFocused;
+      }
+      if (focusFirstHomeVideoItem()) {
+        const focused = document.activeElement as HTMLElement | null;
+        return focused?.hasAttribute("data-tv-item") ? focused : null;
+      }
+      focusFirstContentItem();
+      const focused = document.activeElement as HTMLElement | null;
+      return focused?.hasAttribute("data-tv-item") ? focused : null;
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      const isEnter =
+        e.key === "Enter" || e.key === "NumpadEnter" || e.key === "Select";
+      const isArrow =
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight" ||
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown";
+
+      if (!isEnter && !isArrow) return;
+
+      const loginGate = document.querySelector<HTMLElement>("[data-tv-login-gate]");
+      let active = document.activeElement as HTMLElement | null;
+
+      // Capture-phase + stopPropagation so Android TV WebView native spatial
+      // nav cannot steal the first D-pad press (felt like needing a double tap).
       if (loginGate && !active?.closest("[data-tv-login-gate]")) {
-        const isNavKey =
-          e.key === "Enter" ||
-          e.key === "NumpadEnter" ||
-          e.key === "Select" ||
-          e.key === "ArrowLeft" ||
-          e.key === "ArrowRight" ||
-          e.key === "ArrowUp" ||
-          e.key === "ArrowDown";
-        if (isNavKey) e.preventDefault();
+        e.preventDefault();
+        e.stopPropagation();
         focusLoginGateItem();
         return;
       }
 
-      if (
-        e.key === "Enter" ||
-        e.key === "NumpadEnter" ||
-        e.key === "Select"
-      ) {
+      if (!active?.hasAttribute("data-tv-item")) {
+        e.preventDefault();
+        e.stopPropagation();
+        active = resolveTvItem();
+        // Enter only restores focus; arrows continue into a real move below.
+        if (!active || isEnter) return;
+      }
+
+      if (isEnter) {
         if (
-          active?.hasAttribute("data-tv-item") &&
+          active.hasAttribute("data-tv-item") &&
           (active.tagName === "BUTTON" || active.tagName === "A")
         ) {
           e.preventDefault();
+          e.stopPropagation();
           active.click();
         }
-        return;
-      }
-
-      if (
-        e.key !== "ArrowLeft" &&
-        e.key !== "ArrowRight" &&
-        e.key !== "ArrowUp" &&
-        e.key !== "ArrowDown"
-      ) {
         return;
       }
 
@@ -489,23 +527,6 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
           target.tagName === "SELECT" ||
           target.isContentEditable)
       ) {
-        return;
-      }
-
-      if (!active?.hasAttribute("data-tv-item")) {
-        // After login (or any focus loss), activeElement can be body / a
-        // non-TV control. Own the D-pad so WebView native nav can't yank
-        // selection back to the sidebar.
-        e.preventDefault();
-        if (focusLoginGateItem()) return;
-        const lastFocused = document.querySelector<HTMLElement>(
-          "[data-tv-item][data-tv-focused]",
-        );
-        if (lastFocused && isTvFocusable(lastFocused)) {
-          focusItem(lastFocused);
-        } else if (!focusFirstHomeVideoItem()) {
-          focusFirstContentItem();
-        }
         return;
       }
 
@@ -528,6 +549,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       if (!row) return;
 
       e.preventDefault();
+      e.stopPropagation();
 
       const now = performance.now();
       const horizontalScrollRow =
@@ -569,10 +591,11 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       syncTvFocusedAttribute(target);
     }
 
-    window.addEventListener("keydown", onKeyDown);
+    // Capture before WebView default focus movement.
+    window.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("focusin", onFocusIn);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusIn);
       invalidateContentRowsCache();
     };

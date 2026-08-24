@@ -1,5 +1,9 @@
 import type { SubtitleStyles } from "@/lib/subtitle-styles";
 import { withBasePath } from "@/lib/base-path";
+import {
+  resolveNativeSubtitleApplyMode,
+  shouldRebuildNativePlaybackForSubtitleChange,
+} from "@/lib/native-subtitle-hot-swap";
 
 export interface NativePlaybackRequest {
   url: string;
@@ -95,6 +99,30 @@ export function updateNativeSubtitles(subtitleUrl?: string): boolean {
   return bridge.setSubtitles(subtitleUrl ?? "") === true;
 }
 
+/** Apply already-fetched VTT to the native overlay. Instant when the cache is warm. */
+export function updateNativeSubtitleVtt(vtt: string): boolean {
+  const bridge = getAndroidBridge();
+  if (typeof bridge?.setSubtitleVtt !== "function") return false;
+  return bridge.setSubtitleVtt(vtt) === true;
+}
+
+/** Caption change for the current native session — overlay only, never rebuilds video. */
+export function applyNativeSubtitleTrack(options: {
+  subtitleUrl?: string;
+  vtt?: string | null;
+}): boolean {
+  const bridge = getAndroidBridge();
+  if (!bridge) return false;
+  const mode = resolveNativeSubtitleApplyMode(bridge);
+  if (shouldRebuildNativePlaybackForSubtitleChange(mode)) return false;
+
+  if (!options.vtt && !options.subtitleUrl) {
+    return updateNativeSubtitles(undefined);
+  }
+  if (options.vtt && updateNativeSubtitleVtt(options.vtt)) return true;
+  return updateNativeSubtitles(options.subtitleUrl);
+}
+
 export function setNativeVideoDisplayMode(mode: NativeVideoDisplayMode): void {
   getAndroidBridge()?.setVideoDisplayMode?.(mode);
 }
@@ -175,6 +203,7 @@ declare global {
       seekTo: (positionMs: number) => void;
       stop: () => void;
       setSubtitles?: (subtitleUrl: string) => boolean;
+      setSubtitleVtt?: (vtt: string) => boolean;
       setSubtitleStyles?: (json: string) => boolean;
       setVideoDisplayMode?: (mode: NativeVideoDisplayMode) => void;
       syncPlaybackState?: () => void;

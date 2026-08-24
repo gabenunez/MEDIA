@@ -29,7 +29,7 @@ import {
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
 import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
-import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
+import { notifyWebPlaybackSourceReady, peekPreparedSubtitleVtt, prepareWebSubtitleVtt } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
@@ -73,7 +73,7 @@ import {
   syncNativePlaybackState,
   setNativeWebOverlayAlpha,
   toAbsoluteMediaUrl,
-  updateNativeSubtitles,
+  applyNativeSubtitleTrack,
 } from "@/lib/android-bridge";
 import {
   applySubtitleStyles,
@@ -703,13 +703,25 @@ export function TvWatchView() {
           : undefined;
 
       if (subtitleId == null) {
-        updateNativeSubtitles(undefined);
+        applyNativeSubtitleTrack({});
         nativeSubtitlesSyncedSessionRef.current = nativePlaySessionRef.current;
         return true;
       }
 
-      if (updateNativeSubtitles(subtitleUrl)) {
+      const cachedVtt = peekPreparedSubtitleVtt(subtitleId, subtitleOffset);
+      if (
+        applyNativeSubtitleTrack({
+          subtitleUrl,
+          vtt: cachedVtt,
+        })
+      ) {
         nativeSubtitlesSyncedSessionRef.current = nativePlaySessionRef.current;
+        if (!cachedVtt) {
+          void prepareWebSubtitleVtt(subtitleId, subtitleOffset).then((prepared) => {
+            if (activeSubtitleRef.current !== subtitleId || !prepared.ok) return;
+            applyNativeSubtitleTrack({ subtitleUrl, vtt: prepared.vtt });
+          });
+        }
         return true;
       }
 
@@ -773,7 +785,7 @@ export function TvWatchView() {
       selectSubtitle(subtitleId);
       if (!usesNativePlayer) return;
       nativeSubtitlesSyncedSessionRef.current = -1;
-      void syncNativeSubtitles({ restartOnFailure: subtitleId != null });
+      void syncNativeSubtitles({ restartOnFailure: false });
     },
     [selectSubtitle, syncNativeSubtitles, usesNativePlayer],
   );

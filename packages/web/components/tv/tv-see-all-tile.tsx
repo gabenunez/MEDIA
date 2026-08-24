@@ -22,14 +22,14 @@ export function TvSeeAllTile({ href, label, detail, className }: TvSeeAllTilePro
         aria-label={label}
         className="group w-[var(--tv-poster-width,7.5rem)]"
       >
-        <div className="tv-poster-art relative flex aspect-[2/3] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/10">
-          <LayoutGrid className="h-11 w-11 text-primary" />
+        <div className="tv-poster-art relative flex aspect-[2/3] flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary/10">
+          <LayoutGrid className="h-8 w-8 text-primary" />
         </div>
         <p className="tv-poster-title mt-2 line-clamp-2 font-semibold leading-snug">
           {label}
         </p>
         {detail ? (
-          <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{detail}</p>
+          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{detail}</p>
         ) : null}
       </TvFocusLink>
     </div>
@@ -59,15 +59,15 @@ export function TvBrowseCard({
       href={href}
       variant="card"
       className={cn(
-        "rounded-2xl bg-card p-6",
-        layout === "grid" ? "flex min-h-[9rem] w-full flex-col justify-between" : "w-[19.5rem] shrink-0",
+        "rounded-xl bg-card p-4",
+        layout === "grid" ? "flex min-h-[7rem] w-full flex-col justify-between" : "w-[14.5rem] shrink-0",
         className,
       )}
     >
-      {icon ? <div className="mb-3">{icon}</div> : null}
-      <p className="truncate text-xl font-semibold leading-snug">{title}</p>
+      {icon ? <div className="mb-2">{icon}</div> : null}
+      <p className="truncate text-base font-semibold leading-snug">{title}</p>
       {detail ? (
-        <p className="mt-1.5 text-base text-muted-foreground">{detail}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
       ) : null}
     </TvFocusLink>
   );

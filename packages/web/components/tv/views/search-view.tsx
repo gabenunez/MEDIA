@@ -53,9 +53,9 @@ export function TvSearchView() {
         subtitle={tvPageMeta([searched && results.length > 0 && `${results.length} results`])}
       />
 
-      <div data-tv-row="" data-tv-content-row="" className="mb-10">
-        <div className="relative max-w-4xl">
-          <Search className="pointer-events-none absolute left-6 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
+      <div data-tv-row="" data-tv-content-row="" className="mb-6">
+        <div className="relative max-w-2xl">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <input
             ref={inputRef}
             type="search"
@@ -66,7 +66,7 @@ export function TvSearchView() {
             placeholder="Search movies and TV shows"
             className={cn(
               tvFocusRingClassName,
-              "tv-search-field w-full rounded-2xl border-border bg-card pl-16 pr-6 outline-none",
+              "tv-search-field w-full rounded-xl border-border bg-card pl-12 pr-4 outline-none",
             )}
           />
         </div>
@@ -74,7 +74,7 @@ export function TvSearchView() {
 
       {loading && (
         <div className="flex min-h-[20vh] items-center justify-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
         </div>
       )}
 
@@ -98,7 +98,7 @@ export function TvSearchView() {
       )}
 
       {!loading && !searched && (
-        <p className="py-20 text-center text-xl text-muted-foreground">
+        <p className="py-16 text-center text-base text-muted-foreground">
           Type at least 2 characters to search.
         </p>
       )}

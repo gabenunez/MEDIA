@@ -91,7 +91,7 @@ export function TvFavoritesView({
             href={routes.favorites(option.id === "all" ? undefined : option.id)}
             variant="chip"
             selected={filter === option.id}
-            className="px-7 py-3.5 text-lg font-semibold"
+            className="px-5 py-2.5 text-base font-semibold"
           >
             {option.label}
           </TvFocusLink>
@@ -104,7 +104,7 @@ export function TvFavoritesView({
             <TvFocusLink
               href={routes.home()}
               variant="card"
-              className="inline-flex h-14 items-center rounded-xl bg-primary px-8 text-base font-semibold text-primary-foreground"
+              className="inline-flex h-11 items-center rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground"
             >
               Back to home
             </TvFocusLink>

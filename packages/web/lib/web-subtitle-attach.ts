@@ -106,6 +106,14 @@ function resolveShiftedVtt(subtitleId: number, timelineOffsetSeconds: number): s
   return timelineOffsetSeconds > 0 ? shiftVttByOffset(raw, timelineOffsetSeconds) : raw;
 }
 
+/** Cached VTT for an instant native overlay swap — null until prefetch finishes. */
+export function peekPreparedSubtitleVtt(
+  subtitleId: number,
+  timelineOffsetSeconds = 0,
+): string | null {
+  return resolveShiftedVtt(subtitleId, timelineOffsetSeconds);
+}
+
 function trackDisplayMode(displayMode: SubtitleDisplayMode): TextTrackMode {
   return displayMode === "dom-overlay" ? "hidden" : "showing";
 }

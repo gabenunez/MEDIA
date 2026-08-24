@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.209 — 2026-08-23
+
+### TV
+
+- **Catalog** — restore living-room poster and type scale; `tv-4k` no longer inflates layout on a 1920 CSS-pixel WebView
+- **Subtitles** — swap caption tracks on a native overlay instead of re-preparing ExoPlayer, so switching stays instant
+
 ## 0.1.208 — 2026-08-19
 
 ### Web
