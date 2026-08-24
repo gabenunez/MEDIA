@@ -4,6 +4,7 @@ import { findActiveCueTexts, parseWebVttCues } from "@media-app/shared";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useSubtitleStyles } from "@/components/subtitle-style-settings";
 import { playbackSubtitleAppearance } from "@/lib/subtitle-styles";
+import { shouldClearCaptionOverlayOnEmptied } from "@/lib/tv-watch-subtitles";
 import { cn } from "@/lib/utils";
 
 export function WebSubtitleCueOverlay({
@@ -39,7 +40,9 @@ export function WebSubtitleCueOverlay({
     if (!video) return;
 
     const onPlaying = () => setPlaybackReady(true);
-    const onEmptied = () => setPlaybackReady(false);
+    const onEmptied = () => {
+      if (shouldClearCaptionOverlayOnEmptied()) setPlaybackReady(false);
+    };
 
     video.addEventListener("playing", onPlaying);
     video.addEventListener("emptied", onEmptied);
@@ -55,19 +58,15 @@ export function WebSubtitleCueOverlay({
   }, [videoRef, streamEpoch]);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || cues.length === 0) {
+    if (cues.length === 0) {
       setLines([]);
       return;
     }
 
+    const video = videoRef.current;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     const update = () => {
-      if (!playbackReady) {
-        setLines([]);
-        return;
-      }
       setLines(findActiveCueTexts(cues, getPlaybackSecondsRef.current()));
     };
 
@@ -80,9 +79,16 @@ export function WebSubtitleCueOverlay({
 
     // timeupdate is sparse (~4Hz); poll while playing so short cues aren't missed.
     const startPolling = () => {
-      if (pollTimer != null || !playbackReady) return;
+      if (pollTimer != null) return;
       pollTimer = setInterval(update, 100);
     };
+
+    if (!video) {
+      setPlaybackReady(true);
+      update();
+      startPolling();
+      return () => stopPolling();
+    }
 
     const onPlay = () => {
       update();

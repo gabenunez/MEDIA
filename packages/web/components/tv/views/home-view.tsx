@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Heart, Layers, Loader2, Play, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/auth-gate";
-import { api, type ContinueWatchingItem, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
@@ -13,41 +12,23 @@ import { focusFirstHomeVideoItem, focusPrimaryContentItem } from "@/lib/tv-focus
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { LibraryIcon } from "@/components/navbar";
 import { preloadPosterList } from "@/lib/prefetch-artwork";
+import { useLiveHomeData } from "@/lib/use-live-home-data";
 import type { HomeData } from "@/lib/server-api";
 
 export function TvHomeView({ initialData = null }: { initialData?: HomeData | null }) {
   useDocumentTitle("Home");
   const { loading: authLoading, required, authenticated } = useAuth();
   const unlocked = !authLoading && (!required || authenticated);
-  const [loaded, setLoaded] = useState(Boolean(initialData));
+  const { data, loaded } = useLiveHomeData(initialData);
   const [showBrowseRow, setShowBrowseRow] = useState(false);
-  const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>(
-    initialData?.continueWatching ?? [],
-  );
-  const [recentlyAdded, setRecentlyAdded] = useState<MediaItem[]>(
-    initialData?.recentlyAdded ?? [],
-  );
-  const [favorites, setFavorites] = useState<MediaItem[]>(initialData?.favorites ?? []);
-  const [libraries, setLibraries] = useState(initialData?.libraries ?? []);
-  const [decks, setDecks] = useState(initialData?.decks ?? []);
+  const continueWatching = data?.continueWatching ?? [];
+  const recentlyAdded = data?.recentlyAdded ?? [];
+  const favorites = data?.favorites ?? [];
+  const libraries = data?.libraries ?? [];
+  const decks = data?.decks ?? [];
 
   // Dismiss splash as soon as primary rows can paint — don't wait on browse cards.
   useMarkTvBootReadyWhen(loaded);
-
-  useEffect(() => {
-    if (initialData) return;
-    api
-      .getHome()
-      .then((data) => {
-        setContinueWatching(data.continueWatching);
-        setRecentlyAdded(data.recentlyAdded);
-        setFavorites(data.favorites);
-        setLibraries(data.libraries);
-        setDecks(data.decks);
-      })
-      .catch(console.warn)
-      .finally(() => setLoaded(true));
-  }, [initialData]);
 
   useEffect(() => {
     if (!loaded) return;

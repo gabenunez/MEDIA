@@ -31,4 +31,19 @@ describe("parseWebVttCues", () => {
     expect(findActiveCueTexts(cues, 6)).toEqual(["Second line."]);
     expect(findActiveCueTexts(cues, 9)).toEqual([]);
   });
+
+  it("keeps hour-long tracks aligned after the first hour", () => {
+    const cues = parseWebVttCues(`WEBVTT
+
+1
+01:00:00.000 --> 01:00:04.000
+Later cue.
+
+2
+00:00:01,000 --> 00:00:03,000
+Comma cue.
+`);
+    expect(findActiveCueTexts(cues, 2)).toEqual(["Comma cue."]);
+    expect(findActiveCueTexts(cues, 3602)).toEqual(["Later cue."]);
+  });
 });

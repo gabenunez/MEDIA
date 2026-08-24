@@ -127,8 +127,6 @@ export function useSubtitleTracks(
   );
 
   const syncSubtitles = useCallback(async () => {
-    if (!attachToVideo) return;
-
     const generation = ++syncGenerationRef.current;
     const subtitleId = activeSubtitleRef.current;
     const video = videoRef.current;
@@ -151,16 +149,15 @@ export function useSubtitleTracks(
     );
     if (!shouldApply()) return;
     if (!prepared.ok) {
-      failSubtitleLoad(prepared.error);
+      setActiveVtt(null);
+      if (attachToVideo) failSubtitleLoad(prepared.error);
       return;
     }
 
     setSubtitleError(null);
+    setActiveVtt(prepared.vtt);
 
-    if (usesDomOverlay) {
-      setActiveVtt(prepared.vtt);
-      return;
-    }
+    if (!attachToVideo || usesDomOverlay) return;
 
     if (!video) return;
     revokeObjectUrl();

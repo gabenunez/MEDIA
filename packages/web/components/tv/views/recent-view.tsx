@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, type MediaItem } from "@/lib/api";
 import type { PaginatedPageData } from "@/lib/server-api";
 import { routes } from "@/lib/routes";
+import { invalidateClientCatalogCache } from "@/lib/catalog-cache";
 import {
   TvEmptyState,
   TvPageHeader,
@@ -36,24 +37,25 @@ export function TvRecentView({
   useDocumentTitle("Recently Added");
 
   useEffect(() => {
-    if (page === 1 && initialPage) {
-      setItems(initialPage.items);
-      setTotalPages(initialPage.totalPages);
-      setTotalItems(initialPage.total ?? initialPage.items.length);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
+    let cancelled = false;
+    const seeded = page === 1 && Boolean(initialPage);
+    if (!seeded) setLoading(true);
+    invalidateClientCatalogCache();
     api
       .getRecentlyAdded(page)
       .then((data) => {
+        if (cancelled) return;
         setItems(data.items);
         setTotalPages(data.totalPages);
         setTotalItems(data.total ?? data.items.length);
       })
       .catch(console.warn)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [page, initialPage]);
 
   useEffect(() => {

@@ -56,7 +56,7 @@ object WebVttCueParser {
     }
 
     fun parseTimestamp(value: String): Double {
-        val trimmed = value.trim()
+        val trimmed = value.trim().replace(",", ".")
         val segments = trimmed.split(":")
         if (segments.size == 2) {
             val minutes = segments[0].toIntOrNull() ?: return 0.0

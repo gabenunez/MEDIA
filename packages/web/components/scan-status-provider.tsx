@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { api, type ServerStatus } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
 
 const SCAN_POLL_MS = 1500;
 const IDLE_POLL_MS = 8000;
@@ -29,6 +30,7 @@ export function ScanStatusProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async (): Promise<ServerStatus | null> => {
     try {
+      invalidateApiCache("status");
       const next = await api.getStatus();
       setStatus(next);
       return next;

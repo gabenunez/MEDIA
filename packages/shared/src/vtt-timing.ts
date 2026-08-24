@@ -1,7 +1,7 @@
 const VTT_TIMESTAMP = /(\d{1,2}:)?\d{1,2}:\d{2}\.\d{3}/;
 
 export function parseVttTimestamp(value: string): number {
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(",", ".");
   const segments = trimmed.split(":");
   if (segments.length === 2) {
     const [minutes, secondsMs] = segments;

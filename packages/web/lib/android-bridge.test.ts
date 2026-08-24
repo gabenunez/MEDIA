@@ -60,4 +60,33 @@ describe("applyNativeSubtitleTrack", () => {
     expect(setSubtitleVtt).toHaveBeenCalledWith("WEBVTT\n");
     expect(setSubtitles).not.toHaveBeenCalled();
   });
+
+  it("loads oversized tracks by URL so later cues are not truncated", async () => {
+    const setSubtitleVtt = vi.fn(() => true);
+    const setSubtitles = vi.fn(() => true);
+    globalThis.window = {
+      location: { origin: "https://media.example" },
+      MediaAndroid: {
+        logout: () => {},
+        play: () => {},
+        pause: () => {},
+        resume: () => {},
+        seekTo: () => {},
+        stop: () => {},
+        setSubtitleVtt,
+        setSubtitles,
+      },
+    } as unknown as Window & typeof globalThis;
+
+    const { applyNativeSubtitleTrack } = await import("./android-bridge");
+    const { JS_BRIDGE_VTT_MAX_CHARS } = await import("./native-subtitle-hot-swap");
+    expect(
+      applyNativeSubtitleTrack({
+        vtt: "x".repeat(JS_BRIDGE_VTT_MAX_CHARS + 1),
+        subtitleUrl: "https://media.example/api/subtitles/9",
+      }),
+    ).toBe(true);
+    expect(setSubtitleVtt).not.toHaveBeenCalled();
+    expect(setSubtitles).toHaveBeenCalledWith("https://media.example/api/subtitles/9");
+  });
 });

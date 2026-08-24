@@ -1,7 +1,10 @@
 import {
+  CATALOG_REVALIDATE_PATHS,
   DEFAULT_PORT,
+  HOME_CATALOG_CACHE_TAG,
   MEDIA_INTERNAL_HEADER,
   MEDIA_INTERNAL_TOKEN,
+  mediaInternalRevalidateUrl,
   mediaPageCacheTag,
 } from "@media-app/shared";
 
@@ -13,6 +16,45 @@ function webInternalBase(): string {
   return `http://127.0.0.1:${port}`;
 }
 
+export function resolveMediaRevalidateUrl(): string {
+  return mediaInternalRevalidateUrl(
+    webInternalBase(),
+    process.env.MEDIA_PUBLIC_PREFIX ?? "",
+  );
+}
+
+async function postRevalidate(
+  body: Record<string, unknown>,
+  label: string,
+): Promise<void> {
+  try {
+    const res = await fetch(resolveMediaRevalidateUrl(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [MEDIA_INTERNAL_HEADER]: MEDIA_INTERNAL_TOKEN,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      console.warn(`Failed to revalidate ${label}: HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.warn(`Failed to revalidate ${label}:`, err);
+  }
+}
+
+export async function revalidateCatalog(): Promise<void> {
+  await postRevalidate(
+    {
+      tag: HOME_CATALOG_CACHE_TAG,
+      paths: [...CATALOG_REVALIDATE_PATHS],
+    },
+    HOME_CATALOG_CACHE_TAG,
+  );
+}
+
 export async function revalidateMediaPage(
   mediaId: number,
   options?: { alsoHome?: boolean },
@@ -21,24 +63,13 @@ export async function revalidateMediaPage(
 
   const tag = mediaPageCacheTag(mediaId);
 
-  try {
-    const res = await fetch(`${webInternalBase()}/internal/revalidate/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        [MEDIA_INTERNAL_HEADER]: MEDIA_INTERNAL_TOKEN,
-      },
-      body: JSON.stringify({
-        tag,
-        mediaId,
-        paths: options?.alsoHome === false ? undefined : ["/", "/library/", "/recent/", "/favorites/"],
-      }),
-    });
-
-    if (!res.ok) {
-      console.warn(`Failed to revalidate ${tag}: HTTP ${res.status}`);
-    }
-  } catch (err) {
-    console.warn(`Failed to revalidate ${tag}:`, err);
-  }
+  await postRevalidate(
+    {
+      tag,
+      mediaId,
+      tags: [HOME_CATALOG_CACHE_TAG],
+      paths: options?.alsoHome === false ? undefined : [...CATALOG_REVALIDATE_PATHS],
+    },
+    tag,
+  );
 }

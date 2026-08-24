@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useEffect, useState, type SyntheticEvent } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import { useScanStatus } from "@/components/scan-status-provider";
 import { useDocumentTitle } from "@/lib/use-document-title";
+import { useLiveHomeData } from "@/lib/use-live-home-data";
 import { ContinueWatchingRow, MediaRow } from "@/components/media-row";
 import { ScanProgressBanner } from "@/components/scan-progress";
 import { HomeHeroStatic, HomeHeroWatermark, HomeHeroMonitorFrame, HomeSectionHeading } from "@/components/home-shell";
@@ -41,32 +41,8 @@ export function HomeClient({
 
 function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | null }) {
   useDocumentTitle("Home");
-  const [data, setData] = useState<HomeData | null>(initialData);
-  const [loaded, setLoaded] = useState(Boolean(initialData));
+  const { data, loaded, status, activeScan, isScanning } = useLiveHomeData(initialData);
   const [featuredImageReady, setFeaturedImageReady] = useState(false);
-  const { status, activeScan, isScanning } = useScanStatus();
-  const wasScanningRef = useRef(false);
-
-  useEffect(() => {
-    if (initialData) return;
-    api
-      .getHome()
-      .then(setData)
-      .catch((err) => console.warn("Failed to load home data", err))
-      .finally(() => setLoaded(true));
-  }, [initialData]);
-
-  useEffect(() => {
-    if (isScanning) {
-      wasScanningRef.current = true;
-      return;
-    }
-
-    if (wasScanningRef.current) {
-      api.getHome().then(setData).catch(console.error);
-    }
-    wasScanningRef.current = false;
-  }, [isScanning]);
 
   const libraries = (data?.libraries ?? []).map((lib) => {
     const live = status?.libraries.find((entry) => entry.id === lib.id);

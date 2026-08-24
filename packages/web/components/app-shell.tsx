@@ -35,17 +35,17 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <UpdateStatusProvider>
             <UpdateModal />
             <TvBootReadyProvider>
-              {isTvMode ? (
-                <TvShell>{children}</TvShell>
-              ) : (
-                <div data-web-only>
-                  <ScanStatusProvider>
+              <ScanStatusProvider>
+                {isTvMode ? (
+                  <TvShell>{children}</TvShell>
+                ) : (
+                  <div data-web-only>
                     <Navbar />
                     <ScanStatusBar />
                     <main>{children}</main>
-                  </ScanStatusProvider>
-                </div>
-              )}
+                  </div>
+                )}
+              </ScanStatusProvider>
             </TvBootReadyProvider>
           </UpdateStatusProvider>
         </ThemeMusicSettingsProvider>

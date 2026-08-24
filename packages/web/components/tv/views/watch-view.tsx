@@ -79,6 +79,11 @@ import {
   applySubtitleStyles,
   readSubtitleStyles,
 } from "@/lib/subtitle-styles";
+import {
+  hidePlaybackCaptions,
+  shouldAutoHideWatchControls,
+  shouldCloseWatchMenusOnRebuffer,
+} from "@/lib/tv-watch-subtitles";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
@@ -327,6 +332,11 @@ export function TvWatchView() {
   streamInfoRef.current = streamInfo;
 
   const getSubtitlePlaybackSeconds = useCallback(() => {
+    if (usesNativePlayer) {
+      return usingHlsPlayback
+        ? hlsStartOffsetRef.current + currentTimeRef.current
+        : currentTimeRef.current;
+    }
     const video = videoRef.current;
     if (!video) return 0;
     return resolveWebSubtitlePlaybackSeconds({
@@ -339,6 +349,7 @@ export function TvWatchView() {
       playbackActive: true,
     });
   }, [
+    usesNativePlayer,
     usingHlsPlayback,
     hlsStartOffset,
     initialResumeSeconds,
@@ -364,7 +375,7 @@ export function TvWatchView() {
     usesNativePlayer && usingHlsPlayback ? hlsStartOffset : 0,
     {
       attachToVideo: !usesNativePlayer,
-      displayMode: usesNativePlayer ? "native" : "dom-overlay",
+      displayMode: "dom-overlay",
     },
   );
 
@@ -583,7 +594,13 @@ export function TvWatchView() {
         : video
           ? !video.paused
           : false;
-      if (autoHide && playing && !panelOpen) {
+      if (
+        shouldAutoHideWatchControls({
+          autoHideRequested: autoHide,
+          playing,
+          panelOpen: panelOpenRef.current,
+        })
+      ) {
         scheduleControlsAutoHide();
       }
       if (focusPlay) {
@@ -592,7 +609,6 @@ export function TvWatchView() {
     },
     [
       centerMessageVisible,
-      panelOpen,
       usesNativePlayer,
       isPlaying,
       scheduleControlsAutoHide,
@@ -1017,6 +1033,7 @@ export function TvWatchView() {
   }, [centerMessageVisible, isPlaying, bufferingMidPlayback, panelOpen, scheduleControlsAutoHide]);
 
   useEffect(() => {
+    if (!shouldCloseWatchMenusOnRebuffer()) return;
     if (!bufferingMidPlayback || !panelOpen) return;
     closeMenus();
   }, [bufferingMidPlayback, panelOpen, closeMenus]);
@@ -1772,10 +1789,6 @@ export function TvWatchView() {
           ? `Starting ${(playbackStream.hlsQuality ?? quality).toUpperCase()} stream...`
           : "Loading video...";
   const controlsVisible = (showControls || panelOpen) && !centerMessageVisible;
-  const hidePlaybackSubtitles =
-    (subtitleMenuOpen && !subtitleAppearanceOpen) ||
-    qualityMenuOpen ||
-    subtitleSearchOpen;
   const showTransportControls = Boolean(
     streamInfo && initialResumeSeconds !== null && !error && !countdown,
   );
@@ -1791,6 +1804,9 @@ export function TvWatchView() {
     controlsVisible ||
     Boolean(error || countdown) ||
     (usesNativePlayer && showMidPlaybackBuffering);
+  const hidePlaybackSubtitles =
+    hidePlaybackCaptions({ subtitleSearchOpen }) ||
+    (usesNativePlayer && !nativeWebOverlayRaised);
 
   useEffect(() => {
     if (!usesNativePlayer || !controlsVisible) return;
@@ -2161,7 +2177,7 @@ export function TvWatchView() {
             }}
           />
         )}
-        {!usesNativePlayer && activeSubtitle !== null && activeVtt && (
+        {activeSubtitle !== null && activeVtt && (
           <WebSubtitleCueOverlay
             videoRef={videoRef}
             vtt={activeVtt}
