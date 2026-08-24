@@ -16,11 +16,26 @@ export const TV_LIVING_ROOM_LAYOUT = {
   minRowPostersAt1080: 10,
 } as const;
 
+/** Pre-v0.1.206 series title page — 10-foot chips/stills hid the episode list. */
+export const TV_LIVING_ROOM_MEDIA = {
+  posterWidthRem: 7,
+  episodeStillWidthRem: 6.75,
+  episodeStillHeightRem: 3.75,
+  heroMaxHeightRem: 15,
+  titleMaxRem: 1.75,
+} as const;
+
 export function parseRem(value: string | undefined): number | null {
   if (!value) return null;
   const match = value.trim().match(/^(-?[\d.]+)rem$/i);
   if (!match) return null;
   return Number(match[1]);
+}
+
+export function parseClampMaxRem(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/clamp\([^,]+,[^,]+,\s*(-?[\d.]+)rem\)/i);
+  return match ? Number(match[1]) : null;
 }
 
 export function extractCssBlock(css: string, header: string): string {

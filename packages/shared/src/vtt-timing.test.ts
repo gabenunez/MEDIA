@@ -11,6 +11,11 @@ describe("vtt-timing", () => {
     expect(formatVttTimestamp(83.456)).toBe("1:23.456");
   });
 
+  it("parses SRT-style comma milliseconds", () => {
+    expect(parseVttTimestamp("00:00:01,000")).toBe(1);
+    expect(parseVttTimestamp("1:02:03,500")).toBeCloseTo(3723.5, 3);
+  });
+
   it("parses and formats hour timestamps", () => {
     expect(parseVttTimestamp("1:02:03.500")).toBeCloseTo(3723.5, 3);
     expect(formatVttTimestamp(3723.5)).toBe("1:02:03.500");

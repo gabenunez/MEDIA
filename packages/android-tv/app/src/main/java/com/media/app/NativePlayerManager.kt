@@ -425,8 +425,12 @@ class NativePlayerManager(
         player ?: return false
         currentPayload ?: return false
         ensureOverlaySubtitleView()
+        val parsed = WebVttCueParser.parse(vtt)
+        if (vtt.isNotBlank() && parsed.isEmpty()) {
+            return false
+        }
         subtitleLoadGeneration += 1
-        overlayCues = WebVttCueParser.parse(vtt)
+        overlayCues = parsed
         lastOverlayTexts = emptyList()
         paintOverlayCues()
         return true
@@ -635,8 +639,8 @@ class NativePlayerManager(
     private fun fetchSubtitleText(url: String): String? {
         return try {
             val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            connection.connectTimeout = 8_000
-            connection.readTimeout = 8_000
+            connection.connectTimeout = 20_000
+            connection.readTimeout = 20_000
             connection.instanceFollowRedirects = true
             if (!sessionToken.isNullOrBlank()) {
                 connection.setRequestProperty(

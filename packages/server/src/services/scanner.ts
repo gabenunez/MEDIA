@@ -24,7 +24,7 @@ import {
 import { MetadataService } from "./metadata.js";
 import { SubtitleService } from "./subtitles.js";
 import { ThemeService } from "./themes.js";
-import { revalidateMediaPage } from "./page-revalidate.js";
+import { revalidateCatalog, revalidateMediaPage } from "./page-revalidate.js";
 import { probeFile } from "../utils/ffmpeg.js";
 
 export class ScannerService {
@@ -229,6 +229,7 @@ export class ScannerService {
       }
 
       await this.themes.syncThemesForLibrary(libraryId);
+      void revalidateCatalog();
     } catch (err) {
       await this.db
         .update(scanJobs)
@@ -815,6 +816,7 @@ export class ScannerService {
       .returning();
 
     await this.subtitles.discoverForMovieFile(file.id, filePath, probe);
+    void revalidateMediaPage(mediaItemId);
   }
 
   /** Find a TV show by folder name or TMDB id (stored title may differ after metadata match). */
@@ -1061,6 +1063,7 @@ export class ScannerService {
     });
     if (movieFile) {
       await this.db.delete(movieFiles).where(eq(movieFiles.id, movieFile.id));
+      void revalidateCatalog();
       return;
     }
 
@@ -1069,6 +1072,7 @@ export class ScannerService {
     });
     if (episode) {
       await this.db.delete(tvEpisodes).where(eq(tvEpisodes.id, episode.id));
+      void revalidateCatalog();
     }
   }
 }

@@ -2,6 +2,7 @@ import type { SubtitleStyles } from "@/lib/subtitle-styles";
 import { withBasePath } from "@/lib/base-path";
 import {
   resolveNativeSubtitleApplyMode,
+  resolveNativeSubtitleTransport,
   shouldRebuildNativePlaybackForSubtitleChange,
 } from "@/lib/native-subtitle-hot-swap";
 
@@ -103,7 +104,11 @@ export function updateNativeSubtitles(subtitleUrl?: string): boolean {
 export function updateNativeSubtitleVtt(vtt: string): boolean {
   const bridge = getAndroidBridge();
   if (typeof bridge?.setSubtitleVtt !== "function") return false;
-  return bridge.setSubtitleVtt(vtt) === true;
+  try {
+    return bridge.setSubtitleVtt(vtt) === true;
+  } catch {
+    return false;
+  }
 }
 
 /** Caption change for the current native session — overlay only, never rebuilds video. */
@@ -116,11 +121,17 @@ export function applyNativeSubtitleTrack(options: {
   const mode = resolveNativeSubtitleApplyMode(bridge);
   if (shouldRebuildNativePlaybackForSubtitleChange(mode)) return false;
 
-  if (!options.vtt && !options.subtitleUrl) {
+  const transport = resolveNativeSubtitleTransport(options);
+  if (transport === "off") {
     return updateNativeSubtitles(undefined);
   }
-  if (options.vtt && updateNativeSubtitleVtt(options.vtt)) return true;
-  return updateNativeSubtitles(options.subtitleUrl);
+  if (transport === "vtt" && options.vtt && updateNativeSubtitleVtt(options.vtt)) {
+    return true;
+  }
+  if (options.subtitleUrl) {
+    return updateNativeSubtitles(options.subtitleUrl);
+  }
+  return false;
 }
 
 export function setNativeVideoDisplayMode(mode: NativeVideoDisplayMode): void {

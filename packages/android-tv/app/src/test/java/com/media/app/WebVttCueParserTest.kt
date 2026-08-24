@@ -36,6 +36,24 @@ class WebVttCueParserTest {
     }
 
     @Test
+    fun keepsHourLongTracksAlignedAfterTheFirstHour() {
+        val vtt = """
+            WEBVTT
+
+            1
+            01:00:00.000 --> 01:00:04.000
+            Later cue.
+
+            2
+            00:00:01,000 --> 00:00:03,000
+            Comma cue.
+        """.trimIndent()
+        val cues = WebVttCueParser.parse(vtt)
+        assertEquals(listOf("Comma cue."), WebVttCueParser.activeTexts(cues, 2.0))
+        assertEquals(listOf("Later cue."), WebVttCueParser.activeTexts(cues, 3602.0))
+    }
+
+    @Test
     fun overlaySwapDoesNotRebuildPlayer() {
         assertEquals(false, NativeSubtitleOverlay.REBUILDS_PLAYER)
     }

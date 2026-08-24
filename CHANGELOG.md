@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.210 — 2026-08-23
+
+### Web
+
+- **Home** — new titles appear after a library add without searching; catalog cache is tagged and revalidated through the public prefix
+
+### TV
+
+- **Series page** — restore living-room hero, chips, and episode rows so the list fits a 1080p WebView
+- **Subtitles** — keep captions on for the whole file: load large tracks by URL, keep the picker open through rebuffers, and don't clear dialogue on HLS reload
+
 ## 0.1.209 — 2026-08-23
 
 ### TV

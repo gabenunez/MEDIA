@@ -6,6 +6,7 @@ import type {
   MediaItem,
 } from "@/lib/api";
 import { mediaPageCacheTag } from "@media-app/shared";
+import { catalogDataCache } from "@/lib/catalog-cache";
 
 const INTERNAL_API_HEADER = "x-media-internal";
 const INTERNAL_API_TOKEN = "next-isr";
@@ -48,7 +49,7 @@ async function fetchInternalJson<T>(
 ): Promise<{ data: T | null; unauthorized: boolean }> {
   try {
     const res = await internalApiFetch(path, {
-      next: { revalidate: revalidateSeconds },
+      next: catalogDataCache(revalidateSeconds),
     });
     if (res.status === 401) return { data: null, unauthorized: true };
     if (!res.ok) return { data: null, unauthorized: false };

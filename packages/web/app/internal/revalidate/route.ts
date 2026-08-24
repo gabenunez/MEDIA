@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import {
   MEDIA_INTERNAL_HEADER,
   MEDIA_INTERNAL_TOKEN,
-  mediaPageCacheTag,
+  collectRevalidateTags,
 } from "@media-app/shared";
 
 export async function POST(request: Request) {
@@ -12,32 +12,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { tag?: string; mediaId?: number; paths?: string[] } = {};
+  let body: { tag?: string; tags?: string[]; mediaId?: number; paths?: string[] } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const tags = collectRevalidateTags(body);
+  if (tags.length === 0) {
+    return NextResponse.json({ error: "tag or mediaId required" }, { status: 400 });
+  }
+
+  for (const tag of tags) {
+    revalidateTag(tag, { expire: 0 });
+  }
+
   const mediaId =
     typeof body.mediaId === "number" && Number.isFinite(body.mediaId)
       ? body.mediaId
       : null;
-
-  const tag =
-    typeof body.tag === "string" && body.tag.trim()
-      ? body.tag.trim()
-      : mediaId != null
-        ? mediaPageCacheTag(mediaId)
-        : null;
-
-  if (!tag) {
-    return NextResponse.json({ error: "tag or mediaId required" }, { status: 400 });
-  }
-
-  revalidateTag(tag, { expire: 0 });
-
-  const fromTag = tag.match(/^media:(\d+)$/);
+  const fromTag = tags
+    .map((tag) => tag.match(/^media:(\d+)$/))
+    .find((match): match is RegExpMatchArray => Boolean(match));
   const pathId = mediaId ?? (fromTag ? parseInt(fromTag[1], 10) : NaN);
   if (Number.isFinite(pathId) && pathId > 0) {
     revalidatePath(`/media/${pathId}/`);
@@ -50,5 +47,10 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ revalidated: true, tag, paths: extraPaths });
+  return NextResponse.json({
+    revalidated: true,
+    tag: tags[0],
+    tags,
+    paths: extraPaths,
+  });
 }
