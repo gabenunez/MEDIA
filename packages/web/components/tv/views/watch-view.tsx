@@ -84,6 +84,7 @@ import {
   shouldAutoHideWatchControls,
   shouldCloseWatchMenusOnRebuffer,
 } from "@/lib/tv-watch-subtitles";
+import { watchHiddenChromeArrowIntent } from "@/lib/tv-watch-remote";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
@@ -1932,6 +1933,37 @@ export function TvWatchView() {
 
       if (centerMessageVisible) return;
 
+      if (!controlsVisible) {
+        const hiddenArrow = watchHiddenChromeArrowIntent({
+          key: e.key,
+          showTransportControls,
+        });
+        if (hiddenArrow === "reveal-play") {
+          e.preventDefault();
+          revealControls(false, true);
+          return;
+        }
+        if (hiddenArrow === "reveal-scrub") {
+          e.preventDefault();
+          revealControls(false);
+          focusScrubControl();
+          if (e.key === "MediaRewind") {
+            setScrubPreview((current) => {
+              const stepPercent =
+                totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
+              return Math.max(0, (current ?? displayedProgress) - stepPercent);
+            });
+          } else if (e.key === "MediaFastForward") {
+            setScrubPreview((current) => {
+              const stepPercent =
+                totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
+              return Math.min(100, (current ?? displayedProgress) + stepPercent);
+            });
+          }
+          return;
+        }
+      }
+
       if (active?.hasAttribute("data-tv-watch-scrub")) {
         if (
           e.key === "Enter" ||
@@ -2019,10 +2051,6 @@ export function TvWatchView() {
             return;
           }
         }
-        if (!controlsVisible && showTransportControls) {
-          revealControls(false, true);
-          return;
-        }
       }
 
       if (
@@ -2040,33 +2068,6 @@ export function TvWatchView() {
       }
 
       if (active?.closest("[data-tv-watch-controls]")) return;
-
-      if (
-        !controlsVisible &&
-        showTransportControls &&
-        (e.key === "ArrowLeft" ||
-          e.key === "ArrowRight" ||
-          e.key === "MediaRewind" ||
-          e.key === "MediaFastForward")
-      ) {
-        e.preventDefault();
-        revealControls(false);
-        focusScrubControl();
-        if (e.key === "MediaRewind") {
-          setScrubPreview((current) => {
-            const stepPercent =
-              totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
-            return Math.max(0, (current ?? displayedProgress) - stepPercent);
-          });
-        } else if (e.key === "MediaFastForward") {
-          setScrubPreview((current) => {
-            const stepPercent =
-              totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
-            return Math.min(100, (current ?? displayedProgress) + stepPercent);
-          });
-        }
-        return;
-      }
     };
 
     window.addEventListener("keydown", onKeyDown);

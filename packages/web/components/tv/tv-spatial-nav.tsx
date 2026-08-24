@@ -7,6 +7,10 @@ import {
   focusTvItem,
   syncTvFocusedAttribute,
 } from "@/lib/tv-focus";
+import {
+  isWatchChromeFocusTarget,
+  spatialNavShouldDeferToWatchPlayer,
+} from "@/lib/tv-watch-remote";
 import { useEffect, type ReactNode } from "react";
 
 const NAV_COOLDOWN_MS = 50;
@@ -496,6 +500,17 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         e.preventDefault();
         e.stopPropagation();
         focusLoginGateItem();
+        return;
+      }
+
+      // Hidden player chrome: do not capture/stop D-pad. watch-view reveals
+      // controls on the first arrow. Catalog focus restore used to eat that key.
+      if (
+        spatialNavShouldDeferToWatchPlayer({
+          watchPlayerActive: isWatchPlayerActive(),
+          focusInsideWatchChrome: isWatchChromeFocusTarget(active),
+        })
+      ) {
         return;
       }
 
