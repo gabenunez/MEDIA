@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.215 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix TV instant skip on D-pad and native HLS seeks
+- ## Root cause (TV)
+- Fix TV instant skip on D-pad and native HLS seeks (#6)
+
 ## 0.1.214 — 2026-08-31
 
 ### Changes
