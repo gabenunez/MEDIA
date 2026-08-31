@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.216 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix TV subtitle menu vertical navigation between track rows
+- ## Problem
+- Fix TV subtitle menu vertical navigation between track rows (#7)
+
 ## 0.1.215 — 2026-08-31
 
 ### Changes
