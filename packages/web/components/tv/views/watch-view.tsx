@@ -56,6 +56,10 @@ import {
   qualityLabel,
   resolveFallbackQuality,
 } from "@/lib/watch-helpers";
+import {
+  readStoredPlaybackQuality,
+  writeStoredPlaybackQuality,
+} from "@/lib/quality-selection-storage";
 import { is4KSource, isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
@@ -734,6 +738,7 @@ export function TvWatchView() {
       lastStableAbsoluteSecondsRef.current = absoluteTime;
       requestStreamRestartAt(absoluteTime);
       setQuality(nextQuality);
+      writeStoredPlaybackQuality(nextQuality);
       nativeRemuxFallbackRef.current = false;
       nativeTranscodeFallbackRef.current = false;
       nativeLowFpsEscalatedRef.current = false;
@@ -1160,7 +1165,9 @@ export function TvWatchView() {
         setSourceDurationMs(info.durationMs ?? 0);
         setTranscodingEnabled(info.transcodingEnabled);
 
-        const initial = resolveInitialStreamQuality(info);
+        const initial = resolveInitialStreamQuality(info, {
+          preferredQuality: readStoredPlaybackQuality(),
+        });
         setQuality(initial.quality);
         if (initial.error) {
           setError(initial.error);
