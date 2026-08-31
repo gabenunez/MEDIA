@@ -307,6 +307,8 @@ export interface StreamInfo {
   videoCodec?: string | null;
   audioCodec?: string | null;
   bitrate?: number | null;
+  /** Reported source frame rate from ffprobe (avg/r). */
+  fps?: number | null;
   availableQualities: StreamQuality[];
   transcodingEnabled: boolean;
   directPlayAudioSupported: boolean;

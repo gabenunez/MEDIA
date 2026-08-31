@@ -8,6 +8,7 @@ import {
   effectiveTranscodeHeight,
   buildTranscodeVideoFilter,
   parseVideoDynamicRangeFromStream,
+  resolveVideoFrameRate,
   type VideoDynamicRange,
 } from "@media-app/shared";
 import { createStreamFilePrefix } from "./stream-session.js";
@@ -42,6 +43,7 @@ export interface ProbeResult {
   width?: number;
   height?: number;
   bitrate?: number;
+  fps?: number;
   dynamicRange: VideoDynamicRange;
   subtitleStreams: Array<{
     index: number;
@@ -57,6 +59,8 @@ type FfprobeStream = {
   codec_name?: string;
   width?: number;
   height?: number;
+  avg_frame_rate?: string;
+  r_frame_rate?: string;
   sample_aspect_ratio?: string;
   color_space?: string;
   color_transfer?: string;
@@ -196,6 +200,7 @@ export async function probeFile(filePath: string): Promise<ProbeResult | null> {
       bitrate: data.format?.bit_rate
         ? parseInt(data.format.bit_rate, 10)
         : undefined,
+      fps: resolveVideoFrameRate(videoStream) ?? undefined,
       dynamicRange: parseVideoDynamicRangeFromStream(videoStream),
       subtitleStreams,
     };

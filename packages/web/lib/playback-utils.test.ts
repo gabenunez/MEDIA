@@ -237,6 +237,32 @@ describe("resolvePlaybackStream with native TV player", () => {
     });
   });
 
+  it("routes high frame-rate originals to a source-matched transcode on native TV", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "sports.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "h264",
+          audioCodec: "ac3",
+          height: 1080,
+          width: 1920,
+          fps: 59.94,
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: true,
+      hlsQuality: "1080p",
+      audioCompatNotice: null,
+    });
+  });
+
   it("remuxes SD/HD MKV on native ExoPlayer only when forceRemux is set", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
