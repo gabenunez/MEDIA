@@ -242,6 +242,7 @@ export function TvWatchView() {
   const nativeHlsRecoveryAttemptsRef = useRef(0);
   const startNextEpisodeCountdownRef = useRef<() => void>(() => {});
   const controlsRevealedAtRef = useRef<number | null>(null);
+  const pendingRevealFocusRef = useRef<"play" | "scrub" | null>(null);
   const showControlsRef = useRef(true);
   const panelOpenRef = useRef(false);
   const nativePaintTimeRef = useRef(0);
@@ -496,7 +497,9 @@ export function TvWatchView() {
     !error &&
     !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null) &&
     (isPreparing || (buffering && !playbackHasBegun));
-  const blocksWatchInteraction = Boolean(error || countdown);
+  // Only error/countdown block chrome — initial buffering may last longer on HLS
+  // transcode (e.g. persisted quality) and must not eat the first D-pad reveal.
+  const blockingOverlayVisible = Boolean(error || countdown);
 
   const captureStreamRestartPosition = useCallback(() => {
     const absoluteTime = getPlaybackRestartSeconds({
@@ -667,14 +670,14 @@ export function TvWatchView() {
 
   const revealControls = useCallback(
     (_autoHide = true, focusPlay = false) => {
-      if (blocksWatchInteraction) return;
+      if (blockingOverlayVisible) return;
       controlsRevealedAtRef.current = Date.now();
       setShowControls(true);
       if (focusPlay) {
-        focusPlayControl();
+        pendingRevealFocusRef.current = "play";
       }
     },
-    [blocksWatchInteraction, focusPlayControl],
+    [blockingOverlayVisible],
   );
 
   const updateBufferedPosition = useCallback(() => {
@@ -1140,14 +1143,14 @@ export function TvWatchView() {
   }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
 
   useEffect(() => {
-    if (blocksWatchInteraction) {
+    if (blockingOverlayVisible) {
       setShowControls(false);
       return;
     }
     if (!isPlaying && !bufferingMidPlayback) {
       setShowControls(true);
     }
-  }, [blocksWatchInteraction, isPlaying, bufferingMidPlayback]);
+  }, [blockingOverlayVisible, isPlaying, bufferingMidPlayback]);
 
   useEffect(() => {
     if (!shouldCloseWatchMenusOnRebuffer()) return;
@@ -1917,16 +1920,30 @@ export function TvWatchView() {
         : usingHlsPlayback
           ? `Starting ${(playbackStream.hlsQuality ?? quality).toUpperCase()} stream...`
           : "Loading video...";
-  const controlsVisible = (showControls || panelOpen) && !blocksWatchInteraction;
+  const controlsVisible = (showControls || panelOpen) && !blockingOverlayVisible;
   const showTransportControls = Boolean(
     streamInfo && initialResumeSeconds !== null && !error && !countdown,
   );
 
   useEffect(() => {
-    if (!blocksWatchInteraction) return;
+    if (!blockingOverlayVisible) return;
     setShowControls(false);
     releaseWatchFocus();
-  }, [blocksWatchInteraction, releaseWatchFocus]);
+  }, [blockingOverlayVisible, releaseWatchFocus]);
+
+  useEffect(() => {
+    if (!controlsVisible) return;
+    const intent = pendingRevealFocusRef.current;
+    if (!intent) return;
+    pendingRevealFocusRef.current = null;
+    requestAnimationFrame(() => {
+      if (intent === "play") {
+        focusPlayControl();
+      } else {
+        focusScrubControl();
+      }
+    });
+  }, [controlsVisible, focusPlayControl, focusScrubControl]);
 
   const nativeWebOverlayRaised =
     controlsVisible ||
@@ -2036,7 +2053,7 @@ export function TvWatchView() {
 
       if (subtitleSearchOpen) return;
 
-      if (!blocksWatchInteraction) {
+      if (!blockingOverlayVisible) {
         if (e.key === "MediaPlay") {
           e.preventDefault();
           playPlayback();
@@ -2058,7 +2075,7 @@ export function TvWatchView() {
 
       if (panelOpen) return;
 
-      if (blocksWatchInteraction) return;
+      if (blockingOverlayVisible) return;
 
       if (!controlsVisible) {
         const hiddenArrow = watchHiddenChromeArrowIntent({
@@ -2220,7 +2237,7 @@ export function TvWatchView() {
     subtitleSearchOpen,
     closeMenus,
     revealControls,
-    blocksWatchInteraction,
+    blockingOverlayVisible,
     controlsVisible,
     showTransportControls,
     totalDurationSeconds,
@@ -2269,10 +2286,10 @@ export function TvWatchView() {
         usesNativePlayer && playbackHasBegun && "bg-transparent",
       )}
       onMouseMove={() => {
-        if (!blocksWatchInteraction) revealControls(true, true);
+        if (!blockingOverlayVisible) revealControls(true, true);
       }}
       onClick={() => {
-        if (!blocksWatchInteraction) revealControls(true, true);
+        if (!blockingOverlayVisible) revealControls(true, true);
       }}
     >
       {/* Video stage — full-screen picture; controls overlay top/bottom */}
@@ -2343,7 +2360,7 @@ export function TvWatchView() {
             role="status"
             aria-live="polite"
             className={cn(
-              "absolute inset-0 z-10 flex items-center justify-center",
+              "pointer-events-none absolute inset-0 z-10 flex items-center justify-center",
               usesNativePlayer ? "bg-transparent" : "bg-black/40",
             )}
           >
