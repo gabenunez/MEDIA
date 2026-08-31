@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.221 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix TV watch controls reveal and skip/seek reliability
+- ## Problem
+- Fix TV watch controls reveal and skip/seek reliability (#12)
+
 ## 0.1.220 — 2026-08-31
 
 ### Changes
