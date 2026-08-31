@@ -112,6 +112,23 @@ export function resolveHlsSeekAction(options: {
   return { kind: "restart", absoluteSeconds: target };
 }
 
+/**
+ * Native ExoPlayer can seek within the current HLS session for any target at
+ * or after the session offset. Only rewind before the session start needs a
+ * new `start=` transcode.
+ */
+export function resolveNativeHlsSeekAction(options: {
+  targetAbsoluteSeconds: number;
+  hlsStartOffset: number;
+}): HlsSeekAction {
+  const target = Math.max(0, options.targetAbsoluteSeconds);
+  const offset = Math.max(0, options.hlsStartOffset);
+  if (target < offset) {
+    return { kind: "restart", absoluteSeconds: target };
+  }
+  return { kind: "relative", relativeSeconds: target - offset };
+}
+
 /** Pin an absolute start for a specific stream-generation restart. */
 export function registerStreamRestartTarget(
   targets: Map<number, number>,
