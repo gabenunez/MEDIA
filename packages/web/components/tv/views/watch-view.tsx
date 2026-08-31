@@ -80,7 +80,7 @@ import {
   readSubtitleStyles,
 } from "@/lib/subtitle-styles";
 import {
-  hidePlaybackCaptions,
+  hideWebSubtitleOverlay,
   shouldCloseWatchMenusOnRebuffer,
 } from "@/lib/tv-watch-subtitles";
 import { watchHiddenChromeArrowIntent } from "@/lib/tv-watch-remote";
@@ -1757,9 +1757,10 @@ export function TvWatchView() {
     controlsVisible ||
     Boolean(error || countdown) ||
     (usesNativePlayer && showMidPlaybackBuffering);
-  const hidePlaybackSubtitles =
-    hidePlaybackCaptions({ subtitleSearchOpen }) ||
-    (usesNativePlayer && !nativeWebOverlayRaised);
+  const hidePlaybackSubtitles = hideWebSubtitleOverlay({
+    subtitleSearchOpen,
+    usesNativePlayer,
+  });
 
   useEffect(() => {
     if (!usesNativePlayer || !controlsVisible) return;

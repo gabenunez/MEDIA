@@ -7,6 +7,15 @@ export function hidePlaybackCaptions(state: {
   return state.subtitleSearchOpen;
 }
 
+export function hideWebSubtitleOverlay(state: {
+  subtitleSearchOpen: boolean;
+  usesNativePlayer: boolean;
+}): boolean {
+  // Native ExoPlayer renders captions on the video — skip the DOM overlay.
+  if (state.usesNativePlayer) return true;
+  return hidePlaybackCaptions({ subtitleSearchOpen: state.subtitleSearchOpen });
+}
+
 export function shouldCloseWatchMenusOnRebuffer(): boolean {
   return false;
 }
