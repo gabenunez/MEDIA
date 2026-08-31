@@ -26,8 +26,15 @@ import {
   resolvePlaybackStream,
   shouldFailThroughContinuousMidBuffer,
   NATIVE_SEEK_COALESCE_MS,
+  NATIVE_SEEK_STALL_SUPPRESS_MS,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
+import {
+  measurePlaybackFps,
+  recordPlaybackFpsSample,
+  resolveEqualTranscodeQuality,
+  shouldEscalateLowPlaybackFps,
+} from "@/lib/playback-fps";
 import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady, peekPreparedSubtitleVtt, prepareWebSubtitleVtt } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
@@ -250,6 +257,9 @@ export function TvWatchView() {
   const [forceRemux, setForceRemux] = useState(false);
   const nativeRemuxFallbackRef = useRef(false);
   const nativeTranscodeFallbackRef = useRef(false);
+  const nativeLowFpsEscalatedRef = useRef(false);
+  const playbackFpsStateRef = useRef({ samples: [] as Array<{ atMs: number; positionSeconds: number }> });
+  const qualityRef = useRef<StreamQuality>("original");
   const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
     "original",
     "480p",
@@ -322,6 +332,7 @@ export function TvWatchView() {
   playbackStreamRef.current = playbackStream;
   titleRef.current = title;
   streamInfoRef.current = streamInfo;
+  qualityRef.current = quality;
 
   const getSubtitlePlaybackSeconds = useCallback(() => {
     if (usesNativePlayer) {
@@ -480,6 +491,29 @@ export function TvWatchView() {
   }, [restartNativeHlsAtCurrentPosition]);
 
   /** Native onError + web mid-buffer watchdog share this ladder. */
+  const escalateToEqualResolutionTranscode = useCallback(() => {
+    const info = streamInfoRef.current;
+    if (!info || nativeLowFpsEscalatedRef.current) return;
+    const next = resolveEqualTranscodeQuality(
+      info.availableQualities,
+      info.height,
+      info.width,
+    );
+    if (!next) return;
+    nativeLowFpsEscalatedRef.current = true;
+    captureStreamRestartPosition();
+    nativeRemuxFallbackRef.current = false;
+    nativeTranscodeFallbackRef.current = true;
+    setForceRemux(false);
+    setQuality(next);
+    setStreamGeneration((generation) => generation + 1);
+    playbackFpsStateRef.current = { samples: [] };
+    setError(null);
+  }, [captureStreamRestartPosition]);
+
+  const escalateToEqualResolutionTranscodeRef = useRef(escalateToEqualResolutionTranscode);
+  escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
+
   const failThroughNativePlayback = useCallback(() => {
     const session = nativePlaySessionRef.current;
     if (nativeErrorHandledSessionRef.current >= session) return;
@@ -654,6 +688,8 @@ export function TvWatchView() {
       setQuality(nextQuality);
       nativeRemuxFallbackRef.current = false;
       nativeTranscodeFallbackRef.current = false;
+      nativeLowFpsEscalatedRef.current = false;
+      playbackFpsStateRef.current = { samples: [] };
       setForceRemux(false);
       closeMenus();
       setError(null);
@@ -879,6 +915,37 @@ export function TvWatchView() {
           // covered in opaque black instead of a transparent shell thrash.
           document.documentElement.setAttribute("data-native-video", "true");
         }
+        if (state.isPlaying && !state.isBuffering && playbackHasBegunRef.current) {
+          const nowMs = Date.now();
+          playbackFpsStateRef.current = recordPlaybackFpsSample(
+            playbackFpsStateRef.current,
+            nowMs,
+            state.currentTime,
+          );
+          const measuredFps = measurePlaybackFps(playbackFpsStateRef.current, nowMs);
+          if (
+            shouldEscalateLowPlaybackFps({
+              measuredFps,
+              sampleCount: playbackFpsStateRef.current.samples.length,
+              quality: qualityRef.current,
+              usingHls: usingHlsRef.current,
+              hlsQuality: playbackStreamRef.current?.hlsQuality,
+              transcodingEnabled: streamInfoRef.current?.transcodingEnabled ?? false,
+              alreadyEscalated: nativeLowFpsEscalatedRef.current,
+              isPlaying: state.isPlaying,
+              isBuffering: state.isBuffering,
+              playbackHasBegun: playbackHasBegunRef.current,
+              msSinceUserSeek:
+                lastNativeUserSeekAtRef.current == null
+                  ? null
+                  : nowMs - lastNativeUserSeekAtRef.current,
+              seekSuppressMs: NATIVE_SEEK_STALL_SUPPRESS_MS,
+            })
+          ) {
+            escalateToEqualResolutionTranscodeRef.current();
+            return;
+          }
+        }
         if (
           state.ready &&
           activeSubtitleRef.current != null &&
@@ -956,6 +1023,8 @@ export function TvWatchView() {
     setForceRemux(false);
     nativeRemuxFallbackRef.current = false;
     nativeTranscodeFallbackRef.current = false;
+    nativeLowFpsEscalatedRef.current = false;
+    playbackFpsStateRef.current = { samples: [] };
     nativeHlsRecoveryAttemptsRef.current = 0;
     midRebufferTimestampsRef.current = [];
     nativeMidBufferStartedAtRef.current = null;
