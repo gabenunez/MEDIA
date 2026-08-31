@@ -8,6 +8,10 @@ import {
   syncTvFocusedAttribute,
 } from "@/lib/tv-focus";
 import {
+  collapseSubtitleTrackActions,
+  tryMoveSubtitleTrackActions,
+} from "@/lib/tv-subtitle-track-row";
+import {
   isWatchChromeFocusTarget,
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
@@ -583,20 +587,32 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       }
 
       if (e.key === "ArrowRight") {
+        const subtitleTarget = tryMoveSubtitleTrackActions(active, "right");
+        if (subtitleTarget) {
+          focusItem(subtitleTarget);
+          return;
+        }
         moveHorizontal(active, "right");
         return;
       }
 
       if (e.key === "ArrowLeft") {
+        const subtitleTarget = tryMoveSubtitleTrackActions(active, "left");
+        if (subtitleTarget) {
+          focusItem(subtitleTarget);
+          return;
+        }
         moveHorizontal(active, "left");
         return;
       }
 
       if (e.key === "ArrowDown") {
+        collapseSubtitleTrackActions();
         moveVertical(active, "down");
         return;
       }
 
+      collapseSubtitleTrackActions();
       moveVertical(active, "up");
     }
 

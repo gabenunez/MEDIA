@@ -135,3 +135,47 @@ export function tvWatchPopoverOptionClassName(...extra: Array<string | false | n
     ...extra,
   );
 }
+
+export function TvSubtitleTrackRow({
+  label,
+  selected,
+  removable,
+  onSelect,
+  onRemove,
+}: {
+  label: string;
+  selected: boolean;
+  removable: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div
+      data-tv-row=""
+      data-tv-subtitle-track-row=""
+      className="flex items-center gap-1 rounded px-1 py-0.5"
+    >
+      <TvFocusButton
+        variant="default"
+        selected={selected}
+        onClick={onSelect}
+        data-tv-subtitle-track=""
+        className={tvWatchPopoverOptionClassName("min-w-0 flex-1")}
+      >
+        {label}
+      </TvFocusButton>
+      {removable ? (
+        <TvFocusButton
+          variant="default"
+          onClick={onRemove}
+          data-tv-subtitle-remove=""
+          tabIndex={-1}
+          aria-hidden="true"
+          className="tv-subtitle-track-remove mt-1 shrink-0 rounded px-2 py-1 text-xs text-muted-foreground"
+        >
+          Remove
+        </TvFocusButton>
+      ) : null}
+    </div>
+  );
+}

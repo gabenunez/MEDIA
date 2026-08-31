@@ -49,11 +49,13 @@ import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import {
+  TvSubtitleTrackRow,
   TvWatchMenuList,
   TvWatchPopover,
   tvWatchPopoverOptionClassName,
 } from "@/components/tv/tv-watch-settings-menu";
 import { focusFirstWatchMenuItem, focusTvItem } from "@/lib/tv-focus";
+import { collapseSubtitleTrackActions } from "@/lib/tv-subtitle-track-row";
 import { needsTvSdUpscaleSoftening, tvImageUrl } from "@/lib/tv-image";
 import { isTv4KClient } from "@/lib/tv-mode-detect";
 import { cn, formatDuration } from "@/lib/utils";
@@ -381,6 +383,10 @@ export function TvWatchView() {
     if (!subtitleMenuOpen) return;
     prefetchMenuTracks();
   }, [subtitleMenuOpen, prefetchMenuTracks]);
+
+  useEffect(() => {
+    if (!subtitleMenuOpen) collapseSubtitleTrackActions();
+  }, [subtitleMenuOpen]);
 
   const posterUrl = tvImageUrl(posterPath, { hd: true });
   const tvImageQuality = isTv4KClient() ? 90 : 80;
@@ -2476,31 +2482,20 @@ export function TvWatchView() {
                               </TvFocusButton>
                             )}
                             {subtitles.map((sub) => (
-                              <div key={sub.id} className="flex items-start gap-1 rounded px-1 py-0.5">
-                                <TvFocusButton
-                                  variant="default"
-                                  selected={activeSubtitle === sub.id}
-                                  onClick={() => {
-                                    selectSubtitleOnNative(sub.id);
-                                    closeMenus();
-                                    revealControls(false);
-                                  }}
-                                  className={tvWatchPopoverOptionClassName("min-w-0 flex-1")}
-                                >
-                                  {formatSubtitleLabel(sub)}
-                                </TvFocusButton>
-                                {sub.source === "opensubtitles" ? (
-                                  <TvFocusButton
-                                    variant="default"
-                                    onClick={() => {
-                                      void removeSubtitleTrack(sub.id);
-                                    }}
-                                    className="mt-1 shrink-0 rounded px-2 py-1 text-xs text-muted-foreground"
-                                  >
-                                    Remove
-                                  </TvFocusButton>
-                                ) : null}
-                              </div>
+                              <TvSubtitleTrackRow
+                                key={sub.id}
+                                label={formatSubtitleLabel(sub)}
+                                selected={activeSubtitle === sub.id}
+                                removable={sub.source === "opensubtitles"}
+                                onSelect={() => {
+                                  selectSubtitleOnNative(sub.id);
+                                  closeMenus();
+                                  revealControls(false);
+                                }}
+                                onRemove={() => {
+                                  void removeSubtitleTrack(sub.id);
+                                }}
+                              />
                             ))}
                             <div className="my-1 border-t border-border" />
                             <TvFocusButton
