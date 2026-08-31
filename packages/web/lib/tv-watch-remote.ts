@@ -18,9 +18,9 @@ export function spatialNavShouldDeferToWatchPlayer(state: {
   return state.watchPlayerActive && !state.focusInsideWatchChrome;
 }
 
-export type WatchHiddenChromeArrowIntent = "reveal-play" | "reveal-scrub";
+export type WatchHiddenChromeArrowIntent = "reveal-play" | "skip-back" | "skip-forward";
 
-/** First D-pad press with chrome down: show controls (play row or scrubber). */
+/** D-pad with chrome hidden: reveal transport row or skip immediately. */
 export function watchHiddenChromeArrowIntent(state: {
   key: string;
   showTransportControls: boolean;
@@ -29,14 +29,8 @@ export function watchHiddenChromeArrowIntent(state: {
   if (state.key === "ArrowUp") {
     return state.showTransportControls ? "reveal-play" : null;
   }
-  if (
-    state.showTransportControls &&
-    (state.key === "ArrowLeft" ||
-      state.key === "ArrowRight" ||
-      state.key === "MediaRewind" ||
-      state.key === "MediaFastForward")
-  ) {
-    return "reveal-scrub";
-  }
+  if (!state.showTransportControls) return null;
+  if (state.key === "ArrowLeft" || state.key === "MediaRewind") return "skip-back";
+  if (state.key === "ArrowRight" || state.key === "MediaFastForward") return "skip-forward";
   return null;
 }
