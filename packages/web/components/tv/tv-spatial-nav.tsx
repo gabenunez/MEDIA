@@ -12,6 +12,10 @@ import {
   tryMoveSubtitleTrackActions,
 } from "@/lib/tv-subtitle-track-row";
 import {
+  findWatchMenuVerticalRow,
+  nextWatchMenuVerticalItem,
+} from "@/lib/tv-watch-menu-nav";
+import {
   isWatchChromeFocusTarget,
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
@@ -279,24 +283,15 @@ function moveInWatchMenu(active: HTMLElement, direction: "up" | "down") {
 }
 
 function moveInVerticalRow(active: HTMLElement, direction: "up" | "down") {
-  const row = active.closest("[data-tv-row][data-tv-vertical]");
+  const row = findWatchMenuVerticalRow(active);
   if (!row) return false;
 
   const items = getRowItems(row);
-  const index = items.indexOf(active);
-  if (index === -1) return false;
+  const next = nextWatchMenuVerticalItem(active, direction, items);
+  if (!next) return false;
 
-  if (direction === "down" && index < items.length - 1) {
-    focusItem(items[index + 1]);
-    return true;
-  }
-
-  if (direction === "up" && index > 0) {
-    focusItem(items[index - 1]);
-    return true;
-  }
-
-  return false;
+  focusItem(next);
+  return true;
 }
 
 function focusNavFromContent(active: HTMLElement) {
@@ -406,7 +401,7 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
     return false;
   }
 
-  if (activeRow.hasAttribute("data-tv-vertical")) {
+  if (activeRow.hasAttribute("data-tv-vertical") || active.closest("[data-tv-subtitle-track-row]")) {
     if (moveInVerticalRow(active, direction)) return true;
     if (watchMenu) return false;
   }
