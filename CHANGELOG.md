@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.219 — 2026-08-31
+
+### Changes
+
+- **Release** — Persist TV playback quality and subtitle selection
+- ## Summary
+- Persist TV playback quality and subtitle selection (#10)
+
 ## 0.1.218 — 2026-08-31
 
 ### Changes
