@@ -27,6 +27,7 @@ import {
   consumeStreamRestartTarget,
   resolveNativeHlsSeekAction,
   resolveSkipTargetAbsoluteSeconds,
+  shouldClearOptimisticSeek,
   getPlaybackAbsoluteSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
@@ -495,7 +496,8 @@ export function TvWatchView() {
     !error &&
     !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null) &&
     (isPreparing || (buffering && !playbackHasBegun));
-  const centerMessageVisible = Boolean(error || countdown || showLoadingOverlay);
+  const blocksWatchInteraction = Boolean(error || countdown);
+  const centerMessageVisible = Boolean(blocksWatchInteraction || showLoadingOverlay);
 
   const captureStreamRestartPosition = useCallback(() => {
     const absoluteTime = getPlaybackRestartSeconds({
@@ -666,14 +668,14 @@ export function TvWatchView() {
 
   const revealControls = useCallback(
     (_autoHide = true, focusPlay = false) => {
-      if (centerMessageVisible) return;
+      if (blocksWatchInteraction) return;
       controlsRevealedAtRef.current = Date.now();
       setShowControls(true);
       if (focusPlay) {
         focusPlayControl();
       }
     },
-    [centerMessageVisible, focusPlayControl],
+    [blocksWatchInteraction, focusPlayControl],
   );
 
   const updateBufferedPosition = useCallback(() => {
@@ -886,6 +888,18 @@ export function TvWatchView() {
       onState: (state) => {
         currentTimeRef.current = state.currentTime;
         const controlsNeedPaint = showControlsRef.current || panelOpenRef.current;
+        const optimistic = optimisticAbsoluteSecondsRef.current;
+        if (optimistic !== null) {
+          const liveAbsolute = getPlaybackAbsoluteSeconds({
+            usingHls: usingHlsRef.current,
+            hlsStartOffset: hlsStartOffsetRef.current,
+            relativeSeconds: state.currentTime,
+          });
+          if (shouldClearOptimisticSeek(liveAbsolute, optimistic)) {
+            optimisticAbsoluteSecondsRef.current = null;
+            setOptimisticAbsoluteSeconds(null);
+          }
+        }
         // While chrome is hidden, keep time in refs only — avoid full watch-tree re-renders.
         if (
           controlsNeedPaint &&
@@ -1127,14 +1141,14 @@ export function TvWatchView() {
   }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
 
   useEffect(() => {
-    if (centerMessageVisible) {
+    if (blocksWatchInteraction) {
       setShowControls(false);
       return;
     }
     if (!isPlaying && !bufferingMidPlayback) {
       setShowControls(true);
     }
-  }, [centerMessageVisible, isPlaying, bufferingMidPlayback]);
+  }, [blocksWatchInteraction, isPlaying, bufferingMidPlayback]);
 
   useEffect(() => {
     if (!shouldCloseWatchMenusOnRebuffer()) return;
@@ -1708,10 +1722,16 @@ export function TvWatchView() {
 
   useEffect(() => {
     if (optimisticAbsoluteSeconds === null) return;
-    if (Math.abs(absoluteCurrentTime - optimisticAbsoluteSeconds) < 1.5) {
+    const liveRelative = usesNativePlayer ? currentTimeRef.current : currentTime;
+    const liveAbsolute = getPlaybackAbsoluteSeconds({
+      usingHls: usingHlsRef.current,
+      hlsStartOffset: hlsStartOffsetRef.current,
+      relativeSeconds: liveRelative,
+    });
+    if (shouldClearOptimisticSeek(liveAbsolute, optimisticAbsoluteSeconds)) {
       setOptimisticAbsoluteSeconds(null);
     }
-  }, [absoluteCurrentTime, optimisticAbsoluteSeconds]);
+  }, [absoluteCurrentTime, optimisticAbsoluteSeconds, usesNativePlayer, currentTime]);
 
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),
@@ -1898,16 +1918,16 @@ export function TvWatchView() {
         : usingHlsPlayback
           ? `Starting ${(playbackStream.hlsQuality ?? quality).toUpperCase()} stream...`
           : "Loading video...";
-  const controlsVisible = (showControls || panelOpen) && !centerMessageVisible;
+  const controlsVisible = (showControls || panelOpen) && !blocksWatchInteraction;
   const showTransportControls = Boolean(
     streamInfo && initialResumeSeconds !== null && !error && !countdown,
   );
 
   useEffect(() => {
-    if (!centerMessageVisible) return;
+    if (!blocksWatchInteraction) return;
     setShowControls(false);
     releaseWatchFocus();
-  }, [centerMessageVisible, releaseWatchFocus]);
+  }, [blocksWatchInteraction, releaseWatchFocus]);
 
   const nativeWebOverlayRaised =
     controlsVisible ||
@@ -2017,7 +2037,7 @@ export function TvWatchView() {
 
       if (subtitleSearchOpen) return;
 
-      if (!centerMessageVisible) {
+      if (!blocksWatchInteraction) {
         if (e.key === "MediaPlay") {
           e.preventDefault();
           playPlayback();
@@ -2039,7 +2059,7 @@ export function TvWatchView() {
 
       if (panelOpen) return;
 
-      if (centerMessageVisible) return;
+      if (blocksWatchInteraction) return;
 
       if (!controlsVisible) {
         const hiddenArrow = watchHiddenChromeArrowIntent({
@@ -2058,25 +2078,6 @@ export function TvWatchView() {
           return;
         }
         if (hiddenArrow === "skip-forward") {
-          e.preventDefault();
-          skipRelative(30);
-          revealControls(true);
-          return;
-        }
-      }
-
-      if (
-        showTransportControls &&
-        !active?.closest("[data-tv-watch-controls]") &&
-        !active?.hasAttribute("data-tv-watch-scrub")
-      ) {
-        if (e.key === "MediaRewind" || e.key === "ArrowLeft") {
-          e.preventDefault();
-          skipRelative(-10);
-          revealControls(true);
-          return;
-        }
-        if (e.key === "MediaFastForward" || e.key === "ArrowRight") {
           e.preventDefault();
           skipRelative(30);
           revealControls(true);
@@ -2116,6 +2117,23 @@ export function TvWatchView() {
               Math.min(100, (current ?? displayedProgress) + stepPercent),
             );
           }
+          return;
+        }
+      }
+
+      if (
+        showTransportControls &&
+        controlsVisible &&
+        !active?.hasAttribute("data-tv-watch-scrub")
+      ) {
+        if (e.key === "MediaRewind" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          skipRelative(-10);
+          return;
+        }
+        if (e.key === "MediaFastForward" || e.key === "ArrowRight") {
+          e.preventDefault();
+          skipRelative(30);
           return;
         }
       }
@@ -2187,24 +2205,6 @@ export function TvWatchView() {
         }
       }
 
-      if (
-        controlsVisible &&
-        !panelOpen &&
-        !subtitleSearchOpen &&
-        active?.closest("[data-tv-watch-controls]")
-      ) {
-        if (e.key === "MediaRewind") {
-          e.preventDefault();
-          skipRelative(-10);
-          return;
-        }
-        if (e.key === "MediaFastForward") {
-          e.preventDefault();
-          skipRelative(30);
-          return;
-        }
-      }
-
       if (active?.closest("[data-tv-watch-controls]")) return;
     };
 
@@ -2221,6 +2221,7 @@ export function TvWatchView() {
     subtitleSearchOpen,
     closeMenus,
     revealControls,
+    blocksWatchInteraction,
     centerMessageVisible,
     controlsVisible,
     showTransportControls,
@@ -2270,10 +2271,10 @@ export function TvWatchView() {
         usesNativePlayer && playbackHasBegun && "bg-transparent",
       )}
       onMouseMove={() => {
-        if (!centerMessageVisible) revealControls(true, true);
+        if (!blocksWatchInteraction) revealControls(true, true);
       }}
       onClick={() => {
-        if (!centerMessageVisible) revealControls(true, true);
+        if (!blocksWatchInteraction) revealControls(true, true);
       }}
     >
       {/* Video stage — full-screen picture; controls overlay top/bottom */}
