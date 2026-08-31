@@ -25,6 +25,8 @@ import {
   resolveHlsSeekAction,
   registerStreamRestartTarget,
   consumeStreamRestartTarget,
+  resolveSkipTargetAbsoluteSeconds,
+  getPlaybackAbsoluteSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
   shouldFailThroughContinuousMidBuffer,
@@ -247,6 +249,7 @@ export function TvWatchView() {
   const lastNativeUserSeekAtRef = useRef<number | null>(null);
   const skipCoalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSkipDeltaRef = useRef(0);
+  const optimisticAbsoluteSecondsRef = useRef<number | null>(null);
 
   const releaseWatchFocus = useCallback(() => {
     focusSinkRef.current?.focus({ preventScroll: true });
@@ -1454,8 +1457,12 @@ export function TvWatchView() {
 
   const resumeAnchorSeconds =
     hlsStartOffset > 0 ? hlsStartOffset : (initialResumeSeconds ?? 0);
-  const playbackAbsoluteTime =
-    usingHlsPlayback ? hlsStartOffsetRef.current + currentTime : currentTime;
+  const liveRelativeSeconds = usesNativePlayer ? currentTimeRef.current : currentTime;
+  const playbackAbsoluteTime = getPlaybackAbsoluteSeconds({
+    usingHls: usingHlsPlayback,
+    hlsStartOffset: hlsStartOffsetRef.current,
+    relativeSeconds: liveRelativeSeconds,
+  });
   const absoluteCurrentTime =
     !playbackHasBegun &&
     scrubPreview === null &&
@@ -1481,6 +1488,7 @@ export function TvWatchView() {
       : null;
   const displayedProgress = scrubPreview ?? optimisticProgressPercent ?? progress;
   progressRef.current = displayedProgress;
+  optimisticAbsoluteSecondsRef.current = optimisticAbsoluteSeconds;
   showControlsRef.current = showControls;
   panelOpenRef.current = panelOpen;
   // Native onState owns currentTimeRef; don't clobber it with stale React state.
@@ -1570,22 +1578,26 @@ export function TvWatchView() {
 
   seekToAbsoluteRef.current = seekToAbsolute;
 
-  const skipRelative = useCallback(
-    (deltaSeconds: number) => {
-      // Coalesce rapid skip taps so each press does not interrupt the prior seek.
-      pendingSkipDeltaRef.current += deltaSeconds;
-      if (skipCoalesceTimerRef.current) {
-        clearTimeout(skipCoalesceTimerRef.current);
-      }
-      skipCoalesceTimerRef.current = setTimeout(() => {
-        skipCoalesceTimerRef.current = null;
-        const delta = pendingSkipDeltaRef.current;
-        pendingSkipDeltaRef.current = 0;
-        seekToAbsolute((optimisticAbsoluteSeconds ?? absoluteCurrentTime) + delta);
-      }, NATIVE_SEEK_COALESCE_MS);
-    },
-    [absoluteCurrentTime, optimisticAbsoluteSeconds, seekToAbsolute],
-  );
+  const skipRelative = useCallback((deltaSeconds: number) => {
+    pendingSkipDeltaRef.current += deltaSeconds;
+    if (skipCoalesceTimerRef.current) {
+      clearTimeout(skipCoalesceTimerRef.current);
+    }
+    skipCoalesceTimerRef.current = setTimeout(() => {
+      skipCoalesceTimerRef.current = null;
+      const delta = pendingSkipDeltaRef.current;
+      pendingSkipDeltaRef.current = 0;
+      seekToAbsoluteRef.current(
+        resolveSkipTargetAbsoluteSeconds({
+          optimisticAbsoluteSeconds: optimisticAbsoluteSecondsRef.current,
+          usingHls: usingHlsRef.current,
+          hlsStartOffset: hlsStartOffsetRef.current,
+          liveRelativeSeconds: currentTimeRef.current,
+          deltaSeconds: delta,
+        }),
+      );
+    }, NATIVE_SEEK_COALESCE_MS);
+  }, []);
 
   const handleScrubCommit = useCallback(
     (value: number) => {
@@ -2116,6 +2128,24 @@ export function TvWatchView() {
         if (isNavigationKey) {
           e.preventDefault();
           revealControls(false, true);
+          return;
+        }
+      }
+
+      if (
+        controlsVisible &&
+        !panelOpen &&
+        !subtitleSearchOpen &&
+        active?.closest("[data-tv-watch-controls]")
+      ) {
+        if (e.key === "MediaRewind") {
+          e.preventDefault();
+          skipRelative(-10);
+          return;
+        }
+        if (e.key === "MediaFastForward") {
+          e.preventDefault();
+          skipRelative(30);
           return;
         }
       }
