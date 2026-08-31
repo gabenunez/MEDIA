@@ -90,15 +90,16 @@ export function resolveHlsSeekAction(options: {
   const relativeTarget = target - offset;
 
   if (options.useBufferedRanges) {
+    const ranges = options.bufferedRangesAbsolute ?? [];
+    // When buffer telemetry is missing, let ExoPlayer attempt an in-session
+    // seek instead of tearing down the transcode on every skip.
     if (
-      isAbsoluteTimeInBufferedRanges(
-        target,
-        options.bufferedRangesAbsolute ?? [],
-      )
+      ranges.length > 0 &&
+      !isAbsoluteTimeInBufferedRanges(target, ranges)
     ) {
-      return { kind: "relative", relativeSeconds: relativeTarget };
+      return { kind: "restart", absoluteSeconds: target };
     }
-    return { kind: "restart", absoluteSeconds: target };
+    return { kind: "relative", relativeSeconds: relativeTarget };
   }
 
   const seekableEnd = options.seekableEndRelative ?? 0;
@@ -129,6 +130,24 @@ export function consumeStreamRestartTarget(
     targets.delete(generation);
   }
   return value;
+}
+
+/** Base absolute position for a coalesced skip — always read live refs, not React state. */
+export function resolveSkipTargetAbsoluteSeconds(options: {
+  optimisticAbsoluteSeconds: number | null;
+  usingHls: boolean;
+  hlsStartOffset: number;
+  liveRelativeSeconds: number;
+  deltaSeconds: number;
+}): number {
+  const base =
+    options.optimisticAbsoluteSeconds ??
+    getPlaybackAbsoluteSeconds({
+      usingHls: options.usingHls,
+      hlsStartOffset: options.hlsStartOffset,
+      relativeSeconds: options.liveRelativeSeconds,
+    });
+  return base + options.deltaSeconds;
 }
 
 /**

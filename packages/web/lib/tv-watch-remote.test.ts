@@ -102,4 +102,15 @@ describe("TV watch remote — wiring (do not revert)", () => {
   it("watch view reveals chrome from hidden-arrow intent", () => {
     expect(watchView).toContain("watchHiddenChromeArrowIntent");
   });
+
+  it("skip uses live native playhead refs instead of stale React state", () => {
+    expect(watchView).toContain("resolveSkipTargetAbsoluteSeconds");
+    expect(watchView).toContain("usesNativePlayer ? currentTimeRef.current : currentTime");
+  });
+
+  it("handles rewind and fast-forward while transport controls are focused", () => {
+    expect(watchView).toContain('e.key === "MediaRewind"');
+    expect(watchView).toContain("skipRelative(-10)");
+    expect(watchView).toContain("skipRelative(30)");
+  });
 });
