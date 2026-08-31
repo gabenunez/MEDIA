@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.214 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix video seeking (skip back/forward) on TV and web
+- ## Problem
+- Fix video seeking (skip back/forward) on TV and web (#5)
+
 ## 0.1.213 — 2026-08-31
 
 ### Changes
