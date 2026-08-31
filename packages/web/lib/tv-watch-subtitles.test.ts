@@ -23,7 +23,7 @@ describe("TV watch caption policy", () => {
     expect(shouldCloseWatchMenusOnRebuffer()).toBe(false);
   });
 
-  it("does not auto-hide chrome while a watch panel is open", () => {
+  it("never auto-hides watch chrome; controls dismiss on back only", () => {
     expect(
       shouldAutoHideWatchControls({
         autoHideRequested: true,
@@ -37,7 +37,7 @@ describe("TV watch caption policy", () => {
         playing: true,
         panelOpen: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("does not treat HLS emptied as the end of captions", () => {

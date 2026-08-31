@@ -81,7 +81,6 @@ import {
 } from "@/lib/subtitle-styles";
 import {
   hidePlaybackCaptions,
-  shouldAutoHideWatchControls,
   shouldCloseWatchMenusOnRebuffer,
 } from "@/lib/tv-watch-subtitles";
 import { watchHiddenChromeArrowIntent } from "@/lib/tv-watch-remote";
@@ -193,7 +192,6 @@ export function TvWatchView() {
   const hlsRef = useRef<Hls | null>(null);
   const hlsStartOffsetRef = useRef(0);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveProgressRef = useRef<() => void>(() => {});
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
@@ -237,15 +235,6 @@ export function TvWatchView() {
   const lastNativeUserSeekAtRef = useRef<number | null>(null);
   const skipCoalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSkipDeltaRef = useRef(0);
-
-  const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
-
-  const scheduleControlsAutoHide = useCallback(() => {
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    hideControlsTimer.current = setTimeout(() => {
-      setShowControls(false);
-    }, TV_CONTROLS_AUTO_HIDE_MS);
-  }, []);
 
   const releaseWatchFocus = useCallback(() => {
     focusSinkRef.current?.focus({ preventScroll: true });
@@ -584,37 +573,15 @@ export function TvWatchView() {
   }, []);
 
   const revealControls = useCallback(
-    (autoHide = true, focusPlay = false) => {
+    (_autoHide = true, focusPlay = false) => {
       if (centerMessageVisible) return;
       controlsRevealedAtRef.current = Date.now();
       setShowControls(true);
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-      const video = videoRef.current;
-      const playing = usesNativePlayer
-        ? isPlaying
-        : video
-          ? !video.paused
-          : false;
-      if (
-        shouldAutoHideWatchControls({
-          autoHideRequested: autoHide,
-          playing,
-          panelOpen: panelOpenRef.current,
-        })
-      ) {
-        scheduleControlsAutoHide();
-      }
       if (focusPlay) {
         focusPlayControl();
       }
     },
-    [
-      centerMessageVisible,
-      usesNativePlayer,
-      isPlaying,
-      scheduleControlsAutoHide,
-      focusPlayControl,
-    ],
+    [centerMessageVisible, focusPlayControl],
   );
 
   const updateBufferedPosition = useCallback(() => {
@@ -1016,22 +983,14 @@ export function TvWatchView() {
   }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
 
   useEffect(() => {
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     if (centerMessageVisible) {
       setShowControls(false);
       return;
     }
     if (!isPlaying && !bufferingMidPlayback) {
       setShowControls(true);
-      return;
     }
-    if (!panelOpen) {
-      scheduleControlsAutoHide();
-    }
-    return () => {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    };
-  }, [centerMessageVisible, isPlaying, bufferingMidPlayback, panelOpen, scheduleControlsAutoHide]);
+  }, [centerMessageVisible, isPlaying, bufferingMidPlayback]);
 
   useEffect(() => {
     if (!shouldCloseWatchMenusOnRebuffer()) return;
@@ -1738,12 +1697,6 @@ export function TvWatchView() {
   });
 
   useEffect(() => {
-    return () => {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!countdown) return;
     requestAnimationFrame(() => {
       const first = document.querySelector<HTMLElement>(
@@ -1796,7 +1749,6 @@ export function TvWatchView() {
 
   useEffect(() => {
     if (!centerMessageVisible) return;
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     setShowControls(false);
     releaseWatchFocus();
   }, [centerMessageVisible, releaseWatchFocus]);
@@ -1865,7 +1817,6 @@ export function TvWatchView() {
       return true;
     }
     if (controlsVisible) {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
       setShowControls(false);
       controlsRevealedAtRef.current = null;
       releaseWatchFocus();
