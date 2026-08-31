@@ -105,6 +105,12 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(stealAt).toBeGreaterThan(deferAt);
   });
 
+  it("spatial nav defers horizontal skip keys while watch controls are focused", () => {
+    expect(spatialNav).toContain('e.key === "MediaRewind"');
+    expect(spatialNav).toContain("[data-tv-watch-menu]");
+    expect(spatialNav).toContain("isWatchPlayerActive()");
+  });
+
   it("watch view skips from hidden-arrow intent", () => {
     expect(watchView).toContain("watchHiddenChromeArrowIntent");
     expect(watchView).toContain('hiddenArrow === "skip-back"');
@@ -118,7 +124,13 @@ describe("TV watch remote — wiring (do not revert)", () => {
 
   it("handles rewind and fast-forward while transport controls are focused", () => {
     expect(watchView).toContain('e.key === "MediaRewind"');
+    expect(watchView).toContain('e.key === "ArrowLeft"');
     expect(watchView).toContain("skipRelative(-10)");
     expect(watchView).toContain("skipRelative(30)");
+  });
+
+  it("clears optimistic seeks from the live native playhead", () => {
+    expect(watchView).toContain("shouldClearOptimisticSeek");
+    expect(watchView).toContain("optimisticAbsoluteSecondsRef.current = null");
   });
 });

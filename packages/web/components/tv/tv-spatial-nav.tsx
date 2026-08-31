@@ -554,8 +554,14 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         const inWatchMenu = active.closest("[data-tv-watch-menu]");
         if (
           !inWatchMenu &&
-          !active.closest("[data-tv-watch-controls]")
+          (e.key === "ArrowLeft" ||
+            e.key === "ArrowRight" ||
+            e.key === "MediaRewind" ||
+            e.key === "MediaFastForward")
         ) {
+          return;
+        }
+        if (!inWatchMenu && !active.closest("[data-tv-watch-controls]")) {
           return;
         }
         // Watch view handles Up/Down on the control bar; menus use normal spatial nav.

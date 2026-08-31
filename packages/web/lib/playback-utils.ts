@@ -150,6 +150,17 @@ export function consumeStreamRestartTarget(
   return value;
 }
 
+/** Clear optimistic scrubber position once the live playhead catches up. */
+export function shouldClearOptimisticSeek(
+  liveAbsoluteSeconds: number,
+  optimisticAbsoluteSeconds: number,
+  toleranceSeconds = 1.5,
+): boolean {
+  return (
+    Math.abs(liveAbsoluteSeconds - optimisticAbsoluteSeconds) < toleranceSeconds
+  );
+}
+
 /** Base absolute position for a coalesced skip — always read live refs, not React state. */
 export function resolveSkipTargetAbsoluteSeconds(options: {
   optimisticAbsoluteSeconds: number | null;

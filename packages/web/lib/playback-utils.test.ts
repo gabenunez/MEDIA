@@ -29,6 +29,7 @@ import {
   registerStreamRestartTarget,
   consumeStreamRestartTarget,
   resolveSkipTargetAbsoluteSeconds,
+  shouldClearOptimisticSeek,
 } from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
@@ -654,6 +655,13 @@ describe("resolveNativeHlsSeekAction", () => {
         hlsStartOffset: 1200,
       }),
     ).toEqual({ kind: "restart", absoluteSeconds: 1100 });
+  });
+});
+
+describe("shouldClearOptimisticSeek", () => {
+  it("clears once the live playhead is within tolerance of the optimistic target", () => {
+    expect(shouldClearOptimisticSeek(500, 501)).toBe(true);
+    expect(shouldClearOptimisticSeek(500, 510)).toBe(false);
   });
 });
 
