@@ -217,6 +217,7 @@ export async function streamRoutes(
     videoCodec: string | null;
     audioCodec: string | null;
     bitrate: number | null;
+    fps: number | null;
   }> {
     if (hasCompleteStreamMetadata(file)) {
       return {
@@ -226,6 +227,7 @@ export async function streamRoutes(
         videoCodec: file.videoCodec ?? null,
         audioCodec: file.audioCodec ?? null,
         bitrate: null,
+        fps: null,
       };
     }
 
@@ -237,6 +239,7 @@ export async function streamRoutes(
       videoCodec: file.videoCodec ?? probe?.videoCodec ?? null,
       audioCodec: file.audioCodec ?? probe?.audioCodec ?? null,
       bitrate: probe?.bitrate ?? null,
+      fps: probe?.fps ?? null,
     };
   }
 
@@ -370,6 +373,7 @@ export async function streamRoutes(
         videoCodec: metadata.videoCodec,
         audioCodec: metadata.audioCodec,
         bitrate: metadata.bitrate ?? probe?.bitrate ?? null,
+        fps: metadata.fps ?? probe?.fps ?? null,
         availableQualities: getAvailableQualities(metadata.height, metadata.width),
         transcodingEnabled: config.transcoding.enabled,
         directPlayAudioSupported: isBrowserDirectPlayAudioSupported(
