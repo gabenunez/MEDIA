@@ -27,6 +27,7 @@ import {
   consumeStreamRestartTarget,
   resolveNativeHlsSeekAction,
   resolveSkipTargetAbsoluteSeconds,
+  shouldClearOptimisticSeek,
   getPlaybackAbsoluteSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
@@ -889,6 +890,18 @@ export function TvWatchView() {
       onState: (state) => {
         currentTimeRef.current = state.currentTime;
         const controlsNeedPaint = showControlsRef.current || panelOpenRef.current;
+        const optimistic = optimisticAbsoluteSecondsRef.current;
+        if (optimistic !== null) {
+          const liveAbsolute = getPlaybackAbsoluteSeconds({
+            usingHls: usingHlsRef.current,
+            hlsStartOffset: hlsStartOffsetRef.current,
+            relativeSeconds: state.currentTime,
+          });
+          if (shouldClearOptimisticSeek(liveAbsolute, optimistic)) {
+            optimisticAbsoluteSecondsRef.current = null;
+            setOptimisticAbsoluteSeconds(null);
+          }
+        }
         // While chrome is hidden, keep time in refs only — avoid full watch-tree re-renders.
         if (
           controlsNeedPaint &&
@@ -1711,10 +1724,16 @@ export function TvWatchView() {
 
   useEffect(() => {
     if (optimisticAbsoluteSeconds === null) return;
-    if (Math.abs(absoluteCurrentTime - optimisticAbsoluteSeconds) < 1.5) {
+    const liveRelative = usesNativePlayer ? currentTimeRef.current : currentTime;
+    const liveAbsolute = getPlaybackAbsoluteSeconds({
+      usingHls: usingHlsRef.current,
+      hlsStartOffset: hlsStartOffsetRef.current,
+      relativeSeconds: liveRelative,
+    });
+    if (shouldClearOptimisticSeek(liveAbsolute, optimisticAbsoluteSeconds)) {
       setOptimisticAbsoluteSeconds(null);
     }
-  }, [absoluteCurrentTime, optimisticAbsoluteSeconds]);
+  }, [absoluteCurrentTime, optimisticAbsoluteSeconds, usesNativePlayer, currentTime]);
 
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),
@@ -2082,25 +2101,6 @@ export function TvWatchView() {
         }
       }
 
-      if (
-        showTransportControls &&
-        !active?.closest("[data-tv-watch-controls]") &&
-        !active?.hasAttribute("data-tv-watch-scrub")
-      ) {
-        if (e.key === "MediaRewind" || e.key === "ArrowLeft") {
-          e.preventDefault();
-          skipRelative(-10);
-          revealControls(true);
-          return;
-        }
-        if (e.key === "MediaFastForward" || e.key === "ArrowRight") {
-          e.preventDefault();
-          skipRelative(30);
-          revealControls(true);
-          return;
-        }
-      }
-
       if (active?.hasAttribute("data-tv-watch-scrub")) {
         if (
           e.key === "Enter" ||
@@ -2133,6 +2133,23 @@ export function TvWatchView() {
               Math.min(100, (current ?? displayedProgress) + stepPercent),
             );
           }
+          return;
+        }
+      }
+
+      if (
+        showTransportControls &&
+        controlsVisible &&
+        !active?.hasAttribute("data-tv-watch-scrub")
+      ) {
+        if (e.key === "MediaRewind" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          skipRelative(-10);
+          return;
+        }
+        if (e.key === "MediaFastForward" || e.key === "ArrowRight") {
+          e.preventDefault();
+          skipRelative(30);
           return;
         }
       }
@@ -2200,24 +2217,6 @@ export function TvWatchView() {
         if (isNavigationKey) {
           e.preventDefault();
           revealControls(false, true);
-          return;
-        }
-      }
-
-      if (
-        controlsVisible &&
-        !panelOpen &&
-        !subtitleSearchOpen &&
-        active?.closest("[data-tv-watch-controls]")
-      ) {
-        if (e.key === "MediaRewind") {
-          e.preventDefault();
-          skipRelative(-10);
-          return;
-        }
-        if (e.key === "MediaFastForward") {
-          e.preventDefault();
-          skipRelative(30);
           return;
         }
       }
