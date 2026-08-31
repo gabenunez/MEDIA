@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.217 — 2026-08-31
+
+### Changes
+
+- **Release** — Add Start from beginning on media pages with saved progress
+- ## Summary
+- Add Start from beginning on media pages with saved progress (#8)
+
 ## 0.1.216 — 2026-08-31
 
 ### Changes
