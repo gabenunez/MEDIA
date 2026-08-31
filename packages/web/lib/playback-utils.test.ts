@@ -25,6 +25,7 @@ import {
   nextEpisodePreviewPath,
   isAbsoluteTimeInBufferedRanges,
   resolveHlsSeekAction,
+  resolveNativeHlsSeekAction,
   registerStreamRestartTarget,
   consumeStreamRestartTarget,
   resolveSkipTargetAbsoluteSeconds,
@@ -633,6 +634,26 @@ describe("resolveHlsSeekAction", () => {
         videoReadyState: 2,
       }),
     ).toEqual({ kind: "restart", absoluteSeconds: 1300 });
+  });
+});
+
+describe("resolveNativeHlsSeekAction", () => {
+  it("seeks inside the current native HLS session", () => {
+    expect(
+      resolveNativeHlsSeekAction({
+        targetAbsoluteSeconds: 1500,
+        hlsStartOffset: 1200,
+      }),
+    ).toEqual({ kind: "relative", relativeSeconds: 300 });
+  });
+
+  it("restarts only when seeking before the session offset", () => {
+    expect(
+      resolveNativeHlsSeekAction({
+        targetAbsoluteSeconds: 1100,
+        hlsStartOffset: 1200,
+      }),
+    ).toEqual({ kind: "restart", absoluteSeconds: 1100 });
   });
 });
 

@@ -53,7 +53,7 @@ describe("TV watch remote — hidden chrome", () => {
     document.body.innerHTML = "";
   });
 
-  it("opens chrome on the first arrow while controls are hidden", () => {
+  it("skips immediately on horizontal arrows while controls are hidden", () => {
     expect(
       watchHiddenChromeArrowIntent({
         key: "ArrowDown",
@@ -71,13 +71,19 @@ describe("TV watch remote — hidden chrome", () => {
         key: "ArrowLeft",
         showTransportControls: true,
       }),
-    ).toBe("reveal-scrub");
+    ).toBe("skip-back");
     expect(
       watchHiddenChromeArrowIntent({
         key: "ArrowRight",
         showTransportControls: true,
       }),
-    ).toBe("reveal-scrub");
+    ).toBe("skip-forward");
+    expect(
+      watchHiddenChromeArrowIntent({
+        key: "MediaRewind",
+        showTransportControls: true,
+      }),
+    ).toBe("skip-back");
   });
 });
 
@@ -99,8 +105,10 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(stealAt).toBeGreaterThan(deferAt);
   });
 
-  it("watch view reveals chrome from hidden-arrow intent", () => {
+  it("watch view skips from hidden-arrow intent", () => {
     expect(watchView).toContain("watchHiddenChromeArrowIntent");
+    expect(watchView).toContain('hiddenArrow === "skip-back"');
+    expect(watchView).toContain('hiddenArrow === "skip-forward"');
   });
 
   it("skip uses live native playhead refs instead of stale React state", () => {

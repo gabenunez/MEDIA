@@ -25,6 +25,7 @@ import {
   resolveHlsSeekAction,
   registerStreamRestartTarget,
   consumeStreamRestartTarget,
+  resolveNativeHlsSeekAction,
   resolveSkipTargetAbsoluteSeconds,
   getPlaybackAbsoluteSeconds,
   resolveInitialStreamQuality,
@@ -1567,11 +1568,9 @@ export function TvWatchView() {
           return;
         }
 
-        const seekAction = resolveHlsSeekAction({
+        const seekAction = resolveNativeHlsSeekAction({
           targetAbsoluteSeconds: clamped,
           hlsStartOffset: hlsOffset,
-          bufferedRangesAbsolute: playbackBufferedRangesRef.current,
-          useBufferedRanges: true,
         });
 
         if (seekAction.kind === "restart") {
@@ -2069,23 +2068,35 @@ export function TvWatchView() {
           revealControls(false, true);
           return;
         }
-        if (hiddenArrow === "reveal-scrub") {
+        if (hiddenArrow === "skip-back") {
           e.preventDefault();
-          revealControls(false);
-          pendingRevealFocusRef.current = "scrub";
-          if (e.key === "MediaRewind") {
-            setScrubPreview((current) => {
-              const stepPercent =
-                totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
-              return Math.max(0, (current ?? displayedProgress) - stepPercent);
-            });
-          } else if (e.key === "MediaFastForward") {
-            setScrubPreview((current) => {
-              const stepPercent =
-                totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
-              return Math.min(100, (current ?? displayedProgress) + stepPercent);
-            });
-          }
+          skipRelative(-10);
+          revealControls(true);
+          return;
+        }
+        if (hiddenArrow === "skip-forward") {
+          e.preventDefault();
+          skipRelative(30);
+          revealControls(true);
+          return;
+        }
+      }
+
+      if (
+        showTransportControls &&
+        !active?.closest("[data-tv-watch-controls]") &&
+        !active?.hasAttribute("data-tv-watch-scrub")
+      ) {
+        if (e.key === "MediaRewind" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          skipRelative(-10);
+          revealControls(true);
+          return;
+        }
+        if (e.key === "MediaFastForward" || e.key === "ArrowRight") {
+          e.preventDefault();
+          skipRelative(30);
+          revealControls(true);
           return;
         }
       }

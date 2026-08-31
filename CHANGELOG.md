@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.1.219 — 2026-08-31
+
+### Changes
+
+- **Release** — Persist TV playback quality and subtitle selection
+- ## Summary
+- Persist TV playback quality and subtitle selection (#10)
+
+## 0.1.218 — 2026-08-31
+
+### Changes
+
+- **Release** — Show notice when FPS-based quality switch occurs
+- ## Summary
+- Show notice when FPS-based quality switch occurs (#9)
+
+## 0.1.217 — 2026-08-31
+
+### Changes
+
+- **Release** — Add Start from beginning on media pages with saved progress
+- ## Summary
+- Add Start from beginning on media pages with saved progress (#8)
+
+## 0.1.216 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix TV subtitle menu vertical navigation between track rows
+- ## Problem
+- Fix TV subtitle menu vertical navigation between track rows (#7)
+
+## 0.1.215 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix TV instant skip on D-pad and native HLS seeks
+- ## Root cause (TV)
+- Fix TV instant skip on D-pad and native HLS seeks (#6)
+
 ## 0.1.214 — 2026-08-31
 
 ### Changes
