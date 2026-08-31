@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.220 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix TV watch controls blocked during buffering
+- ## Summary
+- Fix TV watch controls blocked during buffering (#11)
+
 ## 0.1.219 — 2026-08-31
 
 ### Changes
