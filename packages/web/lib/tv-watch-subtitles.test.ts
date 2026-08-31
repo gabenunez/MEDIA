@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hidePlaybackCaptions,
+  hideWebSubtitleOverlay,
   shouldAutoHideWatchControls,
   shouldClearCaptionOverlayOnEmptied,
   shouldCloseWatchMenusOnRebuffer,
@@ -19,11 +20,35 @@ describe("TV watch caption policy", () => {
     expect(hidePlaybackCaptions({ subtitleSearchOpen: true })).toBe(true);
   });
 
+  it("skips the DOM subtitle overlay when native ExoPlayer renders captions", () => {
+    expect(
+      hideWebSubtitleOverlay({
+        subtitleSearchOpen: false,
+        usesNativePlayer: true,
+      }),
+    ).toBe(true);
+    expect(
+      hideWebSubtitleOverlay({
+        subtitleSearchOpen: false,
+        usesNativePlayer: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("still hides the DOM overlay under the subtitle search sheet on web playback", () => {
+    expect(
+      hideWebSubtitleOverlay({
+        subtitleSearchOpen: true,
+        usesNativePlayer: false,
+      }),
+    ).toBe(true);
+  });
+
   it("does not dismiss the subtitle menu on a mid-play rebuffer", () => {
     expect(shouldCloseWatchMenusOnRebuffer()).toBe(false);
   });
 
-  it("does not auto-hide chrome while a watch panel is open", () => {
+  it("never auto-hides watch chrome; controls dismiss on back only", () => {
     expect(
       shouldAutoHideWatchControls({
         autoHideRequested: true,
@@ -37,7 +62,7 @@ describe("TV watch caption policy", () => {
         playing: true,
         panelOpen: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("does not treat HLS emptied as the end of captions", () => {

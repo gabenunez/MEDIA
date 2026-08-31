@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.213 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix video seeking (skip back/forward) after stream restarts
+- ## Problem
+- Fix video seeking after stream restarts and backward skips (#4)
+
+## 0.1.212 — 2026-08-31
+
+### Changes
+
+- **Release** — Add GitHub workflow to release on PR merge to main
+- ## Summary
+- Add release workflow on PR merge to main
+- Fix Dolby Vision test dynamicRange type for typecheck
+- Auto-switch to equal-resolution transcode for low playback FPS
+- Reveal TV subtitle Remove action on right arrow
+- Hide duplicate DOM subtitles when native TV player is active
+- Fix TV watch controls auto-hiding without back press
+
 ## 0.1.211 — 2026-08-24
 
 ### TV

@@ -12,6 +12,7 @@ import {
   resolveNativeTvPlaybackMode,
   resolveOriginalPlaybackMode,
 } from "@media-app/shared";
+import { shouldPreferEqualTranscodeForSourceFps } from "@/lib/playback-fps";
 
 export const PROGRESS_SAVE_MS = 10_000;
 
@@ -398,6 +399,26 @@ export function resolvePlaybackStream(
   const mode = streamInfo
     ? effectiveOriginalPlaybackMode(streamInfo, options)
     : "direct";
+
+  if (
+    streamInfo &&
+    shouldPreferEqualTranscodeForSourceFps({
+      fps: streamInfo.fps,
+      nativeTv: nativeTvPlayerAvailable(),
+      transcodingEnabled: streamInfo.transcodingEnabled,
+      directPlayMode: mode === "direct",
+    })
+  ) {
+    return {
+      usingHls: true,
+      hlsQuality: pickTranscodeQualityForPlayback(
+        streamInfo.availableQualities,
+        streamInfo.height,
+        streamInfo.width,
+      ),
+      audioCompatNotice: null,
+    };
+  }
 
   if (mode === "direct" || !streamInfo) {
     return { usingHls: false, audioCompatNotice: null };

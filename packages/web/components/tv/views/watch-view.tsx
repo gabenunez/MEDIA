@@ -31,8 +31,15 @@ import {
   resolvePlaybackStream,
   shouldFailThroughContinuousMidBuffer,
   NATIVE_SEEK_COALESCE_MS,
+  NATIVE_SEEK_STALL_SUPPRESS_MS,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
+import {
+  measurePlaybackFps,
+  recordPlaybackFpsSample,
+  resolveEqualTranscodeQuality,
+  shouldEscalateLowPlaybackFps,
+} from "@/lib/playback-fps";
 import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady, peekPreparedSubtitleVtt, prepareWebSubtitleVtt } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
@@ -54,11 +61,13 @@ import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import {
+  TvSubtitleTrackRow,
   TvWatchMenuList,
   TvWatchPopover,
   tvWatchPopoverOptionClassName,
 } from "@/components/tv/tv-watch-settings-menu";
 import { focusFirstWatchMenuItem, focusTvItem } from "@/lib/tv-focus";
+import { collapseSubtitleTrackActions } from "@/lib/tv-subtitle-track-row";
 import { needsTvSdUpscaleSoftening, tvImageUrl } from "@/lib/tv-image";
 import { isTv4KClient } from "@/lib/tv-mode-detect";
 import { cn, formatDuration } from "@/lib/utils";
@@ -85,8 +94,7 @@ import {
   readSubtitleStyles,
 } from "@/lib/subtitle-styles";
 import {
-  hidePlaybackCaptions,
-  shouldAutoHideWatchControls,
+  hideWebSubtitleOverlay,
   shouldCloseWatchMenusOnRebuffer,
 } from "@/lib/tv-watch-subtitles";
 import { watchHiddenChromeArrowIntent } from "@/lib/tv-watch-remote";
@@ -198,7 +206,6 @@ export function TvWatchView() {
   const hlsRef = useRef<Hls | null>(null);
   const hlsStartOffsetRef = useRef(0);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveProgressRef = useRef<() => void>(() => {});
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
@@ -244,15 +251,6 @@ export function TvWatchView() {
   const pendingSkipDeltaRef = useRef(0);
   const optimisticAbsoluteSecondsRef = useRef<number | null>(null);
 
-  const TV_CONTROLS_AUTO_HIDE_MS = 3_000;
-
-  const scheduleControlsAutoHide = useCallback(() => {
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    hideControlsTimer.current = setTimeout(() => {
-      setShowControls(false);
-    }, TV_CONTROLS_AUTO_HIDE_MS);
-  }, []);
-
   const releaseWatchFocus = useCallback(() => {
     focusSinkRef.current?.focus({ preventScroll: true });
   }, []);
@@ -267,6 +265,9 @@ export function TvWatchView() {
   const [forceRemux, setForceRemux] = useState(false);
   const nativeRemuxFallbackRef = useRef(false);
   const nativeTranscodeFallbackRef = useRef(false);
+  const nativeLowFpsEscalatedRef = useRef(false);
+  const playbackFpsStateRef = useRef({ samples: [] as Array<{ atMs: number; positionSeconds: number }> });
+  const qualityRef = useRef<StreamQuality>("original");
   const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
     "original",
     "480p",
@@ -339,6 +340,7 @@ export function TvWatchView() {
   playbackStreamRef.current = playbackStream;
   titleRef.current = title;
   streamInfoRef.current = streamInfo;
+  qualityRef.current = quality;
 
   const getSubtitlePlaybackSeconds = useCallback(() => {
     if (usesNativePlayer) {
@@ -400,6 +402,10 @@ export function TvWatchView() {
     if (!subtitleMenuOpen) return;
     prefetchMenuTracks();
   }, [subtitleMenuOpen, prefetchMenuTracks]);
+
+  useEffect(() => {
+    if (!subtitleMenuOpen) collapseSubtitleTrackActions();
+  }, [subtitleMenuOpen]);
 
   const posterUrl = tvImageUrl(posterPath, { hd: true });
   const tvImageQuality = isTv4KClient() ? 90 : 80;
@@ -505,6 +511,29 @@ export function TvWatchView() {
   }, [restartNativeHlsAtCurrentPosition]);
 
   /** Native onError + web mid-buffer watchdog share this ladder. */
+  const escalateToEqualResolutionTranscode = useCallback(() => {
+    const info = streamInfoRef.current;
+    if (!info || nativeLowFpsEscalatedRef.current) return;
+    const next = resolveEqualTranscodeQuality(
+      info.availableQualities,
+      info.height,
+      info.width,
+    );
+    if (!next) return;
+    nativeLowFpsEscalatedRef.current = true;
+    captureStreamRestartPosition();
+    nativeRemuxFallbackRef.current = false;
+    nativeTranscodeFallbackRef.current = true;
+    setForceRemux(false);
+    setQuality(next);
+    setStreamGeneration((generation) => generation + 1);
+    playbackFpsStateRef.current = { samples: [] };
+    setError(null);
+  }, [captureStreamRestartPosition]);
+
+  const escalateToEqualResolutionTranscodeRef = useRef(escalateToEqualResolutionTranscode);
+  escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
+
   const failThroughNativePlayback = useCallback(() => {
     const session = nativePlaySessionRef.current;
     if (nativeErrorHandledSessionRef.current >= session) return;
@@ -604,37 +633,15 @@ export function TvWatchView() {
   }, []);
 
   const revealControls = useCallback(
-    (autoHide = true, focusPlay = false) => {
+    (_autoHide = true, focusPlay = false) => {
       if (centerMessageVisible) return;
       controlsRevealedAtRef.current = Date.now();
       setShowControls(true);
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-      const video = videoRef.current;
-      const playing = usesNativePlayer
-        ? isPlaying
-        : video
-          ? !video.paused
-          : false;
-      if (
-        shouldAutoHideWatchControls({
-          autoHideRequested: autoHide,
-          playing,
-          panelOpen: panelOpenRef.current,
-        })
-      ) {
-        scheduleControlsAutoHide();
-      }
       if (focusPlay) {
         focusPlayControl();
       }
     },
-    [
-      centerMessageVisible,
-      usesNativePlayer,
-      isPlaying,
-      scheduleControlsAutoHide,
-      focusPlayControl,
-    ],
+    [centerMessageVisible, focusPlayControl],
   );
 
   const updateBufferedPosition = useCallback(() => {
@@ -701,6 +708,8 @@ export function TvWatchView() {
       setQuality(nextQuality);
       nativeRemuxFallbackRef.current = false;
       nativeTranscodeFallbackRef.current = false;
+      nativeLowFpsEscalatedRef.current = false;
+      playbackFpsStateRef.current = { samples: [] };
       setForceRemux(false);
       closeMenus();
       setError(null);
@@ -926,6 +935,37 @@ export function TvWatchView() {
           // covered in opaque black instead of a transparent shell thrash.
           document.documentElement.setAttribute("data-native-video", "true");
         }
+        if (state.isPlaying && !state.isBuffering && playbackHasBegunRef.current) {
+          const nowMs = Date.now();
+          playbackFpsStateRef.current = recordPlaybackFpsSample(
+            playbackFpsStateRef.current,
+            nowMs,
+            state.currentTime,
+          );
+          const measuredFps = measurePlaybackFps(playbackFpsStateRef.current, nowMs);
+          if (
+            shouldEscalateLowPlaybackFps({
+              measuredFps,
+              sampleCount: playbackFpsStateRef.current.samples.length,
+              quality: qualityRef.current,
+              usingHls: usingHlsRef.current,
+              hlsQuality: playbackStreamRef.current?.hlsQuality,
+              transcodingEnabled: streamInfoRef.current?.transcodingEnabled ?? false,
+              alreadyEscalated: nativeLowFpsEscalatedRef.current,
+              isPlaying: state.isPlaying,
+              isBuffering: state.isBuffering,
+              playbackHasBegun: playbackHasBegunRef.current,
+              msSinceUserSeek:
+                lastNativeUserSeekAtRef.current == null
+                  ? null
+                  : nowMs - lastNativeUserSeekAtRef.current,
+              seekSuppressMs: NATIVE_SEEK_STALL_SUPPRESS_MS,
+            })
+          ) {
+            escalateToEqualResolutionTranscodeRef.current();
+            return;
+          }
+        }
         if (
           state.ready &&
           activeSubtitleRef.current != null &&
@@ -1009,6 +1049,8 @@ export function TvWatchView() {
     setForceRemux(false);
     nativeRemuxFallbackRef.current = false;
     nativeTranscodeFallbackRef.current = false;
+    nativeLowFpsEscalatedRef.current = false;
+    playbackFpsStateRef.current = { samples: [] };
     nativeHlsRecoveryAttemptsRef.current = 0;
     midRebufferTimestampsRef.current = [];
     nativeMidBufferStartedAtRef.current = null;
@@ -1042,22 +1084,14 @@ export function TvWatchView() {
   }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
 
   useEffect(() => {
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     if (centerMessageVisible) {
       setShowControls(false);
       return;
     }
     if (!isPlaying && !bufferingMidPlayback) {
       setShowControls(true);
-      return;
     }
-    if (!panelOpen) {
-      scheduleControlsAutoHide();
-    }
-    return () => {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    };
-  }, [centerMessageVisible, isPlaying, bufferingMidPlayback, panelOpen, scheduleControlsAutoHide]);
+  }, [centerMessageVisible, isPlaying, bufferingMidPlayback]);
 
   useEffect(() => {
     if (!shouldCloseWatchMenusOnRebuffer()) return;
@@ -1776,12 +1810,6 @@ export function TvWatchView() {
   });
 
   useEffect(() => {
-    return () => {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!countdown) return;
     requestAnimationFrame(() => {
       const first = document.querySelector<HTMLElement>(
@@ -1834,7 +1862,6 @@ export function TvWatchView() {
 
   useEffect(() => {
     if (!centerMessageVisible) return;
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     setShowControls(false);
     releaseWatchFocus();
   }, [centerMessageVisible, releaseWatchFocus]);
@@ -1843,9 +1870,10 @@ export function TvWatchView() {
     controlsVisible ||
     Boolean(error || countdown) ||
     (usesNativePlayer && showMidPlaybackBuffering);
-  const hidePlaybackSubtitles =
-    hidePlaybackCaptions({ subtitleSearchOpen }) ||
-    (usesNativePlayer && !nativeWebOverlayRaised);
+  const hidePlaybackSubtitles = hideWebSubtitleOverlay({
+    subtitleSearchOpen,
+    usesNativePlayer,
+  });
 
   useEffect(() => {
     if (!usesNativePlayer || !controlsVisible) return;
@@ -1903,7 +1931,6 @@ export function TvWatchView() {
       return true;
     }
     if (controlsVisible) {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
       setShowControls(false);
       controlsRevealedAtRef.current = null;
       releaseWatchFocus();
@@ -2580,31 +2607,20 @@ export function TvWatchView() {
                               </TvFocusButton>
                             )}
                             {subtitles.map((sub) => (
-                              <div key={sub.id} className="flex items-start gap-1 rounded px-1 py-0.5">
-                                <TvFocusButton
-                                  variant="default"
-                                  selected={activeSubtitle === sub.id}
-                                  onClick={() => {
-                                    selectSubtitleOnNative(sub.id);
-                                    closeMenus();
-                                    revealControls(false);
-                                  }}
-                                  className={tvWatchPopoverOptionClassName("min-w-0 flex-1")}
-                                >
-                                  {formatSubtitleLabel(sub)}
-                                </TvFocusButton>
-                                {sub.source === "opensubtitles" ? (
-                                  <TvFocusButton
-                                    variant="default"
-                                    onClick={() => {
-                                      void removeSubtitleTrack(sub.id);
-                                    }}
-                                    className="mt-1 shrink-0 rounded px-2 py-1 text-xs text-muted-foreground"
-                                  >
-                                    Remove
-                                  </TvFocusButton>
-                                ) : null}
-                              </div>
+                              <TvSubtitleTrackRow
+                                key={sub.id}
+                                label={formatSubtitleLabel(sub)}
+                                selected={activeSubtitle === sub.id}
+                                removable={sub.source === "opensubtitles"}
+                                onSelect={() => {
+                                  selectSubtitleOnNative(sub.id);
+                                  closeMenus();
+                                  revealControls(false);
+                                }}
+                                onRemove={() => {
+                                  void removeSubtitleTrack(sub.id);
+                                }}
+                              />
                             ))}
                             <div className="my-1 border-t border-border" />
                             <TvFocusButton

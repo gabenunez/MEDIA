@@ -7,16 +7,26 @@ export function hidePlaybackCaptions(state: {
   return state.subtitleSearchOpen;
 }
 
+export function hideWebSubtitleOverlay(state: {
+  subtitleSearchOpen: boolean;
+  usesNativePlayer: boolean;
+}): boolean {
+  // Native ExoPlayer renders captions on the video — skip the DOM overlay.
+  if (state.usesNativePlayer) return true;
+  return hidePlaybackCaptions({ subtitleSearchOpen: state.subtitleSearchOpen });
+}
+
 export function shouldCloseWatchMenusOnRebuffer(): boolean {
   return false;
 }
 
-export function shouldAutoHideWatchControls(state: {
+export function shouldAutoHideWatchControls(_state: {
   autoHideRequested: boolean;
   playing: boolean;
   panelOpen: boolean;
 }): boolean {
-  return state.autoHideRequested && state.playing && !state.panelOpen;
+  // TV watch chrome is dismissed with Back only — never timed auto-hide.
+  return false;
 }
 
 /** HLS `emptied` is a buffer reload, not the end of captions. */
