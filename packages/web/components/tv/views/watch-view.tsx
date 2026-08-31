@@ -497,7 +497,6 @@ export function TvWatchView() {
     !(!usingHlsPlayback && optimisticAbsoluteSeconds !== null) &&
     (isPreparing || (buffering && !playbackHasBegun));
   const blocksWatchInteraction = Boolean(error || countdown);
-  const centerMessageVisible = Boolean(blocksWatchInteraction || showLoadingOverlay);
 
   const captureStreamRestartPosition = useCallback(() => {
     const absoluteTime = getPlaybackRestartSeconds({
@@ -2222,7 +2221,6 @@ export function TvWatchView() {
     closeMenus,
     revealControls,
     blocksWatchInteraction,
-    centerMessageVisible,
     controlsVisible,
     showTransportControls,
     totalDurationSeconds,
