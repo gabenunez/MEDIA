@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.218 — 2026-08-31
+
+### Changes
+
+- **Release** — Show notice when FPS-based quality switch occurs
+- ## Summary
+- Show notice when FPS-based quality switch occurs (#9)
+
 ## 0.1.217 — 2026-08-31
 
 ### Changes
