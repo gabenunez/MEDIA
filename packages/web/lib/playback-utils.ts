@@ -482,17 +482,28 @@ export function resolvePlaybackStream(
 }
 
 /** Pick the quality setting to use when opening the player for this file. */
-export function resolveInitialStreamQuality(streamInfo: StreamInfo): {
+export function resolveInitialStreamQuality(
+  streamInfo: StreamInfo,
+  options?: { preferredQuality?: StreamQuality | null },
+): {
   quality: StreamQuality;
   error: string | null;
 } {
-  const playback = resolvePlaybackStream("original", streamInfo);
+  const preferred = options?.preferredQuality;
+  const candidate =
+    preferred &&
+    streamInfo.availableQualities.includes(preferred) &&
+    (preferred === "original" || streamInfo.transcodingEnabled)
+      ? preferred
+      : "original";
+
+  const playback = resolvePlaybackStream(candidate, streamInfo);
 
   if (playback.audioCompatNotice && !streamInfo.transcodingEnabled) {
     return { quality: "original", error: playback.audioCompatNotice };
   }
 
-  return { quality: "original", error: null };
+  return { quality: candidate, error: null };
 }
 
 export interface TvEpisodeSummary {
