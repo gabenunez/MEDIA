@@ -49,6 +49,89 @@ export function getPlaybackAbsoluteSeconds({
   return Math.max(0, usingHls ? hlsStartOffset + relativeSeconds : relativeSeconds);
 }
 
+/** True when an absolute timeline position sits inside buffered media. */
+export function isAbsoluteTimeInBufferedRanges(
+  absoluteSeconds: number,
+  ranges: Array<{ start: number; end: number }>,
+  toleranceSeconds = 0.5,
+): boolean {
+  if (!ranges.length) return false;
+  return ranges.some(
+    (range) =>
+      absoluteSeconds >= range.start - toleranceSeconds &&
+      absoluteSeconds <= range.end + toleranceSeconds,
+  );
+}
+
+export type HlsSeekAction =
+  | { kind: "relative"; relativeSeconds: number }
+  | { kind: "restart"; absoluteSeconds: number };
+
+/**
+ * Decide whether an absolute seek can stay in the current HLS session or must
+ * restart with a new `start=` offset. Native players should pass full buffered
+ * ranges; web players use MSE seekable length.
+ */
+export function resolveHlsSeekAction(options: {
+  targetAbsoluteSeconds: number;
+  hlsStartOffset: number;
+  /** Full buffered ranges on the absolute timeline (not scrubber-forward only). */
+  bufferedRangesAbsolute?: Array<{ start: number; end: number }>;
+  seekableEndRelative?: number;
+  videoReadyState?: number;
+  useBufferedRanges?: boolean;
+}): HlsSeekAction {
+  const target = Math.max(0, options.targetAbsoluteSeconds);
+  const offset = Math.max(0, options.hlsStartOffset);
+
+  if (target < offset) {
+    return { kind: "restart", absoluteSeconds: target };
+  }
+
+  const relativeTarget = target - offset;
+
+  if (options.useBufferedRanges) {
+    if (
+      isAbsoluteTimeInBufferedRanges(
+        target,
+        options.bufferedRangesAbsolute ?? [],
+      )
+    ) {
+      return { kind: "relative", relativeSeconds: relativeTarget };
+    }
+    return { kind: "restart", absoluteSeconds: target };
+  }
+
+  const seekableEnd = options.seekableEndRelative ?? 0;
+  const readyState = options.videoReadyState ?? 0;
+  if (relativeTarget <= seekableEnd + 0.25 && readyState >= 1) {
+    return { kind: "relative", relativeSeconds: relativeTarget };
+  }
+
+  return { kind: "restart", absoluteSeconds: target };
+}
+
+/** Pin an absolute start for a specific stream-generation restart. */
+export function registerStreamRestartTarget(
+  targets: Map<number, number>,
+  generation: number,
+  absoluteSeconds: number,
+): void {
+  targets.set(generation, Math.max(0, absoluteSeconds));
+}
+
+/** Read and remove the restart target for one stream generation. */
+export function consumeStreamRestartTarget(
+  targets: Map<number, number>,
+  generation: number,
+): number | null {
+  const value = targets.get(generation) ?? null;
+  if (value !== null) {
+    targets.delete(generation);
+  }
+  return value;
+}
+
 /**
  * Resolve a safe restart position. During rebuffer/recovery the player may
  * briefly report the buffer edge instead of the real playhead — only reject
