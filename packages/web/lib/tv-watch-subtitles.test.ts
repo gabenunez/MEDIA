@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hidePlaybackCaptions,
+  hideWebSubtitleOverlay,
   shouldAutoHideWatchControls,
   shouldClearCaptionOverlayOnEmptied,
   shouldCloseWatchMenusOnRebuffer,
@@ -17,6 +18,30 @@ describe("TV watch caption policy", () => {
 
   it("hides dialogue only under the full-screen search sheet", () => {
     expect(hidePlaybackCaptions({ subtitleSearchOpen: true })).toBe(true);
+  });
+
+  it("skips the DOM subtitle overlay when native ExoPlayer renders captions", () => {
+    expect(
+      hideWebSubtitleOverlay({
+        subtitleSearchOpen: false,
+        usesNativePlayer: true,
+      }),
+    ).toBe(true);
+    expect(
+      hideWebSubtitleOverlay({
+        subtitleSearchOpen: false,
+        usesNativePlayer: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("still hides the DOM overlay under the subtitle search sheet on web playback", () => {
+    expect(
+      hideWebSubtitleOverlay({
+        subtitleSearchOpen: true,
+        usesNativePlayer: false,
+      }),
+    ).toBe(true);
   });
 
   it("does not dismiss the subtitle menu on a mid-play rebuffer", () => {
