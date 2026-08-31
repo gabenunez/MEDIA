@@ -71,6 +71,39 @@ describe("resolveInitialStreamQuality", () => {
     });
   });
 
+  it("honors a stored preferred quality when available", () => {
+    expect(
+      resolveInitialStreamQuality(makeStreamInfo(), {
+        preferredQuality: "1080p",
+      }),
+    ).toEqual({
+      quality: "1080p",
+      error: null,
+    });
+  });
+
+  it("falls back to original when preferred quality is unavailable", () => {
+    expect(
+      resolveInitialStreamQuality(makeStreamInfo(), {
+        preferredQuality: "2160p",
+      }),
+    ).toEqual({
+      quality: "original",
+      error: null,
+    });
+  });
+
+  it("falls back to original when transcoding is disabled", () => {
+    expect(
+      resolveInitialStreamQuality(makeStreamInfo({ transcodingEnabled: false }), {
+        preferredQuality: "1080p",
+      }),
+    ).toEqual({
+      quality: "original",
+      error: expect.stringMatching(/transcoding/i),
+    });
+  });
+
   it("keeps original but surfaces an error when transcoding is disabled", () => {
     const result = resolveInitialStreamQuality(
       makeStreamInfo({ transcodingEnabled: false }),
