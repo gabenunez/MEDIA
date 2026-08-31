@@ -36,6 +36,9 @@ import {
   getPlaybackRestartSeconds,
   nextStableAbsoluteSeconds,
   resolvePlaybackStartSeconds,
+  resolveHlsSeekAction,
+  registerStreamRestartTarget,
+  consumeStreamRestartTarget,
   resolvePlaybackStream,
   buildPlaybackTitle,
   findEpisode,
@@ -127,6 +130,7 @@ function WatchDesktopClient() {
   const [quality, setQuality] = useState<StreamQuality>("original");
   const [hlsStartOffset, setHlsStartOffset] = useState(0);
   const pendingStreamStartRef = useRef<number | null>(null);
+  const streamRestartTargetsRef = useRef<Map<number, number>>(new Map());
   const wasUsingHlsRef = useRef(false);
   const [sourceDurationMs, setSourceDurationMs] = useState(0);
   const [streamGeneration, setStreamGeneration] = useState(0);
@@ -367,6 +371,18 @@ function WatchDesktopClient() {
 
   saveProgressRef.current = saveProgress;
 
+  const requestStreamRestartAt = useCallback((absoluteSeconds: number) => {
+    pendingStreamStartRef.current = absoluteSeconds;
+    setStreamGeneration((generation) => {
+      registerStreamRestartTarget(
+        streamRestartTargetsRef.current,
+        generation + 1,
+        absoluteSeconds,
+      );
+      return generation + 1;
+    });
+  }, []);
+
   const changeQuality = useCallback(
     (nextQuality: StreamQuality) => {
       const video = videoRef.current;
@@ -377,16 +393,15 @@ function WatchDesktopClient() {
           relativeSeconds: video.currentTime,
           stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
         });
-        pendingStreamStartRef.current = absoluteTime;
         lastStableAbsoluteSecondsRef.current = absoluteTime;
-        setStreamGeneration((current) => current + 1);
+        requestStreamRestartAt(absoluteTime);
       }
       setQuality(nextQuality);
       setQualityMenuOpen(false);
       setError(null);
       revealControls(true);
     },
-    [revealControls, usingHlsPlayback, hlsStartOffset],
+    [revealControls, usingHlsPlayback, requestStreamRestartAt],
   );
 
   const tryFallbackQuality = useCallback(() => {
@@ -407,6 +422,7 @@ function WatchDesktopClient() {
   useEffect(() => {
     setStreamGeneration(0);
     pendingStreamStartRef.current = null;
+    streamRestartTargetsRef.current.clear();
     setPlaybackHasBegun(false);
     lastStableAbsoluteSecondsRef.current = 0;
     hlsStartOffsetRef.current = 0;
@@ -542,7 +558,11 @@ function WatchDesktopClient() {
     }
     wasUsingHlsRef.current = usingHls;
 
-    const explicitStreamStart = pendingStreamStartRef.current;
+    const explicitStreamStart =
+      consumeStreamRestartTarget(
+        streamRestartTargetsRef.current,
+        streamGeneration,
+      ) ?? pendingStreamStartRef.current;
     if (explicitStreamStart !== null) {
       pendingStreamStartRef.current = null;
     }
@@ -745,8 +765,7 @@ function WatchDesktopClient() {
           if (hlsRef.current) {
             recoverHlsPlaybackAtPlaylistEnd(video, hlsRef.current);
           } else {
-            pendingStreamStartRef.current = absoluteResume;
-            setStreamGeneration((current) => current + 1);
+            requestStreamRestartAt(absoluteResume);
           }
           return;
         }
@@ -911,35 +930,25 @@ function WatchDesktopClient() {
         return;
       }
 
-      const relativeTarget = clamped - hlsStartOffset;
+      const seekAction = resolveHlsSeekAction({
+        targetAbsoluteSeconds: clamped,
+        hlsStartOffset: hlsStartOffsetRef.current,
+        seekableEndRelative: getVideoSeekableEnd(video),
+        videoReadyState: video.readyState,
+      });
 
-      if (relativeTarget < 0) {
-        pendingStreamStartRef.current = clamped;
-        setStreamGeneration((current) => current + 1);
+      if (seekAction.kind === "restart") {
+        requestStreamRestartAt(seekAction.absoluteSeconds);
         setBuffering(true);
         revealControls(true);
         return;
       }
 
-      const seekableEnd = getVideoSeekableEnd(video);
-      if (relativeTarget <= seekableEnd + 0.25 && video.readyState >= 1) {
-        video.currentTime = relativeTarget;
-        setCurrentTime(relativeTarget);
-        revealControls(true);
-        return;
-      }
-
-      pendingStreamStartRef.current = clamped;
-      setStreamGeneration((current) => current + 1);
-      setBuffering(true);
+      video.currentTime = seekAction.relativeSeconds;
+      setCurrentTime(seekAction.relativeSeconds);
       revealControls(true);
     },
-    [
-      totalDurationSeconds,
-      usingHlsPlayback,
-      hlsStartOffset,
-      revealControls,
-    ],
+    [totalDurationSeconds, usingHlsPlayback, revealControls, requestStreamRestartAt],
   );
 
   seekToAbsoluteRef.current = seekToAbsolute;
@@ -965,9 +974,9 @@ function WatchDesktopClient() {
 
   const skipRelative = useCallback(
     (deltaSeconds: number) => {
-      seekToAbsolute(absoluteCurrentTime + deltaSeconds);
+      seekToAbsolute((optimisticAbsoluteSeconds ?? absoluteCurrentTime) + deltaSeconds);
     },
-    [absoluteCurrentTime, seekToAbsolute],
+    [absoluteCurrentTime, optimisticAbsoluteSeconds, seekToAbsolute],
   );
   const isPreparing = initialResumeSeconds === null;
   const showPosterBackdrop = Boolean(posterUrl) && !playbackHasBegun && !error;

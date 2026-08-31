@@ -23,6 +23,10 @@ import {
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
   nextEpisodePreviewPath,
+  isAbsoluteTimeInBufferedRanges,
+  resolveHlsSeekAction,
+  registerStreamRestartTarget,
+  consumeStreamRestartTarget,
 } from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
@@ -482,6 +486,103 @@ describe("getPlaybackRestartSeconds", () => {
         stableAbsoluteSeconds: 1400,
       }),
     ).toBe(1260);
+  });
+});
+
+describe("isAbsoluteTimeInBufferedRanges", () => {
+  const fullBuffer = [{ start: 1200, end: 1350 }];
+
+  it("accepts positions inside the full buffered window", () => {
+    expect(isAbsoluteTimeInBufferedRanges(1250, fullBuffer)).toBe(true);
+  });
+
+  it("accepts backward seeks behind the scrubber-forward playhead", () => {
+    // Scrubber UI may only show 1300–1350 ahead of the playhead, but the
+    // player still holds 1200–1350 — backward skip must use that full range.
+    expect(isAbsoluteTimeInBufferedRanges(1210, fullBuffer)).toBe(true);
+  });
+
+  it("rejects positions outside buffered media", () => {
+    expect(isAbsoluteTimeInBufferedRanges(1400, fullBuffer)).toBe(false);
+  });
+});
+
+describe("resolveHlsSeekAction", () => {
+  const fullBuffer = [{ start: 1200, end: 1350 }];
+
+  it("seeks relatively inside the native buffered window", () => {
+    expect(
+      resolveHlsSeekAction({
+        targetAbsoluteSeconds: 1210,
+        hlsStartOffset: 1200,
+        bufferedRangesAbsolute: fullBuffer,
+        useBufferedRanges: true,
+      }),
+    ).toEqual({ kind: "relative", relativeSeconds: 10 });
+  });
+
+  it("restarts when the native target is outside buffered media", () => {
+    expect(
+      resolveHlsSeekAction({
+        targetAbsoluteSeconds: 1500,
+        hlsStartOffset: 1200,
+        bufferedRangesAbsolute: fullBuffer,
+        useBufferedRanges: true,
+      }),
+    ).toEqual({ kind: "restart", absoluteSeconds: 1500 });
+  });
+
+  it("restarts when seeking before the current HLS session offset", () => {
+    expect(
+      resolveHlsSeekAction({
+        targetAbsoluteSeconds: 1100,
+        hlsStartOffset: 1200,
+        bufferedRangesAbsolute: fullBuffer,
+        useBufferedRanges: true,
+      }),
+    ).toEqual({ kind: "restart", absoluteSeconds: 1100 });
+  });
+
+  it("uses MSE seekable length on web HLS", () => {
+    expect(
+      resolveHlsSeekAction({
+        targetAbsoluteSeconds: 1220,
+        hlsStartOffset: 1200,
+        seekableEndRelative: 30,
+        videoReadyState: 2,
+      }),
+    ).toEqual({ kind: "relative", relativeSeconds: 20 });
+  });
+
+  it("restarts web HLS when the target is past seekable data", () => {
+    expect(
+      resolveHlsSeekAction({
+        targetAbsoluteSeconds: 1300,
+        hlsStartOffset: 1200,
+        seekableEndRelative: 30,
+        videoReadyState: 2,
+      }),
+    ).toEqual({ kind: "restart", absoluteSeconds: 1300 });
+  });
+});
+
+describe("stream restart targets by generation", () => {
+  it("keeps one restart target per stream generation", () => {
+    const targets = new Map<number, number>();
+    registerStreamRestartTarget(targets, 2, 500);
+    registerStreamRestartTarget(targets, 3, 600);
+
+    expect(consumeStreamRestartTarget(targets, 2)).toBe(500);
+    expect(consumeStreamRestartTarget(targets, 3)).toBe(600);
+    expect(consumeStreamRestartTarget(targets, 3)).toBeNull();
+  });
+
+  it("does not let an older generation consume a newer seek target", () => {
+    const targets = new Map<number, number>();
+    registerStreamRestartTarget(targets, 4, 900);
+
+    expect(consumeStreamRestartTarget(targets, 3)).toBeNull();
+    expect(consumeStreamRestartTarget(targets, 4)).toBe(900);
   });
 });
 
