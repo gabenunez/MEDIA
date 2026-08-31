@@ -4,6 +4,7 @@ import {
   isHighSourceFrameRate,
   LOW_PLAYBACK_FPS_THRESHOLD,
   pickTranscodeQualityForPlayback,
+  qualityLabel,
 } from "@media-app/shared";
 
 export type PlaybackHlsQuality = StreamQuality | "remux";
@@ -109,6 +110,14 @@ export function resolveEqualTranscodeQuality(
     sourceWidth,
   );
   return availableQualities.includes(tier) ? tier : null;
+}
+
+export function formatLowFpsQualitySwitchNotice(
+  quality: StreamQuality,
+  sourceHeight?: number | null,
+  sourceWidth?: number | null,
+): string {
+  return `Playback is choppy. Switching to ${qualityLabel(quality, sourceHeight, sourceWidth)} for smoother playback.`;
 }
 
 export { HIGH_SOURCE_FPS_THRESHOLD, LOW_PLAYBACK_FPS_THRESHOLD };

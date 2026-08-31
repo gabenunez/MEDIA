@@ -39,6 +39,7 @@ import {
   recordPlaybackFpsSample,
   resolveEqualTranscodeQuality,
   shouldEscalateLowPlaybackFps,
+  formatLowFpsQualitySwitchNotice,
 } from "@/lib/playback-fps";
 import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady, peekPreparedSubtitleVtt, prepareWebSubtitleVtt } from "@/lib/web-subtitle-attach";
@@ -48,6 +49,7 @@ import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { resolveWebSubtitlePlaybackSeconds } from "@/lib/subtitle-timeline";
 import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
 import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
+import { PlaybackQualityNotice } from "@/components/playback-quality-notice";
 import {
   formatSubtitleLabel,
   qualityLabel,
@@ -290,6 +292,8 @@ export function TvWatchView() {
   );
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [fpsQualityNotice, setFpsQualityNotice] = useState<string | null>(null);
+  const fpsQualityNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState("");
   const [posterPath, setPosterPath] = useState<string | null>(null);
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
@@ -310,6 +314,26 @@ export function TvWatchView() {
 
   useEffect(() => {
     setVideoDisplayMode(loadVideoDisplayMode());
+  }, []);
+
+  const showFpsQualityNotice = useCallback((message: string) => {
+    if (fpsQualityNoticeTimerRef.current) {
+      clearTimeout(fpsQualityNoticeTimerRef.current);
+      fpsQualityNoticeTimerRef.current = null;
+    }
+    setFpsQualityNotice(message);
+    fpsQualityNoticeTimerRef.current = setTimeout(() => {
+      fpsQualityNoticeTimerRef.current = null;
+      setFpsQualityNotice(null);
+    }, 6_000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (fpsQualityNoticeTimerRef.current) {
+        clearTimeout(fpsQualityNoticeTimerRef.current);
+      }
+    };
   }, []);
 
   const cycleVideoDisplayModeSetting = useCallback(() => {
@@ -521,6 +545,9 @@ export function TvWatchView() {
     );
     if (!next) return;
     nativeLowFpsEscalatedRef.current = true;
+    showFpsQualityNotice(
+      formatLowFpsQualitySwitchNotice(next, info.height, info.width),
+    );
     captureStreamRestartPosition();
     nativeRemuxFallbackRef.current = false;
     nativeTranscodeFallbackRef.current = true;
@@ -529,7 +556,7 @@ export function TvWatchView() {
     setStreamGeneration((generation) => generation + 1);
     playbackFpsStateRef.current = { samples: [] };
     setError(null);
-  }, [captureStreamRestartPosition]);
+  }, [captureStreamRestartPosition, showFpsQualityNotice]);
 
   const escalateToEqualResolutionTranscodeRef = useRef(escalateToEqualResolutionTranscode);
   escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
@@ -713,6 +740,11 @@ export function TvWatchView() {
       setForceRemux(false);
       closeMenus();
       setError(null);
+      setFpsQualityNotice(null);
+      if (fpsQualityNoticeTimerRef.current) {
+        clearTimeout(fpsQualityNoticeTimerRef.current);
+        fpsQualityNoticeTimerRef.current = null;
+      }
       revealControls(true);
     },
     [closeMenus, revealControls, usingHlsPlayback, usesNativePlayer, currentTime, requestStreamRestartAt],
@@ -1051,6 +1083,11 @@ export function TvWatchView() {
     nativeTranscodeFallbackRef.current = false;
     nativeLowFpsEscalatedRef.current = false;
     playbackFpsStateRef.current = { samples: [] };
+    setFpsQualityNotice(null);
+    if (fpsQualityNoticeTimerRef.current) {
+      clearTimeout(fpsQualityNoticeTimerRef.current);
+      fpsQualityNoticeTimerRef.current = null;
+    }
     nativeHlsRecoveryAttemptsRef.current = 0;
     midRebufferTimestampsRef.current = [];
     nativeMidBufferStartedAtRef.current = null;
@@ -2275,6 +2312,12 @@ export function TvWatchView() {
             message={subtitleError}
             onDismiss={clearSubtitleError}
             className="absolute bottom-28 left-1/2 z-30 w-[min(28rem,calc(100%-3rem))] -translate-x-1/2"
+          />
+        )}
+        {fpsQualityNotice && (
+          <PlaybackQualityNotice
+            message={fpsQualityNotice}
+            className="absolute left-1/2 top-[max(1.25rem,env(safe-area-inset-top,0px))] z-30 w-[min(32rem,calc(100%-3rem))] -translate-x-1/2"
           />
         )}
 
