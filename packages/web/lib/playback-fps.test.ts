@@ -5,6 +5,7 @@ import {
   resolveEqualTranscodeQuality,
   shouldEscalateLowPlaybackFps,
   shouldPreferEqualTranscodeForSourceFps,
+  formatLowFpsQualitySwitchNotice,
 } from "./playback-fps.js";
 
 describe("playback fps escalation", () => {
@@ -78,5 +79,11 @@ describe("playback fps escalation", () => {
         1920,
       ),
     ).toBe("1080p");
+  });
+
+  it("formats a user-facing low-fps quality switch notice", () => {
+    expect(formatLowFpsQualitySwitchNotice("1080p", 1080, 1920)).toBe(
+      "Playback is choppy. Switching to 1080p for smoother playback.",
+    );
   });
 });
