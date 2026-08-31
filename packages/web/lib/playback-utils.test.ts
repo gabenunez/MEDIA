@@ -27,6 +27,7 @@ import {
   resolveHlsSeekAction,
   registerStreamRestartTarget,
   consumeStreamRestartTarget,
+  resolveSkipTargetAbsoluteSeconds,
 } from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
@@ -557,6 +558,17 @@ describe("resolveHlsSeekAction", () => {
     ).toEqual({ kind: "restart", absoluteSeconds: 1500 });
   });
 
+  it("seeks in-session when native buffer telemetry is not ready yet", () => {
+    expect(
+      resolveHlsSeekAction({
+        targetAbsoluteSeconds: 1250,
+        hlsStartOffset: 1200,
+        bufferedRangesAbsolute: [],
+        useBufferedRanges: true,
+      }),
+    ).toEqual({ kind: "relative", relativeSeconds: 50 });
+  });
+
   it("restarts when seeking before the current HLS session offset", () => {
     expect(
       resolveHlsSeekAction({
@@ -588,6 +600,32 @@ describe("resolveHlsSeekAction", () => {
         videoReadyState: 2,
       }),
     ).toEqual({ kind: "restart", absoluteSeconds: 1300 });
+  });
+});
+
+describe("resolveSkipTargetAbsoluteSeconds", () => {
+  it("uses the live native playhead from refs, not stale React state", () => {
+    expect(
+      resolveSkipTargetAbsoluteSeconds({
+        optimisticAbsoluteSeconds: null,
+        usingHls: true,
+        hlsStartOffset: 1200,
+        liveRelativeSeconds: 180,
+        deltaSeconds: 30,
+      }),
+    ).toBe(1410);
+  });
+
+  it("chains rapid skips from the optimistic target", () => {
+    expect(
+      resolveSkipTargetAbsoluteSeconds({
+        optimisticAbsoluteSeconds: 1410,
+        usingHls: true,
+        hlsStartOffset: 1200,
+        liveRelativeSeconds: 90,
+        deltaSeconds: 30,
+      }),
+    ).toBe(1440);
   });
 });
 
