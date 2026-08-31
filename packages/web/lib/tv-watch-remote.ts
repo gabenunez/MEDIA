@@ -34,3 +34,29 @@ export function watchHiddenChromeArrowIntent(state: {
   if (state.key === "ArrowRight" || state.key === "MediaFastForward") return "skip-forward";
   return null;
 }
+
+export type NativeWebOverlayState = {
+  controlsVisible: boolean;
+  blockingOverlayVisible: boolean;
+  showMidPlaybackBuffering: boolean;
+};
+
+/**
+ * Native TV WebView overlay alpha. Alpha 0 puts ExoPlayer in front of the
+ * WebView, so HTML chrome is invisible and D-pad never reaches JS.
+ *
+ * Chrome that React considers visible MUST keep the overlay at 1 — including
+ * at native playback start. Forcing 0 while showControls is already true
+ * paints the control bar into a transparent WebView and it never comes back.
+ */
+export function nativeWebOverlayShouldRaise(state: NativeWebOverlayState): boolean {
+  return (
+    state.controlsVisible ||
+    state.blockingOverlayVisible ||
+    state.showMidPlaybackBuffering
+  );
+}
+
+export function nativeWebOverlayAlpha(state: NativeWebOverlayState): 0 | 1 {
+  return nativeWebOverlayShouldRaise(state) ? 1 : 0;
+}

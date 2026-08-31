@@ -90,3 +90,35 @@ describe("applyNativeSubtitleTrack", () => {
     expect(setSubtitles).toHaveBeenCalledWith("https://media.example/api/subtitles/9");
   });
 });
+
+describe("setNativeWebOverlayAlpha", () => {
+  afterEach(() => {
+    vi.resetModules();
+    // @ts-expect-error happy-dom window cleanup
+    delete globalThis.window;
+  });
+
+  it("skips duplicate alpha updates unless force is set", async () => {
+    const setWebOverlayAlpha = vi.fn();
+    globalThis.window = {
+      location: { origin: "https://media.example" },
+      MediaAndroid: {
+        logout: () => {},
+        play: () => {},
+        pause: () => {},
+        resume: () => {},
+        seekTo: () => {},
+        stop: () => {},
+        setWebOverlayAlpha,
+      },
+    } as unknown as Window & typeof globalThis;
+
+    const { setNativeWebOverlayAlpha } = await import("./android-bridge");
+    setNativeWebOverlayAlpha(1);
+    setNativeWebOverlayAlpha(1);
+    expect(setWebOverlayAlpha).toHaveBeenCalledTimes(1);
+    setNativeWebOverlayAlpha(1, true);
+    expect(setWebOverlayAlpha).toHaveBeenCalledTimes(2);
+    expect(setWebOverlayAlpha).toHaveBeenLastCalledWith(1);
+  });
+});

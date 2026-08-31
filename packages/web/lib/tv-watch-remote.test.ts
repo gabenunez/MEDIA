@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   isWatchChromeFocusTarget,
+  nativeWebOverlayAlpha,
   spatialNavShouldDeferToWatchPlayer,
   watchHiddenChromeArrowIntent,
 } from "./tv-watch-remote";
@@ -87,6 +88,82 @@ describe("TV watch remote — hidden chrome", () => {
   });
 });
 
+describe("TV native WebView overlay", () => {
+  it("keeps the overlay raised when chrome is already visible", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: true,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: false,
+      }),
+    ).toBe(1);
+  });
+
+  it("does not drop the overlay at native playback start while chrome is showing", () => {
+    // Regression: startNativePlayback used to call setNativeWebOverlayAlpha(0)
+    // even though showControls starts true and stays true until Back. Alpha 0
+    // puts ExoPlayer in front, so the control bar never appears.
+    const overlayAtPlaybackStart = nativeWebOverlayAlpha({
+      controlsVisible: true,
+      blockingOverlayVisible: false,
+      showMidPlaybackBuffering: false,
+    });
+    expect(overlayAtPlaybackStart).toBe(1);
+    expect(overlayAtPlaybackStart).not.toBe(0);
+  });
+
+  it("lowers the overlay only when chrome, errors, and mid-play buffering are gone", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: false,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: false,
+      }),
+    ).toBe(0);
+  });
+
+  it("raises the overlay for error/countdown screens", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: false,
+        blockingOverlayVisible: true,
+        showMidPlaybackBuffering: false,
+      }),
+    ).toBe(1);
+  });
+
+  it("raises the overlay for mid-playback buffering chrome", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: false,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: true,
+      }),
+    ).toBe(1);
+  });
+
+  it("keeps overlay and chrome in lockstep through start, hide, and reveal", () => {
+    let showControls = true;
+    const overlayFor = () =>
+      nativeWebOverlayAlpha({
+        controlsVisible: showControls,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: false,
+      });
+
+    expect(overlayFor()).toBe(1);
+
+    // Native playback start must not drop the overlay while chrome is up.
+    expect(overlayFor()).toBe(1);
+
+    showControls = false;
+    expect(overlayFor()).toBe(0);
+
+    showControls = true;
+    expect(overlayFor()).toBe(1);
+  });
+});
+
 describe("TV watch remote — wiring (do not revert)", () => {
   const spatialNav = readFileSync(
     path.join(webRoot, "components/tv/tv-spatial-nav.tsx"),
@@ -132,5 +209,23 @@ describe("TV watch remote — wiring (do not revert)", () => {
   it("clears optimistic seeks from the live native playhead", () => {
     expect(watchView).toContain("shouldClearOptimisticSeek");
     expect(watchView).toContain("optimisticAbsoluteSecondsRef.current = null");
+  });
+
+  it("syncs native overlay alpha from chrome visibility instead of forcing 0 at start", () => {
+    const startIdx = watchView.indexOf("startNativePlayback({");
+    expect(startIdx).toBeGreaterThan(-1);
+    const beforeStart = watchView.slice(Math.max(0, startIdx - 250), startIdx);
+    expect(beforeStart).not.toMatch(/setNativeWebOverlayAlpha\(\s*0\s*\)/);
+    expect(watchView).toContain("nativeWebOverlayAlpha({");
+    expect(watchView).toContain("nativeWebOverlayShouldRaise({");
+  });
+
+  it("raises the native overlay inside revealControls even when chrome is already showing", () => {
+    const reveal = watchView.slice(
+      watchView.indexOf("const revealControls"),
+      watchView.indexOf("const updateBufferedPosition"),
+    );
+    expect(reveal).toContain("setNativeWebOverlayAlpha(1, true)");
+    expect(reveal).toContain("showControlsRef.current = true");
   });
 });
