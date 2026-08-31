@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.222 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix CI TypeScript error in TV spatial nav skip deferral
+- ## Problem
+- Fix TypeScript key narrowing in TV spatial nav skip deferral (#13)
+
 ## 0.1.221 — 2026-08-31
 
 ### Changes
