@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.223 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix TV watch controls never appearing on native playback
+- ## Problem
+
 ## 0.1.222 — 2026-08-31
 
 ### Changes
