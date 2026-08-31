@@ -105,7 +105,11 @@ import {
   hideWebSubtitleOverlay,
   shouldCloseWatchMenusOnRebuffer,
 } from "@/lib/tv-watch-subtitles";
-import { watchHiddenChromeArrowIntent } from "@/lib/tv-watch-remote";
+import {
+  nativeWebOverlayAlpha,
+  nativeWebOverlayShouldRaise,
+  watchHiddenChromeArrowIntent,
+} from "@/lib/tv-watch-remote";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
@@ -672,12 +676,20 @@ export function TvWatchView() {
     (_autoHide = true, focusPlay = false) => {
       if (blockingOverlayVisible) return;
       controlsRevealedAtRef.current = Date.now();
+      showControlsRef.current = true;
       setShowControls(true);
+      if (usesNativePlayer) {
+        // Raise immediately — do not wait for a React state transition.
+        // If chrome was already "visible" in React while overlay alpha was 0
+        // (native start used to stomp it), setShowControls(true) is a no-op
+        // and the overlay effect would never re-run.
+        setNativeWebOverlayAlpha(1, true);
+      }
       if (focusPlay) {
         pendingRevealFocusRef.current = "play";
       }
     },
-    [blockingOverlayVisible],
+    [blockingOverlayVisible, usesNativePlayer],
   );
 
   const updateBufferedPosition = useCallback(() => {
@@ -988,6 +1000,9 @@ export function TvWatchView() {
           // Reveal the native surface only once frames are flowing — keeps enter
           // covered in opaque black instead of a transparent shell thrash.
           document.documentElement.setAttribute("data-native-video", "true");
+          if (showControlsRef.current || panelOpenRef.current) {
+            setNativeWebOverlayAlpha(1, true);
+          }
         }
         if (state.isPlaying && !state.isBuffering && playbackHasBegunRef.current) {
           const nowMs = Date.now();
@@ -1304,7 +1319,6 @@ export function TvWatchView() {
       nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
       nativeSubtitlesSyncedSessionRef.current = -1;
 
-      setNativeWebOverlayAlpha(0);
       applySubtitleStyles(readSubtitleStyles());
       startNativePlayback({
         url: toAbsoluteMediaUrl(relativeUrl),
@@ -1322,6 +1336,14 @@ export function TvWatchView() {
             ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle, usingHls ? startAt : 0))
             : undefined,
       });
+      setNativeWebOverlayAlpha(
+        nativeWebOverlayAlpha({
+          controlsVisible: showControlsRef.current || panelOpenRef.current,
+          blockingOverlayVisible: false,
+          showMidPlaybackBuffering: false,
+        }),
+        true,
+      );
 
       progressInterval.current = setInterval(
         () => saveProgressRef.current(),
@@ -1945,10 +1967,11 @@ export function TvWatchView() {
     });
   }, [controlsVisible, focusPlayControl, focusScrubControl]);
 
-  const nativeWebOverlayRaised =
-    controlsVisible ||
-    Boolean(error || countdown) ||
-    (usesNativePlayer && showMidPlaybackBuffering);
+  const nativeWebOverlayRaised = nativeWebOverlayShouldRaise({
+    controlsVisible,
+    blockingOverlayVisible,
+    showMidPlaybackBuffering: usesNativePlayer && showMidPlaybackBuffering,
+  });
   const hidePlaybackSubtitles = hideWebSubtitleOverlay({
     subtitleSearchOpen,
     usesNativePlayer,
@@ -1965,7 +1988,7 @@ export function TvWatchView() {
     // the loading spinner, which was covering ExoPlayer and causing black screens.
     // Debounce hide so brief focus blips don't thrash WebView compositing.
     if (nativeWebOverlayRaised) {
-      setNativeWebOverlayAlpha(1);
+      setNativeWebOverlayAlpha(1, true);
       return;
     }
     const timer = window.setTimeout(() => setNativeWebOverlayAlpha(0), 120);
