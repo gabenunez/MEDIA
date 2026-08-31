@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.213 — 2026-08-31
+
+### Changes
+
+- **Release** — Fix video seeking (skip back/forward) after stream restarts
+- ## Problem
+- Fix video seeking after stream restarts and backward skips (#4)
+
 ## 0.1.212 — 2026-08-31
 
 ### Changes
