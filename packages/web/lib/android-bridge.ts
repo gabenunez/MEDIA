@@ -146,9 +146,9 @@ export function syncNativePlaybackState(): void {
 let lastNativeWebOverlayAlpha: number | null = null;
 
 /** Hide the WebView layer during native playback so it does not dim ExoPlayer below. */
-export function setNativeWebOverlayAlpha(alpha: number): void {
+export function setNativeWebOverlayAlpha(alpha: number, force = false): void {
   const clamped = alpha <= 0 ? 0 : alpha >= 1 ? 1 : alpha;
-  if (lastNativeWebOverlayAlpha === clamped) return;
+  if (!force && lastNativeWebOverlayAlpha === clamped) return;
   lastNativeWebOverlayAlpha = clamped;
   getAndroidBridge()?.setWebOverlayAlpha?.(clamped);
 }
