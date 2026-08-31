@@ -106,7 +106,7 @@ describe("TV watch remote — wiring (do not revert)", () => {
   });
 
   it("spatial nav defers horizontal skip keys while watch controls are focused", () => {
-    expect(spatialNav).toContain('e.key === "MediaRewind"');
+    expect(spatialNav).toContain("isWatchHorizontalSkipKey");
     expect(spatialNav).toContain("[data-tv-watch-menu]");
     expect(spatialNav).toContain("isWatchPlayerActive()");
   });

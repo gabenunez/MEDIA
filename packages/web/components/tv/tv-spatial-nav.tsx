@@ -447,6 +447,15 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
   return false;
 }
 
+function isWatchHorizontalSkipKey(key: string): boolean {
+  return (
+    key === "ArrowLeft" ||
+    key === "ArrowRight" ||
+    key === "MediaRewind" ||
+    key === "MediaFastForward"
+  );
+}
+
 function isWatchPlayerActive() {
   // Set by watch-view while native/web playback chrome is mounted — cheap attribute read.
   return document.documentElement.hasAttribute("data-native-video")
@@ -552,13 +561,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       if (isWatchPlayerActive()) {
         if (active.hasAttribute("data-tv-watch-scrub")) return;
         const inWatchMenu = active.closest("[data-tv-watch-menu]");
-        if (
-          !inWatchMenu &&
-          (e.key === "ArrowLeft" ||
-            e.key === "ArrowRight" ||
-            e.key === "MediaRewind" ||
-            e.key === "MediaFastForward")
-        ) {
+        if (!inWatchMenu && isWatchHorizontalSkipKey(e.key)) {
           return;
         }
         if (!inWatchMenu && !active.closest("[data-tv-watch-controls]")) {
