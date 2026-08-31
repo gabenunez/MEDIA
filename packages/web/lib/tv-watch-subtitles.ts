@@ -11,12 +11,13 @@ export function shouldCloseWatchMenusOnRebuffer(): boolean {
   return false;
 }
 
-export function shouldAutoHideWatchControls(state: {
+export function shouldAutoHideWatchControls(_state: {
   autoHideRequested: boolean;
   playing: boolean;
   panelOpen: boolean;
 }): boolean {
-  return state.autoHideRequested && state.playing && !state.panelOpen;
+  // TV watch chrome is dismissed with Back only — never timed auto-hide.
+  return false;
 }
 
 /** HLS `emptied` is a buffer reload, not the end of captions. */
