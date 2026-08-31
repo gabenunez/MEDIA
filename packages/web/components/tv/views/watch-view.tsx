@@ -71,7 +71,7 @@ import { focusFirstWatchMenuItem, focusTvItem } from "@/lib/tv-focus";
 import { collapseSubtitleTrackActions } from "@/lib/tv-subtitle-track-row";
 import { needsTvSdUpscaleSoftening, tvImageUrl } from "@/lib/tv-image";
 import { isTv4KClient } from "@/lib/tv-mode-detect";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn, formatDuration, resolveWatchInitialResumeSeconds } from "@/lib/utils";
 import { formatDynamicRangeChromeSuffix } from "@media-app/shared";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import {
@@ -197,7 +197,7 @@ function TvWatchScrubTrack({
 export function TvWatchView() {
   const isClient = useIsClient();
   const router = useRouter();
-  const { type, fileId, mediaId } = useWatchRouteParams();
+  const { type, fileId, mediaId, fromStart } = useWatchRouteParams();
   const usesNativePlayer = nativeTvPlayerAvailable();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1133,22 +1133,28 @@ export function TvWatchView() {
 
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs = info.watchProgress?.durationMs ?? info.durationMs ?? 0;
-        if (positionMs > 0 && durationMs > 0) {
-          const percent = positionMs / durationMs;
-          if (percent > 0.02 && percent < 0.95) {
-            const resumeSeconds = positionMs / 1000;
-            setInitialResumeSeconds(resumeSeconds);
-            return;
-          }
+        const resumeSeconds = resolveWatchInitialResumeSeconds({
+          fromStart,
+          castStartSeconds: Number.NaN,
+          positionMs,
+          durationMs,
+        });
+        if (fromStart) {
+          void api.saveProgress({
+            itemType: type,
+            itemId: fileId,
+            positionMs: 0,
+            durationMs: durationMs || undefined,
+          });
         }
-        setInitialResumeSeconds(0);
+        setInitialResumeSeconds(resumeSeconds);
       })
       .catch((err) => {
         console.error(err);
         setError("Could not load this video. Check your connection and try again.");
         setInitialResumeSeconds(0);
       });
-  }, [fileId, type]);
+  }, [fileId, type, fromStart]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId) || !mediaId) return;
