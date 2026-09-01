@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.239 — 2026-09-01
+
+### TV
+- **Home** — history and heart icons on Continue Watching and Favorites
+- **Home** — keep poster titles on screen with room under each row
+- **Player** — unbind the last title when leaving watch so the next play starts clean
+
 ## 0.1.238 — 2026-09-01
 
 ### TV
