@@ -31,6 +31,7 @@ import {
   resolveSkipTargetAbsoluteSeconds,
   shouldClearOptimisticSeek,
   shouldCommitScrubPreview,
+  getPlaybackAbsoluteSeconds,
 } from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
@@ -637,6 +638,17 @@ describe("resolveHlsSeekAction", () => {
       }),
     ).toEqual({ kind: "restart", absoluteSeconds: 1300 });
   });
+
+  it("restarts web HLS when the video is not ready even if seekable", () => {
+    expect(
+      resolveHlsSeekAction({
+        targetAbsoluteSeconds: 1220,
+        hlsStartOffset: 1200,
+        seekableEndRelative: 40,
+        videoReadyState: 0,
+      }),
+    ).toEqual({ kind: "restart", absoluteSeconds: 1220 });
+  });
 });
 
 describe("resolveNativeHlsSeekAction", () => {
@@ -696,6 +708,35 @@ describe("shouldCommitScrubPreview", () => {
         totalDurationSeconds: 7200,
       }),
     ).toBe(false);
+    expect(
+      shouldCommitScrubPreview({
+        previewPercent: 40,
+        livePercent: 10,
+        totalDurationSeconds: 0,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("getPlaybackAbsoluteSeconds", () => {
+  it("adds the HLS session offset on remux/transcode", () => {
+    expect(
+      getPlaybackAbsoluteSeconds({
+        usingHls: true,
+        hlsStartOffset: 1200,
+        relativeSeconds: 45,
+      }),
+    ).toBe(1245);
+  });
+
+  it("uses the relative playhead for direct play", () => {
+    expect(
+      getPlaybackAbsoluteSeconds({
+        usingHls: false,
+        hlsStartOffset: 1200,
+        relativeSeconds: 45,
+      }),
+    ).toBe(45);
   });
 });
 
@@ -722,6 +763,18 @@ describe("resolveSkipTargetAbsoluteSeconds", () => {
         deltaSeconds: 30,
       }),
     ).toBe(1440);
+  });
+
+  it("skips on the absolute timeline for direct play", () => {
+    expect(
+      resolveSkipTargetAbsoluteSeconds({
+        optimisticAbsoluteSeconds: null,
+        usingHls: false,
+        hlsStartOffset: 0,
+        liveRelativeSeconds: 200,
+        deltaSeconds: -10,
+      }),
+    ).toBe(190);
   });
 });
 

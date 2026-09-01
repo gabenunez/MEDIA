@@ -15,6 +15,7 @@ import {
   isWatchChromeFocusTarget,
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
+import { spatialNavShouldHandleWatchArrow } from "@/lib/tv-watch-player";
 import { useEffect, type ReactNode } from "react";
 
 const NAV_COOLDOWN_MS = 50;
@@ -554,17 +555,17 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (isWatchPlayerActive()) {
-        if (active.hasAttribute("data-tv-watch-scrub")) return;
-        const inWatchMenu = active.closest("[data-tv-watch-menu]");
-        if (!inWatchMenu && !active.closest("[data-tv-watch-controls]")) {
-          return;
-        }
-        // Watch view handles Up/Down on the control bar; menus use normal spatial nav.
-        // Left/Right stay here so focus can move between Play, skip, and menus.
-        if (!inWatchMenu && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-          return;
-        }
+      if (
+        isWatchPlayerActive() &&
+        !spatialNavShouldHandleWatchArrow({
+          watchPlayerActive: true,
+          focusOnScrub: active.hasAttribute("data-tv-watch-scrub"),
+          inWatchMenu: Boolean(active.closest("[data-tv-watch-menu]")),
+          inWatchControls: Boolean(active.closest("[data-tv-watch-controls]")),
+          key: e.key,
+        })
+      ) {
+        return;
       }
 
       const row = active.closest("[data-tv-row]");
