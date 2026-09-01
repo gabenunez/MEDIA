@@ -28,7 +28,8 @@ describe("TV living-room catalog scale", () => {
     expect(parseRem(tvUi["--tv-section-gap"])).toBe(TV_LIVING_ROOM_LAYOUT.sectionGapRem);
     const scrollRow = extractCssBlock(css, ".tv-ui .tv-scroll-row {");
     expect(scrollRow).toMatch(/align-items:\s*flex-start/);
-    expect(scrollRow).toMatch(/padding-block:\s*0\.25rem 0\.35rem/);
+    expect(scrollRow).toMatch(/padding-block:\s*0\.25rem 1\.75rem/);
+    expect(scrollRow).toMatch(/overflow-y:\s*hidden/);
   });
 
   it("fits at least 10 posters in a 1080p TV row", () => {

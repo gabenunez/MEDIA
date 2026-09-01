@@ -1498,6 +1498,8 @@ export function TvWatchView() {
     return () => {
       cancelled = true;
       video.pause();
+      video.removeAttribute("src");
+      video.load();
       webPlayback?.cleanup();
       hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);

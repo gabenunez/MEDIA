@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Heart, Layers, Loader2, Play, Sparkles } from "lucide-react";
+import { Heart, History, Layers, Loader2, Play, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/auth-gate";
 import { routes } from "@/lib/routes";
 import { TvPoster } from "@/components/tv/tv-poster";
@@ -98,6 +98,7 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
       {continueWatching.length > 0 && (
         <TvRow
           title="Continue Watching"
+          icon={<History className="h-full w-full" />}
           seeAllHref={routes.continueWatching()}
           seeAllLabel="Continue Watching"
           seeAllDetail="All in progress"
@@ -133,6 +134,7 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
       {favorites.length > 0 && (
         <TvRow
           title="Favorites"
+          icon={<Heart className="h-full w-full fill-current" />}
           seeAllHref={routes.favorites()}
           seeAllLabel="Favorites"
           seeAllDetail={`${favorites.length}+ saved`}

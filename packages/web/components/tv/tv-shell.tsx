@@ -86,22 +86,23 @@ export function TvShell({ children }: { children: React.ReactNode }) {
       document.documentElement.removeAttribute("data-tv-watch-active");
     }
 
-    let stopFrame: number | null = null;
     if (wasOnWatchRef.current && !onWatch) {
       if (nativeTvPlayerAvailable()) {
-        // Let the destination page paint over the native surface first. The
-        // old order exposed the Activity's black background for one frame.
+        // Cover the native surface first, then unbind immediately so the last
+        // title is not still attached when the next play starts.
         document.documentElement.removeAttribute("data-native-video");
         setNativeWebOverlayAlpha(1);
-        stopFrame = requestAnimationFrame(() => stopNativePlayback());
+        stopNativePlayback();
       }
-      document.querySelector("video")?.pause();
+      const video = document.querySelector("video");
+      if (video) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
     }
     wasOnWatchRef.current = onWatch;
     if (onWatch) closeTvSideNav();
-    return () => {
-      if (stopFrame !== null) cancelAnimationFrame(stopFrame);
-    };
   }, [onWatch]);
 
   const handleLogout = () => {
@@ -162,7 +163,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
             </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto bg-background pb-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto bg-background">{children}</main>
       </div>
     </TvSpatialNav>
   );
