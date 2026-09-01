@@ -106,6 +106,7 @@ import {
 import {
   nativeWebOverlayAlpha,
   nativeWebOverlayShouldRaise,
+  TV_WATCH_REMOTE_KEY_EVENT,
   watchHiddenChromeArrowIntent,
   watchVisibleTransportArrowIntent,
 } from "@/lib/tv-watch-remote";
@@ -2270,8 +2271,20 @@ export function TvWatchView() {
       if (active?.closest("[data-tv-watch-controls]")) return;
     };
 
+    const onRemoteKey = (event: Event) => {
+      const key = (event as CustomEvent<{ key?: string }>).detail?.key;
+      if (!key) return;
+      onKeyDown(
+        new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+      );
+    };
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(TV_WATCH_REMOTE_KEY_EVENT, onRemoteKey);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(TV_WATCH_REMOTE_KEY_EVENT, onRemoteKey);
+    };
   }, [
     togglePlay,
     playPlayback,
