@@ -12,6 +12,7 @@ import {
   resolveScrubCommitDecision,
   resolveTvSeekPlan,
   resolveWatchBackAction,
+  moveWatchTransportFocus,
   spatialNavShouldHandleWatchArrow,
   watchChromeVerticalArrowIntent,
   watchMediaKeyIntent,
@@ -261,7 +262,7 @@ describe("watchChromeVerticalArrowIntent", () => {
 });
 
 describe("spatialNavShouldHandleWatchArrow", () => {
-  it("moves left/right between visible transport buttons", () => {
+  it("does not use catalog geometry for the transport bar", () => {
     expect(
       spatialNavShouldHandleWatchArrow({
         watchPlayerActive: true,
@@ -270,10 +271,10 @@ describe("spatialNavShouldHandleWatchArrow", () => {
         inWatchControls: true,
         key: "ArrowRight",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("defers Up/Down and scrub arrows to watch-view", () => {
+  it("defers scrub and chrome arrows to watch-view", () => {
     expect(
       spatialNavShouldHandleWatchArrow({
         watchPlayerActive: true,
@@ -304,6 +305,25 @@ describe("spatialNavShouldHandleWatchArrow", () => {
         key: "ArrowDown",
       }),
     ).toBe(true);
+  });
+});
+
+describe("moveWatchTransportFocus", () => {
+  function items(ids: string[]): HTMLElement[] {
+    return ids.map((id) => {
+      const el = document.createElement("button");
+      el.id = id;
+      return el;
+    });
+  }
+
+  it("moves left and right between transport buttons and stops at the ends", () => {
+    const row = items(["a", "b", "c"]);
+    expect(moveWatchTransportFocus(row, row[1]!, "right")).toBe(row[2]);
+    expect(moveWatchTransportFocus(row, row[2]!, "right")).toBe(row[2]);
+    expect(moveWatchTransportFocus(row, row[0]!, "left")).toBe(row[0]);
+    expect(moveWatchTransportFocus(row, null, "right")).toBe(row[0]);
+    expect(moveWatchTransportFocus(row, null, "left")).toBe(row[2]);
   });
 });
 
@@ -444,6 +464,10 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("isWatchRemoteSkipArrowKey");
     expect(watchView).toContain("WatchSkipFeedbackBadge");
     expect(watchView).toContain("revealControls: false");
+    expect(watchView).toContain("moveWatchTransportFocus");
+    expect(watchView).toContain("getWatchPlayerFocusedItem");
+    expect(watchView).toContain("isWatchTextInputKeyTarget");
+    expect(watchView).toContain("e.defaultPrevented");
   });
 
   it("spatial nav uses the extracted watch-arrow guard", () => {

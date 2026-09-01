@@ -7,8 +7,8 @@ import android.view.KeyEvent
  *
  * Android TV WebView does not reliably deliver D-pad `keydown` to JS — Play/
  * Pause works only because we inject those keys. The same inject must run
- * whether ExoPlayer or the WebView is in front. Target `document.activeElement`
- * so spatial nav can move between visible control buttons.
+ * whether ExoPlayer or the WebView is in front. Dispatch on `window` so
+ * watch-view always sees D-pad; it owns transport Left/Right itself.
  */
 object WatchRemoteKeys {
     fun webKeyName(keyCode: Int): String? =
@@ -32,17 +32,11 @@ object WatchRemoteKeys {
         val escaped = key.replace("\\", "\\\\").replace("'", "\\'")
         return """
             (function(){
-              var target = document.activeElement;
-              var event = new KeyboardEvent('keydown', {
+              window.dispatchEvent(new KeyboardEvent('keydown', {
                 key: '$escaped',
                 bubbles: true,
                 cancelable: true
-              });
-              if (target && target.dispatchEvent) {
-                target.dispatchEvent(event);
-              } else {
-                window.dispatchEvent(event);
-              }
+              }));
             })();
             """.trimIndent()
     }

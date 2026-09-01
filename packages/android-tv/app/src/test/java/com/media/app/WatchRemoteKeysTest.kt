@@ -34,10 +34,10 @@ class WatchRemoteKeysTest {
     }
 
     @Test
-    fun dispatchScriptTargetsTheFocusedControl() {
+    fun dispatchScriptDispatchesOnWindow() {
         val script = WatchRemoteKeys.dispatchScript("ArrowLeft")
-        assertEquals(true, script.contains("document.activeElement"))
+        assertEquals(true, script.contains("window.dispatchEvent"))
         assertEquals(true, script.contains("key: 'ArrowLeft'"))
-        assertEquals(true, script.contains("target.dispatchEvent(event)"))
+        assertEquals(false, script.contains("document.activeElement"))
     }
 }

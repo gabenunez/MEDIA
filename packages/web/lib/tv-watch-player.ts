@@ -165,11 +165,28 @@ export function spatialNavShouldHandleWatchArrow(state: {
   key: string;
 }): boolean {
   if (!state.watchPlayerActive) return true;
-  if (state.focusOnScrub) return false;
+  // Transport/scrub D-pad is owned by watch-view. Catalog geometry here
+  // steals Left into the hidden side nav.
   if (state.inWatchMenu) return true;
-  if (!state.inWatchControls) return false;
-  if (state.key === "ArrowUp" || state.key === "ArrowDown") return false;
-  return true;
+  return false;
+}
+
+export function moveWatchTransportFocus(
+  items: readonly HTMLElement[],
+  current: HTMLElement | null,
+  direction: "left" | "right",
+): HTMLElement | null {
+  if (items.length === 0) return null;
+  let index = current ? items.indexOf(current) : -1;
+  if (index < 0 && current) {
+    index = items.findIndex((item) => item.contains(current));
+  }
+  if (index < 0) {
+    return direction === "right" ? items[0]! : items[items.length - 1]!;
+  }
+  const next = direction === "left" ? index - 1 : index + 1;
+  if (next < 0 || next >= items.length) return items[index]!;
+  return items[next]!;
 }
 
 export function clampAbsoluteSeekSeconds(
