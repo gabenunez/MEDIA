@@ -128,7 +128,7 @@
     --tv-browse-card-min: 14rem;
     --tv-page-gutter: 2rem;
     --tv-row-gap: 0.75rem;
-    --tv-section-gap: 1.5rem;
+    --tv-section-gap: 0.75rem;
     --tv-media-poster-width: 7rem;
     --tv-episode-still-width: 6.75rem;
     --tv-episode-still-height: 3.75rem;
@@ -166,7 +166,7 @@
   }
 
   .tv-ui .tv-row-section > h2 {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.125rem;
     padding-inline: var(--tv-page-gutter);
     font-size: 1rem;
     font-weight: 600;
@@ -177,8 +177,9 @@
   .tv-ui .tv-scroll-row {
     gap: var(--tv-row-gap);
     padding-inline: var(--tv-page-gutter);
-    padding-block: 0.75rem 1rem;
+    padding-block: 0.25rem 0.35rem;
     scroll-padding-inline: var(--tv-page-gutter);
+    align-items: flex-start;
   }
 
   .tv-ui .tv-page {
@@ -393,8 +394,16 @@
   .tv-ui .tv-poster-art {
     transform: none;
     transform-origin: center center;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    /* Android TV WebView can ignore aspect-ratio on fill images and inflate the row. */
+    height: calc(var(--tv-poster-width, 7.5rem) * 1.5);
     /* Solid border focus — inset box-shadow rings render poorly on Android TV WebView. */
     border: 2px solid transparent;
+  }
+
+  .tv-ui [data-tv-grid] .tv-poster-art {
+    height: auto;
   }
 
   .tv-ui a.tv-poster-link[data-tv-focused] .tv-poster-art,
