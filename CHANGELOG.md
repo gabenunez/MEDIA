@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.231 — 2026-09-01
+
+### Changes
+
+- **Release** — Always inject TV D-pad onto the focused player control
+- The last APK change stopped injecting D-pad while the control bar was visible, so the WebView could “handle Left/Right natively.” On this TV, those real key events never reach JavaScript. Play/Pause still worked because those keys are always injected.
+- Always inject TV D-pad onto the focused player control (#22)
+
 ## 0.1.230 — 2026-09-01
 
 ### Changes
