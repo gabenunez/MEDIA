@@ -198,32 +198,93 @@ export function parseWyzieSearchItems(
   return [];
 }
 
+export function resolveWyzieDownloadUrl(url: string): URL | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed, "https://sub.wyzie.io");
+    if (parsed.protocol === "http:" && isWyzieHostname(parsed.hostname)) {
+      parsed.protocol = "https:";
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function withWyzieKey(url: string, apiKey: string): string {
-  const parsed = new URL(url);
-  if (!parsed.searchParams.get("key")) {
+  const parsed = resolveWyzieDownloadUrl(url);
+  if (!parsed) {
+    throw new Error("Invalid Wyzie download URL");
+  }
+  if (isWyzieHostname(parsed.hostname) && !parsed.searchParams.get("key")) {
     parsed.searchParams.set("key", apiKey);
   }
   return parsed.toString();
 }
 
 export function isAllowedWyzieDownloadUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" && parsed.hostname === "sub.wyzie.io";
-  } catch {
-    return false;
-  }
+  const parsed = resolveWyzieDownloadUrl(url);
+  if (!parsed) return false;
+  if (parsed.protocol !== "https:") return false;
+  if (parsed.username || parsed.password) return false;
+  return !isBlockedDownloadHost(parsed.hostname);
 }
 
 export function prepareWyzieDownloadUrl(url: string, apiKey: string): string {
-  if (!isAllowedWyzieDownloadUrl(url)) {
+  const parsed = resolveWyzieDownloadUrl(url);
+  if (!parsed || parsed.protocol !== "https:" || parsed.username || parsed.password) {
     throw new Error("Invalid Wyzie download URL");
   }
-  const prepared = new URL(withWyzieKey(url, apiKey));
-  if (!prepared.searchParams.get("encoding")) {
-    prepared.searchParams.set("encoding", "utf-8");
+  if (isBlockedDownloadHost(parsed.hostname)) {
+    throw new Error("Invalid Wyzie download URL");
   }
-  return prepared.toString();
+  if (isWyzieHostname(parsed.hostname)) {
+    if (!parsed.searchParams.get("key")) {
+      parsed.searchParams.set("key", apiKey);
+    }
+    if (!parsed.searchParams.get("encoding")) {
+      parsed.searchParams.set("encoding", "utf-8");
+    }
+  }
+  return parsed.toString();
+}
+
+function isWyzieHostname(hostname: string): boolean {
+  const host = hostname.replace(/\.$/, "").toLowerCase();
+  return (
+    host === "wyzie.io" ||
+    host.endsWith(".wyzie.io") ||
+    host === "wyzie.ru" ||
+    host.endsWith(".wyzie.ru")
+  );
+}
+
+function isBlockedDownloadHost(hostname: string): boolean {
+  const host = hostname.replace(/\.$/, "").toLowerCase();
+  if (
+    !host ||
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::" ||
+    host === "::1" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    return true;
+  }
+
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4) return false;
+
+  const a = Number(ipv4[1]);
+  const b = Number(ipv4[2]);
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
 }
 
 export function normalizeWyzieLanguages(languages?: string): string {
