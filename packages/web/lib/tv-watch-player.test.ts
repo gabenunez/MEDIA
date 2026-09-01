@@ -18,6 +18,9 @@ import {
   watchScrubKeyIntent,
   watchScrubNudgeStepPercent,
   watchSkipDeltaSeconds,
+  accumulateWatchSkipFeedback,
+  isWatchRemoteSkipArrowKey,
+  WATCH_SKIP_FEEDBACK_MS,
 } from "./tv-watch-player";
 
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -28,6 +31,27 @@ describe("watch skip amounts", () => {
     expect(watchSkipDeltaSeconds("skip-forward")).toBe(WATCH_SKIP_FORWARD_SECONDS);
     expect(WATCH_SKIP_BACK_SECONDS).toBe(10);
     expect(WATCH_SKIP_FORWARD_SECONDS).toBe(30);
+  });
+
+  it("flashes a fading badge only for D-pad left/right", () => {
+    expect(isWatchRemoteSkipArrowKey("ArrowLeft")).toBe(true);
+    expect(isWatchRemoteSkipArrowKey("ArrowRight")).toBe(true);
+    expect(isWatchRemoteSkipArrowKey("MediaRewind")).toBe(false);
+    expect(isWatchRemoteSkipArrowKey("MediaFastForward")).toBe(false);
+    expect(WATCH_SKIP_FEEDBACK_MS).toBe(1000);
+  });
+
+  it("accumulates repeated skips in the same direction", () => {
+    const first = accumulateWatchSkipFeedback(null, "skip-back");
+    expect(first).toEqual({ direction: "back", seconds: 10 });
+    expect(accumulateWatchSkipFeedback(first, "skip-back")).toEqual({
+      direction: "back",
+      seconds: 20,
+    });
+    expect(accumulateWatchSkipFeedback(first, "skip-forward")).toEqual({
+      direction: "forward",
+      seconds: 30,
+    });
   });
 });
 
@@ -416,6 +440,10 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("watchChromeVerticalArrowIntent");
     expect(watchView).toContain("watchSkipDeltaSeconds");
     expect(watchView).toContain("TV_WATCH_REMOTE_KEY_EVENT");
+    expect(watchView).toContain("flashRemoteSkipFeedback");
+    expect(watchView).toContain("isWatchRemoteSkipArrowKey");
+    expect(watchView).toContain("WatchSkipFeedbackBadge");
+    expect(watchView).toContain("revealControls: false");
   });
 
   it("spatial nav uses the extracted watch-arrow guard", () => {

@@ -65,6 +65,7 @@ export type NativeWebOverlayState = {
   controlsVisible: boolean;
   blockingOverlayVisible: boolean;
   showMidPlaybackBuffering: boolean;
+  skipFeedbackVisible?: boolean;
 };
 
 /**
@@ -79,7 +80,8 @@ export function nativeWebOverlayShouldRaise(state: NativeWebOverlayState): boole
   return (
     state.controlsVisible ||
     state.blockingOverlayVisible ||
-    state.showMidPlaybackBuffering
+    state.showMidPlaybackBuffering ||
+    Boolean(state.skipFeedbackVisible)
   );
 }
 

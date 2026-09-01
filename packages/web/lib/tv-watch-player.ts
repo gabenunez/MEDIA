@@ -14,6 +14,31 @@ export function watchSkipDeltaSeconds(intent: "skip-back" | "skip-forward"): num
   return intent === "skip-back" ? -WATCH_SKIP_BACK_SECONDS : WATCH_SKIP_FORWARD_SECONDS;
 }
 
+export const WATCH_SKIP_FEEDBACK_MS = 1000;
+
+export type WatchSkipFeedback = {
+  direction: "back" | "forward";
+  seconds: number;
+};
+
+/** D-pad left/right — the only remote keys that flash skip feedback. */
+export function isWatchRemoteSkipArrowKey(key: string): boolean {
+  return key === "ArrowLeft" || key === "ArrowRight";
+}
+
+/** Stack repeated L/R skips into one fading badge (10, 20, … / 30, 60, …). */
+export function accumulateWatchSkipFeedback(
+  current: WatchSkipFeedback | null,
+  intent: "skip-back" | "skip-forward",
+): WatchSkipFeedback {
+  const direction = intent === "skip-back" ? "back" : "forward";
+  const step = Math.abs(watchSkipDeltaSeconds(intent));
+  if (current?.direction === direction) {
+    return { direction, seconds: current.seconds + step };
+  }
+  return { direction, seconds: step };
+}
+
 export function isWatchBackKey(key: string): boolean {
   return key === "Escape" || key === "Backspace" || key === "GoBack";
 }
