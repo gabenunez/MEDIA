@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.236 — 2026-09-01
+
+### TV
+- **Side nav** — hide the left rail until Left has nowhere else to go
+- **Setup** — enter the server password on the pairing screen when the server requires one
+- **Logo** — size the M! mark to match the rail icons
+
 ## 0.1.235 — 2026-09-01
 
 ### Changes
