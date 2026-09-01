@@ -22,6 +22,7 @@ import {
   resolveInitialStreamQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
+  nextEpisodeArtworkPaths,
   nextEpisodePreviewPath,
   isAbsoluteTimeInBufferedRanges,
   resolveHlsSeekAction,
@@ -1300,5 +1301,20 @@ describe("nextEpisodePreviewPath", () => {
         { title: "The Office", posterPath: "/poster.jpg" },
       ),
     ).toBe("/poster.jpg");
+  });
+
+  it("lists still, backdrop, and poster without duplicates", () => {
+    expect(
+      nextEpisodeArtworkPaths(
+        { episode, seasonNumber: 2 },
+        { title: "The Office", posterPath: "/poster.jpg", backdropPath: "/back.jpg" },
+      ),
+    ).toEqual(["/stills/dinner.jpg", "/back.jpg", "/poster.jpg"]);
+    expect(
+      nextEpisodeArtworkPaths(
+        { episode: { ...episode, stillPath: "/poster.jpg" }, seasonNumber: 2 },
+        { title: "The Office", posterPath: "/poster.jpg", backdropPath: "/poster.jpg" },
+      ),
+    ).toEqual(["/poster.jpg"]);
   });
 });

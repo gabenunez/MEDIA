@@ -6,6 +6,7 @@ import { MediaImage } from "@/components/media-image";
 import { api } from "@/lib/api";
 import { tvImageUrl } from "@/lib/tv-image";
 import { NEXT_EPISODE_COUNTDOWN_SECONDS } from "@/lib/playback-utils";
+import { PLAYBACK_IMAGE_QUALITY, PLAYBACK_IMAGE_WIDTH } from "@/lib/next-image-url";
 import { cn, formatDuration } from "@/lib/utils";
 import { usePreloadedImage } from "@/lib/use-preloaded-image";
 import type { NextEpisodeCountdownState } from "@/lib/use-next-episode-countdown";
@@ -116,7 +117,11 @@ export function NextEpisodeCountdownOverlay({
   const previewUrl = tv
     ? tvImageUrl(previewPath, { hd: true })
     : api.imageUrl(previewPath);
-  const previewReady = usePreloadedImage(previewUrl, 1920);
+  const previewReady = usePreloadedImage(
+    previewUrl,
+    PLAYBACK_IMAGE_WIDTH,
+    PLAYBACK_IMAGE_QUALITY,
+  );
   const overview = countdown.episode.overview?.trim();
   const duration = countdown.episode.durationMs
     ? formatDuration(countdown.episode.durationMs)
@@ -212,7 +217,7 @@ export function NextEpisodeCountdownOverlay({
               url={previewUrl}
               ready={previewReady}
               eager
-              quality={85}
+              quality={PLAYBACK_IMAGE_QUALITY}
               sizes="100vw"
             />
           </div>
@@ -231,7 +236,7 @@ export function NextEpisodeCountdownOverlay({
                 url={previewUrl}
                 ready={previewReady}
                 eager
-                quality={85}
+                quality={PLAYBACK_IMAGE_QUALITY}
                 sizes="50vw"
               />
             ) : (
@@ -273,7 +278,7 @@ export function NextEpisodeCountdownOverlay({
           <PreviewStill
             url={previewUrl}
             ready={previewReady}
-            quality={80}
+            quality={PLAYBACK_IMAGE_QUALITY}
             sizes="100vw"
           />
         </div>
@@ -285,7 +290,7 @@ export function NextEpisodeCountdownOverlay({
             <PreviewStill
               url={previewUrl}
               ready={previewReady}
-              quality={80}
+              quality={PLAYBACK_IMAGE_QUALITY}
               sizes="36rem"
             />
             <div className="absolute right-3 top-3">
