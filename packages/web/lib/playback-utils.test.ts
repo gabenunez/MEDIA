@@ -4,6 +4,8 @@ import {
   getPlaybackRestartSeconds,
   getContiguousBufferedAhead,
   getScrubberBufferedRanges,
+  resolveAbsoluteScrubberBufferedRanges,
+  resolveScrubberDurationMs,
   GROWING_EDGE_PLAYBACK_RATE,
   isSpuriousHlsEnded,
   nextStableAbsoluteSeconds,
@@ -468,6 +470,90 @@ describe("getScrubberBufferedRanges", () => {
   it("returns an empty bar when nothing is buffered ahead", () => {
     expect(getScrubberBufferedRanges([], 20)).toEqual([]);
     expect(getScrubberBufferedRanges([{ start: 0, end: 20 }], 20)).toEqual([]);
+  });
+
+  it("merges a 6s HLS segment gap with the default max gap", () => {
+    expect(
+      getScrubberBufferedRanges(
+        [
+          { start: 0, end: 24 },
+          { start: 30, end: 54 },
+        ],
+        20,
+      ),
+    ).toEqual([{ start: 20, end: 54 }]);
+  });
+});
+
+describe("resolveAbsoluteScrubberBufferedRanges", () => {
+  it("adds the HLS start offset to relative element ranges", () => {
+    expect(
+      resolveAbsoluteScrubberBufferedRanges({
+        ranges: [{ start: 0, end: 36 }],
+        elementCurrentTime: 12,
+        hlsStartOffset: 1412,
+        usingHls: true,
+      }),
+    ).toEqual([{ start: 1424, end: 1448 }]);
+  });
+
+  it("aligns PTS-absolute buffered ranges with a relative playhead", () => {
+    expect(
+      resolveAbsoluteScrubberBufferedRanges({
+        ranges: [{ start: 1412, end: 1448 }],
+        elementCurrentTime: 12,
+        hlsStartOffset: 1412,
+        usingHls: true,
+      }),
+    ).toEqual([{ start: 1424, end: 1448 }]);
+  });
+
+  it("extends the HLS bar to the growing playlist edge when MSE is stuck", () => {
+    expect(
+      resolveAbsoluteScrubberBufferedRanges({
+        ranges: [{ start: 0, end: 18 }],
+        elementCurrentTime: 12,
+        hlsStartOffset: 1412,
+        usingHls: true,
+        availableEndRelative: 90,
+      }),
+    ).toEqual([{ start: 1424, end: 1502 }]);
+  });
+
+  it("does not treat direct-play duration as extra buffer", () => {
+    expect(
+      resolveAbsoluteScrubberBufferedRanges({
+        ranges: [{ start: 1400, end: 1460 }],
+        elementCurrentTime: 1412,
+        hlsStartOffset: 0,
+        usingHls: false,
+        availableEndRelative: 7200,
+      }),
+    ).toEqual([{ start: 1412, end: 1460 }]);
+  });
+});
+
+describe("resolveScrubberDurationMs", () => {
+  it("prefers the source duration", () => {
+    expect(
+      resolveScrubberDurationMs({
+        sourceDurationMs: 7_200_000,
+        elementDurationSeconds: 40,
+        hlsStartOffset: 1412,
+        usingHls: true,
+      }),
+    ).toBe(7_200_000);
+  });
+
+  it("falls back to offset plus the HLS window when source duration is missing", () => {
+    expect(
+      resolveScrubberDurationMs({
+        sourceDurationMs: 0,
+        elementDurationSeconds: 40,
+        hlsStartOffset: 1412,
+        usingHls: true,
+      }),
+    ).toBe(1_452_000);
   });
 });
 

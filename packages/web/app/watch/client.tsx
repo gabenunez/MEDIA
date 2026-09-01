@@ -25,9 +25,9 @@ import {
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import {
-  getVideoBufferedRanges,
-  getScrubberBufferedRanges,
   getVideoSeekableEnd,
+  readAbsoluteScrubberBufferedRanges,
+  resolveScrubberDurationMs,
   isSpuriousHlsEnded,
   resolveSpuriousRecovery,
   type SpuriousRecoveryState,
@@ -321,16 +321,11 @@ function WatchDesktopClient() {
     const video = videoRef.current;
     if (!video) return;
 
-    const offset = usingHlsPlayback ? hlsStartOffsetRef.current : 0;
-    const scrubberRanges = getScrubberBufferedRanges(
-      getVideoBufferedRanges(video),
-      video.currentTime,
-    );
     setBufferedRanges(
-      scrubberRanges.map((range) => ({
-        start: offset + range.start,
-        end: offset + range.end,
-      })),
+      readAbsoluteScrubberBufferedRanges(video, {
+        hlsStartOffset: usingHlsPlayback ? hlsStartOffsetRef.current : 0,
+        usingHls: usingHlsPlayback,
+      }),
     );
   }, [usingHlsPlayback]);
   const updateBufferedPositionRef = useRef(updateBufferedPosition);
@@ -886,7 +881,12 @@ function WatchDesktopClient() {
 
   const absoluteCurrentTime =
     usingHlsPlayback ? hlsStartOffsetRef.current + currentTime : currentTime;
-  const absoluteDurationMs = sourceDurationMs || duration * 1000;
+  const absoluteDurationMs = resolveScrubberDurationMs({
+    sourceDurationMs,
+    elementDurationSeconds: duration,
+    hlsStartOffset: usingHlsPlayback ? hlsStartOffsetRef.current : 0,
+    usingHls: usingHlsPlayback,
+  });
   const totalDurationSeconds =
     absoluteDurationMs > 0 ? absoluteDurationMs / 1000 : 0;
   const progress =
