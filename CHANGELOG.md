@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.232 — 2026-09-01
+
+### Changes
+
+- **Release** — Fix TV player D-pad: stop catalog nav from stealing Left/Right
+- ## Problem
+- Fix TV player D-pad: stop catalog nav from stealing Left/Right (#23)
+
 ## 0.1.231 — 2026-09-01
 
 ### Changes
