@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.235 — 2026-09-01
+
+### Changes
+
+- **Release** — Fix TV player Up/Down chrome reveal and black screen on open
+- The submenu D-pad fix (#24) could swallow Up/Down after the transport bar was hidden, and native playback could drop the WebView overlay before ExoPlayer had a frame — a black screen with no way to bring chrome back.
+- Fix TV player Up/Down chrome reveal and black screen on open (#26)
+
 ## 0.1.234 — 2026-09-01
 
 ### Changes
