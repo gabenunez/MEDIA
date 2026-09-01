@@ -7,6 +7,7 @@ import {
   Clapperboard,
   HardDrive,
   Heart,
+  History,
   Layers,
   Play,
   Loader2,
@@ -244,6 +245,7 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
         <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
           <HomeSectionHeading
             title="Continue Watching"
+            icon={<History className="h-full w-full" />}
             accent="accent"
             href={continueWatching.length > 0 ? routes.continueWatching() : undefined}
           />
@@ -257,7 +259,11 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
 
       {favorites.length > 0 && (
         <section className="mb-12 min-h-[13.5rem] sm:min-h-[15rem]">
-          <HomeSectionHeading title="Favorites" href={routes.favorites()} />
+          <HomeSectionHeading
+            title="Favorites"
+            icon={<Heart className="h-full w-full fill-current" />}
+            href={routes.favorites()}
+          />
           {!loaded ? (
             <PosterRowSkeleton />
           ) : (

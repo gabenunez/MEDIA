@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 /** Prerendered static hero copy — baked into the static export shell. */
 export function HomeHeroStatic() {
@@ -50,11 +51,13 @@ export function HomeHeroMonitorFrame() {
 
 export function HomeSectionHeading({
   title,
+  icon,
   accent = "primary",
   href,
   linkLabel = "View all",
 }: {
   title: string;
+  icon?: ReactNode;
   accent?: "primary" | "accent";
   href?: string;
   linkLabel?: string;
@@ -65,7 +68,14 @@ export function HomeSectionHeading({
         <span
           className={accent === "accent" ? "h-px w-8 bg-accent" : "h-px w-8 bg-primary"}
         />
-        <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold sm:text-xl">
+          {icon ? (
+            <span className="inline-flex h-5 w-5 shrink-0 text-muted-foreground" aria-hidden>
+              {icon}
+            </span>
+          ) : null}
+          {title}
+        </h2>
       </div>
       {href ? (
         <Link href={href} className="text-sm font-medium text-primary hover:underline">

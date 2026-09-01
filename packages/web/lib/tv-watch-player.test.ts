@@ -483,3 +483,50 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(nestedRowMove).toBeLessThan(immediateVertical);
   });
 });
+
+describe("TV native player unbind on exit", () => {
+  const nativePlayer = readFileSync(
+    path.join(
+      webRoot,
+      "../android-tv/app/src/main/java/com/media/app/NativePlayerManager.kt",
+    ),
+    "utf8",
+  );
+  const mainActivity = readFileSync(
+    path.join(webRoot, "../android-tv/app/src/main/java/com/media/app/MainActivity.kt"),
+    "utf8",
+  );
+  const tvShell = readFileSync(
+    path.join(webRoot, "components/tv/tv-shell.tsx"),
+    "utf8",
+  );
+  const watchView = readFileSync(
+    path.join(webRoot, "components/tv/views/watch-view.tsx"),
+    "utf8",
+  );
+
+  it("clears the current title from ExoPlayer instead of leaving it on PlayerView", () => {
+    const release = nativePlayer.slice(nativePlayer.indexOf("private fun releasePlayer()"));
+    expect(release).toContain("clearVideoSurface()");
+    expect(release).toContain("clearMediaItems()");
+    expect(release).toContain("setKeepContentOnPlayerReset(false)");
+    expect(release).toContain("playerView.player = null");
+  });
+
+  it("stops native playback before WebView goBack so the last title is not still bound", () => {
+    const back = mainActivity.slice(
+      mainActivity.indexOf("private fun performDefaultBackNavigation()"),
+      mainActivity.indexOf("private fun setNativeVideoOverlayActive"),
+    );
+    expect(back.indexOf("stopNativeVideoPlayback()")).toBeGreaterThan(-1);
+    expect(back.indexOf("stopNativeVideoPlayback()")).toBeLessThan(back.indexOf("webView.goBack()"));
+  });
+
+  it("unbinds native playback as soon as watch is left, not on the next frame", () => {
+    expect(tvShell).toContain("stopNativePlayback()");
+    expect(tvShell).not.toContain(
+      "requestAnimationFrame(() => stopNativePlayback())",
+    );
+    expect(watchView).toContain('video.removeAttribute("src")');
+  });
+});

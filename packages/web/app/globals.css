@@ -150,7 +150,7 @@
 
   /* Shared spacing rhythm for every TV view. */
   .tv-ui > main {
-    padding-block: 1rem 2rem;
+    padding-block: 1rem 3.25rem;
   }
 
   /* Watch is a fixed full-bleed player — drop main padding so loading/player
@@ -165,7 +165,14 @@
     margin-bottom: var(--tv-section-gap);
   }
 
+  .tv-ui .tv-row-section:last-child {
+    margin-bottom: 1.25rem;
+  }
+
   .tv-ui .tv-row-section > h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     margin-bottom: 0.125rem;
     padding-inline: var(--tv-page-gutter);
     font-size: 1rem;
@@ -174,12 +181,27 @@
     color: hsl(var(--muted-foreground));
   }
 
+  .tv-ui .tv-row-title-icon {
+    display: inline-flex;
+    width: 1.05rem;
+    height: 1.05rem;
+    flex-shrink: 0;
+  }
+
+  .tv-ui .tv-row-title-icon svg {
+    width: 100%;
+    height: 100%;
+  }
+
   .tv-ui .tv-scroll-row {
     gap: var(--tv-row-gap);
     padding-inline: var(--tv-page-gutter);
-    padding-block: 0.25rem 0.35rem;
+    /* Bottom padding keeps 2-line titles above overlay scrollbars / the viewport edge. */
+    padding-block: 0.25rem 1.75rem;
     scroll-padding-inline: var(--tv-page-gutter);
     align-items: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .tv-ui .tv-page {
@@ -220,7 +242,7 @@
   }
 
   .tv-ui [data-tv-content-row] {
-    scroll-margin-block: 2rem;
+    scroll-margin-block: 2.5rem;
   }
 
   /* Keep the final desktop card out from underneath the scroll arrow. */
@@ -368,7 +390,7 @@
 
   .tv-ui .tv-scroll-row {
     scroll-padding-inline: var(--tv-page-gutter);
-    scroll-padding-block: 0.875rem;
+    scroll-padding-block: 1.75rem;
     scroll-behavior: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -381,7 +403,7 @@
   /* Room above posters so focus ring is not clipped by scroll rows */
   .tv-ui .tv-poster-tile {
     padding-top: 0.25rem;
-    padding-bottom: 0.125rem;
+    padding-bottom: 0.25rem;
   }
 
   .tv-ui .tv-poster-title {
@@ -389,6 +411,10 @@
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.3;
+    min-height: 2.6em;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .tv-ui .tv-poster-art {

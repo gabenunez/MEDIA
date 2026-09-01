@@ -11,6 +11,7 @@ const tvScrollRowClassName =
 
 interface TvRowProps {
   title: string;
+  icon?: ReactNode;
   children: ReactNode;
   className?: string;
   seeAllHref?: string;
@@ -22,6 +23,7 @@ interface TvRowProps {
 
 export function TvRow({
   title,
+  icon,
   children,
   className,
   seeAllHref,
@@ -39,7 +41,14 @@ export function TvRow({
 
   return (
     <section className={cn("tv-row-section", className)}>
-      <h2 className="tv-row-title">{title}</h2>
+      <h2 className="tv-row-title">
+        {icon ? (
+          <span className="tv-row-title-icon" aria-hidden>
+            {icon}
+          </span>
+        ) : null}
+        {title}
+      </h2>
       <div
         data-tv-row=""
         data-tv-content-row=""

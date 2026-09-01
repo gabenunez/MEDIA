@@ -170,8 +170,10 @@ class NativePlayerManager(
                 .build()
 
         player = exoPlayer
+        playerView.setKeepContentOnPlayerReset(false)
         playerView.player = exoPlayer
         playerView.useController = false
+        playerView.videoSurfaceView?.visibility = View.VISIBLE
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
         playerView.subtitleView?.visibility = View.GONE
         ensureOverlaySubtitleView()
@@ -565,9 +567,22 @@ class NativePlayerManager(
     private fun releasePlayer() {
         mediaSessionManager?.release()
         mediaSessionManager = null
-        playerView.player = null
-        player?.release()
+        val exoPlayer = player
         player = null
+        // Drop the current title before releasing so PlayerView/SurfaceView cannot
+        // keep showing the last frame after the user leaves watch.
+        playerView.setKeepContentOnPlayerReset(false)
+        playerView.setShutterBackgroundColor(Color.BLACK)
+        playerView.player = null
+        if (exoPlayer != null) {
+            exoPlayer.playWhenReady = false
+            exoPlayer.stop()
+            exoPlayer.clearVideoSurface()
+            exoPlayer.clearMediaItems()
+            exoPlayer.release()
+        }
+        playerView.videoSurfaceView?.visibility = View.GONE
+        playerView.visibility = View.GONE
         overlayCues = emptyList()
         lastOverlayTexts = emptyList()
         overlaySubtitleView?.setCues(emptyList())
