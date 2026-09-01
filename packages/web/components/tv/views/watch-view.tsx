@@ -106,6 +106,7 @@ import {
   shouldCloseWatchMenusOnRebuffer,
 } from "@/lib/tv-watch-subtitles";
 import {
+  nativeWebOverlayAlpha,
   nativeWebOverlayShouldRaise,
   shouldExposeNativeVideoSurface,
   TV_WATCH_REMOTE_KEY_EVENT,
@@ -874,9 +875,6 @@ export function TvWatchView() {
       nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
       nativeSubtitlesSyncedSessionRef.current = -1;
 
-      playbackHasBegunRef.current = false;
-      setPlaybackHasBegun(false);
-      document.documentElement.removeAttribute("data-native-video");
       startNativePlayback({
         url: toAbsoluteMediaUrl(relativeUrl),
         title: titleRef.current || "MEDIA!",
@@ -890,7 +888,18 @@ export function TvWatchView() {
         dolbyVision: info.dynamicRange?.dolbyVision ?? false,
         subtitleUrl,
       });
-      setNativeWebOverlayAlpha(1, true);
+      // New titles reset playbackHasBegunRef in the fileId effect, so a stale
+      // showControlsRef still raises the overlay. Mid-play restarts keep the
+      // native surface up when chrome is already hidden.
+      setNativeWebOverlayAlpha(
+        nativeWebOverlayAlpha({
+          controlsVisible: showControlsRef.current || panelOpenRef.current,
+          blockingOverlayVisible: false,
+          showMidPlaybackBuffering: false,
+          nativePlaybackBegun: playbackHasBegunRef.current,
+        }),
+        true,
+      );
 
       if (usingHls && relativeTime > 0) {
         seekNativePlayback(relativeTime * 1000);
@@ -1327,9 +1336,6 @@ export function TvWatchView() {
     if (usesNativePlayer) {
       setError(null);
       setBuffering(true);
-      playbackHasBegunRef.current = false;
-      setPlaybackHasBegun(false);
-      document.documentElement.removeAttribute("data-native-video");
       if (nativeMidBufferDebounceRef.current) {
         clearTimeout(nativeMidBufferDebounceRef.current);
         nativeMidBufferDebounceRef.current = null;
@@ -1378,7 +1384,15 @@ export function TvWatchView() {
             ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle, usingHls ? startAt : 0))
             : undefined,
       });
-      setNativeWebOverlayAlpha(1, true);
+      setNativeWebOverlayAlpha(
+        nativeWebOverlayAlpha({
+          controlsVisible: showControlsRef.current || panelOpenRef.current,
+          blockingOverlayVisible: false,
+          showMidPlaybackBuffering: false,
+          nativePlaybackBegun: playbackHasBegunRef.current,
+        }),
+        true,
+      );
 
       progressInterval.current = setInterval(
         () => saveProgressRef.current(),

@@ -359,6 +359,17 @@ describe("TV native WebView overlay", () => {
     ).toBe(1);
   });
 
+  it("does not cover a playing native surface when chrome is hidden after playback has begun", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: false,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: false,
+        nativePlaybackBegun: true,
+      }),
+    ).toBe(0);
+  });
+
   it("does not expose the native surface on buffered-only samples", () => {
     expect(
       shouldExposeNativeVideoSurface({
@@ -532,8 +543,9 @@ describe("TV watch remote — wiring (do not revert)", () => {
     const starts = [...watchView.matchAll(/startNativePlayback\(\{/g)];
     expect(starts.length).toBeGreaterThanOrEqual(2);
     for (const match of starts) {
-      const after = watchView.slice(match.index ?? 0, (match.index ?? 0) + 900);
-      expect(after).toContain("setNativeWebOverlayAlpha(1, true)");
+      const after = watchView.slice(match.index ?? 0, (match.index ?? 0) + 1200);
+      expect(after).toContain("nativeWebOverlayAlpha({");
+      expect(after).toContain("nativePlaybackBegun: playbackHasBegunRef.current");
       expect(after).not.toMatch(/setNativeWebOverlayAlpha\(\s*0\s*\)/);
     }
     expect(watchView).toContain("nativeWebOverlayShouldRaise({");
