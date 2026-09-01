@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/favorite-button";
 import { FixMatchDialog } from "@/components/fix-match-dialog";
 import { ThemeMusicWaveform } from "@/components/theme-music-player";
-import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
+import { formatDuration, getPlaybackButtonLabel, canResumePlayback, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { MediaImage } from "@/components/media-image";
 import type { MediaDetail } from "./types";
@@ -24,6 +24,13 @@ export function MediaHero({ media }: { media: MediaDetail }) {
         media.watchProgress?.durationMs ?? movieFile.durationMs,
       )
     : "Play";
+  const movieCanResume = Boolean(
+    movieFile &&
+      canResumePlayback(
+        media.watchProgress?.positionMs,
+        media.watchProgress?.durationMs ?? movieFile?.durationMs,
+      ),
+  );
   const needsMatch = Boolean(media.needsMatch) || !media.tmdbId;
 
   return (
@@ -123,11 +130,20 @@ export function MediaHero({ media }: { media: MediaDetail }) {
 
             <div className="flex flex-wrap items-center gap-3">
               {media.type === "movie" && movieFile && (
-                <Button size="lg" asChild>
-                  <Link href={routes.watch("movie", movieFile.id, media.id)}>
-                    <Play className="h-5 w-5 fill-current" /> {moviePlaybackLabel}
-                  </Link>
-                </Button>
+                <>
+                  <Button size="lg" asChild>
+                    <Link href={routes.watch("movie", movieFile.id, media.id)}>
+                      <Play className="h-5 w-5 fill-current" /> {moviePlaybackLabel}
+                    </Link>
+                  </Button>
+                  {movieCanResume && (
+                    <Button size="lg" variant="outline" asChild>
+                      <Link href={routes.watchFromStart("movie", movieFile.id, media.id)}>
+                        {START_FROM_BEGINNING_LABEL}
+                      </Link>
+                    </Button>
+                  )}
+                </>
               )}
               <FavoriteButton
                 mediaId={media.id}

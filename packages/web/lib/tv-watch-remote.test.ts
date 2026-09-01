@@ -185,6 +185,10 @@ describe("TV watch remote — wiring (do not revert)", () => {
     path.join(webRoot, "components/tv/views/watch-view.tsx"),
     "utf8",
   );
+  const mediaView = readFileSync(
+    path.join(webRoot, "components/tv/views/media-view.tsx"),
+    "utf8",
+  );
 
   it("spatial nav defers to the watch player before stealing catalog focus", () => {
     const handler = spatialNav.slice(spatialNav.indexOf("function onKeyDown"));
@@ -262,5 +266,16 @@ describe("TV watch remote — wiring (do not revert)", () => {
     );
     expect(reveal).toContain("setNativeWebOverlayAlpha(1, true)");
     expect(reveal).toContain("showControlsRef.current = true");
+  });
+
+  it("offers Start from beginning on TV media pages and in the player", () => {
+    expect(mediaView).toContain("START_FROM_BEGINNING_LABEL");
+    expect(mediaView).toContain("watchFromStart");
+    expect(mediaView).toContain("movieCanResume");
+    expect(mediaView).toContain("episodeCanResume");
+    expect(watchView).toContain("resolveWatchInitialResumeSeconds");
+    expect(watchView).toContain("restartFromBeginning");
+    expect(watchView).toContain("fromStart");
+    expect(watchView).toContain("RotateCcw");
   });
 });

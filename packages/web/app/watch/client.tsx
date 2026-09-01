@@ -54,7 +54,7 @@ import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { WatchControlHint } from "@/components/watch-control-hint";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn, formatDuration, resolveWatchInitialResumeSeconds } from "@/lib/utils";
 import { formatDynamicRangeChromeSuffix } from "@media-app/shared";
 import { Button } from "@/components/ui/button";
 import { CastButton } from "@/components/cast-button";
@@ -104,7 +104,7 @@ export function WatchClient() {
 function WatchDesktopClient() {
   const isClient = useIsClient();
   const router = useRouter();
-  const { type, fileId, mediaId, castStartSeconds } = useWatchRouteParams();
+  const { type, fileId, mediaId, castStartSeconds, fromStart } = useWatchRouteParams();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -465,29 +465,28 @@ function WatchDesktopClient() {
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs =
           info.watchProgress?.durationMs ?? info.durationMs ?? 0;
-        const castStartMs =
-          !Number.isNaN(castStartSeconds) && castStartSeconds > 0
-            ? castStartSeconds * 1000
-            : null;
-        if (castStartMs !== null) {
-          setInitialResumeSeconds(castStartMs / 1000);
-          return;
+        const resumeSeconds = resolveWatchInitialResumeSeconds({
+          fromStart,
+          castStartSeconds,
+          positionMs,
+          durationMs,
+        });
+        if (fromStart) {
+          void api.saveProgress({
+            itemType: type,
+            itemId: fileId,
+            positionMs: 0,
+            durationMs: durationMs || undefined,
+          });
         }
-        if (positionMs > 0 && durationMs > 0) {
-          const percent = positionMs / durationMs;
-          if (percent > 0.02 && percent < 0.95) {
-            setInitialResumeSeconds(positionMs / 1000);
-            return;
-          }
-        }
-        setInitialResumeSeconds(0);
+        setInitialResumeSeconds(resumeSeconds);
       })
       .catch((err) => {
         console.error(err);
         setError("Could not load this video. Check your connection and try again.");
         setInitialResumeSeconds(0);
       });
-  }, [fileId, type, castStartSeconds]);
+  }, [fileId, type, castStartSeconds, fromStart]);
 
   useEffect(() => {
     setVolume(loadStoredVolume());

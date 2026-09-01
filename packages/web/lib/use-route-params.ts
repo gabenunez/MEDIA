@@ -51,6 +51,7 @@ export function useWatchRouteParams(): {
   fileId: number;
   mediaId: string | null;
   castStartSeconds: number;
+  fromStart: boolean;
 } {
   const pathname = useBrowserPathname();
   const searchParams = useSearchParams();
@@ -63,5 +64,6 @@ export function useWatchRouteParams(): {
     fileId: route?.fileId ?? Number.NaN,
     mediaId: searchParams.get("media"),
     castStartSeconds: parseInt(searchParams.get("start") ?? "", 10),
+    fromStart: searchParams.get("fromStart") === "1",
   };
 }
