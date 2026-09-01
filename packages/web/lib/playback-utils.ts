@@ -647,6 +647,9 @@ export function getVideoBufferedRanges(
   return ranges;
 }
 
+/** Merge HLS segments (~6s) without picking up live-edge prefetch islands. */
+export const SCRUBBER_BUFFER_MAX_GAP_SECONDS = 8;
+
 /**
  * Scrubber buffer display: one contiguous bar from the playhead forward.
  * Hides disconnected islands from live-edge prefetch that are not playable yet.
@@ -654,7 +657,7 @@ export function getVideoBufferedRanges(
 export function getScrubberBufferedRanges(
   ranges: Array<{ start: number; end: number }>,
   playheadSeconds: number,
-  maxGapSeconds = 4,
+  maxGapSeconds = SCRUBBER_BUFFER_MAX_GAP_SECONDS,
 ): Array<{ start: number; end: number }> {
   if (!ranges.length) return [];
 
@@ -685,6 +688,165 @@ export function getScrubberBufferedRanges(
   }
 
   return merged.filter((range) => range.end > playheadSeconds + 0.05);
+}
+
+/**
+ * Map an element-timeline value onto the 0-based remux window.
+ * After server `-ss`, most browsers report currentTime/buffered/duration from
+ * 0; some keep media PTS already near `hlsStartOffset`.
+ */
+export function alignElementSecondsToRelative(
+  value: number,
+  elementCurrentTime: number,
+  hlsStartOffset = 0,
+): number {
+  const offset = Math.max(0, hlsStartOffset);
+  if (!Number.isFinite(value)) return 0;
+  if (offset <= 1) return value;
+  const playheadLooksRelative = elementCurrentTime < offset * 0.5;
+  if (playheadLooksRelative && value >= offset - 1) {
+    return Math.max(0, value - offset);
+  }
+  return value;
+}
+
+/**
+ * Put `video.buffered` and `video.currentTime` on the same 0-based timeline
+ * before clipping a scrubber bar. Mismatched timelines make
+ * `getScrubberBufferedRanges` return [] — a bar that never moves.
+ */
+export function alignElementBufferToRelativePlayhead(
+  ranges: Array<{ start: number; end: number }>,
+  elementCurrentTime: number,
+  hlsStartOffset = 0,
+): { ranges: Array<{ start: number; end: number }>; playheadSeconds: number } {
+  const offset = Math.max(0, hlsStartOffset);
+  if (!ranges.length || offset <= 1) {
+    return { ranges, playheadSeconds: elementCurrentTime };
+  }
+
+  const playheadInRanges = ranges.some(
+    (range) =>
+      elementCurrentTime >= range.start - 0.25 &&
+      elementCurrentTime <= range.end + SCRUBBER_BUFFER_MAX_GAP_SECONDS,
+  );
+  if (playheadInRanges) {
+    return { ranges, playheadSeconds: elementCurrentTime };
+  }
+
+  const rangesLookRelative = ranges.every((range) => range.end <= offset + 2);
+  if (elementCurrentTime >= offset - 1 && rangesLookRelative) {
+    return {
+      ranges,
+      playheadSeconds: Math.max(0, elementCurrentTime - offset),
+    };
+  }
+
+  return {
+    ranges: ranges.map((range) => ({
+      start: alignElementSecondsToRelative(
+        range.start,
+        elementCurrentTime,
+        offset,
+      ),
+      end: alignElementSecondsToRelative(range.end, elementCurrentTime, offset),
+    })),
+    playheadSeconds: alignElementSecondsToRelative(
+      elementCurrentTime,
+      elementCurrentTime,
+      offset,
+    ),
+  };
+}
+
+/**
+ * Absolute-timeline ranges for the watch scrubber.
+ *
+ * HLS remux playlists grow while MSE `video.buffered` often stays on the
+ * current segment — using only TimeRanges leaves the bar stuck. Extend to the
+ * playlist/seekable edge so the gray bar tracks available media.
+ */
+export function resolveAbsoluteScrubberBufferedRanges(options: {
+  ranges: Array<{ start: number; end: number }>;
+  elementCurrentTime: number;
+  hlsStartOffset?: number;
+  /** Growing playlist / seekable end on the media-element timeline. */
+  availableEndRelative?: number;
+  usingHls?: boolean;
+  maxGapSeconds?: number;
+}): Array<{ start: number; end: number }> {
+  const offset = Math.max(0, options.hlsStartOffset ?? 0);
+  const usingHls = options.usingHls ?? offset > 0;
+  const maxGap = options.maxGapSeconds ?? SCRUBBER_BUFFER_MAX_GAP_SECONDS;
+  const aligned = alignElementBufferToRelativePlayhead(
+    options.ranges,
+    options.elementCurrentTime,
+    usingHls ? offset : 0,
+  );
+
+  const clipped = getScrubberBufferedRanges(
+    aligned.ranges,
+    aligned.playheadSeconds,
+    maxGap,
+  );
+
+  let relativeEnd = clipped[0]?.end ?? aligned.playheadSeconds;
+  if (usingHls && options.availableEndRelative != null) {
+    const available = alignElementSecondsToRelative(
+      options.availableEndRelative,
+      options.elementCurrentTime,
+      offset,
+    );
+    if (available > aligned.playheadSeconds + 0.05) {
+      relativeEnd = Math.max(relativeEnd, available);
+    }
+  }
+
+  if (relativeEnd <= aligned.playheadSeconds + 0.05) return [];
+
+  return [
+    {
+      start: offset + aligned.playheadSeconds,
+      end: offset + relativeEnd,
+    },
+  ];
+}
+
+export function readAbsoluteScrubberBufferedRanges(
+  video: HTMLVideoElement,
+  options: { hlsStartOffset?: number; usingHls?: boolean } = {},
+): Array<{ start: number; end: number }> {
+  const offset = Math.max(0, options.hlsStartOffset ?? 0);
+  const usingHls = options.usingHls ?? offset > 0;
+  const seekableEnd = getVideoSeekableEnd(video);
+  const duration = Number.isFinite(video.duration) ? video.duration : 0;
+  return resolveAbsoluteScrubberBufferedRanges({
+    ranges: getVideoBufferedRanges(video),
+    elementCurrentTime: video.currentTime,
+    hlsStartOffset: offset,
+    usingHls,
+    availableEndRelative: usingHls ? Math.max(seekableEnd, duration) : undefined,
+  });
+}
+
+/** Full-title duration for mapping scrubber percents — not the HLS window. */
+export function resolveScrubberDurationMs(options: {
+  sourceDurationMs: number;
+  elementDurationSeconds: number;
+  hlsStartOffset?: number;
+  usingHls?: boolean;
+}): number {
+  if (options.sourceDurationMs > 0) return options.sourceDurationMs;
+  const elementSeconds = Number.isFinite(options.elementDurationSeconds)
+    ? Math.max(0, options.elementDurationSeconds)
+    : 0;
+  if (!elementSeconds) return 0;
+  const offset = Math.max(0, options.hlsStartOffset ?? 0);
+  if ((options.usingHls ?? offset > 0) && offset > 0) {
+    const relative = alignElementSecondsToRelative(elementSeconds, 0, offset);
+    return (offset + relative) * 1000;
+  }
+  return elementSeconds * 1000;
 }
 
 /**
