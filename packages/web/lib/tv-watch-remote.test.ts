@@ -89,6 +89,27 @@ describe("TV watch remote — hidden chrome", () => {
     ).toBe("skip-back");
   });
 
+  it("does not skip while transport chrome is not mounted yet", () => {
+    expect(
+      watchHiddenChromeArrowIntent({
+        key: "ArrowLeft",
+        showTransportControls: false,
+      }),
+    ).toBeNull();
+    expect(
+      watchHiddenChromeArrowIntent({
+        key: "ArrowUp",
+        showTransportControls: false,
+      }),
+    ).toBeNull();
+    expect(
+      watchHiddenChromeArrowIntent({
+        key: "ArrowDown",
+        showTransportControls: false,
+      }),
+    ).toBe("reveal-play");
+  });
+
   it("moves between visible transport buttons instead of skipping on D-pad", () => {
     expect(watchVisibleTransportArrowIntent("ArrowLeft")).toBe("move-focus");
     expect(watchVisibleTransportArrowIntent("ArrowRight")).toBe("move-focus");
@@ -200,7 +221,7 @@ describe("TV watch remote — wiring (do not revert)", () => {
 
   it("spatial nav moves between watch control buttons on D-pad left/right", () => {
     expect(spatialNav).not.toContain("isWatchHorizontalSkipKey");
-    expect(spatialNav).toContain("Left/Right stay here so focus can move");
+    expect(spatialNav).toContain("spatialNavShouldHandleWatchArrow");
     expect(spatialNav).toContain("isWatchPlayerActive()");
   });
 
@@ -217,8 +238,7 @@ describe("TV watch remote — wiring (do not revert)", () => {
 
   it("watch view skips from hidden-arrow intent", () => {
     expect(watchView).toContain("watchHiddenChromeArrowIntent");
-    expect(watchView).toContain('hiddenArrow === "skip-back"');
-    expect(watchView).toContain('hiddenArrow === "skip-forward"');
+    expect(watchView).toContain("watchSkipDeltaSeconds");
   });
 
   it("skip uses live native playhead refs instead of stale React state", () => {
@@ -228,13 +248,12 @@ describe("TV watch remote — wiring (do not revert)", () => {
 
   it("handles dedicated rewind/fast-forward while transport controls are focused", () => {
     expect(watchView).toContain("watchVisibleTransportArrowIntent");
-    expect(watchView).toContain("skipRelative(-10)");
-    expect(watchView).toContain("skipRelative(30)");
+    expect(watchView).toContain("watchSkipDeltaSeconds");
   });
 
   it("commits the scrub preview on OK/click instead of only revealing chrome", () => {
     expect(watchView).toContain("commitScrubPreview");
-    expect(watchView).toContain("shouldCommitScrubPreview");
+    expect(watchView).toContain("resolveScrubCommitDecision");
     expect(watchView).toContain("progressRef.current = optimisticProgressPercent ?? progress");
     expect(watchView).not.toContain("progressRef.current = displayedProgress");
     const scrubButton = watchView.slice(
