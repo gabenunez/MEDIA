@@ -67,7 +67,7 @@ import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
 import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { resolveWebSubtitlePlaybackSeconds } from "@/lib/subtitle-timeline";
-import { formatSubtitleLabel } from "@/lib/watch-helpers";
+import { formatSubtitleLabel, isOnlineSubtitleSource } from "@/lib/watch-helpers";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -225,6 +225,7 @@ function WatchDesktopClient() {
     removeSubtitleTrack,
     refreshSubtitles,
     opensubtitlesConfigured,
+    wyzieConfigured,
   } = useSubtitleTracks(
     fileId,
     type,
@@ -1581,7 +1582,7 @@ function WatchDesktopClient() {
                               >
                                 {formatSubtitleLabel(sub)}
                               </button>
-                              {sub.source === "opensubtitles" && (
+                              {isOnlineSubtitleSource(sub.source) && (
                                 <button
                                   className="watch-menu-item watch-menu-muted w-auto shrink-0 px-2 py-1 text-xs hover:text-red-300"
                                   onClick={() => {
@@ -1700,6 +1701,7 @@ function WatchDesktopClient() {
         fileId={fileId}
         type={type === "movie" ? "movie" : "episode"}
         opensubtitlesConfigured={opensubtitlesConfigured}
+        wyzieConfigured={wyzieConfigured}
         onDownloaded={(track) => {
           setActiveSubtitle(track.id);
           setSubtitleMenuOpen(false);

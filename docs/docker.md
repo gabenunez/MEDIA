@@ -25,6 +25,7 @@ simple image pull — nothing is lost.
        environment:
          TMDB_API_KEY: ""          # optional; can also be set in the web UI
          OPENSUBTITLES_API_KEY: "" # optional
+         WYZIE_API_KEY: ""         # optional
        volumes:
          - ./config:/config
          - ./data:/data
@@ -111,7 +112,8 @@ reads these optional environment variables on **first run** (when it seeds
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TMDB_API_KEY` | _(empty)_ | Metadata + posters. Free from themoviedb.org. |
-| `OPENSUBTITLES_API_KEY` | _(empty)_ | Online subtitle search. |
+| `OPENSUBTITLES_API_KEY` | _(empty)_ | Online subtitle search (OpenSubtitles). |
+| `WYZIE_API_KEY` | _(empty)_ | Extra subtitle sources via Wyzie (SubDL, Podnapisi, and more). |
 | `MEDIA_LANGUAGE` | `en-US` | Metadata language. |
 | `MEDIA_PORT` | `8096` | Internal listen port. |
 

@@ -53,6 +53,7 @@ import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import { PlaybackQualityNotice } from "@/components/playback-quality-notice";
 import {
   formatSubtitleLabel,
+  isOnlineSubtitleSource,
   qualityLabel,
   resolveFallbackQuality,
 } from "@/lib/watch-helpers";
@@ -440,6 +441,7 @@ export function TvWatchView() {
     refreshSubtitles,
     removeSubtitleTrack,
     opensubtitlesConfigured,
+    wyzieConfigured,
   } = useSubtitleTracks(
     fileId,
     type,
@@ -2839,7 +2841,7 @@ export function TvWatchView() {
                                 key={sub.id}
                                 label={formatSubtitleLabel(sub)}
                                 selected={activeSubtitle === sub.id}
-                                removable={sub.source === "opensubtitles"}
+                                removable={isOnlineSubtitleSource(sub.source)}
                                 onSelect={() => {
                                   selectSubtitleOnNative(sub.id);
                                   closeMenus();
@@ -2859,7 +2861,7 @@ export function TvWatchView() {
                               Customize appearance…
                             </TvFocusButton>
                             <div className="my-1 border-t border-border" />
-                            {opensubtitlesConfigured ? (
+                            {opensubtitlesConfigured || wyzieConfigured ? (
                               <TvFocusButton
                                 variant="default"
                                 onClick={() => {
@@ -2952,6 +2954,7 @@ export function TvWatchView() {
         fileId={fileId}
         type={type}
         opensubtitlesConfigured={opensubtitlesConfigured}
+        wyzieConfigured={wyzieConfigured}
         onDownloaded={(track) => {
           selectSubtitleOnNative(track.id);
           void refreshSubtitles(track);

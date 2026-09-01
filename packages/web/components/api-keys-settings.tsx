@@ -16,13 +16,16 @@ export function ApiKeysSettings({ settings, onChange }: ApiKeysSettingsProps) {
   const [tmdbKey, setTmdbKey] = useState("");
   const [fanartKey, setFanartKey] = useState("");
   const [osKey, setOsKey] = useState("");
+  const [wyzieKey, setWyzieKey] = useState("");
   const [savingTmdb, setSavingTmdb] = useState(false);
   const [savingFanart, setSavingFanart] = useState(false);
   const [savingOs, setSavingOs] = useState(false);
+  const [savingWyzie, setSavingWyzie] = useState(false);
   const [refreshingMetadata, setRefreshingMetadata] = useState(false);
   const [tmdbMessage, setTmdbMessage] = useState<string | null>(null);
   const [fanartMessage, setFanartMessage] = useState<string | null>(null);
   const [osMessage, setOsMessage] = useState<string | null>(null);
+  const [wyzieMessage, setWyzieMessage] = useState<string | null>(null);
 
   const handleSaveTmdbKey = async () => {
     setSavingTmdb(true);
@@ -98,6 +101,21 @@ export function ApiKeysSettings({ settings, onChange }: ApiKeysSettingsProps) {
       setOsMessage(err instanceof Error ? err.message : "Failed to save key");
     } finally {
       setSavingOs(false);
+    }
+  };
+
+  const handleSaveWyzieKey = async () => {
+    setSavingWyzie(true);
+    setWyzieMessage(null);
+    try {
+      const result = await api.updateWyzieKey(wyzieKey);
+      setWyzieMessage(result.wyzieConfigured ? "Saved" : "Key cleared");
+      setWyzieKey("");
+      onChange();
+    } catch (err) {
+      setWyzieMessage(err instanceof Error ? err.message : "Failed to save key");
+    } finally {
+      setSavingWyzie(false);
     }
   };
 
@@ -209,6 +227,33 @@ export function ApiKeysSettings({ settings, onChange }: ApiKeysSettingsProps) {
           saving={savingOs}
           onSave={handleSaveOsKey}
           message={osMessage}
+        />
+
+        <ApiKeyRow
+          title="Wyzie"
+          configured={settings.subtitles.wyzieConfigured}
+          keyPreview={settings.subtitles.wyzieApiKeyPreview}
+          description={
+            <>
+              Extra subtitle sources (SubDL, Podnapisi, and more) during playback. Use
+              alongside OpenSubtitles or on its own. Get a free key at{" "}
+              <a
+                href="https://store.wyzie.io/redeem"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary transition-colors hover:text-accent"
+              >
+                store.wyzie.io/redeem
+              </a>
+              .
+            </>
+          }
+          value={wyzieKey}
+          onChange={setWyzieKey}
+          placeholder="Paste your Wyzie API key"
+          saving={savingWyzie}
+          onSave={handleSaveWyzieKey}
+          message={wyzieMessage}
         />
       </div>
     </SettingsSection>

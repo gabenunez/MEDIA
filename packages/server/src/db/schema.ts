@@ -135,7 +135,7 @@ export const subtitles = sqliteTable(
     language: text("language").notNull().default("und"),
     label: text("label"),
     source: text("source", {
-      enum: ["external", "embedded", "opensubtitles"],
+      enum: ["external", "embedded", "opensubtitles", "wyzie"],
     }).notNull(),
     pathOrIndex: text("path_or_index").notNull(),
     isDefault: integer("is_default", { mode: "boolean" }).default(false),

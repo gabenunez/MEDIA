@@ -61,7 +61,13 @@ function normalizeConfig(raw: AppConfig, configDir: string): AppConfig {
     config.auth = {};
   }
   if (!config.subtitles) {
-    config.subtitles = { opensubtitles_api_key: "" };
+    config.subtitles = { opensubtitles_api_key: "", wyzie_api_key: "" };
+  }
+  if (config.subtitles.opensubtitles_api_key === undefined) {
+    config.subtitles.opensubtitles_api_key = "";
+  }
+  if (config.subtitles.wyzie_api_key === undefined) {
+    config.subtitles.wyzie_api_key = "";
   }
 
   config.data_dir = path.resolve(configDir, config.data_dir);
@@ -173,6 +179,14 @@ export class ConfigManager {
     this.save();
   }
 
+  setWyzieApiKey(apiKey: string): void {
+    if (!this.config.subtitles) {
+      this.config.subtitles = {};
+    }
+    this.config.subtitles.wyzie_api_key = apiKey.trim();
+    this.save();
+  }
+
   setPasswordHash(passwordHash: string): void {
     if (!this.config.auth) {
       this.config.auth = {};
@@ -231,6 +245,7 @@ export class ConfigManager {
       subtitles: {
         opensubtitles_api_key:
           this.config.subtitles?.opensubtitles_api_key ?? "",
+        wyzie_api_key: this.config.subtitles?.wyzie_api_key ?? "",
       },
       transcoding: {
         ...this.config.transcoding,

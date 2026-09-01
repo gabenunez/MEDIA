@@ -539,6 +539,12 @@ export function SettingsClient() {
                   okText="Configured"
                   failText="Not configured"
                 />
+                <StatusRow
+                  label="Wyzie"
+                  ok={settings?.subtitles.wyzieConfigured ?? false}
+                  okText="Configured"
+                  failText="Not configured"
+                />
               </div>
             </SettingsSection>
           </>

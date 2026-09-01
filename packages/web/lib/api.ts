@@ -127,6 +127,8 @@ export interface AppSettings {
   subtitles: {
     opensubtitlesConfigured: boolean;
     opensubtitlesApiKeyPreview: string;
+    wyzieConfigured: boolean;
+    wyzieApiKeyPreview: string;
   };
   browseShortcuts: BrowseShortcut[];
   downloadsDir: string;
@@ -233,7 +235,7 @@ export interface SubtitleTrack {
   id: number;
   language: string;
   label?: string | null;
-  source?: "external" | "embedded" | "opensubtitles";
+  source?: "external" | "embedded" | "opensubtitles" | "wyzie";
 }
 
 export interface SubtitleSearchResult {
@@ -246,6 +248,9 @@ export interface SubtitleSearchResult {
   fileName: string;
   fps?: number;
   uploader?: string;
+  provider?: "opensubtitles" | "wyzie";
+  url?: string;
+  sourceLabel?: string;
 }
 
 export interface HomePlayTarget {
@@ -569,13 +574,23 @@ export const api = {
       body: JSON.stringify({ tmdb_api_key }),
     }),
   updateOpenSubtitlesKey: (opensubtitles_api_key: string) =>
-    fetchApi<{ success: boolean; opensubtitlesConfigured: boolean }>(
-      "/api/settings/subtitles",
-      {
-        method: "PUT",
-        body: JSON.stringify({ opensubtitles_api_key }),
-      },
-    ),
+    fetchApi<{
+      success: boolean;
+      opensubtitlesConfigured: boolean;
+      wyzieConfigured: boolean;
+    }>("/api/settings/subtitles", {
+      method: "PUT",
+      body: JSON.stringify({ opensubtitles_api_key }),
+    }),
+  updateWyzieKey: (wyzie_api_key: string) =>
+    fetchApi<{
+      success: boolean;
+      opensubtitlesConfigured: boolean;
+      wyzieConfigured: boolean;
+    }>("/api/settings/subtitles", {
+      method: "PUT",
+      body: JSON.stringify({ wyzie_api_key }),
+    }),
   updateFanartKey: (fanart_api_key: string) =>
     fetchApi<{
       success: boolean;
@@ -589,6 +604,7 @@ export const api = {
     fetchApi<{
       tracks: SubtitleTrack[];
       opensubtitlesConfigured: boolean;
+      wyzieConfigured: boolean;
     }>(`/api/subtitles/list?fileId=${fileId}&type=${type}`),
   searchSubtitles: (fileId: number, type: "movie" | "episode", languages = "en") =>
     fetchApi<{
@@ -606,7 +622,10 @@ export const api = {
   downloadSubtitle: (data: {
     fileId: number;
     type: "movie" | "episode";
-    opensubtitlesFileId: number;
+    provider?: "opensubtitles" | "wyzie";
+    opensubtitlesFileId?: number;
+    wyzieUrl?: string;
+    wyzieId?: string;
     language: string;
     release: string;
   }) =>

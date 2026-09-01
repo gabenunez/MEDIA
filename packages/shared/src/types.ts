@@ -1,6 +1,13 @@
 export type LibraryType = "movies" | "tv";
 export type MediaType = "movie" | "tv";
-export type SubtitleSource = "external" | "embedded" | "opensubtitles";
+export type SubtitleSource = "external" | "embedded" | "opensubtitles" | "wyzie";
+
+export function isOnlineSubtitleSource(
+  source: string | null | undefined,
+): source is "opensubtitles" | "wyzie" {
+  return source === "opensubtitles" || source === "wyzie";
+}
+
 export type ScanJobStatus = "pending" | "running" | "completed" | "failed";
 export type WatchItemType = "movie" | "episode";
 
@@ -35,6 +42,7 @@ export interface AuthConfig {
 
 export interface SubtitlesConfig {
   opensubtitles_api_key?: string;
+  wyzie_api_key?: string;
 }
 
 export interface AppConfig {

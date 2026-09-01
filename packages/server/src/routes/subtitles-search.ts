@@ -6,6 +6,8 @@ import type { ConfigManager } from "../config.js";
 import type { SubtitleService } from "../services/subtitles.js";
 import { OpenSubtitlesService } from "../services/opensubtitles.js";
 import { computeOpenSubtitlesHash } from "../utils/opensubtitles-hash.js";
+import { WyzieService } from "../services/wyzie.js";
+import { mergeSubtitleSearchResults } from "../utils/subtitle-search-merge.js";
 import {
   mediaItems,
   movieFiles,
@@ -13,6 +15,8 @@ import {
   tvSeasons,
 } from "../db/schema.js";
 import { errorMessage } from "./util.js";
+
+type SubtitleProvider = "opensubtitles" | "wyzie";
 
 async function resolvePlaybackContext(
   db: DatabaseInstance,
@@ -81,6 +85,7 @@ export async function subtitleSearchRoutes(
   subtitleService: SubtitleService,
 ) {
   const openSubtitles = new OpenSubtitlesService(configManager);
+  const wyzie = new WyzieService(configManager);
 
   app.get<{ Querystring: { fileId?: string; type?: "movie" | "episode" } }>(
     "/api/subtitles/list",
@@ -96,7 +101,11 @@ export async function subtitleSearchRoutes(
           ? await subtitleService.listForMovieFile(fileId)
           : await subtitleService.listForEpisode(fileId);
 
-      return { tracks, opensubtitlesConfigured: openSubtitles.isConfigured() };
+      return {
+        tracks,
+        opensubtitlesConfigured: openSubtitles.isConfigured(),
+        wyzieConfigured: wyzie.isConfigured(),
+      };
     },
   );
 
@@ -115,9 +124,11 @@ export async function subtitleSearchRoutes(
       return reply.status(400).send({ error: "fileId is required" });
     }
 
-    if (!openSubtitles.isConfigured()) {
+    const osConfigured = openSubtitles.isConfigured();
+    const wyzieConfigured = wyzie.isConfigured();
+    if (!osConfigured && !wyzieConfigured) {
       return reply.status(400).send({
-        error: "OpenSubtitles API key is not configured — add one in Settings",
+        error: "Add an OpenSubtitles or Wyzie API key in Settings to search online subtitles",
       });
     }
 
@@ -126,35 +137,99 @@ export async function subtitleSearchRoutes(
       return reply.status(404).send({ error: "File not found" });
     }
 
-    const { hash, size } = computeOpenSubtitlesHash(context.filePath);
-    const imdbId = imdbIdToOpenSubtitlesNumber(context.imdbId);
-    const shared = {
-      languages,
-      type: context.type,
-      seasonNumber: context.seasonNumber,
-      episodeNumber: context.episodeNumber,
-    } as const;
+    const searches: Array<Promise<Array<{
+      id: string;
+      fileId: number;
+      language: string;
+      release: string;
+      downloadCount: number;
+      hearingImpaired: boolean;
+      fileName: string;
+      fps?: number;
+      uploader?: string;
+      provider: SubtitleProvider;
+      url?: string;
+      sourceLabel: string;
+    }>>> = [];
 
-    // Hash and identity filters are ANDed by OpenSubtitles — a unique rip hash
-    // would wipe an otherwise-correct IMDb/TMDB hit. Try hash alone first for
-    // sync accuracy, then fall back to listing identity.
-    let results = await openSubtitles.search({
-      movieHash: hash,
-      movieByteSize: size,
-      ...shared,
-    });
+    if (osConfigured) {
+      searches.push(
+        (async () => {
+          const { hash, size } = computeOpenSubtitlesHash(context.filePath);
+          const imdbId = imdbIdToOpenSubtitlesNumber(context.imdbId);
+          const shared = {
+            languages,
+            type: context.type,
+            seasonNumber: context.seasonNumber,
+            episodeNumber: context.episodeNumber,
+          } as const;
 
-    if (results.length === 0) {
-      results = await openSubtitles.search({
-        query: context.title,
-        tmdbId: context.tmdbId ?? undefined,
-        imdbId,
-        ...shared,
+          // Hash and identity filters are ANDed by OpenSubtitles — a unique rip hash
+          // would wipe an otherwise-correct IMDb/TMDB hit. Try hash alone first for
+          // sync accuracy, then fall back to listing identity.
+          let results = await openSubtitles.search({
+            movieHash: hash,
+            movieByteSize: size,
+            ...shared,
+          });
+
+          if (results.length === 0) {
+            results = await openSubtitles.search({
+              query: context.title,
+              tmdbId: context.tmdbId ?? undefined,
+              imdbId,
+              ...shared,
+            });
+          }
+
+          return results.map((result) => ({
+            ...result,
+            provider: "opensubtitles" as const,
+            sourceLabel: "OpenSubtitles",
+          }));
+        })(),
+      );
+    }
+
+    if (wyzieConfigured) {
+      searches.push(
+        wyzie
+          .search({
+            imdbId: context.imdbId,
+            tmdbId: context.tmdbId,
+            seasonNumber: context.seasonNumber,
+            episodeNumber: context.episodeNumber,
+            languages,
+          })
+          .then((results) =>
+            osConfigured
+              ? results.filter(
+                  (result) => result.source?.toLowerCase() !== "opensubtitles",
+                )
+              : results,
+          ),
+      );
+    }
+
+    const settled = await Promise.allSettled(searches);
+    const groups = [];
+    let firstError: unknown;
+    for (const result of settled) {
+      if (result.status === "fulfilled") {
+        groups.push(result.value);
+      } else if (!firstError) {
+        firstError = result.reason;
+      }
+    }
+
+    if (groups.length === 0) {
+      return reply.status(400).send({
+        error: errorMessage(firstError, "Search failed"),
       });
     }
 
     return {
-      results,
+      results: mergeSubtitleSearchResults(groups),
       context: {
         title: context.title,
         year: context.year,
@@ -169,15 +244,73 @@ export async function subtitleSearchRoutes(
     Body: {
       fileId: number;
       type: "movie" | "episode";
-      opensubtitlesFileId: number;
+      provider?: SubtitleProvider;
+      opensubtitlesFileId?: number;
+      wyzieUrl?: string;
+      wyzieId?: string;
       language: string;
       release: string;
     };
   }>("/api/subtitles/download", async (request, reply) => {
-    const { fileId, type, opensubtitlesFileId, language, release } =
-      request.body;
+    const {
+      fileId,
+      type,
+      provider = "opensubtitles",
+      opensubtitlesFileId,
+      wyzieUrl,
+      wyzieId,
+      language,
+      release,
+    } = request.body;
 
-    if (!fileId || !opensubtitlesFileId || !language) {
+    if (!fileId || !language) {
+      return reply.status(400).send({ error: "Invalid download request" });
+    }
+
+    const context = await resolvePlaybackContext(db, fileId, type);
+    if (!context || !fs.existsSync(context.filePath)) {
+      return reply.status(404).send({ error: "File not found" });
+    }
+
+    if (provider === "wyzie") {
+      if (!wyzieUrl) {
+        return reply.status(400).send({ error: "Invalid download request" });
+      }
+      if (!wyzie.isConfigured()) {
+        return reply.status(400).send({
+          error: "Wyzie API key is not configured — add one in Settings",
+        });
+      }
+
+      let content: string;
+      try {
+        ({ content } = await wyzie.downloadSubtitleFile(wyzieUrl));
+      } catch (err) {
+        return reply.status(400).send({
+          error: errorMessage(err, "Failed to download subtitle file"),
+        });
+      }
+
+      try {
+        const track = await subtitleService.attachWyzieDownload({
+          movieFileId: context.movieFileId,
+          episodeId: context.episodeId,
+          wyzieId: wyzieId || wyzieUrl,
+          language,
+          release: release || "Downloaded subtitle",
+          rawContent: content,
+        });
+        return { success: true, track };
+      } catch (err) {
+        const message = errorMessage(err, "Failed to save subtitle");
+        if (message.includes("no dialogue") || message.includes("persist")) {
+          return reply.status(400).send({ error: message });
+        }
+        throw err;
+      }
+    }
+
+    if (!opensubtitlesFileId) {
       return reply.status(400).send({ error: "Invalid download request" });
     }
 
@@ -187,17 +320,11 @@ export async function subtitleSearchRoutes(
       });
     }
 
-    const context = await resolvePlaybackContext(db, fileId, type);
-    if (!context || !fs.existsSync(context.filePath)) {
-      return reply.status(404).send({ error: "File not found" });
-    }
-
     let content: string;
     try {
       ({ content } = await openSubtitles.downloadSubtitleFile(opensubtitlesFileId));
     } catch (err) {
-      const message =
-        errorMessage(err, "Failed to download subtitle file");
+      const message = errorMessage(err, "Failed to download subtitle file");
       return reply.status(400).send({ error: message });
     }
 

@@ -86,6 +86,7 @@ export async function settingsRoutes(
     const tmdb = maskApiKey(config.metadata.tmdb_api_key);
     const fanart = maskApiKey(config.metadata.fanart_api_key);
     const opensubtitles = maskApiKey(config.subtitles?.opensubtitles_api_key);
+    const wyzie = maskApiKey(config.subtitles?.wyzie_api_key);
 
     return {
       ffmpegAvailable,
@@ -104,6 +105,8 @@ export async function settingsRoutes(
       subtitles: {
         opensubtitlesConfigured: opensubtitles.configured,
         opensubtitlesApiKeyPreview: opensubtitles.preview,
+        wyzieConfigured: wyzie.configured,
+        wyzieApiKeyPreview: wyzie.preview,
       },
       browseShortcuts: getBrowseShortcuts(),
     };
@@ -367,19 +370,33 @@ export async function settingsRoutes(
     },
   );
 
-  app.put<{ Body: { opensubtitles_api_key?: string } }>(
+  app.put<{ Body: { opensubtitles_api_key?: string; wyzie_api_key?: string } }>(
     "/api/settings/subtitles",
     async (request, reply) => {
-      const apiKey = request.body?.opensubtitles_api_key;
-      if (apiKey === undefined) {
-        return reply.status(400).send({ error: "opensubtitles_api_key is required" });
+      const osKey = request.body?.opensubtitles_api_key;
+      const wyzieKey = request.body?.wyzie_api_key;
+      if (osKey === undefined && wyzieKey === undefined) {
+        return reply.status(400).send({
+          error: "opensubtitles_api_key or wyzie_api_key is required",
+        });
       }
 
-      configManager.setOpenSubtitlesApiKey(apiKey);
-      const trimmed = apiKey.trim();
-      const configured = Boolean(trimmed && trimmed !== "YOUR_KEY_HERE");
+      if (osKey !== undefined) {
+        configManager.setOpenSubtitlesApiKey(osKey);
+      }
+      if (wyzieKey !== undefined) {
+        configManager.setWyzieApiKey(wyzieKey);
+      }
 
-      return { success: true, opensubtitlesConfigured: configured };
+      const subtitles = configManager.get().subtitles;
+      const osTrimmed = (osKey ?? subtitles?.opensubtitles_api_key ?? "").trim();
+      const wyzieTrimmed = (wyzieKey ?? subtitles?.wyzie_api_key ?? "").trim();
+
+      return {
+        success: true,
+        opensubtitlesConfigured: Boolean(osTrimmed && osTrimmed !== "YOUR_KEY_HERE"),
+        wyzieConfigured: Boolean(wyzieTrimmed && wyzieTrimmed !== "YOUR_KEY_HERE"),
+      };
     },
   );
 
