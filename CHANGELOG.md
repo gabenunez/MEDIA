@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.241 — 2026-09-01
+
+### Fix
+- **Subtitles** — stop Wyzie downloads from failing with “Invalid Wyzie download URL”
+
 ## 0.1.240 — 2026-09-01
 
 ### Settings
