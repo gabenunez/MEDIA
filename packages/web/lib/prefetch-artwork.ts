@@ -1,5 +1,15 @@
 import { api, type MediaItem } from "@/lib/api";
-import { nextOptimizedImageUrl } from "@/lib/next-image-url";
+import {
+  nextOptimizedImageUrl,
+  PLAYBACK_IMAGE_QUALITY,
+  PLAYBACK_IMAGE_WIDTH,
+} from "@/lib/next-image-url";
+import {
+  findNextEpisode,
+  nextEpisodeArtworkPaths,
+  type NextEpisodeInfo,
+  type PlaybackMediaDetail,
+} from "@/lib/playback-utils";
 import { prefetchMediaPage } from "@/lib/use-media-page-data";
 import { prefetchThemeMusic } from "@/components/theme-music-player";
 import { TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
@@ -13,16 +23,29 @@ const FOCUS_NAV_DWELL_MS = 160;
 
 const pendingNavPrefetch = new Map<number, number>();
 
+function hintDocumentImagePreload(href: string): void {
+  if (typeof document === "undefined") return;
+  const link = document.createElement("link");
+  link.rel = "preload";
+  link.as = "image";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
 /** Warm the browser image cache for a poster/backdrop URL (deduped). */
 export function preloadImageUrl(
   url: string | null | undefined,
   width = 384,
   quality = 75,
+  options?: { documentHint?: boolean },
 ): void {
   if (!url) return;
   const optimized = nextOptimizedImageUrl(url, width, quality);
   if (inflight.has(optimized)) return;
   inflight.add(optimized);
+  if (options?.documentHint) {
+    hintDocumentImagePreload(optimized);
+  }
   const img = new Image();
   img.decoding = "async";
   const done = () => inflight.delete(optimized);
@@ -91,9 +114,35 @@ export function prefetchPosterFocus(item: PosterLike): void {
 export function preloadPlaybackStill(path?: string | null): void {
   preloadImageUrl(
     tvImageUrl(path, { hd: true }) ?? api.imageUrl(path),
-    1920,
-    85,
+    PLAYBACK_IMAGE_WIDTH,
+    PLAYBACK_IMAGE_QUALITY,
+    { documentHint: true },
   );
+}
+
+/** Warm every still/backdrop/poster the up-next overlay and next watch page use. */
+export function preloadNextEpisodeArtwork(
+  next: NextEpisodeInfo,
+  media?: PlaybackMediaDetail | null,
+): void {
+  for (const path of nextEpisodeArtworkPaths(next, media)) {
+    preloadPlaybackStill(path);
+  }
+}
+
+/**
+ * Start next-episode artwork as soon as media JSON arrives — before countdown
+ * or the next watch page begins loading.
+ */
+export function warmNextEpisodeArtwork(
+  type: "movie" | "episode",
+  media: PlaybackMediaDetail | null | undefined,
+  currentEpisodeId: number,
+): void {
+  if (type !== "episode" || !media) return;
+  const next = findNextEpisode(media, currentEpisodeId);
+  if (!next) return;
+  preloadNextEpisodeArtwork(next, media);
 }
 
 export function preloadPosterList(

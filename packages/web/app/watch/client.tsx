@@ -52,6 +52,7 @@ import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { WatchControlHint } from "@/components/watch-control-hint";
+import { warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { cn, formatDuration, resolveWatchInitialResumeSeconds } from "@/lib/utils";
@@ -508,6 +509,7 @@ function WatchDesktopClient() {
         const media = data as unknown as MediaDetail;
         setMediaDetail(media);
         setTitle(buildPlaybackTitle(type, media, fileId));
+        warmNextEpisodeArtwork(type, media, fileId);
 
         if (type === "episode") {
           const episode = findEpisode(media, fileId);

@@ -6,14 +6,13 @@ import { routes } from "@/lib/routes";
 import {
   findNextEpisode,
   formatEpisodeLabel,
-  nextEpisodePreviewPath,
   NEXT_EPISODE_COUNTDOWN_SECONDS,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
   type NextEpisodeInfo,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
-import { preloadPlaybackStill } from "@/lib/prefetch-artwork";
+import { preloadNextEpisodeArtwork } from "@/lib/prefetch-artwork";
 
 export interface NextEpisodeCountdownState extends NextEpisodeInfo {
   secondsLeft: number;
@@ -56,7 +55,10 @@ export function useNextEpisodeCountdown(options: {
     [clearCountdown, mediaId, onNavigate],
   );
 
-  const beginCountdown = useCallback((next: NextEpisodeInfo) => {
+  const beginCountdown = useCallback((
+    next: NextEpisodeInfo,
+    mediaDetail?: PlaybackMediaDetail | null,
+  ) => {
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
@@ -66,7 +68,7 @@ export function useNextEpisodeCountdown(options: {
       ...next,
       secondsLeft: NEXT_EPISODE_COUNTDOWN_SECONDS,
     });
-    preloadPlaybackStill(next.episode.stillPath);
+    preloadNextEpisodeArtwork(next, mediaDetail);
 
     void api
       .getStreamInfo(next.episode.id, "episode")
@@ -106,14 +108,14 @@ export function useNextEpisodeCountdown(options: {
       return;
     }
 
-    beginCountdown(next);
+    beginCountdown(next, media);
   }, [type, mediaId, media, fileId, beginCountdown]);
 
   useEffect(() => {
     if (type !== "episode" || !media) return;
     const next = findNextEpisode(media, fileId);
     if (!next) return;
-    preloadPlaybackStill(nextEpisodePreviewPath(next, media));
+    preloadNextEpisodeArtwork(next, media);
   }, [type, media, fileId]);
 
   useEffect(() => {
@@ -126,7 +128,7 @@ export function useNextEpisodeCountdown(options: {
       return;
     }
 
-    beginCountdown(next);
+    beginCountdown(next, media);
   }, [media, fileId, beginCountdown]);
 
   useEffect(() => {

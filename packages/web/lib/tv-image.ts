@@ -4,8 +4,8 @@ import { isTv4KClient, isTvClient } from "@/lib/tv-mode-detect";
 
 /** List/grid poster quality — keep on Next's default allowlist for preload cache hits. */
 export const TV_LIST_IMAGE_QUALITY = 75;
-/** Hero / detail imagery can spend a bit more bitrate. */
-export const TV_HERO_IMAGE_QUALITY = 85;
+/** Hero / detail imagery — must stay on Next's `images.qualities` allowlist. */
+export const TV_HERO_IMAGE_QUALITY = 80;
 
 /** True when SD source is upscaled on a 4K TV WebView (not native ExoPlayer). */
 export function needsTvSdUpscaleSoftening(
