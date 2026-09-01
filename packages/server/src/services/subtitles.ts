@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { eq, and, or } from "drizzle-orm";
-import { convertSrtToVtt, isSubtitleFile } from "@media-app/shared";
+import {
+  convertSrtToVtt,
+  isOnlineSubtitleSource,
+  isSubtitleFile,
+} from "@media-app/shared";
 import type { AppConfig } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import { subtitles, movieFiles, tvEpisodes } from "../db/schema.js";
@@ -139,7 +143,7 @@ export class SubtitleService {
     for (const row of rows) {
       if (await this.rowHasContent(row)) {
         tracks.push(subtitleToTrack(row));
-      } else if (row.source !== "opensubtitles") {
+      } else if (!isOnlineSubtitleSource(row.source)) {
         await this.deleteSubtitle(row.id);
       }
     }
@@ -166,17 +170,54 @@ export class SubtitleService {
     release: string;
     rawContent: string;
   }) {
-    const cachePath = path.join(
-      this.cacheDir,
-      `os_${params.movieFileId ?? params.episodeId}_${params.opensubtitlesFileId}.vtt`,
-    );
+    return this.attachOnlineDownload({
+      movieFileId: params.movieFileId,
+      episodeId: params.episodeId,
+      cacheKey: `os_${params.movieFileId ?? params.episodeId}_${params.opensubtitlesFileId}`,
+      language: params.language,
+      release: params.release,
+      rawContent: params.rawContent,
+      source: "opensubtitles",
+    });
+  }
+
+  async attachWyzieDownload(params: {
+    movieFileId?: number;
+    episodeId?: number;
+    wyzieId: string;
+    language: string;
+    release: string;
+    rawContent: string;
+  }) {
+    const safeId = params.wyzieId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+    return this.attachOnlineDownload({
+      movieFileId: params.movieFileId,
+      episodeId: params.episodeId,
+      cacheKey: `wyzie_${params.movieFileId ?? params.episodeId}_${safeId || "sub"}`,
+      language: params.language,
+      release: params.release,
+      rawContent: params.rawContent,
+      source: "wyzie",
+    });
+  }
+
+  private async attachOnlineDownload(params: {
+    movieFileId?: number;
+    episodeId?: number;
+    cacheKey: string;
+    language: string;
+    release: string;
+    rawContent: string;
+    source: "opensubtitles" | "wyzie";
+  }) {
+    const cachePath = path.join(this.cacheDir, `${params.cacheKey}.vtt`);
 
     const existing = await this.db.query.subtitles.findFirst({
       where: and(
         params.movieFileId
           ? eq(subtitles.movieFileId, params.movieFileId)
           : eq(subtitles.episodeId, params.episodeId!),
-        eq(subtitles.source, "opensubtitles"),
+        eq(subtitles.source, params.source),
         eq(subtitles.pathOrIndex, cachePath),
       ),
     });
@@ -220,7 +261,7 @@ export class SubtitleService {
           episodeId: params.episodeId ?? null,
           language: displayLanguage(params.language),
           label: params.release,
-          source: "opensubtitles",
+          source: params.source,
           pathOrIndex: cachePath,
         })
         .returning();
@@ -248,7 +289,7 @@ export class SubtitleService {
     if (!subtitle) return;
 
     if (
-      subtitle.source === "opensubtitles" &&
+      isOnlineSubtitleSource(subtitle.source) &&
       fs.existsSync(subtitle.pathOrIndex)
     ) {
       try {

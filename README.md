@@ -71,6 +71,7 @@ MEDIA! connects to a few external services. All API keys are optional except TMD
 | **[fanart.tv](https://fanart.tv/)** | TV show theme music on detail pages | **Settings → API keys** — free key at [fanart.tv/get-an-api-key](https://fanart.tv/get-an-api-key/) |
 | **[ThemerrDB](https://app.lizardbyte.dev/ThemerrDB)** | Movie theme music (and TV fallback when fanart.tv has none) | Automatic via yt-dlp — no key needed |
 | **[OpenSubtitles](https://www.opensubtitles.com/)** | Search and download subtitles during playback | **Settings → API keys** — free key at [opensubtitles.com/en/consumers](https://www.opensubtitles.com/en/consumers) |
+| **[Wyzie](https://docs.wyzie.io/)** | Extra subtitle sources (SubDL, Podnapisi, and more) during playback | **Settings → API keys** — free key at [store.wyzie.io/redeem](https://store.wyzie.io/redeem) |
 | **Plex** | Import resume points and watched state from a local Plex library database | **Settings → Import from Plex** — reads `com.plexapp.plugins.library.db` on the server host |
 | **Google Chromecast** | Cast from the web player to Chromecast devices | Built in — requires FFmpeg for formats Chromecast can't play directly |
 | **Cast to TV** | Send playback from a phone/browser to the Android TV app on the same LAN | Use the cast button on the watch page when a TV receiver is online |

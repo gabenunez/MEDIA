@@ -17,6 +17,7 @@ metadata:
 
 subtitles:
   opensubtitles_api_key: YOUR_OPENSUBTITLES_KEY_HERE
+  wyzie_api_key: YOUR_WYZIE_KEY_HERE
 
 transcoding:
   enabled: true

@@ -21,6 +21,7 @@ services:
       # Optional — you can also set these later in the web UI (/settings).
       TMDB_API_KEY: "${TMDB_API_KEY:-}"
       OPENSUBTITLES_API_KEY: "${OPENSUBTITLES_API_KEY:-}"
+      WYZIE_API_KEY: "${WYZIE_API_KEY:-}"
       MEDIA_LANGUAGE: "en-US"
     volumes:
       # Config (config.yaml) and app state (database, artwork, transcode cache).

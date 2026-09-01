@@ -1,14 +1,17 @@
 import type { StreamQuality } from "@/lib/api";
 import {
+  isOnlineSubtitleSource,
   pickTranscodeQualityForPlayback,
   qualityLabel as sharedQualityLabel,
 } from "@media-app/shared";
+
+export { isOnlineSubtitleSource };
 
 export interface SubtitleTrack {
   id: number;
   language: string;
   label?: string | null;
-  source?: "external" | "embedded" | "opensubtitles";
+  source?: "external" | "embedded" | "opensubtitles" | "wyzie";
 }
 
 export const QUALITY_FALLBACK_ORDER: StreamQuality[] = [
@@ -20,12 +23,11 @@ export const QUALITY_FALLBACK_ORDER: StreamQuality[] = [
 ];
 
 export function formatSubtitleLabel(sub: SubtitleTrack): string {
-  const sourceLabel =
-    sub.source === "opensubtitles"
-      ? "Online"
-      : sub.source === "embedded"
-        ? "Embedded"
-        : "File";
+  const sourceLabel = isOnlineSubtitleSource(sub.source)
+    ? "Online"
+    : sub.source === "embedded"
+      ? "Embedded"
+      : "File";
   const detail = sub.label ? sub.label.slice(0, 48) : sourceLabel;
   return `${sub.language} · ${detail}`;
 }

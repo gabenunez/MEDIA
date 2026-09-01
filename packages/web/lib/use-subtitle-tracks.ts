@@ -45,6 +45,7 @@ export function useSubtitleTracks(
   const [subtitleError, setSubtitleError] = useState<string | null>(null);
   const [subtitleListError, setSubtitleListError] = useState<string | null>(null);
   const [opensubtitlesConfigured, setOpensubtitlesConfigured] = useState(false);
+  const [wyzieConfigured, setWyzieConfigured] = useState(false);
   const subtitlesRef = useRef(subtitles);
   const activeSubtitleRef = useRef(activeSubtitle);
   const timelineOffsetRef = useRef(timelineOffsetSeconds);
@@ -79,6 +80,7 @@ export function useSubtitleTracks(
           return null;
         });
         setOpensubtitlesConfigured(data.opensubtitlesConfigured);
+        setWyzieConfigured(Boolean(data.wyzieConfigured));
         prefetchSubtitleTracks(tracks.map((track) => track.id));
         const storedId = readStoredSubtitleSelection(fileId, type);
         if (storedId && tracks.some((track) => track.id === storedId)) {
@@ -310,5 +312,6 @@ export function useSubtitleTracks(
     refreshSubtitles,
     removeSubtitleTrack,
     opensubtitlesConfigured,
+    wyzieConfigured,
   };
 };
