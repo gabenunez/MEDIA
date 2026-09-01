@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.240 — 2026-09-01
+
+### Settings
+- **API keys** — add Wyzie for extra subtitle sources (SubDL, Podnapisi, and more)
+
+### Playback
+- **Subtitles** — search Wyzie during playback, alone or alongside OpenSubtitles
+
 ## 0.1.239 — 2026-09-01
 
 ### TV
