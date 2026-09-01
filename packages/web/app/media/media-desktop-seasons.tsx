@@ -6,7 +6,7 @@ import { Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
-import { formatDuration, getPlaybackButtonLabel } from "@/lib/utils";
+import { formatDuration, getPlaybackButtonLabel, canResumePlayback, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
 import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
 import { MediaImage } from "@/components/media-image";
 import type { MediaDetail } from "./types";
@@ -41,19 +41,28 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
 
       <div className="space-y-3">
         {media.seasons[selectedSeason]?.episodes.map((ep) => {
+          const episodeDurationMs = ep.watchProgress?.durationMs ?? ep.durationMs;
           const episodeActionLabel = getPlaybackButtonLabel(
             ep.watchProgress?.positionMs,
-            ep.watchProgress?.durationMs ?? ep.durationMs,
+            episodeDurationMs,
+          );
+          const episodeCanResume = canResumePlayback(
+            ep.watchProgress?.positionMs,
+            episodeDurationMs,
           );
 
           return (
-            <Link
+            <div
               key={ep.id}
-              href={routes.watch("episode", ep.id, media.id)}
               className="group relative flex items-center gap-4 overflow-hidden rounded-md border border-border/80 bg-card/70 p-3 transition-all hover:border-primary/50 hover:bg-card sm:p-4"
             >
+              <Link
+                href={routes.watch("episode", ep.id, media.id)}
+                className="absolute inset-0 z-0"
+                aria-label={episodeActionLabel}
+              />
               <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
-              <div className="relative flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+              <div className="relative z-10 flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
                 {ep.stillPath ? (
                   <MediaImage
                     src={api.imageUrl(ep.stillPath)}
@@ -81,7 +90,7 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
                   </div>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="relative z-10 min-w-0 flex-1">
                 <p className="font-medium">
                   <span className="mr-2 font-mono text-xs text-primary">
                     E{String(ep.episodeNumber).padStart(2, "0")}
@@ -94,12 +103,21 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
                   </p>
                 )}
               </div>
-              <span className="hidden shrink-0 font-mono text-xs text-muted-foreground sm:inline">
-                {episodeActionLabel === "Play" && ep.durationMs
-                  ? formatDuration(ep.durationMs)
-                  : episodeActionLabel}
-              </span>
-            </Link>
+              <div className="relative z-10 flex shrink-0 flex-col items-end gap-2">
+                <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
+                  {episodeActionLabel === "Play" && ep.durationMs
+                    ? formatDuration(ep.durationMs)
+                    : episodeActionLabel}
+                </span>
+                {episodeCanResume && (
+                  <Button variant="outline" size="sm" asChild className="relative z-10">
+                    <Link href={routes.watchFromStart("episode", ep.id, media.id)}>
+                      {START_FROM_BEGINNING_LABEL}
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>

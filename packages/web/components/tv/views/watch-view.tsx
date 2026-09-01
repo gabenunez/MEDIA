@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWatchRouteParams } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import type Hls from "hls.js";
-import { Loader2, Pause, Play, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
+import { Loader2, Pause, Play, RotateCcw, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import {
@@ -79,7 +79,7 @@ import { focusFirstWatchMenuItem, focusTvItem } from "@/lib/tv-focus";
 import { collapseSubtitleTrackActions } from "@/lib/tv-subtitle-track-row";
 import { needsTvSdUpscaleSoftening, tvImageUrl } from "@/lib/tv-image";
 import { isTv4KClient } from "@/lib/tv-mode-detect";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn, formatDuration, resolveWatchInitialResumeSeconds, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
 import { formatDynamicRangeChromeSuffix } from "@media-app/shared";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import {
@@ -210,7 +210,7 @@ function TvWatchScrubTrack({
 export function TvWatchView() {
   const isClient = useIsClient();
   const router = useRouter();
-  const { type, fileId, mediaId } = useWatchRouteParams();
+  const { type, fileId, mediaId, castStartSeconds, fromStart } = useWatchRouteParams();
   const usesNativePlayer = nativeTvPlayerAvailable();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1208,22 +1208,28 @@ export function TvWatchView() {
 
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs = info.watchProgress?.durationMs ?? info.durationMs ?? 0;
-        if (positionMs > 0 && durationMs > 0) {
-          const percent = positionMs / durationMs;
-          if (percent > 0.02 && percent < 0.95) {
-            const resumeSeconds = positionMs / 1000;
-            setInitialResumeSeconds(resumeSeconds);
-            return;
-          }
+        const resumeSeconds = resolveWatchInitialResumeSeconds({
+          fromStart,
+          castStartSeconds,
+          positionMs,
+          durationMs,
+        });
+        if (fromStart) {
+          void api.saveProgress({
+            itemType: type,
+            itemId: fileId,
+            positionMs: 0,
+            durationMs: durationMs || undefined,
+          });
         }
-        setInitialResumeSeconds(0);
+        setInitialResumeSeconds(resumeSeconds);
       })
       .catch((err) => {
         console.error(err);
         setError("Could not load this video. Check your connection and try again.");
         setInitialResumeSeconds(0);
       });
-  }, [fileId, type]);
+  }, [fileId, type, castStartSeconds, fromStart]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId) || !mediaId) return;
@@ -1692,6 +1698,20 @@ export function TvWatchView() {
     },
     [seekToAbsolute, totalDurationSeconds],
   );
+
+  const restartFromBeginning = useCallback(() => {
+    if (!fileId || Number.isNaN(fileId)) return;
+    const durationMs = sourceDurationMs || (duration ? duration * 1000 : 0);
+    void api.saveProgress({
+      itemType: type,
+      itemId: fileId,
+      positionMs: 0,
+      durationMs: durationMs || undefined,
+    });
+    lastStableAbsoluteSecondsRef.current = 0;
+    seekToAbsolute(0);
+    revealControls(true);
+  }, [fileId, type, sourceDurationMs, duration, seekToAbsolute, revealControls]);
 
   const commitScrubPreview = useCallback(
     (requireDelta = false) => {
@@ -2625,6 +2645,17 @@ export function TvWatchView() {
                 className="flex items-center justify-between gap-3"
               >
                 <div className="flex items-center gap-3">
+                  <TvFocusButton
+                    variant="watch"
+                    onClick={restartFromBeginning}
+                    aria-label={START_FROM_BEGINNING_LABEL}
+                    className={controlIconButtonClassName}
+                  >
+                    <span className="watch-control-icon">
+                      <RotateCcw size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                    </span>
+                  </TvFocusButton>
+
                   <TvFocusButton
                     variant="watch"
                     onClick={() => skipRelative(-10)}
