@@ -109,6 +109,7 @@ import {
   nativeWebOverlayShouldRaise,
   TV_WATCH_REMOTE_KEY_EVENT,
   getWatchPlayerFocusedItem,
+  getWatchTransportFocusItems,
   isWatchTextInputKeyTarget,
   watchHiddenChromeArrowIntent,
   watchVisibleTransportArrowIntent,
@@ -2238,9 +2239,7 @@ export function TvWatchView() {
         if (transportArrow === "move-focus") {
           e.preventDefault();
           const row = document.querySelector<HTMLElement>("[data-tv-watch-transport-row]");
-          const items = row
-            ? [...row.querySelectorAll<HTMLElement>("[data-tv-item]")]
-            : [];
+          const items = getWatchTransportFocusItems(row);
           const next = moveWatchTransportFocus(
             items,
             active,

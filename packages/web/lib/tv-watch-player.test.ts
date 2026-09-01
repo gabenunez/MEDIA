@@ -465,6 +465,7 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("WatchSkipFeedbackBadge");
     expect(watchView).toContain("revealControls: false");
     expect(watchView).toContain("moveWatchTransportFocus");
+    expect(watchView).toContain("getWatchTransportFocusItems");
     expect(watchView).toContain("getWatchPlayerFocusedItem");
     expect(watchView).toContain("isWatchTextInputKeyTarget");
     expect(watchView).toContain("e.defaultPrevented");
@@ -472,5 +473,13 @@ describe("TV watch player — wiring (do not revert)", () => {
 
   it("spatial nav uses the extracted watch-arrow guard", () => {
     expect(spatialNav).toContain("spatialNavShouldHandleWatchArrow");
+    expect(spatialNav).toContain("resolveWatchMenuDpadTarget");
+    const moveVertical = spatialNav.slice(spatialNav.indexOf("function moveVertical"));
+    const nestedRowMove = moveVertical.indexOf("if (watchMenu && moveInVerticalRow");
+    const immediateVertical = moveVertical.indexOf(
+      'activeRow.hasAttribute("data-tv-vertical")',
+    );
+    expect(nestedRowMove).toBeGreaterThan(-1);
+    expect(nestedRowMove).toBeLessThan(immediateVertical);
   });
 });

@@ -4,11 +4,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   dispatchWatchRemoteKey,
+  getOpenWatchMenu,
   getWatchPlayerFocusedItem,
+  getWatchTransportFocusItems,
   isWatchChromeFocusTarget,
   isWatchDedicatedSkipKey,
   isWatchTextInputKeyTarget,
   nativeWebOverlayAlpha,
+  resolveWatchMenuDpadTarget,
   spatialNavShouldDeferToWatchPlayer,
   TV_WATCH_REMOTE_KEY_EVENT,
   watchHiddenChromeArrowIntent,
@@ -89,6 +92,89 @@ describe("TV watch remote — hidden chrome", () => {
     expect(isWatchChromeFocusTarget(document.getElementById("track"))).toBe(true);
     expect(isWatchChromeFocusTarget(document.getElementById("home"))).toBe(false);
     expect(isWatchChromeFocusTarget(null)).toBe(false);
+    document.body.innerHTML = "";
+  });
+
+  it("retargets D-pad into an open subtitle menu when the opener still has the focus ring", () => {
+    document.body.innerHTML = `
+      <div data-tv-watch-player>
+        <div data-tv-watch-controls data-tv-watch-transport-row>
+          <button id="play" data-tv-item></button>
+          <button id="subs" data-tv-item data-tv-focused></button>
+          <div data-tv-watch-menu>
+            <div data-tv-content-row data-tv-row data-tv-vertical>
+              <button id="off" data-tv-item>Off</button>
+              <div data-tv-row data-tv-subtitle-track-row>
+                <button id="en" data-tv-item data-tv-subtitle-track>English</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    const opener = document.getElementById("subs");
+    expect(getOpenWatchMenu()).not.toBeNull();
+    expect(getWatchPlayerFocusedItem()?.id).toBe("subs");
+    const resolved = resolveWatchMenuDpadTarget(opener);
+    expect(resolved.inWatchMenu).toBe(true);
+    expect(resolved.retargeted).toBe(true);
+    expect(resolved.active?.id).toBe("off");
+    expect(
+      spatialNavShouldDeferToWatchPlayer({
+        watchPlayerActive: true,
+        inWatchMenu: resolved.inWatchMenu,
+      }),
+    ).toBe(false);
+    document.body.innerHTML = "";
+  });
+
+  it("does not retarget D-pad when no player submenu is open", () => {
+    document.body.innerHTML = `
+      <div data-tv-watch-player>
+        <button id="play" data-tv-item data-tv-focused></button>
+      </div>
+    `;
+    const play = document.getElementById("play");
+    const resolved = resolveWatchMenuDpadTarget(play);
+    expect(resolved.inWatchMenu).toBe(false);
+    expect(resolved.retargeted).toBe(false);
+    expect(resolved.active?.id).toBe("play");
+    document.body.innerHTML = "";
+  });
+
+  it("keeps D-pad on a menu row that already has the focus ring", () => {
+    document.body.innerHTML = `
+      <div data-tv-watch-menu>
+        <div data-tv-content-row>
+          <button id="off" data-tv-item>Off</button>
+          <button id="en" data-tv-item data-tv-focused>English</button>
+        </div>
+      </div>
+    `;
+    const en = document.getElementById("en");
+    expect(getWatchPlayerFocusedItem()?.id).toBe("en");
+    const resolved = resolveWatchMenuDpadTarget(en);
+    expect(resolved.inWatchMenu).toBe(true);
+    expect(resolved.retargeted).toBe(false);
+    expect(resolved.active?.id).toBe("en");
+    document.body.innerHTML = "";
+  });
+
+  it("omits nested submenu rows from transport left/right targets", () => {
+    document.body.innerHTML = `
+      <div data-tv-watch-transport-row>
+        <button id="play" data-tv-item></button>
+        <button id="subs" data-tv-item></button>
+        <div data-tv-watch-menu>
+          <button id="off" data-tv-item></button>
+        </div>
+      </div>
+    `;
+    const row = document.querySelector("[data-tv-watch-transport-row]");
+    expect(getWatchTransportFocusItems(row).map((el) => el.id)).toEqual([
+      "play",
+      "subs",
+    ]);
     document.body.innerHTML = "";
   });
 
@@ -301,7 +387,9 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(spatialNav).toContain("isWatchPlayerActive()");
     expect(spatialNav).toContain("inWatchMenu");
     expect(spatialNav).toContain("getWatchPlayerFocusedItem");
+    expect(spatialNav).toContain("resolveWatchMenuDpadTarget");
     expect(watchView).toContain("moveWatchTransportFocus");
+    expect(watchView).toContain("getWatchTransportFocusItems");
   });
 
   it("spatial nav does not click the scrubber on Enter — watch-view commits the seek", () => {
