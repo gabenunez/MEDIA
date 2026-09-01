@@ -22,6 +22,8 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var hostInput: EditText
     private lateinit var portInput: EditText
     private lateinit var portField: View
+    private lateinit var passwordField: View
+    private lateinit var passwordInput: EditText
     private lateinit var statusText: TextView
     private lateinit var connectButton: Button
     private lateinit var qrCodeImage: ImageView
@@ -46,6 +48,8 @@ class SetupActivity : AppCompatActivity() {
         hostInput = findViewById(R.id.hostInput)
         portInput = findViewById(R.id.portInput)
         portField = findViewById(R.id.portField)
+        passwordField = findViewById(R.id.passwordField)
+        passwordInput = findViewById(R.id.passwordInput)
         statusText = findViewById(R.id.statusText)
         connectButton = findViewById(R.id.connectButton)
         qrCodeImage = findViewById(R.id.qrCodeImage)
@@ -54,18 +58,32 @@ class SetupActivity : AppCompatActivity() {
 
         connectButton.setOnClickListener { attemptManualConnect() }
         hostInput.setOnEditorActionListener { _, _, _ ->
-            attemptManualConnect()
+            if (passwordField.visibility == View.VISIBLE) {
+                passwordInput.requestFocus()
+            } else {
+                attemptManualConnect()
+            }
             true
         }
         portInput.setOnEditorActionListener { _, _, _ ->
+            if (passwordField.visibility == View.VISIBLE) {
+                passwordInput.requestFocus()
+            } else {
+                attemptManualConnect()
+            }
+            true
+        }
+        passwordInput.setOnEditorActionListener { _, _, _ ->
             attemptManualConnect()
             true
         }
 
         hostInput.showSoftInputOnFocus = false
         portInput.showSoftInputOnFocus = false
+        passwordInput.showSoftInputOnFocus = false
         prepareManualInput(hostInput)
         prepareManualInput(portInput)
+        prepareManualInput(passwordInput)
         hostInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
@@ -171,10 +189,13 @@ class SetupActivity : AppCompatActivity() {
         }
 
         setManualConnecting(true)
+        statusText.setTextColor(ContextCompat.getColor(this, R.color.media_text_muted))
         statusText.text = getString(R.string.connecting)
 
+        val password = passwordInput.text?.toString()?.trim().orEmpty().ifEmpty { null }
+
         executor.execute {
-            val result = ServerConnector.connect(serverUrl, password = null)
+            val result = ServerConnector.connect(serverUrl, password)
             runOnUiThread {
                 setManualConnecting(false)
                 if (result.success) {
@@ -184,13 +205,26 @@ class SetupActivity : AppCompatActivity() {
                         fromPairing = false,
                     )
                 } else if (result.passwordRequired) {
+                    showPasswordField(focus = true)
                     statusText.setTextColor(ContextCompat.getColor(this, R.color.media_error))
-                    statusText.text = getString(R.string.password_use_phone)
+                    statusText.text = if (password.isNullOrBlank()) {
+                        getString(R.string.password_required)
+                    } else {
+                        result.error?.takeIf { it.isNotBlank() }
+                            ?: getString(R.string.auth_failed)
+                    }
                 } else {
                     statusText.setTextColor(ContextCompat.getColor(this, R.color.media_error))
                     statusText.text = getString(R.string.connection_failed)
                 }
             }
+        }
+    }
+
+    private fun showPasswordField(focus: Boolean) {
+        passwordField.visibility = View.VISIBLE
+        if (focus) {
+            passwordInput.post { passwordInput.requestFocus() }
         }
     }
 
@@ -218,6 +252,7 @@ class SetupActivity : AppCompatActivity() {
         connectButton.isEnabled = !connecting
         hostInput.isEnabled = !connecting
         portInput.isEnabled = !connecting
+        passwordInput.isEnabled = !connecting
         connectButton.text = if (connecting) {
             getString(R.string.connecting)
         } else {

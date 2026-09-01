@@ -22,6 +22,7 @@ import {
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
 import { spatialNavShouldHandleWatchArrow } from "@/lib/tv-watch-player";
+import { closeTvSideNav, openTvSideNav, syncTvSideNavToFocus } from "@/lib/tv-side-nav";
 import { useEffect, type ReactNode } from "react";
 
 const NAV_COOLDOWN_MS = 50;
@@ -312,11 +313,19 @@ function moveInVerticalRow(active: HTMLElement, direction: "up" | "down") {
 }
 
 function focusNavFromContent(active: HTMLElement) {
+  if (!openTvSideNav()) return false;
+
   const navRow = getNavRow();
-  if (!navRow) return false;
+  if (!navRow) {
+    closeTvSideNav();
+    return false;
+  }
 
   const navItems = getRowItems(navRow);
-  if (!navItems.length) return false;
+  if (!navItems.length) {
+    closeTvSideNav();
+    return false;
+  }
 
   const rect = active.getBoundingClientRect();
   const verticalNav = navRow.hasAttribute("data-tv-vertical");
@@ -356,6 +365,7 @@ function focusContentFromNav(active: HTMLElement) {
     if (!items.length) continue;
     const next = items[Math.min(Math.max(navIndex, 0), items.length - 1)];
     focusItem(next);
+    closeTvSideNav();
     return true;
   }
 
@@ -441,11 +451,6 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
       return true;
     }
     return false;
-  }
-
-  if (direction === "up" && contentIndex === 0) {
-    if (watchMenu) return false;
-    return focusNavFromContent(active);
   }
 
   if (direction === "up" && contentIndex > 0) {
@@ -671,6 +676,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       const target = e.target as HTMLElement | null;
       if (!target?.hasAttribute("data-tv-item")) return;
       syncTvFocusedAttribute(target);
+      syncTvSideNavToFocus(target);
     }
 
     // Capture before WebView default focus movement.
@@ -680,6 +686,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusIn);
       invalidateContentRowsCache();
+      closeTvSideNav();
     };
   }, []);
 

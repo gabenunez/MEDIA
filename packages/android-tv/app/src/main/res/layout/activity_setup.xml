@@ -157,6 +157,37 @@
                     </LinearLayout>
                 </LinearLayout>
 
+                <LinearLayout
+                    android:id="@+id/passwordField"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/password_label"
+                        android:textColor="@color/media_text_muted"
+                        android:textSize="14sp" />
+
+                    <EditText
+                        android:id="@+id/passwordInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:background="@color/media_surface"
+                        android:hint="@string/password_hint"
+                        android:imeOptions="actionDone"
+                        android:importantForAutofill="no"
+                        android:inputType="textPassword"
+                        android:paddingHorizontal="16dp"
+                        android:textColor="@color/media_text"
+                        android:textColorHint="@color/media_text_muted"
+                        android:textSize="18sp" />
+                </LinearLayout>
+
                 <TextView
                     android:id="@+id/statusText"
                     android:layout_width="match_parent"
