@@ -17,4 +17,10 @@ export const routes = {
     const path = `/watch/${type}/${fileId}/`;
     return mediaId ? `${path}?media=${mediaId}` : path;
   },
+  watchFromStart: (type: WatchType, fileId: number, mediaId?: number) => {
+    const path = `/watch/${type}/${fileId}/`;
+    const params = new URLSearchParams({ fromStart: "1" });
+    if (mediaId) params.set("media", String(mediaId));
+    return `${path}?${params.toString()}`;
+  },
 };

@@ -4,6 +4,9 @@ import { routes } from "./routes";
 describe("routes", () => {
   it("returns paths without the Next.js base path", () => {
     expect(routes.watch("movie", 116, 110)).toBe("/watch/movie/116/?media=110");
+    expect(routes.watchFromStart("episode", 42, 110)).toBe(
+      "/watch/episode/42/?fromStart=1&media=110",
+    );
     expect(routes.login()).toBe("/login/");
   });
 });
