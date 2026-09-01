@@ -320,15 +320,16 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(watchView).toContain("nativeWebOverlayShouldRaise({");
   });
 
-  it("native TV app injects D-pad into JS only while ExoPlayer is in front of the WebView", () => {
+  it("native TV app injects D-pad into JS for the whole native playback session", () => {
     const mainActivity = readFileSync(
       path.join(webRoot, "../android-tv/app/src/main/java/com/media/app/MainActivity.kt"),
       "utf8",
     );
     expect(mainActivity).toContain("WatchRemoteKeys.webKeyName");
     expect(mainActivity).toContain("WatchRemoteKeys.shouldInjectDpad");
-    expect(mainActivity).toContain("webOverlayInFront");
-    expect(mainActivity).toContain("dispatchWebKey(watchKey)");
+    expect(mainActivity).toContain("nativePlayer.isActive()");
+    expect(mainActivity).toContain("WatchRemoteKeys.dispatchScript");
+    expect(mainActivity).not.toContain("shouldInjectDpad(nativePlayer.isActive(), webOverlayInFront)");
     expect(spatialNav).toContain("isWatchTextInputKeyTarget");
   });
 

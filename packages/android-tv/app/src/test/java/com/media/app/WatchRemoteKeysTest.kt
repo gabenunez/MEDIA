@@ -28,10 +28,16 @@ class WatchRemoteKeysTest {
     }
 
     @Test
-    fun injectsDpadOnlyWhenPlayerIsInFrontOfWebView() {
-        assertEquals(true, WatchRemoteKeys.shouldInjectDpad(true, false))
-        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(true, true))
-        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(false, false))
-        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(false, true))
+    fun injectsDpadWheneverNativePlaybackIsActive() {
+        assertEquals(true, WatchRemoteKeys.shouldInjectDpad(true))
+        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(false))
+    }
+
+    @Test
+    fun dispatchScriptTargetsTheFocusedControl() {
+        val script = WatchRemoteKeys.dispatchScript("ArrowLeft")
+        assertEquals(true, script.contains("document.activeElement"))
+        assertEquals(true, script.contains("key: 'ArrowLeft'"))
+        assertEquals(true, script.contains("target.dispatchEvent(event)"))
     }
 }
