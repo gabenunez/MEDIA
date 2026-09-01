@@ -28,6 +28,7 @@ import {
   resolveNativeHlsSeekAction,
   resolveSkipTargetAbsoluteSeconds,
   shouldClearOptimisticSeek,
+  shouldCommitScrubPreview,
   getPlaybackAbsoluteSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
@@ -109,6 +110,7 @@ import {
   nativeWebOverlayAlpha,
   nativeWebOverlayShouldRaise,
   watchHiddenChromeArrowIntent,
+  watchVisibleTransportArrowIntent,
 } from "@/lib/tv-watch-remote";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
@@ -318,9 +320,7 @@ export function TvWatchView() {
   const [playbackHasBegun, setPlaybackHasBegun] = useState(false);
   const [scrubPreview, setScrubPreview] = useState<number | null>(null);
   const scrubPreviewRef = useRef<number | null>(null);
-  useEffect(() => {
-    scrubPreviewRef.current = scrubPreview;
-  }, [scrubPreview]);
+  scrubPreviewRef.current = scrubPreview;
   const [videoDisplayMode, setVideoDisplayMode] = useState<VideoDisplayMode>("fit");
 
   useEffect(() => {
@@ -1570,7 +1570,9 @@ export function TvWatchView() {
       ? ((optimisticAbsoluteSeconds * 1000) / absoluteDurationMs) * 100
       : null;
   const displayedProgress = scrubPreview ?? optimisticProgressPercent ?? progress;
-  progressRef.current = displayedProgress;
+  // Live playhead only — including scrubPreview here made OK/blur compare the
+  // preview against itself, so the seek never committed.
+  progressRef.current = optimisticProgressPercent ?? progress;
   optimisticAbsoluteSecondsRef.current = optimisticAbsoluteSeconds;
   showControlsRef.current = showControls;
   panelOpenRef.current = panelOpen;
@@ -1682,12 +1684,35 @@ export function TvWatchView() {
 
   const handleScrubCommit = useCallback(
     (value: number) => {
+      scrubPreviewRef.current = null;
       setScrubPreview(null);
       if (totalDurationSeconds > 0) {
         seekToAbsolute((value / 100) * totalDurationSeconds);
       }
     },
     [seekToAbsolute, totalDurationSeconds],
+  );
+
+  const commitScrubPreview = useCallback(
+    (requireDelta = false) => {
+      const preview = scrubPreviewRef.current;
+      if (preview === null || totalDurationSeconds <= 0) return false;
+      if (
+        requireDelta &&
+        !shouldCommitScrubPreview({
+          previewPercent: preview,
+          livePercent: progressRef.current,
+          totalDurationSeconds,
+        })
+      ) {
+        scrubPreviewRef.current = null;
+        setScrubPreview(null);
+        return false;
+      }
+      handleScrubCommit(preview);
+      return true;
+    },
+    [handleScrubCommit, totalDurationSeconds],
   );
 
   const playPlayback = useCallback(() => {
@@ -2130,10 +2155,8 @@ export function TvWatchView() {
           e.key === "NumpadEnter" ||
           e.key === "Select"
         ) {
-          if (scrubPreview !== null) {
-            e.preventDefault();
-            handleScrubCommit(scrubPreview);
-          }
+          e.preventDefault();
+          commitScrubPreview();
           return;
         }
         if (e.key === "ArrowLeft" || e.key === "MediaRewind") {
@@ -2165,12 +2188,13 @@ export function TvWatchView() {
         controlsVisible &&
         !active?.hasAttribute("data-tv-watch-scrub")
       ) {
-        if (e.key === "MediaRewind" || e.key === "ArrowLeft") {
+        const transportArrow = watchVisibleTransportArrowIntent(e.key);
+        if (transportArrow === "skip-back") {
           e.preventDefault();
           skipRelative(-10);
           return;
         }
-        if (e.key === "MediaFastForward" || e.key === "ArrowRight") {
+        if (transportArrow === "skip-forward") {
           e.preventDefault();
           skipRelative(30);
           return;
@@ -2254,7 +2278,7 @@ export function TvWatchView() {
     playPlayback,
     pausePlayback,
     skipRelative,
-    handleScrubCommit,
+    commitScrubPreview,
     handleWatchBack,
     panelOpen,
     subtitleSearchOpen,
@@ -2265,7 +2289,6 @@ export function TvWatchView() {
     showTransportControls,
     totalDurationSeconds,
     displayedProgress,
-    scrubPreview,
     focusScrubControl,
   ]);
 
@@ -2569,18 +2592,14 @@ export function TvWatchView() {
                       ref={scrubButtonRef}
                       data-tv-watch-scrub=""
                       aria-label="Progress"
-                      onClick={() => revealControls(false)}
+                      onClick={() => {
+                        commitScrubPreview();
+                      }}
                       onFocus={() => setScrubPreview(displayedProgress)}
                       onBlur={() => {
-                        const preview = scrubPreviewRef.current;
-                        if (
-                          preview !== null &&
-                          Math.abs(preview - progressRef.current) > 0.5
-                        ) {
-                          handleScrubCommit(preview);
-                          return;
+                        if (!commitScrubPreview(true)) {
+                          setScrubPreview(null);
                         }
-                        setScrubPreview(null);
                       }}
                       className="absolute inset-x-0 top-1/2 z-[3] h-6 w-full -translate-y-1/2 border-2 border-transparent bg-transparent p-0"
                     />
