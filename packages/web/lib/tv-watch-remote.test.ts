@@ -188,6 +188,17 @@ describe("TV native WebView overlay", () => {
     ).toBe(1);
   });
 
+  it("raises the overlay while remote skip feedback is visible", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: false,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: false,
+        skipFeedbackVisible: true,
+      }),
+    ).toBe(1);
+  });
+
   it("keeps overlay and chrome in lockstep through start, hide, and reveal", () => {
     let showControls = true;
     const overlayFor = () =>
