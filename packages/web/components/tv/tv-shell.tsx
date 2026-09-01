@@ -16,6 +16,7 @@ import {
 } from "@/lib/android-bridge";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { closeTvSideNav } from "@/lib/tv-side-nav";
 
 function TvNavButton({
   href,
@@ -73,6 +74,10 @@ export function TvShell({ children }: { children: React.ReactNode }) {
   const showLogout = required && authenticated;
 
   useEffect(() => {
+    closeTvSideNav();
+  }, []);
+
+  useEffect(() => {
     // Set before watch-view mounts so loading.tsx / CSS can cover the rail
     // without waiting for the player client bundle.
     if (onWatch) {
@@ -93,6 +98,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
       document.querySelector("video")?.pause();
     }
     wasOnWatchRef.current = onWatch;
+    if (onWatch) closeTvSideNav();
     return () => {
       if (stopFrame !== null) cancelAnimationFrame(stopFrame);
     };
@@ -104,16 +110,16 @@ export function TvShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TvSpatialNav>
-      <div className="tv-ui flex h-screen max-h-screen overflow-hidden">
+      <div className="tv-ui relative flex h-screen max-h-screen overflow-hidden">
         {/*
-          Keep the rail mounted on /watch (invisible) so main width never jumps
-          when navigating media → player. Unmounting caused the hero/poster/actions
-          to reflow ~4–5rem wider for a frame before the fixed player covered them.
+          Overlay rail: hidden until Left has nowhere else to go. Keep it mounted
+          on /watch so catalog → player does not remount the nav tree.
         */}
         <aside
+          data-tv-rail=""
           className={cn(
-            "flex w-[4.25rem] shrink-0 flex-col items-center border-r border-border/50 bg-background/95 py-5 min-h-screen",
-            onWatch && "invisible pointer-events-none",
+            "flex w-[4.25rem] flex-col items-center border-r border-border bg-background py-5",
+            onWatch && "pointer-events-none",
           )}
           aria-hidden={onWatch || undefined}
         >
@@ -122,7 +128,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
               className="mb-5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-transparent"
               aria-hidden="true"
             >
-              <MediaIcon background={false} combined className="h-6 w-6" />
+              <MediaIcon background={false} combined className="h-11 w-11" />
             </div>
 
             <nav

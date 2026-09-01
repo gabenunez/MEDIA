@@ -14,7 +14,7 @@
     <string name="port_label">Port</string>
     <string name="port_hint">optional</string>
     <string name="password_label">Password</string>
-    <string name="password_hint">Optional</string>
+    <string name="password_hint">Required</string>
     <string name="connect">Connect</string>
     <string name="connecting">Connecting…</string>
     <string name="invalid_url">Enter a valid server address.</string>
@@ -28,7 +28,7 @@
     <string name="scan_qr_subtitle">Open the camera app and scan to pair this TV</string>
     <string name="pairing_waiting">Waiting for your phone…</string>
     <string name="pairing_unavailable">QR setup unavailable. Use manual entry on the right.</string>
-    <string name="password_use_phone">This server requires a password. Scan the QR code with your phone to sign in.</string>
+    <string name="password_required">This server requires a password. Enter it below, then press Connect.</string>
     <string name="back">Back</string>
     <string name="account_menu_title">Account</string>
     <string name="log_out">Sign out</string>

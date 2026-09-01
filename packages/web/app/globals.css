@@ -117,6 +117,7 @@
   }
 
   .tv-ui {
+    position: relative;
     scroll-behavior: auto;
     height: 100vh;
     max-height: 100vh;
@@ -233,6 +234,26 @@
   }
 
   /* —— Side nav —— */
+  .tv-ui [data-tv-rail] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 30;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  html[data-tv-nav-open] .tv-ui [data-tv-rail] {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  html[data-tv-watch-active] .tv-ui [data-tv-rail] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .tv-ui [data-tv-item].tv-focus-nav {
     color: hsl(var(--muted-foreground));
     background-color: transparent;

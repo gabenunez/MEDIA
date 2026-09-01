@@ -35,6 +35,7 @@ export function MediaIcon({
             textAnchor="middle"
             dominantBaseline="central"
             {...markProps}
+            fontSize={15}
           >
             M!
           </text>
