@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  dispatchWatchRemoteKey,
   isWatchChromeFocusTarget,
   isWatchDedicatedSkipKey,
   nativeWebOverlayAlpha,
   spatialNavShouldDeferToWatchPlayer,
+  TV_WATCH_REMOTE_KEY_EVENT,
   watchHiddenChromeArrowIntent,
   watchVisibleTransportArrowIntent,
 } from "./tv-watch-remote";
@@ -56,6 +58,17 @@ describe("TV watch remote — hidden chrome", () => {
     document.body.innerHTML = "";
   });
 
+  it("redispatches consumed D-pad keys to the watch player", () => {
+    const keys: string[] = [];
+    const onKey = (event: Event) => {
+      keys.push((event as CustomEvent<{ key: string }>).detail.key);
+    };
+    window.addEventListener(TV_WATCH_REMOTE_KEY_EVENT, onKey);
+    dispatchWatchRemoteKey("ArrowUp");
+    window.removeEventListener(TV_WATCH_REMOTE_KEY_EVENT, onKey);
+    expect(keys).toEqual(["ArrowUp"]);
+  });
+
   it("skips immediately on horizontal arrows while controls are hidden", () => {
     expect(
       watchHiddenChromeArrowIntent({
@@ -89,7 +102,7 @@ describe("TV watch remote — hidden chrome", () => {
     ).toBe("skip-back");
   });
 
-  it("does not skip while transport chrome is not mounted yet", () => {
+  it("still reveals on Up/Down before transport chrome is mounted, and does not skip", () => {
     expect(
       watchHiddenChromeArrowIntent({
         key: "ArrowLeft",
@@ -101,7 +114,7 @@ describe("TV watch remote — hidden chrome", () => {
         key: "ArrowUp",
         showTransportControls: false,
       }),
-    ).toBeNull();
+    ).toBe("reveal-play");
     expect(
       watchHiddenChromeArrowIntent({
         key: "ArrowDown",
@@ -217,6 +230,10 @@ describe("TV watch remote — wiring (do not revert)", () => {
     const stealAt = handler.indexOf('!active?.hasAttribute("data-tv-item")');
     expect(deferAt).toBeGreaterThan(-1);
     expect(stealAt).toBeGreaterThan(deferAt);
+    const deferBlock = handler.slice(deferAt, stealAt);
+    expect(deferBlock).toContain("preventDefault");
+    expect(deferBlock).toContain("stopPropagation");
+    expect(deferBlock).toContain("dispatchWatchRemoteKey");
   });
 
   it("spatial nav moves between watch control buttons on D-pad left/right", () => {
@@ -276,6 +293,16 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(beforeStart).not.toMatch(/setNativeWebOverlayAlpha\(\s*0\s*\)/);
     expect(watchView).toContain("nativeWebOverlayAlpha({");
     expect(watchView).toContain("nativeWebOverlayShouldRaise({");
+  });
+
+  it("native TV app injects D-pad into JS while the player is in front of the WebView", () => {
+    const mainActivity = readFileSync(
+      path.join(webRoot, "../android-tv/app/src/main/java/com/media/app/MainActivity.kt"),
+      "utf8",
+    );
+    expect(mainActivity).toContain("WatchRemoteKeys.webKeyName");
+    expect(mainActivity).toContain("nativePlayer.isActive()");
+    expect(mainActivity).toContain("dispatchWebKey(watchKey)");
   });
 
   it("raises the native overlay inside revealControls even when chrome is already showing", () => {

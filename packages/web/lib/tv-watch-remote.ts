@@ -1,5 +1,13 @@
 /** TV D-pad policy for the watch player — chrome must open on the first arrow. */
 
+/** Spatial nav redispatches here after consuming native WebView D-pad. */
+export const TV_WATCH_REMOTE_KEY_EVENT = "tv-watch-remote-key";
+
+export function dispatchWatchRemoteKey(key: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(TV_WATCH_REMOTE_KEY_EVENT, { detail: { key } }));
+}
+
 export const WATCH_CHROME_FOCUS_SELECTOR =
   "[data-tv-watch-controls], [data-tv-watch-menu], [data-tv-watch-next-episode], [data-tv-watch-error]";
 
@@ -30,10 +38,7 @@ export function watchHiddenChromeArrowIntent(state: {
   key: string;
   showTransportControls: boolean;
 }): WatchHiddenChromeArrowIntent | null {
-  if (state.key === "ArrowDown") return "reveal-play";
-  if (state.key === "ArrowUp") {
-    return state.showTransportControls ? "reveal-play" : null;
-  }
+  if (state.key === "ArrowDown" || state.key === "ArrowUp") return "reveal-play";
   if (!state.showTransportControls) return null;
   if (state.key === "ArrowLeft" || state.key === "MediaRewind") return "skip-back";
   if (state.key === "ArrowRight" || state.key === "MediaFastForward") return "skip-forward";

@@ -438,10 +438,19 @@ class MainActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_MEDIA_PAUSE -> "MediaPause"
                 else -> "MediaPlayPause"
             }
+        dispatchWebKey(key)
+    }
+
+    private fun dispatchWebKey(key: String) {
+        val escaped = key.replace("\\", "\\\\").replace("'", "\\'")
         webView.evaluateJavascript(
             """
             (function(){
-              window.dispatchEvent(new KeyboardEvent('keydown', { key: '$key', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keydown', {
+                key: '$escaped',
+                bubbles: true,
+                cancelable: true
+              }));
             })();
             """.trimIndent(),
             null,
@@ -493,6 +502,13 @@ class MainActivity : AppCompatActivity() {
                     startVoiceSearch()
                     return true
                 }
+            }
+            // Overlay alpha 0 brings ExoPlayer in front of the WebView. D-pad
+            // then never reaches JS, so Up/Down cannot reveal player chrome.
+            val watchKey = WatchRemoteKeys.webKeyName(event.keyCode)
+            if (watchKey != null && nativePlayer.isActive()) {
+                dispatchWebKey(watchKey)
+                return true
             }
         }
 

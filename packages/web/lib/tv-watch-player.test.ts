@@ -212,6 +212,28 @@ describe("watchChromeVerticalArrowIntent", () => {
       }),
     ).toBe("reveal-and-focus-play");
   });
+
+  it("reveals and focuses Play on Up when chrome is hidden", () => {
+    expect(
+      watchChromeVerticalArrowIntent({
+        key: "ArrowUp",
+        controlsVisible: false,
+        focusOnScrub: false,
+        focusOnTransport: false,
+      }),
+    ).toBe("reveal-and-focus-play");
+  });
+
+  it("reveals on Up when chrome is visible but focus is outside the bar", () => {
+    expect(
+      watchChromeVerticalArrowIntent({
+        key: "ArrowUp",
+        controlsVisible: true,
+        focusOnScrub: false,
+        focusOnTransport: false,
+      }),
+    ).toBe("reveal-and-focus-play");
+  });
 });
 
 describe("spatialNavShouldHandleWatchArrow", () => {
@@ -393,6 +415,7 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("watchScrubKeyIntent");
     expect(watchView).toContain("watchChromeVerticalArrowIntent");
     expect(watchView).toContain("watchSkipDeltaSeconds");
+    expect(watchView).toContain("TV_WATCH_REMOTE_KEY_EVENT");
   });
 
   it("spatial nav uses the extracted watch-arrow guard", () => {
