@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.225 — 2026-09-01
+
+### Changes
+
+- **Release** — Add Start from beginning on TV media pages and the player
+- Resume-only titles had no way to restart from the beginning on TV. The earlier start-over work never landed on main.
+- Add Start from beginning on TV media pages and the player (#16)
+
 ## 0.1.224 — 2026-09-01
 
 ### Changes
