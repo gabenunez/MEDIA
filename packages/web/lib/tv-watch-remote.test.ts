@@ -555,14 +555,14 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(watchView).not.toContain("state.buffered > 0.5");
   });
 
-  it("native TV app injects D-pad into JS for the whole native playback session", () => {
+  it("native TV app injects D-pad into JS on every screen, not only during playback", () => {
     const mainActivity = readFileSync(
       path.join(webRoot, "../android-tv/app/src/main/java/com/media/app/MainActivity.kt"),
       "utf8",
     );
     expect(mainActivity).toContain("WatchRemoteKeys.webKeyName");
-    expect(mainActivity).toContain("WatchRemoteKeys.shouldInjectDpad");
-    expect(mainActivity).toContain("nativePlayer.isActive()");
+    expect(mainActivity).toContain("WatchRemoteKeys.shouldInjectDpad()");
+    expect(mainActivity).not.toContain("shouldInjectDpad(nativePlayer.isActive())");
     expect(mainActivity).toContain("WatchRemoteKeys.dispatchScript");
     expect(mainActivity).not.toContain("shouldInjectDpad(nativePlayer.isActive(), webOverlayInFront)");
     expect(spatialNav).toContain("isWatchTextInputKeyTarget");
