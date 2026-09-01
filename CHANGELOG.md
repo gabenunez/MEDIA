@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.238 — 2026-09-01
+
+### TV
+- **Side nav** — Right from the rail returns to the poster that had focus, not the 2nd or 3rd title in the row
+
 ## 0.1.237 — 2026-09-01
 
 ### TV
