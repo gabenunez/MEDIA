@@ -21,4 +21,12 @@ object WatchRemoteKeys {
             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> "MediaFastForward"
             else -> null
         }
+
+    /**
+     * Inject D-pad only while ExoPlayer is in front of the WebView.
+     * When the overlay is raised (chrome visible), the WebView must receive
+     * real key events so spatial nav can move between Play, skip, and menus.
+     */
+    fun shouldInjectDpad(playerActive: Boolean, webOverlayInFront: Boolean): Boolean =
+        playerActive && !webOverlayInFront
 }
