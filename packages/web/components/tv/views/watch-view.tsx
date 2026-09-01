@@ -64,6 +64,7 @@ import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
+import { WatchSkipFeedbackBadge } from "@/components/watch-skip-feedback";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import {
@@ -121,6 +122,10 @@ import {
   watchMediaKeyIntent,
   watchScrubKeyIntent,
   watchSkipDeltaSeconds,
+  accumulateWatchSkipFeedback,
+  isWatchRemoteSkipArrowKey,
+  WATCH_SKIP_FEEDBACK_MS,
+  type WatchSkipFeedback,
 } from "@/lib/tv-watch-player";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
@@ -232,7 +237,9 @@ export function TvWatchView() {
   const hlsStartOffsetRef = useRef(0);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveProgressRef = useRef<() => void>(() => {});
-  const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
+  const seekToAbsoluteRef = useRef<
+    (seconds: number, options?: { revealControls?: boolean }) => void
+  >(() => {});
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const usingHlsRef = useRef(false);
   const wasUsingHlsRef = useRef(false);
@@ -309,6 +316,9 @@ export function TvWatchView() {
     [],
   );
   const [showControls, setShowControls] = useState(true);
+  const [skipFeedback, setSkipFeedback] = useState<
+    (WatchSkipFeedback & { nonce: number }) | null
+  >(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [optimisticAbsoluteSeconds, setOptimisticAbsoluteSeconds] = useState<number | null>(
@@ -1604,7 +1614,7 @@ export function TvWatchView() {
       : 0;
 
   const seekToAbsolute = useCallback(
-    (seconds: number) => {
+    (seconds: number, options?: { revealControls?: boolean }) => {
       const video = videoRef.current;
       const plan = resolveTvSeekPlan({
         targetAbsoluteSeconds: seconds,
@@ -1617,6 +1627,7 @@ export function TvWatchView() {
         hasWebVideo: Boolean(video),
       });
       if (plan.kind === "noop-no-duration") return;
+      const shouldReveal = options?.revealControls !== false;
 
       setOptimisticAbsoluteSeconds(plan.absoluteSeconds);
       lastStableAbsoluteSecondsRef.current = plan.absoluteSeconds;
@@ -1629,31 +1640,31 @@ export function TvWatchView() {
       if (plan.kind === "native-direct") {
         seekNativePlayback(plan.absoluteSeconds * 1000);
         setCurrentTime(plan.absoluteSeconds);
-        revealControls(true);
+        if (shouldReveal) revealControls(true);
         return;
       }
       if (plan.kind === "native-hls-restart" || plan.kind === "web-hls-restart") {
         requestStreamRestartAt(plan.absoluteSeconds);
         setBuffering(true);
-        revealControls(true);
+        if (shouldReveal) revealControls(true);
         return;
       }
       if (plan.kind === "native-hls-relative") {
         seekNativePlayback(plan.relativeSeconds * 1000);
         setCurrentTime(plan.relativeSeconds);
-        revealControls(true);
+        if (shouldReveal) revealControls(true);
         return;
       }
       if (plan.kind === "web-missing-video") return;
       if (plan.kind === "web-direct") {
         if (video) video.currentTime = plan.absoluteSeconds;
-        revealControls(true);
+        if (shouldReveal) revealControls(true);
         return;
       }
       if (plan.kind === "web-hls-relative") {
         if (video) video.currentTime = plan.relativeSeconds;
         setCurrentTime(plan.relativeSeconds);
-        revealControls(true);
+        if (shouldReveal) revealControls(true);
       }
     },
     [
@@ -1667,7 +1678,10 @@ export function TvWatchView() {
 
   seekToAbsoluteRef.current = seekToAbsolute;
 
-  const skipRelative = useCallback((deltaSeconds: number) => {
+  const skipRelative = useCallback((
+    deltaSeconds: number,
+    options?: { revealControls?: boolean },
+  ) => {
     pendingSkipDeltaRef.current += deltaSeconds;
     if (skipCoalesceTimerRef.current) {
       clearTimeout(skipCoalesceTimerRef.current);
@@ -1684,8 +1698,16 @@ export function TvWatchView() {
           liveRelativeSeconds: currentTimeRef.current,
           deltaSeconds: delta,
         }),
+        options,
       );
     }, NATIVE_SEEK_COALESCE_MS);
+  }, []);
+
+  const flashRemoteSkipFeedback = useCallback((intent: "skip-back" | "skip-forward") => {
+    setSkipFeedback((current) => {
+      const next = accumulateWatchSkipFeedback(current, intent);
+      return { ...next, nonce: (current?.nonce ?? 0) + 1 };
+    });
   }, []);
 
   const handleScrubCommit = useCallback(
@@ -1991,8 +2013,15 @@ export function TvWatchView() {
   useEffect(() => {
     if (!blockingOverlayVisible) return;
     setShowControls(false);
+    setSkipFeedback(null);
     releaseWatchFocus();
   }, [blockingOverlayVisible, releaseWatchFocus]);
+
+  useEffect(() => {
+    if (!skipFeedback) return;
+    const timer = window.setTimeout(() => setSkipFeedback(null), WATCH_SKIP_FEEDBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, [skipFeedback]);
 
   useEffect(() => {
     if (!controlsVisible) return;
@@ -2012,6 +2041,7 @@ export function TvWatchView() {
     controlsVisible,
     blockingOverlayVisible,
     showMidPlaybackBuffering: usesNativePlayer && showMidPlaybackBuffering,
+    skipFeedbackVisible: Boolean(skipFeedback),
   });
   const hidePlaybackSubtitles = hideWebSubtitleOverlay({
     subtitleSearchOpen,
@@ -2159,6 +2189,11 @@ export function TvWatchView() {
         }
         if (hiddenArrow === "skip-back" || hiddenArrow === "skip-forward") {
           e.preventDefault();
+          if (isWatchRemoteSkipArrowKey(e.key)) {
+            skipRelative(watchSkipDeltaSeconds(hiddenArrow), { revealControls: false });
+            flashRemoteSkipFeedback(hiddenArrow);
+            return;
+          }
           skipRelative(watchSkipDeltaSeconds(hiddenArrow));
           revealControls(true);
           return;
@@ -2290,6 +2325,7 @@ export function TvWatchView() {
     playPlayback,
     pausePlayback,
     skipRelative,
+    flashRemoteSkipFeedback,
     commitScrubPreview,
     handleWatchBack,
     panelOpen,
@@ -2456,6 +2492,14 @@ export function TvWatchView() {
             </div>
           </div>
         )}
+
+        {skipFeedback && !controlsVisible && !blockingOverlayVisible ? (
+          <WatchSkipFeedbackBadge
+            direction={skipFeedback.direction}
+            seconds={skipFeedback.seconds}
+            nonce={skipFeedback.nonce}
+          />
+        ) : null}
 
         {countdown && countdownLabel && (
           <NextEpisodeCountdownOverlay
