@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.226 — 2026-09-01
+
+### Changes
+
+- **Release** — Review and test TV video player remote, seek, and back policy
+- Full review of the TV video player: remote, seek/skip/scrub, menus, back stack, native overlay, and start-over.
+- Extract and test TV player remote, seek, and back policy (#17)
+
 ## 0.1.225 — 2026-09-01
 
 ### Changes
