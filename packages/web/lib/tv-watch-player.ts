@@ -119,13 +119,14 @@ export function watchChromeVerticalArrowIntent(state: {
     return "reveal-and-focus-play";
   }
   if (state.key === "ArrowUp") {
-    if (state.controlsVisible && state.focusOnTransport && !state.focusOnScrub) {
+    if (!state.controlsVisible) return "reveal-and-focus-play";
+    if (state.focusOnTransport && !state.focusOnScrub) {
       return "focus-scrub";
     }
     // Scrub is the top focusable chrome — consume so WebView native nav
     // cannot jump to leftover catalog tiles.
-    if (state.controlsVisible && state.focusOnScrub) return "consume";
-    return null;
+    if (state.focusOnScrub) return "consume";
+    return "reveal-and-focus-play";
   }
   return null;
 }

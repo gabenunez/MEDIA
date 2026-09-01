@@ -12,6 +12,7 @@ import {
   tryMoveSubtitleTrackActions,
 } from "@/lib/tv-subtitle-track-row";
 import {
+  dispatchWatchRemoteKey,
   isWatchChromeFocusTarget,
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
@@ -508,14 +509,18 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Hidden player chrome: do not capture/stop D-pad. watch-view reveals
-      // controls on the first arrow. Catalog focus restore used to eat that key.
+      // Hidden player chrome: consume native WebView spatial nav, then hand
+      // the key to watch-view. Returning without preventDefault used to let
+      // Android TV steal Up/Down so chrome never appeared.
       if (
         spatialNavShouldDeferToWatchPlayer({
           watchPlayerActive: isWatchPlayerActive(),
           focusInsideWatchChrome: isWatchChromeFocusTarget(active),
         })
       ) {
+        e.preventDefault();
+        e.stopPropagation();
+        dispatchWatchRemoteKey(e.key);
         return;
       }
 
