@@ -41,6 +41,29 @@ export function getPlaybackButtonLabel(
   return "Play";
 }
 
+export const START_FROM_BEGINNING_LABEL = "Start from beginning";
+
+export function resolveWatchInitialResumeSeconds({
+  fromStart,
+  castStartSeconds,
+  positionMs,
+  durationMs,
+}: {
+  fromStart: boolean;
+  castStartSeconds: number;
+  positionMs: number;
+  durationMs: number;
+}): number {
+  if (fromStart) return 0;
+  if (!Number.isNaN(castStartSeconds) && castStartSeconds > 0) {
+    return castStartSeconds;
+  }
+  if (canResumePlayback(positionMs, durationMs)) {
+    return positionMs / 1000;
+  }
+  return 0;
+}
+
 export function formatPercent(percent: number): string {
   return `${Math.round(percent)}%`;
 }
