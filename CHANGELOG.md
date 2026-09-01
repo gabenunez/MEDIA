@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.242 — 2026-09-01
+
+### TV
+- **Remote** — D-pad arrows work on a real TV remote, not only the emulator keyboard
+
 ## 0.1.241 — 2026-09-01
 
 ### Fix
