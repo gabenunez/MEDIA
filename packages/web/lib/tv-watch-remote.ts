@@ -21,9 +21,22 @@ export function isWatchChromeFocusTarget(el: Element | null): boolean {
  */
 export function spatialNavShouldDeferToWatchPlayer(state: {
   watchPlayerActive: boolean;
-  focusInsideWatchChrome: boolean;
+  inWatchMenu: boolean;
 }): boolean {
-  return state.watchPlayerActive && !state.focusInsideWatchChrome;
+  return state.watchPlayerActive && !state.inWatchMenu;
+}
+
+/** Visual TV focus inside the player — Android WebView activeElement is often body. */
+export function getWatchPlayerFocusedItem(): HTMLElement | null {
+  const visual = document.querySelector<HTMLElement>(
+    "[data-tv-watch-player] [data-tv-item][data-tv-focused]",
+  );
+  if (visual) return visual;
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return null;
+  if (!active.closest("[data-tv-watch-player]")) return null;
+  if (active.hasAttribute("data-tv-item")) return active;
+  return active.closest("[data-tv-item]");
 }
 
 /** True when D-pad should stay in a text field instead of spatial nav. */

@@ -13,6 +13,7 @@ import {
 } from "@/lib/tv-subtitle-track-row";
 import {
   dispatchWatchRemoteKey,
+  getWatchPlayerFocusedItem,
   isWatchChromeFocusTarget,
   isWatchTextInputKeyTarget,
   spatialNavShouldDeferToWatchPlayer,
@@ -499,7 +500,8 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       if (!isEnter && !isArrow) return;
 
       const loginGate = document.querySelector<HTMLElement>("[data-tv-login-gate]");
-      let active = document.activeElement as HTMLElement | null;
+      let active =
+        getWatchPlayerFocusedItem() ?? (document.activeElement as HTMLElement | null);
 
       // Capture-phase + stopPropagation so Android TV WebView native spatial
       // nav cannot steal the first D-pad press (felt like needing a double tap).
@@ -510,14 +512,15 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Hidden player chrome: consume native WebView spatial nav, then hand
-      // the key to watch-view. Returning without preventDefault used to let
-      // Android TV steal Up/Down so chrome never appeared.
+      // Player D-pad is owned by watch-view. Catalog geometry used to steal
+      // Left/Right from the transport bar into the hidden side nav.
+      const inWatchMenu = Boolean(active?.closest("[data-tv-watch-menu]"));
       if (
         spatialNavShouldDeferToWatchPlayer({
           watchPlayerActive: isWatchPlayerActive(),
-          focusInsideWatchChrome: isWatchChromeFocusTarget(active),
-        })
+          inWatchMenu,
+        }) &&
+        (isArrow || (isEnter && !inWatchMenu && !isWatchChromeFocusTarget(active)))
       ) {
         e.preventDefault();
         e.stopPropagation();
