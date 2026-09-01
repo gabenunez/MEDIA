@@ -26,6 +26,18 @@ export function spatialNavShouldDeferToWatchPlayer(state: {
   return state.watchPlayerActive && !state.focusInsideWatchChrome;
 }
 
+/** True when D-pad should stay in a text field instead of spatial nav. */
+export function isWatchTextInputKeyTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.hasAttribute("data-tv-item")) return false;
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  );
+}
+
 export type WatchHiddenChromeArrowIntent = "reveal-play" | "skip-back" | "skip-forward";
 
 /** Dedicated remote skip keys — D-pad arrows move between visible buttons. */

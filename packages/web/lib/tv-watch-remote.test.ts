@@ -6,6 +6,7 @@ import {
   dispatchWatchRemoteKey,
   isWatchChromeFocusTarget,
   isWatchDedicatedSkipKey,
+  isWatchTextInputKeyTarget,
   nativeWebOverlayAlpha,
   spatialNavShouldDeferToWatchPlayer,
   TV_WATCH_REMOTE_KEY_EVENT,
@@ -67,6 +68,19 @@ describe("TV watch remote — hidden chrome", () => {
     dispatchWatchRemoteKey("ArrowUp");
     window.removeEventListener(TV_WATCH_REMOTE_KEY_EVENT, onKey);
     expect(keys).toEqual(["ArrowUp"]);
+  });
+
+  it("does not treat window-targeted key events as text inputs", () => {
+    expect(isWatchTextInputKeyTarget(window)).toBe(false);
+    expect(isWatchTextInputKeyTarget(document)).toBe(false);
+    expect(isWatchTextInputKeyTarget(null)).toBe(false);
+  });
+
+  it("keeps D-pad in a real text field", () => {
+    document.body.innerHTML = `<input id="q" /><button id="go" data-tv-item></button>`;
+    expect(isWatchTextInputKeyTarget(document.getElementById("q"))).toBe(true);
+    expect(isWatchTextInputKeyTarget(document.getElementById("go"))).toBe(false);
+    document.body.innerHTML = "";
   });
 
   it("skips immediately on horizontal arrows while controls are hidden", () => {
@@ -306,14 +320,16 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(watchView).toContain("nativeWebOverlayShouldRaise({");
   });
 
-  it("native TV app injects D-pad into JS while the player is in front of the WebView", () => {
+  it("native TV app injects D-pad into JS only while ExoPlayer is in front of the WebView", () => {
     const mainActivity = readFileSync(
       path.join(webRoot, "../android-tv/app/src/main/java/com/media/app/MainActivity.kt"),
       "utf8",
     );
     expect(mainActivity).toContain("WatchRemoteKeys.webKeyName");
-    expect(mainActivity).toContain("nativePlayer.isActive()");
+    expect(mainActivity).toContain("WatchRemoteKeys.shouldInjectDpad");
+    expect(mainActivity).toContain("webOverlayInFront");
     expect(mainActivity).toContain("dispatchWebKey(watchKey)");
+    expect(spatialNav).toContain("isWatchTextInputKeyTarget");
   });
 
   it("raises the native overlay inside revealControls even when chrome is already showing", () => {
