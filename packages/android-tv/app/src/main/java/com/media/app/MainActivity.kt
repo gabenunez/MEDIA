@@ -493,7 +493,7 @@ class MainActivity : AppCompatActivity() {
             }
             // Play/Pause is injected above because WebView never sees those keys.
             // D-pad is the same: do not wait for overlay z-order. Always inject
-            // onto the focused control while native playback is active.
+            // onto window while native playback is active.
             val watchKey = WatchRemoteKeys.webKeyName(event.keyCode)
             if (watchKey != null && WatchRemoteKeys.shouldInjectDpad(nativePlayer.isActive())) {
                 dispatchWebKey(watchKey)

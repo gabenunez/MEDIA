@@ -108,6 +108,8 @@ import {
   nativeWebOverlayAlpha,
   nativeWebOverlayShouldRaise,
   TV_WATCH_REMOTE_KEY_EVENT,
+  getWatchPlayerFocusedItem,
+  isWatchTextInputKeyTarget,
   watchHiddenChromeArrowIntent,
   watchVisibleTransportArrowIntent,
 } from "@/lib/tv-watch-remote";
@@ -124,6 +126,7 @@ import {
   watchSkipDeltaSeconds,
   accumulateWatchSkipFeedback,
   isWatchRemoteSkipArrowKey,
+  moveWatchTransportFocus,
   WATCH_SKIP_FEEDBACK_MS,
   type WatchSkipFeedback,
 } from "@/lib/tv-watch-player";
@@ -2135,16 +2138,16 @@ export function TvWatchView() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
+      if (isWatchTextInputKeyTarget(e.target)) {
+        return;
+      }
+      // Native injects onto window. Spatial nav capture preventDefault +
+      // redispatch; ignore that original keydown if it still reaches us.
+      if (e.defaultPrevented) {
         return;
       }
 
-      const active = document.activeElement as HTMLElement | null;
+      const active = getWatchPlayerFocusedItem();
 
       if (isWatchBackKey(e.key)) {
         e.preventDefault();
@@ -2230,6 +2233,20 @@ export function TvWatchView() {
         if (transportArrow === "skip-back" || transportArrow === "skip-forward") {
           e.preventDefault();
           skipRelative(watchSkipDeltaSeconds(transportArrow));
+          return;
+        }
+        if (transportArrow === "move-focus") {
+          e.preventDefault();
+          const row = document.querySelector<HTMLElement>("[data-tv-watch-transport-row]");
+          const items = row
+            ? [...row.querySelectorAll<HTMLElement>("[data-tv-item]")]
+            : [];
+          const next = moveWatchTransportFocus(
+            items,
+            active,
+            e.key === "ArrowLeft" ? "left" : "right",
+          );
+          if (next) focusTvItem(next);
           return;
         }
       }

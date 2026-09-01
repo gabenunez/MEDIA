@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   dispatchWatchRemoteKey,
+  getWatchPlayerFocusedItem,
   isWatchChromeFocusTarget,
   isWatchDedicatedSkipKey,
   isWatchTextInputKeyTarget,
@@ -17,20 +18,42 @@ import {
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 describe("TV watch remote — hidden chrome", () => {
-  it("defers D-pad to the player when watch is active and chrome is not focused", () => {
+  it("defers D-pad to the player whenever watch is active, except menus", () => {
     expect(
       spatialNavShouldDeferToWatchPlayer({
         watchPlayerActive: true,
-        focusInsideWatchChrome: false,
+        inWatchMenu: false,
       }),
     ).toBe(true);
   });
 
-  it("lets spatial nav move between visible watch controls", () => {
+  it("defers D-pad even when a transport button is focused — catalog nav must not run", () => {
     expect(
       spatialNavShouldDeferToWatchPlayer({
         watchPlayerActive: true,
-        focusInsideWatchChrome: true,
+        inWatchMenu: false,
+      }),
+    ).toBe(true);
+    document.body.innerHTML = `
+      <div data-tv-watch-player>
+        <div data-tv-content-row data-tv-watch-transport-row>
+          <button id="play" data-tv-item data-tv-focused data-tv-watch-controls></button>
+        </div>
+      </div>
+    `;
+    const play = document.getElementById("play");
+    expect(isWatchChromeFocusTarget(play)).toBe(true);
+    expect(getWatchPlayerFocusedItem()?.id).toBe("play");
+    expect(watchVisibleTransportArrowIntent("ArrowLeft")).toBe("move-focus");
+    expect(watchVisibleTransportArrowIntent("ArrowRight")).toBe("move-focus");
+    document.body.innerHTML = "";
+  });
+
+  it("lets spatial nav move inside subtitle/quality menus", () => {
+    expect(
+      spatialNavShouldDeferToWatchPlayer({
+        watchPlayerActive: true,
+        inWatchMenu: true,
       }),
     ).toBe(false);
   });
@@ -39,9 +62,19 @@ describe("TV watch remote — hidden chrome", () => {
     expect(
       spatialNavShouldDeferToWatchPlayer({
         watchPlayerActive: false,
-        focusInsideWatchChrome: false,
+        inWatchMenu: false,
       }),
     ).toBe(false);
+  });
+
+  it("prefers the visual TV focus ring inside the player", () => {
+    document.body.innerHTML = `
+      <div data-tv-watch-player>
+        <button id="play" data-tv-item data-tv-focused></button>
+      </div>
+    `;
+    expect(getWatchPlayerFocusedItem()?.id).toBe("play");
+    document.body.innerHTML = "";
   });
 
   it("treats the control bar and side menus as watch chrome", () => {
@@ -258,13 +291,17 @@ describe("TV watch remote — wiring (do not revert)", () => {
     const deferBlock = handler.slice(deferAt, stealAt);
     expect(deferBlock).toContain("preventDefault");
     expect(deferBlock).toContain("stopPropagation");
+    expect(deferBlock).toContain("stopImmediatePropagation");
     expect(deferBlock).toContain("dispatchWatchRemoteKey");
   });
 
-  it("spatial nav moves between watch control buttons on D-pad left/right", () => {
+  it("spatial nav defers player transport D-pad to watch-view", () => {
     expect(spatialNav).not.toContain("isWatchHorizontalSkipKey");
     expect(spatialNav).toContain("spatialNavShouldHandleWatchArrow");
     expect(spatialNav).toContain("isWatchPlayerActive()");
+    expect(spatialNav).toContain("inWatchMenu");
+    expect(spatialNav).toContain("getWatchPlayerFocusedItem");
+    expect(watchView).toContain("moveWatchTransportFocus");
   });
 
   it("spatial nav does not click the scrubber on Enter — watch-view commits the seek", () => {
@@ -331,6 +368,12 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(mainActivity).toContain("WatchRemoteKeys.dispatchScript");
     expect(mainActivity).not.toContain("shouldInjectDpad(nativePlayer.isActive(), webOverlayInFront)");
     expect(spatialNav).toContain("isWatchTextInputKeyTarget");
+    const keys = readFileSync(
+      path.join(webRoot, "../android-tv/app/src/main/java/com/media/app/WatchRemoteKeys.kt"),
+      "utf8",
+    );
+    expect(keys).toContain("window.dispatchEvent");
+    expect(keys).not.toContain("document.activeElement");
   });
 
   it("raises the native overlay inside revealControls even when chrome is already showing", () => {
