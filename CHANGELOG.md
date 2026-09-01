@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.233 — 2026-09-01
+
+### Changes
+
+- **Release** — Fix TV player submenu D-pad so subtitle and quality menus can be navigated
+- ## Problem
+- Fix TV player submenu D-pad so subtitle and quality menus can be navigated (#24)
+
 ## 0.1.232 — 2026-09-01
 
 ### Changes
