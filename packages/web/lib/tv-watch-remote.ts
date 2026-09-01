@@ -16,8 +16,9 @@ export function isWatchChromeFocusTarget(el: Element | null): boolean {
 }
 
 /**
- * Spatial nav captures D-pad to restore catalog focus. While the player is up
- * and chrome is hidden, that capture must not run — watch-view owns the key.
+ * Spatial nav captures D-pad to restore catalog focus. While the player is up,
+ * that capture must not run — watch-view owns transport/scrub/hidden chrome.
+ * Subtitle/quality menus still use catalog spatial nav.
  */
 export function spatialNavShouldDeferToWatchPlayer(state: {
   watchPlayerActive: boolean;

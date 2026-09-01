@@ -467,6 +467,7 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("moveWatchTransportFocus");
     expect(watchView).toContain("getWatchPlayerFocusedItem");
     expect(watchView).toContain("isWatchTextInputKeyTarget");
+    expect(watchView).toContain("e.defaultPrevented");
   });
 
   it("spatial nav uses the extracted watch-arrow guard", () => {

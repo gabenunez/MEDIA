@@ -2141,6 +2141,11 @@ export function TvWatchView() {
       if (isWatchTextInputKeyTarget(e.target)) {
         return;
       }
+      // Native injects onto window. Spatial nav capture preventDefault +
+      // redispatch; ignore that original keydown if it still reaches us.
+      if (e.defaultPrevented) {
+        return;
+      }
 
       const active = getWatchPlayerFocusedItem();
 

@@ -514,6 +514,8 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
 
       // Player D-pad is owned by watch-view. Catalog geometry used to steal
       // Left/Right from the transport bar into the hidden side nav.
+      // Native injects onto window; stopImmediatePropagation so watch-view's
+      // bubble listener cannot handle the same keydown twice.
       const inWatchMenu = Boolean(active?.closest("[data-tv-watch-menu]"));
       if (
         spatialNavShouldDeferToWatchPlayer({
@@ -524,6 +526,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       ) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         dispatchWatchRemoteKey(e.key);
         return;
       }

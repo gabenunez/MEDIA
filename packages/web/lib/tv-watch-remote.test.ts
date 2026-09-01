@@ -27,6 +27,28 @@ describe("TV watch remote — hidden chrome", () => {
     ).toBe(true);
   });
 
+  it("defers D-pad even when a transport button is focused — catalog nav must not run", () => {
+    expect(
+      spatialNavShouldDeferToWatchPlayer({
+        watchPlayerActive: true,
+        inWatchMenu: false,
+      }),
+    ).toBe(true);
+    document.body.innerHTML = `
+      <div data-tv-watch-player>
+        <div data-tv-content-row data-tv-watch-transport-row>
+          <button id="play" data-tv-item data-tv-focused data-tv-watch-controls></button>
+        </div>
+      </div>
+    `;
+    const play = document.getElementById("play");
+    expect(isWatchChromeFocusTarget(play)).toBe(true);
+    expect(getWatchPlayerFocusedItem()?.id).toBe("play");
+    expect(watchVisibleTransportArrowIntent("ArrowLeft")).toBe("move-focus");
+    expect(watchVisibleTransportArrowIntent("ArrowRight")).toBe("move-focus");
+    document.body.innerHTML = "";
+  });
+
   it("lets spatial nav move inside subtitle/quality menus", () => {
     expect(
       spatialNavShouldDeferToWatchPlayer({
@@ -269,6 +291,7 @@ describe("TV watch remote — wiring (do not revert)", () => {
     const deferBlock = handler.slice(deferAt, stealAt);
     expect(deferBlock).toContain("preventDefault");
     expect(deferBlock).toContain("stopPropagation");
+    expect(deferBlock).toContain("stopImmediatePropagation");
     expect(deferBlock).toContain("dispatchWatchRemoteKey");
   });
 
