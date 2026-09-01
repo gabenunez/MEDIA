@@ -3,6 +3,20 @@
 export const TV_NAV_OPEN_ATTR = "data-tv-nav-open";
 export const TV_RAIL_SELECTOR = "[data-tv-rail]";
 
+/** Catalog item that had focus when the rail opened — restore on Right. */
+let lastContentFocus: HTMLElement | null = null;
+
+export function rememberTvContentFocus(item: HTMLElement | null) {
+  lastContentFocus = item;
+}
+
+export function takeTvContentFocus() {
+  const item = lastContentFocus;
+  lastContentFocus = null;
+  if (!item?.isConnected) return null;
+  return item;
+}
+
 export function isTvWatchActive() {
   return document.documentElement.hasAttribute("data-tv-watch-active");
 }

@@ -6,7 +6,9 @@ import {
   closeTvSideNav,
   isTvSideNavOpen,
   openTvSideNav,
+  rememberTvContentFocus,
   syncTvSideNavToFocus,
+  takeTvContentFocus,
   TV_NAV_OPEN_ATTR,
 } from "./tv-side-nav";
 
@@ -14,6 +16,7 @@ describe("TV side nav overlay", () => {
   afterEach(() => {
     document.documentElement.removeAttribute(TV_NAV_OPEN_ATTR);
     document.documentElement.removeAttribute("data-tv-watch-active");
+    rememberTvContentFocus(null);
     document.body.innerHTML = "";
   });
 
@@ -75,6 +78,22 @@ describe("TV side nav overlay", () => {
     syncTvSideNavToFocus(poster);
     expect(isTvSideNavOpen()).toBe(false);
   });
+
+  it("restores the catalog item that had focus when the rail opened", () => {
+    mountRail();
+    const poster = document.getElementById("poster") as HTMLElement;
+    rememberTvContentFocus(poster);
+    expect(takeTvContentFocus()).toBe(poster);
+    expect(takeTvContentFocus()).toBeNull();
+  });
+
+  it("drops remembered catalog focus if the item left the document", () => {
+    mountRail();
+    const poster = document.getElementById("poster") as HTMLElement;
+    rememberTvContentFocus(poster);
+    poster.remove();
+    expect(takeTvContentFocus()).toBeNull();
+  });
 });
 
 describe("TV side nav — spatial nav wiring", () => {
@@ -105,6 +124,17 @@ describe("TV side nav — spatial nav wiring", () => {
     expect(spatialNav).not.toContain(
       "if (direction === \"up\" && contentIndex === 0)",
     );
+  });
+
+  it("returns Right from the rail to the remembered catalog item, not a nav index", () => {
+    const focusContent = spatialNav.slice(
+      spatialNav.indexOf("function focusContentFromNav"),
+      spatialNav.indexOf("function moveHorizontal"),
+    );
+    expect(focusContent).toContain("takeTvContentFocus()");
+    expect(focusContent).toContain("items[0]");
+    expect(focusContent).not.toContain("navItems.indexOf(active)");
+    expect(spatialNav).toContain("rememberTvContentFocus(active)");
   });
 
   it("hides the rail with CSS until data-tv-nav-open", () => {

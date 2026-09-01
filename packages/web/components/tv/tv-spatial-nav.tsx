@@ -22,7 +22,13 @@ import {
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
 import { spatialNavShouldHandleWatchArrow } from "@/lib/tv-watch-player";
-import { closeTvSideNav, openTvSideNav, syncTvSideNavToFocus } from "@/lib/tv-side-nav";
+import {
+  closeTvSideNav,
+  openTvSideNav,
+  rememberTvContentFocus,
+  syncTvSideNavToFocus,
+  takeTvContentFocus,
+} from "@/lib/tv-side-nav";
 import { useEffect, type ReactNode } from "react";
 
 const NAV_COOLDOWN_MS = 50;
@@ -327,6 +333,8 @@ function focusNavFromContent(active: HTMLElement) {
     return false;
   }
 
+  rememberTvContentFocus(active);
+
   const rect = active.getBoundingClientRect();
   const verticalNav = navRow.hasAttribute("data-tv-vertical");
   const activeCenter = verticalNav
@@ -352,19 +360,21 @@ function focusNavFromContent(active: HTMLElement) {
   return true;
 }
 
-function focusContentFromNav(active: HTMLElement) {
+function focusContentFromNav(_active: HTMLElement) {
+  const remembered = takeTvContentFocus();
+  if (remembered && isTvFocusable(remembered)) {
+    focusItem(remembered);
+    closeTvSideNav();
+    return true;
+  }
+
   const contentRows = getContentRows();
   if (!contentRows.length) return false;
-
-  const navRow = getNavRow();
-  const navItems = navRow ? getRowItems(navRow) : [];
-  const navIndex = navItems.indexOf(active);
 
   for (const row of contentRows) {
     const items = getRowItems(row);
     if (!items.length) continue;
-    const next = items[Math.min(Math.max(navIndex, 0), items.length - 1)];
-    focusItem(next);
+    focusItem(items[0]);
     closeTvSideNav();
     return true;
   }
