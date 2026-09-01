@@ -22,13 +22,10 @@ import {
   nextStableAbsoluteSeconds,
   recordMidPlaybackRebuffer,
   resolvePlaybackStartSeconds,
-  resolveHlsSeekAction,
   registerStreamRestartTarget,
   consumeStreamRestartTarget,
-  resolveNativeHlsSeekAction,
   resolveSkipTargetAbsoluteSeconds,
   shouldClearOptimisticSeek,
-  shouldCommitScrubPreview,
   getPlaybackAbsoluteSeconds,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
@@ -112,6 +109,18 @@ import {
   watchHiddenChromeArrowIntent,
   watchVisibleTransportArrowIntent,
 } from "@/lib/tv-watch-remote";
+import {
+  isWatchBackKey,
+  isWatchConfirmKey,
+  nudgeScrubPreviewPercent,
+  resolveScrubCommitDecision,
+  resolveTvSeekPlan,
+  resolveWatchBackAction,
+  watchChromeVerticalArrowIntent,
+  watchMediaKeyIntent,
+  watchScrubKeyIntent,
+  watchSkipDeltaSeconds,
+} from "@/lib/tv-watch-player";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
@@ -1593,68 +1602,56 @@ export function TvWatchView() {
 
   const seekToAbsolute = useCallback(
     (seconds: number) => {
-      if (!totalDurationSeconds) return;
+      const video = videoRef.current;
+      const plan = resolveTvSeekPlan({
+        targetAbsoluteSeconds: seconds,
+        totalDurationSeconds,
+        usesNativePlayer,
+        usingHls: usingHlsPlayback,
+        hlsStartOffset: hlsStartOffsetRef.current,
+        seekableEndRelative: video ? getVideoSeekableEnd(video) : undefined,
+        videoReadyState: video?.readyState,
+        hasWebVideo: Boolean(video),
+      });
+      if (plan.kind === "noop-no-duration") return;
 
-      const clamped = Math.max(0, Math.min(seconds, totalDurationSeconds));
-      setOptimisticAbsoluteSeconds(clamped);
-      lastStableAbsoluteSecondsRef.current = clamped;
-      const hlsOffset = hlsStartOffsetRef.current;
+      setOptimisticAbsoluteSeconds(plan.absoluteSeconds);
+      lastStableAbsoluteSecondsRef.current = plan.absoluteSeconds;
 
       if (usesNativePlayer) {
         lastNativeUserSeekAtRef.current = Date.now();
         nativeMidBufferStartedAtRef.current = null;
+      }
 
-        if (!usingHlsPlayback) {
-          seekNativePlayback(clamped * 1000);
-          setCurrentTime(clamped);
-          revealControls(true);
-          return;
-        }
-
-        const seekAction = resolveNativeHlsSeekAction({
-          targetAbsoluteSeconds: clamped,
-          hlsStartOffset: hlsOffset,
-        });
-
-        if (seekAction.kind === "restart") {
-          requestStreamRestartAt(seekAction.absoluteSeconds);
-          setBuffering(true);
-          revealControls(true);
-          return;
-        }
-
-        seekNativePlayback(seekAction.relativeSeconds * 1000);
-        setCurrentTime(seekAction.relativeSeconds);
+      if (plan.kind === "native-direct") {
+        seekNativePlayback(plan.absoluteSeconds * 1000);
+        setCurrentTime(plan.absoluteSeconds);
         revealControls(true);
         return;
       }
-
-      const video = videoRef.current;
-      if (!video) return;
-
-      if (!usingHlsPlayback) {
-        video.currentTime = clamped;
-        revealControls(true);
-        return;
-      }
-
-      const seekAction = resolveHlsSeekAction({
-        targetAbsoluteSeconds: clamped,
-        hlsStartOffset: hlsOffset,
-        seekableEndRelative: getVideoSeekableEnd(video),
-        videoReadyState: video.readyState,
-      });
-
-      if (seekAction.kind === "restart") {
-        requestStreamRestartAt(seekAction.absoluteSeconds);
+      if (plan.kind === "native-hls-restart" || plan.kind === "web-hls-restart") {
+        requestStreamRestartAt(plan.absoluteSeconds);
         setBuffering(true);
         revealControls(true);
         return;
       }
-
-      video.currentTime = seekAction.relativeSeconds;
-      setCurrentTime(seekAction.relativeSeconds);
-      revealControls(true);
+      if (plan.kind === "native-hls-relative") {
+        seekNativePlayback(plan.relativeSeconds * 1000);
+        setCurrentTime(plan.relativeSeconds);
+        revealControls(true);
+        return;
+      }
+      if (plan.kind === "web-missing-video") return;
+      if (plan.kind === "web-direct") {
+        if (video) video.currentTime = plan.absoluteSeconds;
+        revealControls(true);
+        return;
+      }
+      if (plan.kind === "web-hls-relative") {
+        if (video) video.currentTime = plan.relativeSeconds;
+        setCurrentTime(plan.relativeSeconds);
+        revealControls(true);
+      }
     },
     [
       usingHlsPlayback,
@@ -1713,27 +1710,23 @@ export function TvWatchView() {
     revealControls(true);
   }, [fileId, type, sourceDurationMs, duration, seekToAbsolute, revealControls]);
 
-  const commitScrubPreview = useCallback(
-    (requireDelta = false) => {
-      const preview = scrubPreviewRef.current;
-      if (preview === null || totalDurationSeconds <= 0) return false;
-      if (
-        requireDelta &&
-        !shouldCommitScrubPreview({
-          previewPercent: preview,
-          livePercent: progressRef.current,
-          totalDurationSeconds,
-        })
-      ) {
-        scrubPreviewRef.current = null;
-        setScrubPreview(null);
-        return false;
-      }
+  const commitScrubPreview = useCallback(() => {
+    const preview = scrubPreviewRef.current;
+    const decision = resolveScrubCommitDecision({
+      previewPercent: preview,
+      livePercent: progressRef.current,
+      totalDurationSeconds,
+    });
+    if (decision === "commit" && preview !== null) {
       handleScrubCommit(preview);
       return true;
-    },
-    [handleScrubCommit, totalDurationSeconds],
-  );
+    }
+    if (decision === "discard") {
+      scrubPreviewRef.current = null;
+      setScrubPreview(null);
+    }
+    return false;
+  }, [handleScrubCommit, totalDurationSeconds]);
 
   const playPlayback = useCallback(() => {
     if (usesNativePlayer) {
@@ -2057,27 +2050,34 @@ export function TvWatchView() {
   const controlLabelButtonClassName = "watch-control-btn watch-control-btn--label shrink-0";
 
   const handleWatchBack = useCallback((): boolean => {
-    if (countdown) {
+    const action = resolveWatchBackAction({
+      countdown: Boolean(countdown),
+      subtitleSearchOpen,
+      subtitleAppearanceOpen,
+      panelOpen,
+      controlsVisible,
+    });
+    if (action === "exit-after-countdown") {
       cancelCountdown();
       exitWatch();
       return true;
     }
-    if (subtitleSearchOpen) {
+    if (action === "close-search") {
       setSubtitleSearchOpen(false);
       revealControls(false);
       return true;
     }
-    if (subtitleAppearanceOpen) {
+    if (action === "appearance-to-menu") {
       setSubtitleAppearanceOpen(false);
       setSubtitleMenuOpen(true);
       return true;
     }
-    if (panelOpen) {
+    if (action === "close-panel") {
       closeMenus();
       revealControls(false);
       return true;
     }
-    if (controlsVisible) {
+    if (action === "hide-chrome") {
       setShowControls(false);
       controlsRevealedAtRef.current = null;
       releaseWatchFocus();
@@ -2113,7 +2113,7 @@ export function TvWatchView() {
 
       const active = document.activeElement as HTMLElement | null;
 
-      if (e.key === "Escape" || e.key === "Backspace" || e.key === "GoBack") {
+      if (isWatchBackKey(e.key)) {
         e.preventDefault();
         handleWatchBack();
         return;
@@ -2122,19 +2122,18 @@ export function TvWatchView() {
       if (subtitleSearchOpen) return;
 
       if (!blockingOverlayVisible) {
-        if (e.key === "MediaPlay") {
+        const mediaIntent = watchMediaKeyIntent(e.key);
+        if (mediaIntent === "play") {
           e.preventDefault();
           playPlayback();
           return;
         }
-
-        if (e.key === "MediaPause") {
+        if (mediaIntent === "pause") {
           e.preventDefault();
           pausePlayback();
           return;
         }
-
-        if (e.key === "MediaPlayPause") {
+        if (mediaIntent === "toggle") {
           e.preventDefault();
           togglePlay();
           return;
@@ -2155,50 +2154,31 @@ export function TvWatchView() {
           revealControls(false, true);
           return;
         }
-        if (hiddenArrow === "skip-back") {
+        if (hiddenArrow === "skip-back" || hiddenArrow === "skip-forward") {
           e.preventDefault();
-          skipRelative(-10);
-          revealControls(true);
-          return;
-        }
-        if (hiddenArrow === "skip-forward") {
-          e.preventDefault();
-          skipRelative(30);
+          skipRelative(watchSkipDeltaSeconds(hiddenArrow));
           revealControls(true);
           return;
         }
       }
 
       if (active?.hasAttribute("data-tv-watch-scrub")) {
-        if (
-          e.key === "Enter" ||
-          e.key === "NumpadEnter" ||
-          e.key === "Select"
-        ) {
+        const scrubIntent = watchScrubKeyIntent(e.key);
+        if (scrubIntent === "commit") {
           e.preventDefault();
           commitScrubPreview();
           return;
         }
-        if (e.key === "ArrowLeft" || e.key === "MediaRewind") {
+        if (scrubIntent === "nudge-back" || scrubIntent === "nudge-forward") {
           e.preventDefault();
-          if (totalDurationSeconds > 0) {
-            const stepPercent =
-              totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
-            setScrubPreview((current) =>
-              Math.max(0, (current ?? displayedProgress) - stepPercent),
-            );
-          }
-          return;
-        }
-        if (e.key === "ArrowRight" || e.key === "MediaFastForward") {
-          e.preventDefault();
-          if (totalDurationSeconds > 0) {
-            const stepPercent =
-              totalDurationSeconds > 0 ? (10 / totalDurationSeconds) * 100 : 2;
-            setScrubPreview((current) =>
-              Math.min(100, (current ?? displayedProgress) + stepPercent),
-            );
-          }
+          setScrubPreview((current) =>
+            nudgeScrubPreviewPercent({
+              currentPreview: current,
+              displayedProgress,
+              direction: scrubIntent === "nudge-back" ? "back" : "forward",
+              totalDurationSeconds,
+            }),
+          );
           return;
         }
       }
@@ -2209,23 +2189,14 @@ export function TvWatchView() {
         !active?.hasAttribute("data-tv-watch-scrub")
       ) {
         const transportArrow = watchVisibleTransportArrowIntent(e.key);
-        if (transportArrow === "skip-back") {
+        if (transportArrow === "skip-back" || transportArrow === "skip-forward") {
           e.preventDefault();
-          skipRelative(-10);
-          return;
-        }
-        if (transportArrow === "skip-forward") {
-          e.preventDefault();
-          skipRelative(30);
+          skipRelative(watchSkipDeltaSeconds(transportArrow));
           return;
         }
       }
 
-      if (
-        e.key === "Enter" ||
-        e.key === "NumpadEnter" ||
-        e.key === "Select"
-      ) {
+      if (isWatchConfirmKey(e.key)) {
         if (active?.hasAttribute("data-tv-item")) return;
         e.preventDefault();
         togglePlay();
@@ -2246,32 +2217,38 @@ export function TvWatchView() {
         e.key === "MediaRewind" ||
         e.key === "MediaFastForward";
 
-      if (e.key === "ArrowDown") {
+      const verticalIntent = watchChromeVerticalArrowIntent({
+        key: e.key,
+        controlsVisible,
+        focusOnScrub: Boolean(active?.hasAttribute("data-tv-watch-scrub")),
+        focusOnTransport: Boolean(active?.closest("[data-tv-watch-transport-row]")),
+      });
+      if (verticalIntent === "focus-play") {
         e.preventDefault();
-        if (controlsVisible && active?.hasAttribute("data-tv-watch-scrub")) {
-          const play = playButtonRef.current;
-          if (play) {
-            focusTvItem(play);
-            return;
-          }
+        const play = playButtonRef.current;
+        if (play) {
+          focusTvItem(play);
+          return;
         }
         revealControls(false, true);
         return;
       }
-
-      if (e.key === "ArrowUp") {
+      if (verticalIntent === "reveal-and-focus-play") {
         e.preventDefault();
-        if (
-          controlsVisible &&
-          active?.closest("[data-tv-watch-transport-row]") &&
-          !active?.hasAttribute("data-tv-watch-scrub")
-        ) {
-          const scrub = document.querySelector<HTMLElement>("[data-tv-watch-scrub]");
-          if (scrub) {
-            focusTvItem(scrub);
-            return;
-          }
+        revealControls(false, true);
+        return;
+      }
+      if (verticalIntent === "focus-scrub") {
+        e.preventDefault();
+        const scrub = document.querySelector<HTMLElement>("[data-tv-watch-scrub]");
+        if (scrub) {
+          focusTvItem(scrub);
         }
+        return;
+      }
+      if (verticalIntent === "consume") {
+        e.preventDefault();
+        return;
       }
 
       if (
@@ -2617,7 +2594,7 @@ export function TvWatchView() {
                       }}
                       onFocus={() => setScrubPreview(displayedProgress)}
                       onBlur={() => {
-                        if (!commitScrubPreview(true)) {
+                        if (!commitScrubPreview()) {
                           setScrubPreview(null);
                         }
                       }}
@@ -2658,7 +2635,7 @@ export function TvWatchView() {
 
                   <TvFocusButton
                     variant="watch"
-                    onClick={() => skipRelative(-10)}
+                    onClick={() => skipRelative(watchSkipDeltaSeconds("skip-back"))}
                     aria-label="Back 10 seconds"
                     className={controlIconButtonClassName}
                   >
@@ -2692,7 +2669,7 @@ export function TvWatchView() {
 
                   <TvFocusButton
                     variant="watch"
-                    onClick={() => skipRelative(30)}
+                    onClick={() => skipRelative(watchSkipDeltaSeconds("skip-forward"))}
                     aria-label="Forward 30 seconds"
                     className={controlIconButtonClassName}
                   >
