@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.230 — 2026-09-01
+
+### Changes
+
+- **Release** — Restore TV Left/Right movement between player control buttons
+- After the skip-icon and overlay-key work, D-pad Left/Right on the **visible** TV control bar no longer moved between Play, skip, subtitles, quality, and display. Up/Down and scrubber seeking still worked.
+- Restore TV Left/Right movement between player control buttons (#21)
+
 ## 0.1.229 — 2026-09-01
 
 ### Changes
