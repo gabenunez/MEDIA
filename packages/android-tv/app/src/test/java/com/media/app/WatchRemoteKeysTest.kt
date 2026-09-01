@@ -26,4 +26,12 @@ class WatchRemoteKeysTest {
         assertNull(WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_BACK))
         assertNull(WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_MEDIA_PLAY))
     }
+
+    @Test
+    fun injectsDpadOnlyWhenPlayerIsInFrontOfWebView() {
+        assertEquals(true, WatchRemoteKeys.shouldInjectDpad(true, false))
+        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(true, true))
+        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(false, false))
+        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(false, true))
+    }
 }

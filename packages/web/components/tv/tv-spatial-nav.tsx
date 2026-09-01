@@ -14,6 +14,7 @@ import {
 import {
   dispatchWatchRemoteKey,
   isWatchChromeFocusTarget,
+  isWatchTextInputKeyTarget,
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
 import { spatialNavShouldHandleWatchArrow } from "@/lib/tv-watch-player";
@@ -549,14 +550,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         return;
       }
 
-      const target = e.target as HTMLElement;
-      if (
-        !target.hasAttribute("data-tv-item") &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable)
-      ) {
+      if (isWatchTextInputKeyTarget(e.target)) {
         return;
       }
 

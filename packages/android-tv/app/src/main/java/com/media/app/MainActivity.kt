@@ -446,11 +446,17 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(
             """
             (function(){
-              window.dispatchEvent(new KeyboardEvent('keydown', {
+              var target = document.activeElement;
+              var event = new KeyboardEvent('keydown', {
                 key: '$escaped',
                 bubbles: true,
                 cancelable: true
-              }));
+              });
+              if (target && target !== document.body && target !== document.documentElement) {
+                target.dispatchEvent(event);
+              } else {
+                window.dispatchEvent(event);
+              }
             })();
             """.trimIndent(),
             null,
@@ -505,8 +511,13 @@ class MainActivity : AppCompatActivity() {
             }
             // Overlay alpha 0 brings ExoPlayer in front of the WebView. D-pad
             // then never reaches JS, so Up/Down cannot reveal player chrome.
+            // Do not inject while the overlay is up — that replaces real
+            // WebView key events and Left/Right never move between buttons.
             val watchKey = WatchRemoteKeys.webKeyName(event.keyCode)
-            if (watchKey != null && nativePlayer.isActive()) {
+            if (
+                watchKey != null &&
+                WatchRemoteKeys.shouldInjectDpad(nativePlayer.isActive(), webOverlayInFront)
+            ) {
                 dispatchWebKey(watchKey)
                 return true
             }
