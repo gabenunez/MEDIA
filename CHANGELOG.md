@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.243 — 2026-09-01
+
+### Playback
+- **Scrubber** — keep the web buffer bar in sync with remux/HLS instead of freezing at the playhead
+
+### TV
+- **Player** — same buffer-bar fix in the TV WebView player
+
 ## 0.1.242 — 2026-09-01
 
 ### TV
