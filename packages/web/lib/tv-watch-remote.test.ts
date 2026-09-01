@@ -9,9 +9,12 @@ import {
   getWatchTransportFocusItems,
   isWatchChromeFocusTarget,
   isWatchDedicatedSkipKey,
+  isWatchPlayerChromeVisible,
   isWatchTextInputKeyTarget,
   nativeWebOverlayAlpha,
   resolveWatchMenuDpadTarget,
+  shouldExposeNativeVideoSurface,
+  shouldRetargetWatchMenuDpad,
   spatialNavShouldDeferToWatchPlayer,
   TV_WATCH_REMOTE_KEY_EVENT,
   watchHiddenChromeArrowIntent,
@@ -59,6 +62,50 @@ describe("TV watch remote — hidden chrome", () => {
         inWatchMenu: true,
       }),
     ).toBe(false);
+  });
+
+  it("still defers Up/Down to the player when chrome is hidden, even if a menu node exists", () => {
+    expect(
+      spatialNavShouldDeferToWatchPlayer({
+        watchPlayerActive: true,
+        inWatchMenu: true,
+        chromeVisible: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRetargetWatchMenuDpad({
+        chromeVisible: false,
+        inWatchMenu: true,
+        retargeted: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("reads chrome visibility from data-tv-watch-chrome", () => {
+    document.body.innerHTML = `
+      <div data-tv-watch-player data-tv-watch-chrome="hidden">
+        <div data-tv-watch-menu><button id="stale" data-tv-item></button></div>
+      </div>
+    `;
+    expect(isWatchPlayerChromeVisible()).toBe(false);
+    expect(getOpenWatchMenu()).not.toBeNull();
+    document.body.innerHTML = `
+      <div data-tv-watch-player data-tv-watch-chrome="visible">
+        <button data-tv-watch-controls data-tv-item>Play</button>
+      </div>
+    `;
+    expect(isWatchPlayerChromeVisible()).toBe(true);
+    document.body.innerHTML = "";
+  });
+
+  it("retargets D-pad into a menu only while chrome is visible", () => {
+    expect(
+      shouldRetargetWatchMenuDpad({
+        chromeVisible: true,
+        inWatchMenu: true,
+        retargeted: true,
+      }),
+    ).toBe(true);
   });
 
   it("does not defer D-pad on catalog pages", () => {
@@ -301,6 +348,59 @@ describe("TV native WebView overlay", () => {
     ).toBe(0);
   });
 
+  it("keeps the overlay raised until native playback has begun", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: false,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: false,
+        nativePlaybackBegun: false,
+      }),
+    ).toBe(1);
+  });
+
+  it("does not cover a playing native surface when chrome is hidden after playback has begun", () => {
+    expect(
+      nativeWebOverlayAlpha({
+        controlsVisible: false,
+        blockingOverlayVisible: false,
+        showMidPlaybackBuffering: false,
+        nativePlaybackBegun: true,
+      }),
+    ).toBe(0);
+  });
+
+  it("does not expose the native surface on buffered-only samples", () => {
+    expect(
+      shouldExposeNativeVideoSurface({
+        isPlaying: false,
+        ready: false,
+        isBuffering: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldExposeNativeVideoSurface({
+        isPlaying: false,
+        ready: true,
+        isBuffering: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldExposeNativeVideoSurface({
+        isPlaying: true,
+        ready: true,
+        isBuffering: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldExposeNativeVideoSurface({
+        isPlaying: false,
+        ready: true,
+        isBuffering: false,
+      }),
+    ).toBe(true);
+  });
+
   it("raises the overlay for error/countdown screens", () => {
     expect(
       nativeWebOverlayAlpha({
@@ -388,6 +488,9 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(spatialNav).toContain("inWatchMenu");
     expect(spatialNav).toContain("getWatchPlayerFocusedItem");
     expect(spatialNav).toContain("resolveWatchMenuDpadTarget");
+    expect(spatialNav).toContain("isWatchPlayerChromeVisible");
+    expect(spatialNav).toContain("shouldRetargetWatchMenuDpad");
+    expect(spatialNav).toContain("chromeVisible");
     expect(watchView).toContain("moveWatchTransportFocus");
     expect(watchView).toContain("getWatchTransportFocusItems");
   });
@@ -437,12 +540,19 @@ describe("TV watch remote — wiring (do not revert)", () => {
   });
 
   it("syncs native overlay alpha from chrome visibility instead of forcing 0 at start", () => {
-    const startIdx = watchView.indexOf("startNativePlayback({");
-    expect(startIdx).toBeGreaterThan(-1);
-    const beforeStart = watchView.slice(Math.max(0, startIdx - 250), startIdx);
-    expect(beforeStart).not.toMatch(/setNativeWebOverlayAlpha\(\s*0\s*\)/);
-    expect(watchView).toContain("nativeWebOverlayAlpha({");
+    const starts = [...watchView.matchAll(/startNativePlayback\(\{/g)];
+    expect(starts.length).toBeGreaterThanOrEqual(2);
+    for (const match of starts) {
+      const after = watchView.slice(match.index ?? 0, (match.index ?? 0) + 1200);
+      expect(after).toContain("nativeWebOverlayAlpha({");
+      expect(after).toContain("nativePlaybackBegun: playbackHasBegunRef.current");
+      expect(after).not.toMatch(/setNativeWebOverlayAlpha\(\s*0\s*\)/);
+    }
     expect(watchView).toContain("nativeWebOverlayShouldRaise({");
+    expect(watchView).toContain("nativePlaybackBegun:");
+    expect(watchView).toContain("shouldExposeNativeVideoSurface");
+    expect(watchView).toContain('data-tv-watch-chrome={controlsVisible ? "visible" : "hidden"}');
+    expect(watchView).not.toContain("state.buffered > 0.5");
   });
 
   it("native TV app injects D-pad into JS for the whole native playback session", () => {

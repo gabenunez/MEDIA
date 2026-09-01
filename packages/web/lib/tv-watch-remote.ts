@@ -18,18 +18,54 @@ export function isWatchChromeFocusTarget(el: Element | null): boolean {
 /**
  * Spatial nav captures D-pad to restore catalog focus. While the player is up,
  * that capture must not run — watch-view owns transport/scrub/hidden chrome.
- * Subtitle/quality/search menus still use catalog spatial nav.
+ * Subtitle/quality/search menus still use catalog spatial nav — except when
+ * chrome is hidden: Up/Down must reveal controls, not land in a stale menu.
  */
 export function spatialNavShouldDeferToWatchPlayer(state: {
   watchPlayerActive: boolean;
   inWatchMenu: boolean;
+  chromeVisible?: boolean;
 }): boolean {
-  return state.watchPlayerActive && !state.inWatchMenu;
+  if (!state.watchPlayerActive) return false;
+  if (state.chromeVisible === false) return true;
+  return !state.inWatchMenu;
+}
+
+/** True while the transport/title bar is mounted (Back hides it). */
+export function isWatchPlayerChromeVisible(): boolean {
+  if (typeof document === "undefined") return false;
+  const root = document.querySelector("[data-tv-watch-player]");
+  if (!root) return false;
+  const attr = root.getAttribute("data-tv-watch-chrome");
+  if (attr === "hidden") return false;
+  if (attr === "visible") return true;
+  return Boolean(root.querySelector("[data-tv-watch-controls]"));
+}
+
+export function isDisplayedWatchMenu(menu: HTMLElement): boolean {
+  if (menu.hidden || menu.getAttribute("aria-hidden") === "true") return false;
+  if (menu.style.display === "none" || menu.style.visibility === "hidden") {
+    return false;
+  }
+  return true;
 }
 
 export function getOpenWatchMenu(): HTMLElement | null {
   if (typeof document === "undefined") return null;
-  return document.querySelector<HTMLElement>("[data-tv-watch-menu]");
+  const menus = document.querySelectorAll<HTMLElement>("[data-tv-watch-menu]");
+  for (const menu of menus) {
+    if (isDisplayedWatchMenu(menu)) return menu;
+  }
+  return null;
+}
+
+/** First D-pad after opening a menu lands focus inside it — never while chrome is hidden. */
+export function shouldRetargetWatchMenuDpad(state: {
+  chromeVisible: boolean;
+  inWatchMenu: boolean;
+  retargeted: boolean;
+}): boolean {
+  return state.chromeVisible && state.inWatchMenu && state.retargeted;
 }
 
 /**
@@ -160,6 +196,12 @@ export type NativeWebOverlayState = {
   blockingOverlayVisible: boolean;
   showMidPlaybackBuffering: boolean;
   skipFeedbackVisible?: boolean;
+  /**
+   * When false, keep the WebView in front. Dropping alpha before ExoPlayer
+   * paints a frame is a black screen, and Up/Down then only move invisible
+   * focus instead of raising chrome.
+   */
+  nativePlaybackBegun?: boolean;
 };
 
 /**
@@ -171,12 +213,22 @@ export type NativeWebOverlayState = {
  * paints the control bar into a transparent WebView and it never comes back.
  */
 export function nativeWebOverlayShouldRaise(state: NativeWebOverlayState): boolean {
+  if (state.nativePlaybackBegun === false) return true;
   return (
     state.controlsVisible ||
     state.blockingOverlayVisible ||
     state.showMidPlaybackBuffering ||
     Boolean(state.skipFeedbackVisible)
   );
+}
+
+/** Flip data-native-video only once ExoPlayer is presenting frames — not on buffered>0. */
+export function shouldExposeNativeVideoSurface(state: {
+  isPlaying: boolean;
+  ready: boolean;
+  isBuffering: boolean;
+}): boolean {
+  return state.isPlaying || (state.ready && !state.isBuffering);
 }
 
 export function nativeWebOverlayAlpha(state: NativeWebOverlayState): 0 | 1 {

@@ -15,8 +15,10 @@ import {
   dispatchWatchRemoteKey,
   getWatchPlayerFocusedItem,
   isWatchChromeFocusTarget,
+  isWatchPlayerChromeVisible,
   isWatchTextInputKeyTarget,
   resolveWatchMenuDpadTarget,
+  shouldRetargetWatchMenuDpad,
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
 import { spatialNavShouldHandleWatchArrow } from "@/lib/tv-watch-player";
@@ -533,14 +535,25 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       );
       active = menuTarget.active;
       const inWatchMenu = menuTarget.inWatchMenu;
+      const chromeVisible = isWatchPlayerChromeVisible();
+      // Hidden chrome: do not treat a leftover input or submenu as owning D-pad.
+      // Up/Down must reach watch-view so the transport bar can come back.
       if (
-        isWatchTextInputKeyTarget(e.target) ||
-        isWatchTextInputKeyTarget(document.activeElement)
+        chromeVisible &&
+        (isWatchTextInputKeyTarget(e.target) ||
+          isWatchTextInputKeyTarget(document.activeElement))
       ) {
         return;
       }
 
-      if (inWatchMenu && menuTarget.retargeted && active?.hasAttribute("data-tv-item")) {
+      if (
+        shouldRetargetWatchMenuDpad({
+          chromeVisible,
+          inWatchMenu,
+          retargeted: menuTarget.retargeted,
+        }) &&
+        active?.hasAttribute("data-tv-item")
+      ) {
         focusItem(active);
         e.preventDefault();
         e.stopPropagation();
@@ -551,6 +564,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         spatialNavShouldDeferToWatchPlayer({
           watchPlayerActive: isWatchPlayerActive(),
           inWatchMenu,
+          chromeVisible,
         }) &&
         (isArrow || (isEnter && !inWatchMenu && !isWatchChromeFocusTarget(active)))
       ) {
