@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.234 — 2026-09-01
+
+### Changes
+
+- **Release** — Wait 5 seconds of Original playback before switching to transcode
+- ## Problem
+- Wait 5 seconds of original playback before switching to transcode (#25)
+
 ## 0.1.233 — 2026-09-01
 
 ### Changes
