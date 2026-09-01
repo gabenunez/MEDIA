@@ -442,25 +442,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun dispatchWebKey(key: String) {
-        val escaped = key.replace("\\", "\\\\").replace("'", "\\'")
-        webView.evaluateJavascript(
-            """
-            (function(){
-              var target = document.activeElement;
-              var event = new KeyboardEvent('keydown', {
-                key: '$escaped',
-                bubbles: true,
-                cancelable: true
-              });
-              if (target && target !== document.body && target !== document.documentElement) {
-                target.dispatchEvent(event);
-              } else {
-                window.dispatchEvent(event);
-              }
-            })();
-            """.trimIndent(),
-            null,
-        )
+        webView.evaluateJavascript(WatchRemoteKeys.dispatchScript(key), null)
     }
 
     private fun updateKeepScreenOn() {
@@ -509,15 +491,11 @@ class MainActivity : AppCompatActivity() {
                     return true
                 }
             }
-            // Overlay alpha 0 brings ExoPlayer in front of the WebView. D-pad
-            // then never reaches JS, so Up/Down cannot reveal player chrome.
-            // Do not inject while the overlay is up — that replaces real
-            // WebView key events and Left/Right never move between buttons.
+            // Play/Pause is injected above because WebView never sees those keys.
+            // D-pad is the same: do not wait for overlay z-order. Always inject
+            // onto the focused control while native playback is active.
             val watchKey = WatchRemoteKeys.webKeyName(event.keyCode)
-            if (
-                watchKey != null &&
-                WatchRemoteKeys.shouldInjectDpad(nativePlayer.isActive(), webOverlayInFront)
-            ) {
+            if (watchKey != null && WatchRemoteKeys.shouldInjectDpad(nativePlayer.isActive())) {
                 dispatchWebKey(watchKey)
                 return true
             }

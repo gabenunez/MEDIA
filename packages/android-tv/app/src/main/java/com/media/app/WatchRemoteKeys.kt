@@ -3,8 +3,12 @@ package com.media.app
 import android.view.KeyEvent
 
 /**
- * D-pad mapping for native playback. When ExoPlayer is in front of the
- * WebView (overlay alpha 0), those keys never reach JS unless we inject them.
+ * D-pad mapping for native playback.
+ *
+ * Android TV WebView does not reliably deliver D-pad `keydown` to JS — Play/
+ * Pause works only because we inject those keys. The same inject must run
+ * whether ExoPlayer or the WebView is in front. Target `document.activeElement`
+ * so spatial nav can move between visible control buttons.
  */
 object WatchRemoteKeys {
     fun webKeyName(keyCode: Int): String? =
@@ -22,11 +26,24 @@ object WatchRemoteKeys {
             else -> null
         }
 
-    /**
-     * Inject D-pad only while ExoPlayer is in front of the WebView.
-     * When the overlay is raised (chrome visible), the WebView must receive
-     * real key events so spatial nav can move between Play, skip, and menus.
-     */
-    fun shouldInjectDpad(playerActive: Boolean, webOverlayInFront: Boolean): Boolean =
-        playerActive && !webOverlayInFront
+    fun shouldInjectDpad(playerActive: Boolean): Boolean = playerActive
+
+    fun dispatchScript(key: String): String {
+        val escaped = key.replace("\\", "\\\\").replace("'", "\\'")
+        return """
+            (function(){
+              var target = document.activeElement;
+              var event = new KeyboardEvent('keydown', {
+                key: '$escaped',
+                bubbles: true,
+                cancelable: true
+              });
+              if (target && target.dispatchEvent) {
+                target.dispatchEvent(event);
+              } else {
+                window.dispatchEvent(event);
+              }
+            })();
+            """.trimIndent()
+    }
 }
