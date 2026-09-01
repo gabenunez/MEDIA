@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.228 — 2026-09-01
+
+### Changes
+
+- **Release** — Fix TV player controls: Up/Down reveal chrome again
+- Player chrome on TV stopped responding to Up/Down after native playback hid the WebView.
+- Fix TV player chrome so Up/Down reveal controls again (#19)
+
 ## 0.1.227 — 2026-09-01
 
 ### Changes
