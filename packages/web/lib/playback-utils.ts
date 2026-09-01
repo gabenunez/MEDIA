@@ -1203,12 +1203,30 @@ export function nextEpisodePreviewPath(
   next: NextEpisodeInfo,
   media?: PlaybackMediaDetail | null,
 ): string | null {
-  return (
-    next.episode.stillPath ??
-    media?.backdropPath ??
-    media?.posterPath ??
-    null
-  );
+  return nextEpisodeArtworkPaths(next, media)[0] ?? null;
+}
+
+/**
+ * Artwork the up-next overlay and the next watch page may request.
+ * Still first, then series backdrop, then poster — unique, in paint order.
+ */
+export function nextEpisodeArtworkPaths(
+  next: NextEpisodeInfo,
+  media?: PlaybackMediaDetail | null,
+): string[] {
+  const ordered = [
+    next.episode.stillPath,
+    media?.backdropPath,
+    media?.posterPath,
+  ];
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const path of ordered) {
+    if (!path || seen.has(path)) continue;
+    seen.add(path);
+    unique.push(path);
+  }
+  return unique;
 }
 
 export interface MediaSeasonProgress {

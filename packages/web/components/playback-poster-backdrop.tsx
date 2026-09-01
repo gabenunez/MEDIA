@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { usePreloadedImage } from "@/lib/use-preloaded-image";
 import { MediaImage } from "@/components/media-image";
-import { isTv4KClient } from "@/lib/tv-mode-detect";
+import { PLAYBACK_IMAGE_QUALITY, PLAYBACK_IMAGE_WIDTH } from "@/lib/next-image-url";
 
 interface PlaybackPosterBackdropProps {
   posterUrl: string | null;
@@ -19,7 +19,11 @@ export function PlaybackPosterBackdrop({
   transparentBackground = false,
   className,
 }: PlaybackPosterBackdropProps) {
-  const ready = usePreloadedImage(visible ? posterUrl : null);
+  const ready = usePreloadedImage(
+    visible ? posterUrl : null,
+    PLAYBACK_IMAGE_WIDTH,
+    PLAYBACK_IMAGE_QUALITY,
+  );
 
   if (!visible || !posterUrl) return null;
 
@@ -29,7 +33,7 @@ export function PlaybackPosterBackdrop({
       alt=""
       fill
       priority
-      quality={isTv4KClient() ? 90 : 80}
+      quality={PLAYBACK_IMAGE_QUALITY}
       sizes="100vw"
       className={cn(
         "pointer-events-none z-[1] object-contain transition-opacity duration-150",

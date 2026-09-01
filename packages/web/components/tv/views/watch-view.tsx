@@ -122,6 +122,7 @@ import {
   watchSkipDeltaSeconds,
 } from "@/lib/tv-watch-player";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
+import { warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
@@ -1249,6 +1250,7 @@ export function TvWatchView() {
         const media = data as unknown as PlaybackMediaDetail;
         setMediaDetail(media);
         setTitle(buildPlaybackTitle(type, media, fileId));
+        warmNextEpisodeArtwork(type, media, fileId);
         if (type === "episode") {
           for (const season of media.seasons ?? []) {
             for (const episode of season.episodes ?? []) {
