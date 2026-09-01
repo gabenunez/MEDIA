@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.229 — 2026-09-01
+
+### Changes
+
+- **Release** — Show a fading skip icon on TV D-pad left/right
+- When the TV control bar is hidden, D-pad Left/Right skip 10s back or 30s forward. That used to open the full transport chrome.
+- Show a fading skip icon on TV D-pad left/right (#20)
+
 ## 0.1.228 — 2026-09-01
 
 ### Changes
