@@ -49,19 +49,26 @@ describe("withWyzieKey", () => {
 });
 
 describe("prepareWyzieDownloadUrl", () => {
-  it("allows only https://sub.wyzie.io and adds key plus encoding", () => {
-    expect(isAllowedWyzieDownloadUrl("https://example.com/c/1")).toBe(false);
-    expect(isAllowedWyzieDownloadUrl("http://sub.wyzie.io/c/1")).toBe(false);
-    expect(() => prepareWyzieDownloadUrl("https://example.com/c/1", "abc")).toThrow(
-      /Invalid Wyzie download URL/,
-    );
-
-    const prepared = prepareWyzieDownloadUrl(
-      "https://sub.wyzie.io/c/1?format=srt",
-      "abc",
-    );
+  it("resolves relative Wyzie paths and adds key plus encoding", () => {
+    const prepared = prepareWyzieDownloadUrl("/c/1?format=srt", "abc");
+    expect(prepared.startsWith("https://sub.wyzie.io/c/1")).toBe(true);
     expect(prepared).toContain("key=abc");
     expect(prepared).toContain("encoding=utf-8");
+  });
+
+  it("does not attach the API key to third-party HTTPS downloads", () => {
+    expect(
+      prepareWyzieDownloadUrl("https://raw.githubusercontent.com/org/repo/file.srt", "secret"),
+    ).toBe("https://raw.githubusercontent.com/org/repo/file.srt");
+  });
+
+  it("rejects local and non-HTTPS download URLs", () => {
+    expect(isAllowedWyzieDownloadUrl("http://example.com/c/1")).toBe(false);
+    expect(isAllowedWyzieDownloadUrl("https://127.0.0.1/c/1")).toBe(false);
+    expect(isAllowedWyzieDownloadUrl("https://192.168.1.9/c/1")).toBe(false);
+    expect(() => prepareWyzieDownloadUrl("https://localhost/sub.srt", "abc")).toThrow(
+      /Invalid Wyzie download URL/,
+    );
   });
 });
 
@@ -126,11 +133,11 @@ describe("WyzieService.search", () => {
     expect(requestUrl).toContain("episode=2");
   });
 
-  it("rejects downloads that are not on sub.wyzie.io", async () => {
+  it("rejects downloads to local addresses", async () => {
     const service = new WyzieService({
       get: () => ({ subtitles: { wyzie_api_key: "test-key" } }) as never,
     });
-    await expect(service.downloadSubtitleFile("https://example.com/sub.srt")).rejects.toThrow(
+    await expect(service.downloadSubtitleFile("https://127.0.0.1/sub.srt")).rejects.toThrow(
       /Invalid Wyzie download URL/,
     );
   });
