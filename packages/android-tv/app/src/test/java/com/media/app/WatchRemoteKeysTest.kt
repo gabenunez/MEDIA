@@ -12,6 +12,10 @@ class WatchRemoteKeysTest {
         assertEquals("ArrowDown", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_DPAD_DOWN))
         assertEquals("ArrowLeft", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_DPAD_LEFT))
         assertEquals("ArrowRight", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_DPAD_RIGHT))
+        assertEquals("ArrowUp", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP))
+        assertEquals("ArrowDown", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN))
+        assertEquals("ArrowLeft", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT))
+        assertEquals("ArrowRight", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT))
         assertEquals("Enter", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_DPAD_CENTER))
         assertEquals("Enter", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_ENTER))
         assertEquals("MediaRewind", WatchRemoteKeys.webKeyName(KeyEvent.KEYCODE_MEDIA_REWIND))
@@ -28,9 +32,8 @@ class WatchRemoteKeysTest {
     }
 
     @Test
-    fun injectsDpadWheneverNativePlaybackIsActive() {
-        assertEquals(true, WatchRemoteKeys.shouldInjectDpad(true))
-        assertEquals(false, WatchRemoteKeys.shouldInjectDpad(false))
+    fun alwaysInjectsDpad() {
+        assertEquals(true, WatchRemoteKeys.shouldInjectDpad())
     }
 
     @Test

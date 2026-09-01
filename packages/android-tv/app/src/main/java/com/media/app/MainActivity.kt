@@ -495,10 +495,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             // Play/Pause is injected above because WebView never sees those keys.
-            // D-pad is the same: do not wait for overlay z-order. Always inject
-            // onto window while native playback is active.
+            // Real TV remotes are the same for D-pad (emulator keyboards are not).
+            // Always inject onto window and consume the native event so catalog
+            // spatial nav and the player both see arrows.
             val watchKey = WatchRemoteKeys.webKeyName(event.keyCode)
-            if (watchKey != null && WatchRemoteKeys.shouldInjectDpad(nativePlayer.isActive())) {
+            if (watchKey != null && WatchRemoteKeys.shouldInjectDpad()) {
                 dispatchWebKey(watchKey)
                 return true
             }
