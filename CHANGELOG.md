@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.224 — 2026-09-01
+
+### Changes
+
+- **Release** — Fix TV player option switching and scrubber seek
+- Recent skip/seek work made D-pad left/right always skip while the TV control bar was visible. That blocked moving between Play, skip, subtitles, quality, and display mode.
+- Fix TV player D-pad option switching and scrubber seek commit (#15)
+
 ## 0.1.223 — 2026-08-31
 
 ### Changes
