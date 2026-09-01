@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.237 — 2026-09-01
+
+### TV
+- **Home** — tighten catalog row spacing so Favorites sits under Continue Watching
+
 ## 0.1.236 — 2026-09-01
 
 ### TV
