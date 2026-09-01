@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.227 — 2026-09-01
+
+### Changes
+
+- **Release** — Preload next-episode artwork before the watch page finishes
+- Next-episode stills were requested at quality 85, which Next 16 rejects (`images.qualities` is `[75, 80]`). The early preload therefore 400’d, and the up-next overlay plus the next watch poster each requested a different `w`/`q` than the warmer.
+- Preload next-episode artwork before the watch page finishes (#18)
+
 ## 0.1.226 — 2026-09-01
 
 ### Changes
