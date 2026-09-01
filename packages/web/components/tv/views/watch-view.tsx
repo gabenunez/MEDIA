@@ -36,6 +36,7 @@ import {
 } from "@/lib/playback-utils";
 import {
   measurePlaybackFps,
+  playbackFpsSampleSpanMs,
   recordPlaybackFpsSample,
   resolveEqualTranscodeQuality,
   shouldEscalateLowPlaybackFps,
@@ -1037,9 +1038,11 @@ export function TvWatchView() {
             state.currentTime,
           );
           const measuredFps = measurePlaybackFps(playbackFpsStateRef.current, nowMs);
+          const elapsedMs = playbackFpsSampleSpanMs(playbackFpsStateRef.current, nowMs);
           if (
             shouldEscalateLowPlaybackFps({
               measuredFps,
+              elapsedMs,
               sampleCount: playbackFpsStateRef.current.samples.length,
               quality: qualityRef.current,
               usingHls: usingHlsRef.current,

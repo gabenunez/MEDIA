@@ -11,6 +11,8 @@ export type PlaybackHlsQuality = StreamQuality | "remux";
 
 export const LOW_PLAYBACK_FPS_SAMPLE_WINDOW_MS = 8_000;
 export const LOW_PLAYBACK_FPS_MIN_SAMPLES = 4;
+/** Original must play this long before we may switch to a transcode. */
+export const LOW_PLAYBACK_FPS_MIN_ELAPSED_MS = 5_000;
 
 export interface PlaybackFpsSampleState {
   samples: Array<{ atMs: number; positionSeconds: number }>;
@@ -26,6 +28,16 @@ export function recordPlaybackFpsSample(
     .filter((sample) => nowMs - sample.atMs <= windowMs)
     .concat({ atMs: nowMs, positionSeconds });
   return { samples };
+}
+
+export function playbackFpsSampleSpanMs(
+  state: PlaybackFpsSampleState,
+  nowMs: number,
+  windowMs = LOW_PLAYBACK_FPS_SAMPLE_WINDOW_MS,
+): number {
+  const samples = state.samples.filter((sample) => nowMs - sample.atMs <= windowMs);
+  if (samples.length < 2) return 0;
+  return samples[samples.length - 1].atMs - samples[0].atMs;
 }
 
 export function measurePlaybackFps(
@@ -74,6 +86,8 @@ export function shouldEscalateLowPlaybackFps(options: {
   seekSuppressMs?: number;
   threshold?: number;
   minSamples?: number;
+  elapsedMs?: number;
+  minElapsedMs?: number;
 }): boolean {
   if (options.alreadyEscalated) return false;
   if (!options.transcodingEnabled) return false;
@@ -92,6 +106,12 @@ export function shouldEscalateLowPlaybackFps(options: {
   }
 
   if (options.sampleCount < (options.minSamples ?? LOW_PLAYBACK_FPS_MIN_SAMPLES)) {
+    return false;
+  }
+  if (
+    (options.elapsedMs ?? 0) <
+    (options.minElapsedMs ?? LOW_PLAYBACK_FPS_MIN_ELAPSED_MS)
+  ) {
     return false;
   }
   if (options.measuredFps == null) return false;

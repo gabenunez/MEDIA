@@ -1,12 +1,31 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
+  LOW_PLAYBACK_FPS_MIN_ELAPSED_MS,
   measurePlaybackFps,
+  playbackFpsSampleSpanMs,
   recordPlaybackFpsSample,
   resolveEqualTranscodeQuality,
   shouldEscalateLowPlaybackFps,
   shouldPreferEqualTranscodeForSourceFps,
   formatLowFpsQualitySwitchNotice,
 } from "./playback-fps.js";
+
+const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+const escalateArgs = {
+  measuredFps: 12,
+  sampleCount: 4,
+  quality: "original" as const,
+  usingHls: false,
+  transcodingEnabled: true,
+  alreadyEscalated: false,
+  isPlaying: true,
+  isBuffering: false,
+  playbackHasBegun: true,
+};
 
 describe("playback fps escalation", () => {
   it("prefers equal transcode for high source fps on native direct play", () => {
@@ -36,20 +55,28 @@ describe("playback fps escalation", () => {
     state = recordPlaybackFpsSample(state, 6000, 3);
 
     expect(measurePlaybackFps(state, 6000)).toBeCloseTo(0.5, 2);
+    expect(playbackFpsSampleSpanMs(state, 6000)).toBe(6000);
   });
 
-  it("escalates original direct play when measured fps stays low", () => {
+  it("does not escalate original to transcode before 5 seconds of playback", () => {
     expect(
       shouldEscalateLowPlaybackFps({
-        measuredFps: 12,
-        sampleCount: 4,
-        quality: "original",
-        usingHls: false,
-        transcodingEnabled: true,
-        alreadyEscalated: false,
-        isPlaying: true,
-        isBuffering: false,
-        playbackHasBegun: true,
+        ...escalateArgs,
+        elapsedMs: LOW_PLAYBACK_FPS_MIN_ELAPSED_MS - 1,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEscalateLowPlaybackFps({
+        ...escalateArgs,
+      }),
+    ).toBe(false);
+  });
+
+  it("escalates original direct play when measured fps stays low for 5 seconds", () => {
+    expect(
+      shouldEscalateLowPlaybackFps({
+        ...escalateArgs,
+        elapsedMs: LOW_PLAYBACK_FPS_MIN_ELAPSED_MS,
       }),
     ).toBe(true);
   });
@@ -58,6 +85,7 @@ describe("playback fps escalation", () => {
     expect(
       shouldEscalateLowPlaybackFps({
         measuredFps: 12,
+        elapsedMs: LOW_PLAYBACK_FPS_MIN_ELAPSED_MS,
         sampleCount: 4,
         quality: "1080p",
         usingHls: true,
@@ -85,5 +113,15 @@ describe("playback fps escalation", () => {
     expect(formatLowFpsQualitySwitchNotice("1080p", 1080, 1920)).toBe(
       "Playback is choppy. Switching to 1080p for smoother playback.",
     );
+  });
+
+  it("watch view waits for the sample span before switching to transcode", () => {
+    const watchView = readFileSync(
+      path.join(webRoot, "components/tv/views/watch-view.tsx"),
+      "utf8",
+    );
+    expect(watchView).toContain("playbackFpsSampleSpanMs");
+    expect(watchView).toContain("elapsedMs");
+    expect(watchView).toContain("shouldEscalateLowPlaybackFps");
   });
 });
