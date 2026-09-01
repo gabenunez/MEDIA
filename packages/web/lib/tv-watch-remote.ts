@@ -18,7 +18,7 @@ export function isWatchChromeFocusTarget(el: Element | null): boolean {
 /**
  * Spatial nav captures D-pad to restore catalog focus. While the player is up,
  * that capture must not run — watch-view owns transport/scrub/hidden chrome.
- * Subtitle/quality menus still use catalog spatial nav.
+ * Subtitle/quality/search menus still use catalog spatial nav.
  */
 export function spatialNavShouldDeferToWatchPlayer(state: {
   watchPlayerActive: boolean;
@@ -27,8 +27,76 @@ export function spatialNavShouldDeferToWatchPlayer(state: {
   return state.watchPlayerActive && !state.inWatchMenu;
 }
 
+export function getOpenWatchMenu(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return document.querySelector<HTMLElement>("[data-tv-watch-menu]");
+}
+
+/**
+ * When a player submenu is open, D-pad must target that menu — even if the
+ * opener button still has the visual focus ring. Android WebView often leaves
+ * activeElement on body and never moves data-tv-focused off the toolbar.
+ */
+export function resolveWatchMenuDpadTarget(active: HTMLElement | null): {
+  active: HTMLElement | null;
+  inWatchMenu: boolean;
+  retargeted: boolean;
+} {
+  const menu = getOpenWatchMenu();
+  if (!menu) {
+    return {
+      active,
+      inWatchMenu: Boolean(active?.closest("[data-tv-watch-menu]")),
+      retargeted: false,
+    };
+  }
+  if (isWatchTextInputKeyTarget(document.activeElement)) {
+    return {
+      active: document.activeElement as HTMLElement,
+      inWatchMenu: true,
+      retargeted: false,
+    };
+  }
+  if (active && menu.contains(active) && active.hasAttribute("data-tv-item")) {
+    return { active, inWatchMenu: true, retargeted: false };
+  }
+  const menuFocused = menu.querySelector<HTMLElement>(
+    "[data-tv-item][data-tv-focused]",
+  );
+  if (menuFocused) {
+    return {
+      active: menuFocused,
+      inWatchMenu: true,
+      retargeted: active !== menuFocused,
+    };
+  }
+  const first =
+    menu.querySelector<HTMLElement>("[data-tv-content-row] [data-tv-item]") ??
+    menu.querySelector<HTMLElement>("[data-tv-item]");
+  return {
+    active: first ?? active,
+    inWatchMenu: true,
+    retargeted: first != null && first !== active,
+  };
+}
+
+/** Transport L/R must not include nested subtitle/quality popover rows. */
+export function getWatchTransportFocusItems(row: ParentNode | null): HTMLElement[] {
+  if (!row) return [];
+  return [...row.querySelectorAll<HTMLElement>("[data-tv-item]")].filter(
+    (el) => !el.closest("[data-tv-watch-menu]"),
+  );
+}
+
 /** Visual TV focus inside the player — Android WebView activeElement is often body. */
 export function getWatchPlayerFocusedItem(): HTMLElement | null {
+  const menu = getOpenWatchMenu();
+  if (menu) {
+    const menuFocused = menu.querySelector<HTMLElement>(
+      "[data-tv-item][data-tv-focused]",
+    );
+    if (menuFocused) return menuFocused;
+  }
   const visual = document.querySelector<HTMLElement>(
     "[data-tv-watch-player] [data-tv-item][data-tv-focused]",
   );

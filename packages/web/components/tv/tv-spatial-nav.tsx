@@ -16,6 +16,7 @@ import {
   getWatchPlayerFocusedItem,
   isWatchChromeFocusTarget,
   isWatchTextInputKeyTarget,
+  resolveWatchMenuDpadTarget,
   spatialNavShouldDeferToWatchPlayer,
 } from "@/lib/tv-watch-remote";
 import { spatialNavShouldHandleWatchArrow } from "@/lib/tv-watch-player";
@@ -39,6 +40,11 @@ function isTvFocusable(el: HTMLElement) {
   if (el.hasAttribute("disabled") || el.tabIndex === -1) return false;
   if (el.hidden || el.getAttribute("aria-hidden") === "true") return false;
   if (el.closest("[inert]")) return false;
+  // Android TV WebView checkVisibility is unreliable for absolute player
+  // popovers that overflow the transport chrome — attribute checks are enough.
+  if (el.closest("[data-tv-watch-menu]")) {
+    return el.style.display !== "none" && el.style.visibility !== "hidden";
+  }
   // Prefer Chromium checkVisibility — avoids offsetParent layout thrash on every D-pad tick.
   // Do not pass checkOpacity: scroll-row neighbors can be opacity-composited while clipped
   // and still need to receive focus so the first Right press advances.
@@ -358,6 +364,7 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
   const row = active.closest("[data-tv-row]");
   if (!row) return false;
 
+  const inWatchMenu = Boolean(active.closest("[data-tv-watch-menu]"));
   const inNav = row.hasAttribute("data-tv-nav-row");
 
   if (inNav && direction === "right" && row.hasAttribute("data-tv-vertical")) {
@@ -370,7 +377,7 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
 
   if (!inNav && isScrollRow(row)) {
     if (moveInScrollRow(active, direction)) return true;
-    if (direction === "left") return focusNavFromContent(active);
+    if (direction === "left" && !inWatchMenu) return focusNavFromContent(active);
     return false;
   }
 
@@ -380,7 +387,7 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
     return true;
   }
 
-  if (!inNav && direction === "left") {
+  if (!inNav && direction === "left" && !inWatchMenu) {
     return focusNavFromContent(active);
   }
 
@@ -390,6 +397,9 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
 function moveVertical(active: HTMLElement, direction: "up" | "down") {
   const watchMenu = active.closest("[data-tv-watch-menu]");
   if (watchMenu && moveInWatchMenu(active, direction)) return true;
+  // Subtitle track rows nest their own data-tv-row for the Remove action.
+  // Walk the parent vertical list so Up/Down still move between tracks.
+  if (watchMenu && moveInVerticalRow(active, direction)) return true;
 
   const contentRows = getScopedContentRows(active);
   const activeRow = active.closest("[data-tv-row]");
@@ -516,7 +526,27 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       // Left/Right from the transport bar into the hidden side nav.
       // Native injects onto window; stopImmediatePropagation so watch-view's
       // bubble listener cannot handle the same keydown twice.
-      const inWatchMenu = Boolean(active?.closest("[data-tv-watch-menu]"));
+      // Open subtitle/quality/search sheets retarget onto the menu even if the
+      // opener button still has the focus ring.
+      const menuTarget = resolveWatchMenuDpadTarget(
+        active instanceof HTMLElement ? active : null,
+      );
+      active = menuTarget.active;
+      const inWatchMenu = menuTarget.inWatchMenu;
+      if (
+        isWatchTextInputKeyTarget(e.target) ||
+        isWatchTextInputKeyTarget(document.activeElement)
+      ) {
+        return;
+      }
+
+      if (inWatchMenu && menuTarget.retargeted && active?.hasAttribute("data-tv-item")) {
+        focusItem(active);
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return;
+      }
       if (
         spatialNavShouldDeferToWatchPlayer({
           watchPlayerActive: isWatchPlayerActive(),
@@ -551,12 +581,9 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         ) {
           e.preventDefault();
           e.stopPropagation();
+          if (inWatchMenu) e.stopImmediatePropagation();
           active.click();
         }
-        return;
-      }
-
-      if (isWatchTextInputKeyTarget(e.target)) {
         return;
       }
 
@@ -565,7 +592,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         !spatialNavShouldHandleWatchArrow({
           watchPlayerActive: true,
           focusOnScrub: active.hasAttribute("data-tv-watch-scrub"),
-          inWatchMenu: Boolean(active.closest("[data-tv-watch-menu]")),
+          inWatchMenu,
           inWatchControls: Boolean(active.closest("[data-tv-watch-controls]")),
           key: e.key,
         })
@@ -578,6 +605,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
 
       e.preventDefault();
       e.stopPropagation();
+      if (inWatchMenu) e.stopImmediatePropagation();
 
       const now = performance.now();
       const horizontalScrollRow =
