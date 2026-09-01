@@ -106,8 +106,8 @@ import {
   shouldCloseWatchMenusOnRebuffer,
 } from "@/lib/tv-watch-subtitles";
 import {
-  nativeWebOverlayAlpha,
   nativeWebOverlayShouldRaise,
+  shouldExposeNativeVideoSurface,
   TV_WATCH_REMOTE_KEY_EVENT,
   getWatchPlayerFocusedItem,
   getWatchTransportFocusItems,
@@ -874,6 +874,9 @@ export function TvWatchView() {
       nativeErrorHandledSessionRef.current = nativePlaySessionRef.current - 1;
       nativeSubtitlesSyncedSessionRef.current = -1;
 
+      playbackHasBegunRef.current = false;
+      setPlaybackHasBegun(false);
+      document.documentElement.removeAttribute("data-native-video");
       startNativePlayback({
         url: toAbsoluteMediaUrl(relativeUrl),
         title: titleRef.current || "MEDIA!",
@@ -887,6 +890,7 @@ export function TvWatchView() {
         dolbyVision: info.dynamicRange?.dolbyVision ?? false,
         subtitleUrl,
       });
+      setNativeWebOverlayAlpha(1, true);
 
       if (usingHls && relativeTime > 0) {
         seekNativePlayback(relativeTime * 1000);
@@ -1020,7 +1024,7 @@ export function TvWatchView() {
             }, 700);
           }
         }
-        if (state.ready || state.isPlaying || state.buffered > 0.5) {
+        if (shouldExposeNativeVideoSurface(state)) {
           playbackHasBegunRef.current = true;
           setPlaybackHasBegun((begun) => begun || true);
           // Reveal the native surface only once frames are flowing — keeps enter
@@ -1323,6 +1327,9 @@ export function TvWatchView() {
     if (usesNativePlayer) {
       setError(null);
       setBuffering(true);
+      playbackHasBegunRef.current = false;
+      setPlaybackHasBegun(false);
+      document.documentElement.removeAttribute("data-native-video");
       if (nativeMidBufferDebounceRef.current) {
         clearTimeout(nativeMidBufferDebounceRef.current);
         nativeMidBufferDebounceRef.current = null;
@@ -1371,14 +1378,7 @@ export function TvWatchView() {
             ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle, usingHls ? startAt : 0))
             : undefined,
       });
-      setNativeWebOverlayAlpha(
-        nativeWebOverlayAlpha({
-          controlsVisible: showControlsRef.current || panelOpenRef.current,
-          blockingOverlayVisible: false,
-          showMidPlaybackBuffering: false,
-        }),
-        true,
-      );
+      setNativeWebOverlayAlpha(1, true);
 
       progressInterval.current = setInterval(
         () => saveProgressRef.current(),
@@ -2049,6 +2049,7 @@ export function TvWatchView() {
     blockingOverlayVisible,
     showMidPlaybackBuffering: usesNativePlayer && showMidPlaybackBuffering,
     skipFeedbackVisible: Boolean(skipFeedback),
+    nativePlaybackBegun: !usesNativePlayer || playbackHasBegun,
   });
   const hidePlaybackSubtitles = hideWebSubtitleOverlay({
     subtitleSearchOpen,
@@ -2282,6 +2283,9 @@ export function TvWatchView() {
       });
       if (verticalIntent === "focus-play") {
         e.preventDefault();
+        // Overlay can be 0 while React still thinks chrome is visible — raise it
+        // so Up/Down actually show the bar instead of moving invisible focus.
+        revealControls(false, false);
         const play = playButtonRef.current;
         if (play) {
           focusTvItem(play);
@@ -2297,6 +2301,7 @@ export function TvWatchView() {
       }
       if (verticalIntent === "focus-scrub") {
         e.preventDefault();
+        revealControls(false, false);
         const scrub = document.querySelector<HTMLElement>("[data-tv-watch-scrub]");
         if (scrub) {
           focusTvItem(scrub);
@@ -2305,6 +2310,7 @@ export function TvWatchView() {
       }
       if (verticalIntent === "consume") {
         e.preventDefault();
+        revealControls(false, false);
         return;
       }
 
@@ -2392,6 +2398,7 @@ export function TvWatchView() {
   return (
     <div
       data-tv-watch-player=""
+      data-tv-watch-chrome={controlsVisible ? "visible" : "hidden"}
       className={cn(
         "fixed inset-0 z-40 bg-black",
         // Stay opaque until native playback has begun so media→watch does not
