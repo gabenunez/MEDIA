@@ -447,15 +447,6 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
   return false;
 }
 
-function isWatchHorizontalSkipKey(key: string): boolean {
-  return (
-    key === "ArrowLeft" ||
-    key === "ArrowRight" ||
-    key === "MediaRewind" ||
-    key === "MediaFastForward"
-  );
-}
-
 function isWatchPlayerActive() {
   // Set by watch-view while native/web playback chrome is mounted — cheap attribute read.
   return document.documentElement.hasAttribute("data-native-video")
@@ -536,6 +527,11 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       }
 
       if (isEnter) {
+        // Scrubber OK must reach watch-view so the preview position commits.
+        // Clicking the button here used to only re-reveal chrome.
+        if (active.hasAttribute("data-tv-watch-scrub")) {
+          return;
+        }
         if (
           active.hasAttribute("data-tv-item") &&
           (active.tagName === "BUTTON" || active.tagName === "A")
@@ -561,13 +557,11 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       if (isWatchPlayerActive()) {
         if (active.hasAttribute("data-tv-watch-scrub")) return;
         const inWatchMenu = active.closest("[data-tv-watch-menu]");
-        if (!inWatchMenu && isWatchHorizontalSkipKey(e.key)) {
-          return;
-        }
         if (!inWatchMenu && !active.closest("[data-tv-watch-controls]")) {
           return;
         }
         // Watch view handles Up/Down on the control bar; menus use normal spatial nav.
+        // Left/Right stay here so focus can move between Play, skip, and menus.
         if (!inWatchMenu && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
           return;
         }

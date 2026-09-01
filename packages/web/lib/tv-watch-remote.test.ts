@@ -4,9 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   isWatchChromeFocusTarget,
+  isWatchDedicatedSkipKey,
   nativeWebOverlayAlpha,
   spatialNavShouldDeferToWatchPlayer,
   watchHiddenChromeArrowIntent,
+  watchVisibleTransportArrowIntent,
 } from "./tv-watch-remote";
 
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -85,6 +87,16 @@ describe("TV watch remote — hidden chrome", () => {
         showTransportControls: true,
       }),
     ).toBe("skip-back");
+  });
+
+  it("moves between visible transport buttons instead of skipping on D-pad", () => {
+    expect(watchVisibleTransportArrowIntent("ArrowLeft")).toBe("move-focus");
+    expect(watchVisibleTransportArrowIntent("ArrowRight")).toBe("move-focus");
+    expect(watchVisibleTransportArrowIntent("MediaRewind")).toBe("skip-back");
+    expect(watchVisibleTransportArrowIntent("MediaFastForward")).toBe("skip-forward");
+    expect(watchVisibleTransportArrowIntent("ArrowUp")).toBeNull();
+    expect(isWatchDedicatedSkipKey("ArrowLeft")).toBe(false);
+    expect(isWatchDedicatedSkipKey("MediaRewind")).toBe(true);
   });
 });
 
@@ -182,10 +194,21 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(stealAt).toBeGreaterThan(deferAt);
   });
 
-  it("spatial nav defers horizontal skip keys while watch controls are focused", () => {
-    expect(spatialNav).toContain("isWatchHorizontalSkipKey");
-    expect(spatialNav).toContain("[data-tv-watch-menu]");
+  it("spatial nav moves between watch control buttons on D-pad left/right", () => {
+    expect(spatialNav).not.toContain("isWatchHorizontalSkipKey");
+    expect(spatialNav).toContain("Left/Right stay here so focus can move");
     expect(spatialNav).toContain("isWatchPlayerActive()");
+  });
+
+  it("spatial nav does not click the scrubber on Enter — watch-view commits the seek", () => {
+    const enterBlock = spatialNav.slice(
+      spatialNav.indexOf("if (isEnter)"),
+      spatialNav.indexOf("const target = e.target"),
+    );
+    expect(enterBlock).toContain("data-tv-watch-scrub");
+    expect(enterBlock.indexOf("data-tv-watch-scrub")).toBeLessThan(
+      enterBlock.indexOf("active.click()"),
+    );
   });
 
   it("watch view skips from hidden-arrow intent", () => {
@@ -199,11 +222,23 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(watchView).toContain("usesNativePlayer ? currentTimeRef.current : currentTime");
   });
 
-  it("handles rewind and fast-forward while transport controls are focused", () => {
-    expect(watchView).toContain('e.key === "MediaRewind"');
-    expect(watchView).toContain('e.key === "ArrowLeft"');
+  it("handles dedicated rewind/fast-forward while transport controls are focused", () => {
+    expect(watchView).toContain("watchVisibleTransportArrowIntent");
     expect(watchView).toContain("skipRelative(-10)");
     expect(watchView).toContain("skipRelative(30)");
+  });
+
+  it("commits the scrub preview on OK/click instead of only revealing chrome", () => {
+    expect(watchView).toContain("commitScrubPreview");
+    expect(watchView).toContain("shouldCommitScrubPreview");
+    expect(watchView).toContain("progressRef.current = optimisticProgressPercent ?? progress");
+    expect(watchView).not.toContain("progressRef.current = displayedProgress");
+    const scrubButton = watchView.slice(
+      watchView.indexOf("data-tv-watch-scrub="),
+      watchView.indexOf("className=\"absolute inset-x-0 top-1/2"),
+    );
+    expect(scrubButton).toContain("commitScrubPreview()");
+    expect(scrubButton).not.toContain("revealControls(false)");
   });
 
   it("clears optimistic seeks from the live native playhead", () => {

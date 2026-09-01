@@ -161,6 +161,26 @@ export function shouldClearOptimisticSeek(
   );
 }
 
+/**
+ * Commit a TV scrub preview when it actually moved on the timeline.
+ * Compare seconds, not percent — 0.5% of a 2-hour title is 36s, so a
+ * 10s D-pad nudge would never commit if we used a percent threshold.
+ */
+export function shouldCommitScrubPreview(options: {
+  previewPercent: number | null;
+  livePercent: number;
+  totalDurationSeconds: number;
+  minDeltaSeconds?: number;
+}): boolean {
+  if (options.previewPercent === null) return false;
+  if (!(options.totalDurationSeconds > 0)) return false;
+  const minDelta = options.minDeltaSeconds ?? 0.5;
+  const previewSeconds =
+    (options.previewPercent / 100) * options.totalDurationSeconds;
+  const liveSeconds = (options.livePercent / 100) * options.totalDurationSeconds;
+  return Math.abs(previewSeconds - liveSeconds) > minDelta;
+}
+
 /** Base absolute position for a coalesced skip — always read live refs, not React state. */
 export function resolveSkipTargetAbsoluteSeconds(options: {
   optimisticAbsoluteSeconds: number | null;

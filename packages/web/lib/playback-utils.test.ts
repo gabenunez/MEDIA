@@ -30,6 +30,7 @@ import {
   consumeStreamRestartTarget,
   resolveSkipTargetAbsoluteSeconds,
   shouldClearOptimisticSeek,
+  shouldCommitScrubPreview,
 } from "./playback-utils.js";
 
 vi.mock("./android-bridge.js", () => ({
@@ -662,6 +663,39 @@ describe("shouldClearOptimisticSeek", () => {
   it("clears once the live playhead is within tolerance of the optimistic target", () => {
     expect(shouldClearOptimisticSeek(500, 501)).toBe(true);
     expect(shouldClearOptimisticSeek(500, 510)).toBe(false);
+  });
+});
+
+describe("shouldCommitScrubPreview", () => {
+  it("commits a 10s D-pad nudge on a long title instead of using a percent threshold", () => {
+    const totalDurationSeconds = 7200;
+    const livePercent = 50;
+    const stepPercent = (10 / totalDurationSeconds) * 100;
+    expect(
+      shouldCommitScrubPreview({
+        previewPercent: livePercent + stepPercent,
+        livePercent,
+        totalDurationSeconds,
+      }),
+    ).toBe(true);
+    expect(Math.abs(stepPercent) > 0.5).toBe(false);
+  });
+
+  it("does not commit when the preview is still on the live playhead", () => {
+    expect(
+      shouldCommitScrubPreview({
+        previewPercent: 25,
+        livePercent: 25,
+        totalDurationSeconds: 7200,
+      }),
+    ).toBe(false);
+    expect(
+      shouldCommitScrubPreview({
+        previewPercent: null,
+        livePercent: 25,
+        totalDurationSeconds: 7200,
+      }),
+    ).toBe(false);
   });
 });
 

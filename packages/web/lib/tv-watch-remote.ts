@@ -20,6 +20,11 @@ export function spatialNavShouldDeferToWatchPlayer(state: {
 
 export type WatchHiddenChromeArrowIntent = "reveal-play" | "skip-back" | "skip-forward";
 
+/** Dedicated remote skip keys — D-pad arrows move between visible buttons. */
+export function isWatchDedicatedSkipKey(key: string): boolean {
+  return key === "MediaRewind" || key === "MediaFastForward";
+}
+
 /** D-pad with chrome hidden: reveal transport row or skip immediately. */
 export function watchHiddenChromeArrowIntent(state: {
   key: string;
@@ -32,6 +37,22 @@ export function watchHiddenChromeArrowIntent(state: {
   if (!state.showTransportControls) return null;
   if (state.key === "ArrowLeft" || state.key === "MediaRewind") return "skip-back";
   if (state.key === "ArrowRight" || state.key === "MediaFastForward") return "skip-forward";
+  return null;
+}
+
+export type WatchVisibleTransportArrowIntent = "skip-back" | "skip-forward" | "move-focus";
+
+/**
+ * Visible transport row (not the scrubber): rewind/FF skip; left/right
+ * move between Play, skip, subtitles, and quality.
+ */
+export function watchVisibleTransportArrowIntent(
+  key: string,
+): WatchVisibleTransportArrowIntent | null {
+  if (isWatchDedicatedSkipKey(key)) {
+    return key === "MediaRewind" ? "skip-back" : "skip-forward";
+  }
+  if (key === "ArrowLeft" || key === "ArrowRight") return "move-focus";
   return null;
 }
 
