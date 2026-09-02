@@ -541,8 +541,24 @@ describe("TV watch remote — wiring (do not revert)", () => {
       watchView.indexOf("data-tv-watch-scrub="),
       watchView.indexOf("className=\"absolute inset-x-0 top-1/2"),
     );
+    expect(scrubButton).toContain("onClick={() => {");
     expect(scrubButton).toContain("commitScrubPreview()");
     expect(scrubButton).not.toContain("revealControls(false)");
+  });
+
+  it("discards the scrub preview on blur and chrome hide — Back must not seek", () => {
+    const scrubButton = watchView.slice(
+      watchView.indexOf("data-tv-watch-scrub="),
+      watchView.indexOf("className=\"absolute inset-x-0 top-1/2"),
+    );
+    expect(scrubButton).toContain("onBlur={() => {");
+    expect(scrubButton).toContain("discardScrubPreview()");
+    expect(scrubButton).not.toMatch(/onBlur=\{\(\) => \{[\s\S]*commitScrubPreview/);
+    const hideChrome = watchView.slice(
+      watchView.indexOf("const hideWatchChrome"),
+      watchView.indexOf("const scheduleWatchChromeHide"),
+    );
+    expect(hideChrome).toContain("discardScrubPreview()");
   });
 
   it("clears optimistic seeks from the live native playhead", () => {

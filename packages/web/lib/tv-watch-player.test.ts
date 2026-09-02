@@ -127,6 +127,9 @@ describe("watchScrubKeyIntent", () => {
     expect(watchScrubKeyIntent("ArrowRight")).toBe("nudge-forward");
     expect(watchScrubKeyIntent("MediaFastForward")).toBe("nudge-forward");
     expect(watchScrubKeyIntent("ArrowUp")).toBeNull();
+    expect(watchScrubKeyIntent("Escape")).toBeNull();
+    expect(watchScrubKeyIntent("Backspace")).toBeNull();
+    expect(watchScrubKeyIntent("GoBack")).toBeNull();
   });
 
   it("nudges 10 seconds as a percent of a long title", () => {
@@ -456,6 +459,7 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("resolveWatchBackAction");
     expect(watchView).toContain("resolveTvSeekPlan");
     expect(watchView).toContain("resolveScrubCommitDecision");
+    expect(watchView).toContain("discardScrubPreview");
     expect(watchView).toContain("watchScrubKeyIntent");
     expect(watchView).toContain("watchChromeVerticalArrowIntent");
     expect(watchView).toContain("watchSkipDeltaSeconds");

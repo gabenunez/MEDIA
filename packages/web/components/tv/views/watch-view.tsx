@@ -366,6 +366,10 @@ export function TvWatchView() {
   const [scrubPreview, setScrubPreview] = useState<number | null>(null);
   const scrubPreviewRef = useRef<number | null>(null);
   scrubPreviewRef.current = scrubPreview;
+  const discardScrubPreview = useCallback(() => {
+    scrubPreviewRef.current = null;
+    setScrubPreview(null);
+  }, []);
   const [videoDisplayMode, setVideoDisplayMode] = useState<VideoDisplayMode>("fit");
 
   useEffect(() => {
@@ -748,12 +752,13 @@ export function TvWatchView() {
   }, [usesNativePlayer]);
 
   const hideWatchChrome = useCallback(() => {
+    discardScrubPreview();
     clearHideControlsTimer();
     setShowControls(false);
     showControlsRef.current = false;
     controlsRevealedAtRef.current = null;
     releaseWatchFocus();
-  }, [clearHideControlsTimer, releaseWatchFocus]);
+  }, [clearHideControlsTimer, discardScrubPreview, releaseWatchFocus]);
 
   const scheduleWatchChromeHide = useCallback(
     (autoHideRequested = true) => {
@@ -2066,11 +2071,10 @@ export function TvWatchView() {
       return true;
     }
     if (decision === "discard") {
-      scrubPreviewRef.current = null;
-      setScrubPreview(null);
+      discardScrubPreview();
     }
     return false;
-  }, [handleScrubCommit, totalDurationSeconds]);
+  }, [discardScrubPreview, handleScrubCommit, totalDurationSeconds]);
 
   const playPlayback = useCallback(() => {
     if (usesNativePlayer) {
@@ -3051,9 +3055,7 @@ export function TvWatchView() {
                       }}
                       onFocus={() => setScrubPreview(displayedProgress)}
                       onBlur={() => {
-                        if (!commitScrubPreview()) {
-                          setScrubPreview(null);
-                        }
+                        discardScrubPreview();
                       }}
                       className="absolute inset-x-0 top-1/2 z-[3] h-6 w-full -translate-y-1/2 border-2 border-transparent bg-transparent p-0"
                     />
