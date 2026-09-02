@@ -6,6 +6,8 @@ import {
   getScrubberBufferedRanges,
   resolveAbsoluteScrubberBufferedRanges,
   resolveScrubberDurationMs,
+  qualityHandoffSeekSeconds,
+  canSwapQualityHandoff,
   GROWING_EDGE_PLAYBACK_RATE,
   isSpuriousHlsEnded,
   nextStableAbsoluteSeconds,
@@ -633,6 +635,54 @@ describe("resolveScrubberDurationMs", () => {
         usingHls: true,
       }),
     ).toBe(1_452_000);
+  });
+});
+
+describe("quality handoff", () => {
+  it("seeks an incoming HLS session by elapsed outgoing time", () => {
+    expect(
+      qualityHandoffSeekSeconds({
+        incomingIsHls: true,
+        outgoingCurrentTime: 28,
+        outgoingTimeAtRequest: 20,
+        incomingStartAt: 1412,
+      }),
+    ).toBe(8);
+  });
+
+  it("seeks incoming progressive to the live file position", () => {
+    expect(
+      qualityHandoffSeekSeconds({
+        incomingIsHls: false,
+        outgoingCurrentTime: 28,
+        outgoingTimeAtRequest: 20,
+        incomingStartAt: 1412,
+      }),
+    ).toBe(1420);
+  });
+
+  it("swaps only once the incoming buffer covers the live playhead", () => {
+    expect(
+      canSwapQualityHandoff({
+        incomingReady: true,
+        incomingBufferedEnd: 8.2,
+        seekToSeconds: 8,
+      }),
+    ).toBe(false);
+    expect(
+      canSwapQualityHandoff({
+        incomingReady: true,
+        incomingBufferedEnd: 10,
+        seekToSeconds: 8,
+      }),
+    ).toBe(true);
+    expect(
+      canSwapQualityHandoff({
+        incomingReady: false,
+        incomingBufferedEnd: 30,
+        seekToSeconds: 8,
+      }),
+    ).toBe(false);
   });
 });
 

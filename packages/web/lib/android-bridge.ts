@@ -20,6 +20,8 @@ export interface NativePlaybackRequest {
   isHdr?: boolean;
   /** Source carries a Dolby Vision layer — keep DV output engaged natively. */
   dolbyVision?: boolean;
+  /** Keep the current native player running until this request can take over. */
+  handoff?: boolean;
 }
 
 export interface NativePlaybackState {
@@ -35,6 +37,8 @@ export interface NativePlaybackState {
    * Combined with isBuffering this means mid-playback rebuffer (not cold start).
    */
   ready: boolean;
+  /** Bumps when ExoPlayer actually presents this session (after a quality handoff swap). */
+  playbackEpoch?: number;
 }
 
 export type NativeVideoDisplayMode = "fit" | "fill" | "stretch";

@@ -73,6 +73,11 @@ class NativePlayerManager(
     private var lastOverlayTexts: List<String> = emptyList()
     private var subtitleLoadGeneration = 0
     private val subtitleExecutor = Executors.newSingleThreadExecutor()
+    private var stagingPlayer: ExoPlayer? = null
+    private var stagingPayload: PlaybackPayload? = null
+    private var handoffOriginPositionMs = 0L
+    private var handoffCheckRunnable: Runnable? = null
+    private var playbackEpoch = 0
 
     /** When true, JS chrome is hidden — emit progress less often to cut WebView work. */
     private var uiOverlayVisible = true
@@ -99,6 +104,24 @@ class NativePlayerManager(
     }
 
     fun play(serverUrl: String, sessionToken: String?, payload: PlaybackPayload) {
+        this.serverUrl = serverUrl
+        this.sessionToken = sessionToken
+
+        if (
+            payload.handoff &&
+            player != null &&
+            hasReachedReady &&
+            !playbackEnded
+        ) {
+            beginQualityHandoff(payload)
+            return
+        }
+
+        cancelQualityHandoff()
+        playImmediate(serverUrl, sessionToken, payload)
+    }
+
+    private fun playImmediate(serverUrl: String, sessionToken: String?, payload: PlaybackPayload) {
         this.serverUrl = serverUrl
         this.sessionToken = sessionToken
         currentPayload = payload
@@ -172,6 +195,7 @@ class NativePlayerManager(
         player = exoPlayer
         playerView.setKeepContentOnPlayerReset(false)
         playerView.player = exoPlayer
+        playbackEpoch += 1
         playerView.useController = false
         playerView.videoSurfaceView?.visibility = View.VISIBLE
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
@@ -311,6 +335,263 @@ class NativePlayerManager(
         if (!payload.subtitleUrl.isNullOrBlank()) {
             updateSubtitles(payload.subtitleUrl)
         }
+    }
+
+    private fun beginQualityHandoff(payload: PlaybackPayload) {
+        val outgoing = player ?: run {
+            playImmediate(serverUrl, sessionToken, payload)
+            return
+        }
+        cancelQualityHandoff()
+        stagingPayload = payload
+        handoffOriginPositionMs = outgoing.currentPosition.coerceAtLeast(0L)
+
+        val diagTransfers = DiagTransferListener()
+        val mediaSourceFactory =
+            authenticatedMediaSourceFactory(
+                sessionToken = sessionToken,
+                transferListener = diagTransfers,
+                chunkBytes = if (payload.isHls) 0L else PROGRESSIVE_HTTP_CHUNK_BYTES,
+            )
+        val loadControl =
+            if (payload.isHls) {
+                TimeBandLoadControl.create(
+                    HLS_MIN_BUFFER_MS,
+                    HLS_MAX_BUFFER_MS,
+                    HLS_BUFFER_FOR_PLAYBACK_MS,
+                    HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+                    HLS_TARGET_BUFFER_BYTES,
+                    HLS_BACK_BUFFER_MS,
+                )
+            } else {
+                TimeBandLoadControl.create(
+                    PROGRESSIVE_MIN_BUFFER_MS,
+                    PROGRESSIVE_MAX_BUFFER_MS,
+                    PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS,
+                    PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+                    PROGRESSIVE_TARGET_BUFFER_BYTES,
+                    PROGRESSIVE_BACK_BUFFER_MS,
+                )
+            }
+        val exoPlayer =
+            ExoPlayer.Builder(playerView.context)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setLoadControl(loadControl)
+                .build()
+        stagingPlayer = exoPlayer
+        exoPlayer.volume = 0f
+        exoPlayer.playWhenReady = true
+        exoPlayer.trackSelectionParameters =
+            exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build()
+        exoPlayer.setMediaItem(buildMediaItem(payload))
+        exoPlayer.prepare()
+        exoPlayer.addListener(
+            object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (exoPlayer !== stagingPlayer) return
+                    if (playbackState == Player.STATE_READY) {
+                        scheduleQualityHandoffCheck()
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    if (exoPlayer !== stagingPlayer) return
+                    Log.w(TAG, "Quality handoff failed — keeping outgoing stream", error)
+                    cancelQualityHandoff()
+                }
+            },
+        )
+        scheduleQualityHandoffCheck()
+    }
+
+    private fun scheduleQualityHandoffCheck() {
+        handoffCheckRunnable?.let { handler.removeCallbacks(it) }
+        val runnable =
+            object : Runnable {
+                override fun run() {
+                    if (tryCompleteQualityHandoff()) return
+                    if (stagingPlayer != null) {
+                        handler.postDelayed(this, 200L)
+                    }
+                }
+            }
+        handoffCheckRunnable = runnable
+        handler.post(runnable)
+    }
+
+    private fun tryCompleteQualityHandoff(): Boolean {
+        val incoming = stagingPlayer ?: return true
+        val outgoing = player ?: return true
+        val payload = stagingPayload ?: return true
+        if (incoming.playbackState != Player.STATE_READY) return false
+
+        val targetMs =
+            QualityHandoff.incomingSeekMs(
+                outgoingPositionMs = outgoing.currentPosition,
+                originPositionMs = handoffOriginPositionMs,
+                incomingIsHls = payload.isHls,
+                incomingStartSeconds = payload.startSeconds,
+            )
+        if (
+            !QualityHandoff.canSwap(
+                incomingReady = true,
+                incomingBufferedPositionMs = incoming.bufferedPosition.coerceAtLeast(0L),
+                targetMs = targetMs,
+            )
+        ) {
+            return false
+        }
+
+        if (kotlin.math.abs(incoming.currentPosition - targetMs) > 400L) {
+            incoming.seekTo(targetMs)
+            return false
+        }
+
+        completeQualityHandoff(incoming, payload)
+        return true
+    }
+
+    private fun completeQualityHandoff(incoming: ExoPlayer, payload: PlaybackPayload) {
+        cancelQualityHandoffCallbacks()
+        val outgoing = player
+        stagingPlayer = null
+        stagingPayload = null
+
+        currentPayload = payload
+        seekApplied = true
+        playbackEnded = false
+        lastPlaybackPositionMs = incoming.currentPosition
+        lastPlaybackProgressAtMs = System.currentTimeMillis()
+        stallRecoveryAttempts = 0
+        stallRecoveryPending = false
+        playbackFailureReported = false
+        hasReachedReady = true
+        didAttemptSoftStallRecovery = false
+        pendingSeekMs = null
+        sdUpscaleApplied = false
+        wasBuffering = false
+        midRebufferAtMs.clear()
+        lastEmittedPlaybackState = incoming.playbackState
+        transferStallSinceMs = 0L
+
+        incoming.volume = 1f
+        incoming.playWhenReady = outgoing?.playWhenReady != false
+        playerView.setKeepContentOnPlayerReset(true)
+        playerView.player = incoming
+        player = incoming
+        playbackEpoch += 1
+        playerView.setKeepContentOnPlayerReset(false)
+        playerView.subtitleView?.visibility = View.GONE
+        applyStoredSubtitleStyles()
+        if (payload.isHdr || payload.dolbyVision) {
+            setHdrContentActive(true)
+        }
+        mediaSessionManager?.release()
+        mediaSessionManager = PlaybackMediaSessionManager(playerView.context, incoming)
+        attachOutgoingPlaybackListeners(incoming, payload)
+        if (!payload.subtitleUrl.isNullOrBlank()) {
+            updateSubtitles(payload.subtitleUrl)
+        } else {
+            overlayCues = emptyList()
+            lastOverlayTexts = emptyList()
+            overlaySubtitleView?.setCues(emptyList())
+        }
+        releaseExoPlayerOnly(outgoing)
+        emitState()
+    }
+
+    private fun attachOutgoingPlaybackListeners(exoPlayer: ExoPlayer, payload: PlaybackPayload) {
+        exoPlayer.addListener(
+            object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (exoPlayer !== player) return
+                    when (playbackState) {
+                        Player.STATE_READY -> {
+                            hasReachedReady = true
+                            updateHdrOutput(exoPlayer)
+                            applySdUpscaleEffect(exoPlayer)
+                            applyDisplayMode()
+                            applyStoredSubtitleStyles()
+                            playerView.subtitleView?.visibility = View.GONE
+                            emitState()
+                        }
+                        Player.STATE_ENDED -> {
+                            playbackEnded = true
+                            saveProgress(exoPlayer.duration, ended = true)
+                            emitJs("window.__mediaNativePlayer?.onEnded?.()")
+                            stop()
+                        }
+                        else -> emitState()
+                    }
+                }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (exoPlayer !== player) return
+                    emitState()
+                }
+
+                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                    if (exoPlayer !== player) return
+                    playerView.subtitleView?.visibility = View.GONE
+                    applyStoredSubtitleStyles()
+                    paintOverlayCues()
+                    emitState()
+                }
+
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    if (exoPlayer !== player) return
+                    updateHdrOutput(exoPlayer)
+                    applySdUpscaleEffect(exoPlayer)
+                    applyDisplayMode()
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    if (exoPlayer !== player) return
+                    Log.e(
+                        TAG,
+                        "ExoPlayer error code=${error.errorCode} (${error.errorCodeName}) url=${payload.url}",
+                        error,
+                    )
+                    PlaybackDiag.onPlayerError(
+                        error.errorCode,
+                        error.errorCodeName,
+                        error.message,
+                        bufferAheadMs(exoPlayer),
+                    )
+                    if (!isTransientPlaybackError(error) ||
+                        !schedulePlaybackRecovery(exoPlayer, "error", maxAttempts = 1)
+                    ) {
+                        reportPlaybackFailure("player-error:${error.errorCodeName}")
+                    }
+                    emitState()
+                }
+            },
+        )
+    }
+
+    private fun cancelQualityHandoff() {
+        cancelQualityHandoffCallbacks()
+        val staging = stagingPlayer
+        stagingPlayer = null
+        stagingPayload = null
+        releaseExoPlayerOnly(staging)
+    }
+
+    private fun cancelQualityHandoffCallbacks() {
+        handoffCheckRunnable?.let { handler.removeCallbacks(it) }
+        handoffCheckRunnable = null
+    }
+
+    private fun releaseExoPlayerOnly(exoPlayer: ExoPlayer?) {
+        if (exoPlayer == null) return
+        exoPlayer.playWhenReady = false
+        exoPlayer.stop()
+        exoPlayer.clearVideoSurface()
+        exoPlayer.clearMediaItems()
+        exoPlayer.release()
     }
 
     fun pause() {
@@ -454,6 +735,7 @@ class NativePlayerManager(
         handler.removeCallbacks(cueRunnable)
         cancelSeekCoalesce()
         cancelStallRecovery()
+        cancelQualityHandoff()
         pendingSeekMs = null
         if (!playbackEnded) {
             saveProgress(player?.currentPosition ?: 0L, ended = false)
@@ -565,6 +847,7 @@ class NativePlayerManager(
     }
 
     private fun releasePlayer() {
+        cancelQualityHandoff()
         mediaSessionManager?.release()
         mediaSessionManager = null
         val exoPlayer = player
@@ -804,6 +1087,7 @@ class NativePlayerManager(
             // ExoPlayer STATE_READY and STATE_BUFFERING are mutually exclusive,
             // so a momentary ready flag made mid-buffer UI impossible.
             .put("ready", hasReachedReady)
+            .put("playbackEpoch", playbackEpoch)
 
         if (System.currentTimeMillis() - lastWatchNextUpdateMs >= WATCH_NEXT_UPDATE_INTERVAL_MS) {
             currentPayload?.let {

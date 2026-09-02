@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useWatchRouteParams } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
@@ -35,6 +35,7 @@ import {
   resolveWatchSessionQuality,
   getPlaybackRestartSeconds,
   nextStableAbsoluteSeconds,
+  getPlaybackAbsoluteSeconds,
   resolvePlaybackStartSeconds,
   resolveHlsSeekAction,
   registerStreamRestartTarget,
@@ -44,7 +45,7 @@ import {
   findEpisode,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
-import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback } from "@/lib/playback-engine";
+import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback, attachQualityHandoffPoller } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useMediaSession } from "@/lib/use-media-session";
@@ -117,7 +118,16 @@ function WatchDesktopClient() {
   const router = useRouter();
   const { type, fileId, mediaId, castStartSeconds, fromStart } = useWatchRouteParams();
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoARef = useRef<HTMLVideoElement | null>(null);
+  const stagingVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [activeVideoSlot, setActiveVideoSlot] = useState<"a" | "b">("a");
+  const activeVideoSlotRef = useRef<"a" | "b">("a");
+  activeVideoSlotRef.current = activeVideoSlot;
+  const qualityHandoffRef = useRef(false);
+  const qualityHandoffInFlightRef = useRef(false);
+  const pendingHlsOffsetRef = useRef(0);
+  const usingHlsRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -191,6 +201,10 @@ function WatchDesktopClient() {
   const [posterPath, setPosterPath] = useState<string | null>(null);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+  const volumeRef = useRef(1);
+  mutedRef.current = muted;
+  volumeRef.current = volume;
   const [volumeMenuOpen, setVolumeMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [playbackHasBegun, setPlaybackHasBegun] = useState(false);
@@ -216,6 +230,9 @@ function WatchDesktopClient() {
     [quality, streamInfo],
   );
   const usingHlsPlayback = playbackStream.usingHls;
+  if (!qualityHandoffInFlightRef.current) {
+    usingHlsRef.current = usingHlsPlayback;
+  }
   playbackStreamRef.current = playbackStream;
   qualityRef.current = quality;
   streamInfoRef.current = streamInfo;
@@ -226,7 +243,7 @@ function WatchDesktopClient() {
     const video = videoRef.current;
     if (!video) return 0;
     return resolveWebSubtitlePlaybackSeconds({
-      usingHlsPlayback,
+      usingHlsPlayback: usingHlsRef.current,
       videoCurrentTime: video.currentTime,
       streamStartSeconds: pendingStreamStartRef.current,
       hlsStartOffsetLive: hlsStartOffsetRef.current,
@@ -234,11 +251,7 @@ function WatchDesktopClient() {
       initialResumeSeconds,
       playbackActive: true,
     });
-  }, [
-    usingHlsPlayback,
-    hlsStartOffset,
-    initialResumeSeconds,
-  ]);
+  }, [hlsStartOffset, initialResumeSeconds]);
 
   const {
     subtitles,
@@ -350,11 +363,11 @@ function WatchDesktopClient() {
 
     setBufferedRanges(
       readAbsoluteScrubberBufferedRanges(video, {
-        hlsStartOffset: usingHlsPlayback ? hlsStartOffsetRef.current : 0,
-        usingHls: usingHlsPlayback,
+        hlsStartOffset: usingHlsRef.current ? hlsStartOffsetRef.current : 0,
+        usingHls: usingHlsRef.current,
       }),
     );
-  }, [usingHlsPlayback]);
+  }, []);
   const updateBufferedPositionRef = useRef(updateBufferedPosition);
   updateBufferedPositionRef.current = updateBufferedPosition;
 
@@ -367,7 +380,7 @@ function WatchDesktopClient() {
     );
     if (!durationMs) return;
 
-    const liveSeconds = usingHlsPlayback
+    const liveSeconds = usingHlsRef.current
       ? hlsStartOffsetRef.current + video.currentTime
       : video.currentTime;
 
@@ -432,7 +445,7 @@ function WatchDesktopClient() {
       const video = videoRef.current;
       if (video) {
         const absoluteTime = getPlaybackRestartSeconds({
-          usingHls: usingHlsPlayback,
+          usingHls: usingHlsRef.current,
           hlsStartOffset: hlsStartOffsetRef.current,
           relativeSeconds: video.currentTime,
           stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
@@ -440,6 +453,8 @@ function WatchDesktopClient() {
         lastStableAbsoluteSecondsRef.current = absoluteTime;
         requestStreamRestartAt(absoluteTime);
       }
+      qualityHandoffRef.current = playbackHasBegunRef.current;
+      qualityHandoffInFlightRef.current = qualityHandoffRef.current;
       setQuality(nextQuality);
       if (fileId && !Number.isNaN(fileId)) {
         persistPlaybackQuality(nextQuality, {
@@ -459,7 +474,7 @@ function WatchDesktopClient() {
       }
       revealControls(true);
     },
-    [fileId, revealControls, type, usingHlsPlayback, requestStreamRestartAt],
+    [fileId, revealControls, type, requestStreamRestartAt],
   );
 
   const escalateToEqualResolutionTranscode = useCallback(() => {
@@ -482,7 +497,7 @@ function WatchDesktopClient() {
     const video = videoRef.current;
     if (video) {
       const absoluteTime = getPlaybackRestartSeconds({
-        usingHls: usingHlsPlayback,
+        usingHls: usingHlsRef.current,
         hlsStartOffset: hlsStartOffsetRef.current,
         relativeSeconds: video.currentTime,
         stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
@@ -490,13 +505,15 @@ function WatchDesktopClient() {
       lastStableAbsoluteSecondsRef.current = absoluteTime;
       requestStreamRestartAt(absoluteTime);
     }
+    qualityHandoffRef.current = playbackHasBegunRef.current;
+    qualityHandoffInFlightRef.current = qualityHandoffRef.current;
     setQuality(next);
     playbackFpsStateRef.current = { samples: [] };
     setError(null);
     showFpsQualityNotice(
       formatLowFpsQualitySwitchNotice(next, info.height, info.width),
     );
-  }, [fileId, requestStreamRestartAt, showFpsQualityNotice, type, usingHlsPlayback]);
+  }, [fileId, requestStreamRestartAt, showFpsQualityNotice, type]);
   escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
 
   const tryFallbackQuality = useCallback(() => {
@@ -520,6 +537,8 @@ function WatchDesktopClient() {
     streamRestartTargetsRef.current.clear();
     setPlaybackHasBegun(false);
     playbackHasBegunRef.current = false;
+    qualityHandoffInFlightRef.current = false;
+    setActiveVideoSlot("a");
     lastStableAbsoluteSecondsRef.current = 0;
     hlsStartOffsetRef.current = 0;
     setHlsStartOffset(0);
@@ -553,6 +572,7 @@ function WatchDesktopClient() {
     const isPreparingPlayback = initialResumeSeconds === null || !streamInfo;
     if (!isPreparingPlayback && isPlaying && !buffering) {
       setPlaybackHasBegun(true);
+      playbackHasBegunRef.current = true;
     }
   }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
 
@@ -622,7 +642,12 @@ function WatchDesktopClient() {
     if (!video) return;
     video.volume = muted ? 0 : Math.max(volume, 0.01);
     video.muted = muted;
-  }, [volume, muted]);
+  }, [volume, muted, activeVideoSlot]);
+
+  useLayoutEffect(() => {
+    videoRef.current =
+      activeVideoSlot === "a" ? videoARef.current : stagingVideoRef.current;
+  }, [activeVideoSlot]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId) || !mediaId) return;
@@ -647,7 +672,7 @@ function WatchDesktopClient() {
   }, [mediaId, fileId, type]);
 
   useEffect(() => {
-    const video = videoRef.current;
+    const video = videoRef.current ?? videoARef.current;
     if (!video || !fileId || Number.isNaN(fileId) || initialResumeSeconds === null || !streamInfo) {
       return;
     }
@@ -655,6 +680,151 @@ function WatchDesktopClient() {
     const playback = resolvePlaybackStream(quality, streamInfo);
     if (!playback.usingHls && playback.audioCompatNotice) {
       return;
+    }
+
+    const stream = resolvePlaybackStream(quality, streamInfo);
+    const usingHls = stream.usingHls;
+    const qualityHandoff = qualityHandoffRef.current;
+    qualityHandoffRef.current = false;
+
+    const explicitStreamStart =
+      consumeStreamRestartTarget(
+        streamRestartTargetsRef.current,
+        streamGeneration,
+      ) ?? pendingStreamStartRef.current;
+    if (explicitStreamStart !== null) {
+      pendingStreamStartRef.current = null;
+    }
+
+    const startAt = resolvePlaybackStartSeconds({
+      streamStartSeconds: explicitStreamStart,
+      initialResumeSeconds,
+      streamGeneration,
+      usingHls: usingHlsRef.current,
+      hlsStartOffset: hlsStartOffsetRef.current,
+      relativeSeconds: video.currentTime,
+      stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
+    });
+
+    if (wasUsingHlsRef.current && !usingHls && !qualityHandoff) {
+      void api.stopStream(fileId, type).catch(() => {});
+    }
+    if (!qualityHandoff) {
+      wasUsingHlsRef.current = usingHls;
+    }
+
+    const url = api.streamUrl(
+      fileId,
+      type === "movie" ? "movie" : "episode",
+      quality,
+      usingHls ? startAt : undefined,
+      streamGeneration,
+      stream.hlsQuality,
+    );
+
+    const sessionGen = streamGeneration;
+    const onFatalError = () => {
+      if (playbackFatalHandledRef.current === sessionGen) return;
+      playbackFatalHandledRef.current = sessionGen;
+      qualityHandoffInFlightRef.current = false;
+      setOptimisticAbsoluteSeconds(null);
+      setBuffering(false);
+      if (tryFallbackQualityRef.current()) return;
+      setError("Playback failed. Try a lower quality or Original.");
+    };
+
+    let cancelled = false;
+    let webPlayback: ReturnType<typeof startWebPlayback> | null = null;
+    let stopHandoffPoll: (() => void) | null = null;
+
+    const incomingVideo =
+      activeVideoSlotRef.current === "a"
+        ? stagingVideoRef.current
+        : videoARef.current;
+    const activeWebVideo = () =>
+      activeVideoSlotRef.current === "a"
+        ? videoARef.current
+        : stagingVideoRef.current;
+
+    if (qualityHandoff && incomingVideo && incomingVideo !== video) {
+      const outgoing = video;
+      const incoming = incomingVideo;
+      const outgoingTimeAtRequest = outgoing.currentTime;
+      incoming.muted = true;
+      incoming.playsInline = true;
+      lastStableAbsoluteSecondsRef.current = startAt;
+      pendingHlsOffsetRef.current = usingHls ? startAt : 0;
+
+      void (async () => {
+        try {
+          const HlsConstructor = usingHls ? await loadHls() : undefined;
+          if (cancelled) return;
+          webPlayback = startWebPlayback({
+            HlsConstructor,
+            video: incoming,
+            url,
+            usingHls,
+            startAt,
+            onFatalError,
+            onBufferUpdate: () => {},
+            onSourceReady: notifyWebPlaybackSourceReady,
+          });
+          if (cancelled) {
+            webPlayback.cleanup();
+            return;
+          }
+          stopHandoffPoll = attachQualityHandoffPoller({
+            incoming,
+            getOutgoing: () => outgoing,
+            outgoingTimeAtRequest,
+            incomingIsHls: usingHls,
+            incomingStartAt: startAt,
+            onSwap: () => {
+              if (cancelled) return;
+              const resumeIncoming = !outgoing.paused;
+              incoming.muted = mutedRef.current;
+              incoming.volume = mutedRef.current ? 0 : Math.max(volumeRef.current, 0.01);
+              destroyHlsInstance(hlsRef.current);
+              hlsRef.current = webPlayback?.hls ?? null;
+              outgoing.pause();
+              outgoing.removeAttribute("src");
+              outgoing.load();
+              if (resumeIncoming) {
+                void incoming.play().catch(() => {});
+              } else {
+                incoming.pause();
+              }
+              const shouldStopOutgoingHls = wasUsingHlsRef.current && !usingHls;
+              hlsStartOffsetRef.current = pendingHlsOffsetRef.current;
+              setHlsStartOffset(pendingHlsOffsetRef.current);
+              qualityHandoffInFlightRef.current = false;
+              usingHlsRef.current = usingHls;
+              wasUsingHlsRef.current = usingHls;
+              setActiveVideoSlot((slot) => (slot === "a" ? "b" : "a"));
+              if (shouldStopOutgoingHls) {
+                void api.stopStream(fileId, type).catch(() => {});
+              }
+            },
+          });
+        } catch (err) {
+          console.error(err);
+          if (!cancelled) onFatalError();
+        }
+      })();
+
+      progressInterval.current = setInterval(() => saveProgressRef.current(), PROGRESS_SAVE_MS);
+
+      return () => {
+        cancelled = true;
+        stopHandoffPoll?.();
+        if (progressInterval.current) clearInterval(progressInterval.current);
+        saveProgressRef.current();
+        if (qualityHandoffRef.current && incoming === activeWebVideo()) return;
+        incoming.pause();
+        incoming.removeAttribute("src");
+        incoming.load();
+        webPlayback?.cleanup();
+      };
     }
 
     setError(null);
@@ -675,66 +845,19 @@ function WatchDesktopClient() {
     video.removeAttribute("src");
     video.load();
 
-    const stream = resolvePlaybackStream(quality, streamInfo);
-    const usingHls = stream.usingHls;
-
-    if (wasUsingHlsRef.current && !usingHls) {
-      void api.stopStream(fileId, type).catch(() => {});
-    }
-    wasUsingHlsRef.current = usingHls;
-
-    const explicitStreamStart =
-      consumeStreamRestartTarget(
-        streamRestartTargetsRef.current,
-        streamGeneration,
-      ) ?? pendingStreamStartRef.current;
-    if (explicitStreamStart !== null) {
-      pendingStreamStartRef.current = null;
-    }
-
-    const startAt = resolvePlaybackStartSeconds({
-      streamStartSeconds: explicitStreamStart,
-      initialResumeSeconds,
-      streamGeneration,
-      usingHls,
-      hlsStartOffset: hlsStartOffsetRef.current,
-      relativeSeconds: video.currentTime,
-      stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
-    });
-
     hlsStartOffsetRef.current = usingHls ? startAt : 0;
+    pendingHlsOffsetRef.current = hlsStartOffsetRef.current;
     if (usingHls) {
       setHlsStartOffset(startAt);
     } else {
       setHlsStartOffset(0);
     }
     lastStableAbsoluteSecondsRef.current = startAt;
+    qualityHandoffInFlightRef.current = false;
 
     video.pause();
     video.currentTime = 0;
     setCurrentTime(usingHls || startAt <= 0 ? 0 : startAt);
-
-    const url = api.streamUrl(
-      fileId,
-      type === "movie" ? "movie" : "episode",
-      quality,
-      usingHls ? startAt : undefined,
-      streamGeneration,
-      stream.hlsQuality,
-    );
-
-    const sessionGen = streamGeneration;
-    const onFatalError = () => {
-      if (playbackFatalHandledRef.current === sessionGen) return;
-      playbackFatalHandledRef.current = sessionGen;
-      setOptimisticAbsoluteSeconds(null);
-      setBuffering(false);
-      if (tryFallbackQualityRef.current()) return;
-      setError("Playback failed. Try a lower quality or Original.");
-    };
-
-    let cancelled = false;
-    let webPlayback: ReturnType<typeof startWebPlayback> | null = null;
 
     void (async () => {
       try {
@@ -769,10 +892,14 @@ function WatchDesktopClient() {
 
     return () => {
       cancelled = true;
-      webPlayback?.cleanup();
-      hlsRef.current = null;
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();
+      if (qualityHandoffRef.current) return;
+      webPlayback?.cleanup();
+      hlsRef.current = null;
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
     };
   }, [fileId, type, quality, streamGeneration, initialResumeSeconds, streamInfo]);
 
@@ -805,7 +932,7 @@ function WatchDesktopClient() {
       );
       if (!durationMs) return;
 
-      const liveSeconds = usingHlsPlayback
+      const liveSeconds = usingHlsRef.current
         ? hlsStartOffsetRef.current + video.currentTime
         : video.currentTime;
       // Same regression guard as saveProgress — never persist a spot behind
@@ -835,6 +962,7 @@ function WatchDesktopClient() {
     usingHlsPlayback,
     hlsStartOffset,
     optimisticAbsoluteSeconds,
+    mediaEpoch: activeVideoSlot,
     handlers: {
       onPlay: () => {
         setIsPlaying(true);
@@ -1043,8 +1171,11 @@ function WatchDesktopClient() {
     };
   }, [fileId, type, activeSubtitle, title, posterPath, subtitles, usingHlsPlayback, hlsStartOffset]);
 
-  const absoluteCurrentTime =
-    usingHlsPlayback ? hlsStartOffsetRef.current + currentTime : currentTime;
+  const absoluteCurrentTime = getPlaybackAbsoluteSeconds({
+    usingHls: usingHlsRef.current,
+    hlsStartOffset: hlsStartOffsetRef.current,
+    relativeSeconds: currentTime,
+  });
   const absoluteDurationMs = resolveScrubberDurationMs({
     sourceDurationMs,
     elementDurationSeconds: duration,
@@ -1323,14 +1454,28 @@ function WatchDesktopClient() {
     >
       <PlaybackPosterBackdrop posterUrl={posterUrl} visible={showPosterBackdrop} />
       <video
-        ref={videoRef}
+        ref={videoARef}
         className={cn(
           "media-subtitles absolute inset-0 z-[2] h-full w-full",
           videoDisplayModeClass(videoDisplayMode),
+          activeVideoSlot !== "a" && "pointer-events-none opacity-0",
         )}
         controls={false}
         playsInline
         preload={streamInfo ? "auto" : "metadata"}
+        onClick={togglePlay}
+      />
+      <video
+        ref={stagingVideoRef}
+        aria-hidden={activeVideoSlot !== "b"}
+        className={cn(
+          "media-subtitles absolute inset-0 z-[2] h-full w-full",
+          videoDisplayModeClass(videoDisplayMode),
+          activeVideoSlot !== "b" && "pointer-events-none opacity-0",
+        )}
+        controls={false}
+        playsInline
+        preload="auto"
         onClick={togglePlay}
       />
       {activeSubtitle !== null && activeVtt && (

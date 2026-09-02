@@ -731,6 +731,50 @@ export function getScrubberBufferedRanges(
   return merged.filter((range) => range.end > playheadSeconds + 0.05);
 }
 
+/** Seconds of media the incoming quality must have past the live playhead before swap. */
+export const QUALITY_HANDOFF_MIN_AHEAD_SECONDS = 0.75;
+
+/** How far the outgoing stream has advanced since the quality switch was requested. */
+export function qualityHandoffElapsedSeconds(
+  outgoingCurrentTime: number,
+  outgoingTimeAtRequest: number,
+): number {
+  if (!Number.isFinite(outgoingCurrentTime) || !Number.isFinite(outgoingTimeAtRequest)) {
+    return 0;
+  }
+  return Math.max(0, outgoingCurrentTime - outgoingTimeAtRequest);
+}
+
+/** Incoming-element seek target so the swap lands on the live playhead, not the request time. */
+export function qualityHandoffSeekSeconds(options: {
+  incomingIsHls: boolean;
+  outgoingCurrentTime: number;
+  outgoingTimeAtRequest: number;
+  incomingStartAt: number;
+}): number {
+  const elapsed = qualityHandoffElapsedSeconds(
+    options.outgoingCurrentTime,
+    options.outgoingTimeAtRequest,
+  );
+  if (options.incomingIsHls) return elapsed;
+  return Math.max(0, options.incomingStartAt) + elapsed;
+}
+
+/** True when the incoming quality has enough media to take over without a black gap. */
+export function canSwapQualityHandoff(options: {
+  incomingReady: boolean;
+  incomingBufferedEnd: number;
+  seekToSeconds: number;
+  minAheadSeconds?: number;
+}): boolean {
+  if (!options.incomingReady) return false;
+  if (!Number.isFinite(options.incomingBufferedEnd) || !Number.isFinite(options.seekToSeconds)) {
+    return false;
+  }
+  const minAhead = options.minAheadSeconds ?? QUALITY_HANDOFF_MIN_AHEAD_SECONDS;
+  return options.incomingBufferedEnd >= options.seekToSeconds + minAhead;
+}
+
 /**
  * Map an element-timeline value onto the 0-based remux window.
  * After server `-ss`, most browsers report currentTime/buffered/duration from

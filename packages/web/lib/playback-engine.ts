@@ -1,8 +1,10 @@
 import type Hls from "hls.js";
 import {
+  canSwapQualityHandoff,
   createPlaybackHls,
   getContiguousBufferedAhead,
   playlistM3u8HasEndList,
+  qualityHandoffSeekSeconds,
   RECOVERY_FORGIVE_PROGRESS_SECONDS,
   resolveGrowingEdgePlaybackRate,
   resolveRecoveryBudget,
@@ -30,6 +32,8 @@ export interface WebPlaybackOptions {
   onBufferUpdate: () => void;
   onSeekComplete?: (seconds: number) => void;
   onSourceReady?: () => void;
+  /** First time this element has playable media (quality-handoff swap point). */
+  onPlaybackReady?: () => void;
 }
 
 export interface WebPlaybackHandle {
@@ -42,6 +46,52 @@ export function destroyHlsInstance(hls: Hls | null): void {
   hls.stopLoad();
   hls.detachMedia();
   hls.destroy();
+}
+
+/** Poll until the incoming quality can take over the live playhead without a gap. */
+export function attachQualityHandoffPoller(options: {
+  incoming: HTMLVideoElement;
+  getOutgoing: () => HTMLVideoElement | null;
+  outgoingTimeAtRequest: number;
+  incomingIsHls: boolean;
+  incomingStartAt: number;
+  onSwap: () => void;
+}): () => void {
+  let cancelled = false;
+  const tick = () => {
+    if (cancelled) return;
+    const outgoing = options.getOutgoing();
+    if (!outgoing) return;
+    const seekTo = qualityHandoffSeekSeconds({
+      incomingIsHls: options.incomingIsHls,
+      outgoingCurrentTime: outgoing.currentTime,
+      outgoingTimeAtRequest: options.outgoingTimeAtRequest,
+      incomingStartAt: options.incomingStartAt,
+    });
+    const bufferedEnd =
+      options.incoming.currentTime + getContiguousBufferedAhead(options.incoming);
+    if (
+      !canSwapQualityHandoff({
+        incomingReady: options.incoming.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA,
+        incomingBufferedEnd: bufferedEnd,
+        seekToSeconds: seekTo,
+      })
+    ) {
+      return;
+    }
+    if (Math.abs(options.incoming.currentTime - seekTo) > 0.4) {
+      options.incoming.currentTime = seekTo;
+      return;
+    }
+    cancelled = true;
+    options.onSwap();
+  };
+  const id = window.setInterval(tick, 200);
+  tick();
+  return () => {
+    cancelled = true;
+    window.clearInterval(id);
+  };
 }
 
 /**
@@ -94,6 +144,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
     onBufferUpdate,
     onSeekComplete,
     onSourceReady,
+    onPlaybackReady,
   } = options;
 
   let hls: Hls | null = null;
@@ -109,6 +160,14 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   let waitGrowTicks = 0;
   let playlistHasEndList = false;
   let userWantsPlay = true;
+  let playbackReadyNotified = false;
+
+  const notifyPlaybackReady = () => {
+    if (playbackReadyNotified) return;
+    if (getContiguousBufferedAhead(video) < 0.35 && video.readyState < 3) return;
+    playbackReadyNotified = true;
+    onPlaybackReady?.();
+  };
 
   const onManifestSawEndList = (m3u8: string) => {
     if (!playlistHasEndList && playlistM3u8HasEndList(m3u8)) {
@@ -161,6 +220,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   const onTimeUpdate = () => {
     trackPlaybackAdvance();
     onBufferUpdate();
+    notifyPlaybackReady();
   };
 
   const onUserPlay = () => {
@@ -184,6 +244,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       video.addEventListener("timeupdate", onTimeUpdate);
       video.addEventListener("play", onUserPlay);
       video.addEventListener("pause", onUserPause);
+      video.addEventListener("canplay", notifyPlaybackReady);
 
       hls.on(HlsConstructor.Events.MANIFEST_PARSED, () => {
         // Load from relative 0 (server already applied -ss). Let hls.js own
@@ -198,6 +259,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
 
       const resumeAfterFragment = () => {
         onBufferUpdate();
+        notifyPlaybackReady();
         // A growing playlist can briefly exhaust the current buffer. Once the
         // next fragment lands, resume only if the viewer had been playing.
         if (userWantsPlay && video.paused && !video.ended) {
@@ -340,6 +402,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
       video.addEventListener("error", onVideoError);
+      video.addEventListener("canplay", notifyPlaybackReady);
       onSourceReady?.();
       video.play().catch(() => {});
     } else {
@@ -348,9 +411,13 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
   } else {
     video.src = url;
     video.addEventListener("error", onVideoError);
+    video.addEventListener("canplay", notifyPlaybackReady);
     onSourceReady?.();
     stopDirectPlayback = startDirectPlaybackWithResume(video, startAt, {
-      onSeekComplete,
+      onSeekComplete: (seconds) => {
+        onSeekComplete?.(seconds);
+        notifyPlaybackReady();
+      },
     });
   }
 
@@ -362,6 +429,7 @@ export function startWebPlayback(options: WebPlaybackOptions): WebPlaybackHandle
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("play", onUserPlay);
       video.removeEventListener("pause", onUserPause);
+      video.removeEventListener("canplay", notifyPlaybackReady);
       stopDirectPlayback?.();
       destroyHlsInstance(hls);
       if (video.playbackRate !== 1) {
