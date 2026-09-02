@@ -254,6 +254,7 @@ class MainActivity : AppCompatActivity() {
             lastWebOverlayAlpha = 1f
             webOverlayInFront = true
             nativePlayer.setUiOverlayVisible(true)
+            webView.bringToFront()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
                 webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             }
@@ -284,17 +285,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyNativeWebOverlayAlpha(alpha: Float) {
         val clamped = alpha.coerceIn(0f, 1f)
-        if (clamped == lastWebOverlayAlpha) return
-        lastWebOverlayAlpha = clamped
-        webView.alpha = clamped
-        nativePlayer.setUiOverlayVisible(clamped > 0f)
-        val wantWebInFront = clamped > 0f
-        if (wantWebInFront == webOverlayInFront) return
-        webOverlayInFront = wantWebInFront
+        val wantWebInFront = NativeWebOverlay.shouldBringWebViewToFront(clamped)
+        if (clamped != lastWebOverlayAlpha) {
+            lastWebOverlayAlpha = clamped
+            webView.alpha = clamped
+            nativePlayer.setUiOverlayVisible(wantWebInFront)
+        }
+        // Re-assert z-order even when alpha is unchanged. After title A hid
+        // chrome, PlayerView is in front; title B's alpha=1 must not no-op.
         if (wantWebInFront) {
+            webOverlayInFront = true
             webView.bringToFront()
-        } else {
-            // Keep the WebView from compositing over ExoPlayer while controls are hidden.
+        } else if (webOverlayInFront) {
+            webOverlayInFront = false
             nativePlayerView.bringToFront()
         }
     }
@@ -698,6 +701,13 @@ class MainActivity : AppCompatActivity() {
         fun setWebOverlayAlpha(alpha: Double) {
             runOnUiThread {
                 applyNativeWebOverlayAlpha(alpha.toFloat())
+            }
+        }
+
+        @JavascriptInterface
+        fun raiseWebOverlay() {
+            runOnUiThread {
+                applyNativeWebOverlayAlpha(1f)
             }
         }
     }

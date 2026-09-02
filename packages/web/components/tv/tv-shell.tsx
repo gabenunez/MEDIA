@@ -11,7 +11,7 @@ import { TvSpatialNav } from "@/components/tv/tv-spatial-nav";
 import { tvNavItemClassName, TvFocusButton } from "@/components/tv/tv-focus-link";
 import {
   nativeTvPlayerAvailable,
-  setNativeWebOverlayAlpha,
+  raiseNativeWebOverlay,
   stopNativePlayback,
 } from "@/lib/android-bridge";
 import { routes } from "@/lib/routes";
@@ -91,7 +91,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
         // Cover the native surface first, then unbind immediately so the last
         // title is not still attached when the next play starts.
         document.documentElement.removeAttribute("data-native-video");
-        setNativeWebOverlayAlpha(1);
+        raiseNativeWebOverlay();
         stopNativePlayback();
       }
       const video = document.querySelector("video");

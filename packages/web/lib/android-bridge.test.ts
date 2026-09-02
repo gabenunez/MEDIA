@@ -121,4 +121,51 @@ describe("setNativeWebOverlayAlpha", () => {
     expect(setWebOverlayAlpha).toHaveBeenCalledTimes(2);
     expect(setWebOverlayAlpha).toHaveBeenLastCalledWith(1);
   });
+
+  it("raiseNativeWebOverlay uses the dedicated bridge when the APK has it", async () => {
+    const raiseWebOverlay = vi.fn();
+    const setWebOverlayAlpha = vi.fn();
+    globalThis.window = {
+      location: { origin: "https://media.example" },
+      MediaAndroid: {
+        logout: () => {},
+        play: () => {},
+        pause: () => {},
+        resume: () => {},
+        seekTo: () => {},
+        stop: () => {},
+        setWebOverlayAlpha,
+        raiseWebOverlay,
+      },
+    } as unknown as Window & typeof globalThis;
+
+    const { raiseNativeWebOverlay } = await import("./android-bridge");
+    raiseNativeWebOverlay();
+    expect(raiseWebOverlay).toHaveBeenCalledTimes(1);
+    expect(setWebOverlayAlpha).not.toHaveBeenCalled();
+  });
+
+  it("raiseNativeWebOverlay pulses 0 then 1 on older APKs when last alpha is already 1", async () => {
+    const setWebOverlayAlpha = vi.fn();
+    globalThis.window = {
+      location: { origin: "https://media.example" },
+      MediaAndroid: {
+        logout: () => {},
+        play: () => {},
+        pause: () => {},
+        resume: () => {},
+        seekTo: () => {},
+        stop: () => {},
+        setWebOverlayAlpha,
+      },
+    } as unknown as Window & typeof globalThis;
+
+    const { setNativeWebOverlayAlpha, raiseNativeWebOverlay } = await import(
+      "./android-bridge"
+    );
+    setNativeWebOverlayAlpha(1);
+    setWebOverlayAlpha.mockClear();
+    raiseNativeWebOverlay();
+    expect(setWebOverlayAlpha.mock.calls.map((call) => call[0])).toEqual([0, 1]);
+  });
 });
