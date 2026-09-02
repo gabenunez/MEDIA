@@ -46,6 +46,14 @@ describe("playback fps escalation", () => {
         directPlayMode: true,
       }),
     ).toBe(false);
+    expect(
+      shouldPreferEqualTranscodeForSourceFps({
+        fps: 59.94,
+        nativeTv: false,
+        transcodingEnabled: true,
+        directPlayMode: true,
+      }),
+    ).toBe(true);
   });
 
   it("measures playback fps from position samples", () => {
@@ -150,8 +158,18 @@ describe("playback fps escalation", () => {
     expect(watchView).toContain("playbackFpsSampleSpanMs");
     expect(watchView).toContain("elapsedMs");
     expect(watchView).toContain("shouldEscalateLowPlaybackFps");
-    expect(watchView).toContain("readStoredItemPlaybackQuality");
-    expect(watchView).toContain("allowFpsQualityAuto");
+    expect(watchView).toContain("resolveWatchSessionQuality");
     expect(watchView).toContain("fpsQualityLockedRef");
+  });
+
+  it("desktop watch client applies the same first-play FPS quality lock", () => {
+    const desktopWatch = readFileSync(
+      path.join(webRoot, "app/watch/client.tsx"),
+      "utf8",
+    );
+    expect(desktopWatch).toContain("resolveWatchSessionQuality");
+    expect(desktopWatch).toContain("shouldEscalateLowPlaybackFps");
+    expect(desktopWatch).toContain("fpsQualityLockedRef");
+    expect(desktopWatch).toContain("persistPlaybackQuality");
   });
 });

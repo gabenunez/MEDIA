@@ -1,5 +1,4 @@
 import type { StreamQuality } from "@/lib/api";
-import { isTvClient } from "@/lib/tv-mode-detect";
 
 const STORAGE_KEY = "media:playback-quality";
 const ITEM_STORAGE_KEY_PREFIX = "media:playback-quality:item:";
@@ -17,7 +16,6 @@ function itemStorageKey(itemType: string, itemId: number): string {
 }
 
 function readQualityKey(key: string): StreamQuality | null {
-  if (!isTvClient()) return null;
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(key);
@@ -29,7 +27,7 @@ function readQualityKey(key: string): StreamQuality | null {
 }
 
 function writeQualityKey(key: string, quality: StreamQuality): void {
-  if (!isTvClient() || !VALID_QUALITIES.has(quality)) return;
+  if (!VALID_QUALITIES.has(quality)) return;
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(key, quality);

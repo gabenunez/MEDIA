@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   persistPlaybackQuality,
   readStoredItemPlaybackQuality,
@@ -7,17 +7,12 @@ import {
   writeStoredPlaybackQuality,
 } from "./quality-selection-storage";
 
-vi.mock("@/lib/tv-mode-detect", () => ({
-  isTvClient: vi.fn(() => true),
-}));
-
 describe("quality selection storage", () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.clearAllMocks();
   });
 
-  it("round-trips playback quality on TV", () => {
+  it("round-trips playback quality", () => {
     writeStoredPlaybackQuality("1080p");
     expect(readStoredPlaybackQuality()).toBe("1080p");
   });

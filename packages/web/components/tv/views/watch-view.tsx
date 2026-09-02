@@ -28,7 +28,7 @@ import {
   resolveSkipTargetAbsoluteSeconds,
   shouldClearOptimisticSeek,
   getPlaybackAbsoluteSeconds,
-  resolveInitialStreamQuality,
+  resolveWatchSessionQuality,
   resolvePlaybackStream,
   shouldFailThroughContinuousMidBuffer,
   NATIVE_SEEK_COALESCE_MS,
@@ -58,11 +58,7 @@ import {
   qualityLabel,
   resolveFallbackQuality,
 } from "@/lib/watch-helpers";
-import {
-  persistPlaybackQuality,
-  readStoredItemPlaybackQuality,
-  readStoredPlaybackQuality,
-} from "@/lib/quality-selection-storage";
+import { persistPlaybackQuality } from "@/lib/quality-selection-storage";
 import { is4KSource, isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
@@ -1305,24 +1301,16 @@ export function TvWatchView() {
         setTranscodingEnabled(info.transcodingEnabled);
 
         const itemType = type === "movie" ? "movie" : "episode";
-        const itemQuality = readStoredItemPlaybackQuality(itemType, fileId);
-        const qualityLocked = itemQuality != null;
-        fpsQualityLockedRef.current = qualityLocked;
-        nativeLowFpsEscalatedRef.current = qualityLocked;
-
-        const initial = resolveInitialStreamQuality(info, {
-          preferredQuality: itemQuality ?? readStoredPlaybackQuality(),
-          allowFpsQualityAuto: !qualityLocked,
-          nativeTv: usesNativePlayer,
-        });
-        setQuality(initial.quality);
-        if (initial.fpsAutoApplied) {
-          persistPlaybackQuality(initial.quality, { itemType, itemId: fileId });
-          fpsQualityLockedRef.current = true;
-          nativeLowFpsEscalatedRef.current = true;
-        }
-        if (initial.error) {
-          setError(initial.error);
+        const session = resolveWatchSessionQuality(
+          info,
+          { itemType, itemId: fileId },
+          { nativeTv: usesNativePlayer },
+        );
+        fpsQualityLockedRef.current = session.locked;
+        nativeLowFpsEscalatedRef.current = session.locked;
+        setQuality(session.quality);
+        if (session.error) {
+          setError(session.error);
         } else {
           setError(null);
         }

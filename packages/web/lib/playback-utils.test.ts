@@ -22,6 +22,7 @@ import {
   resolveStallWatchdogAction,
   type SpuriousRecoveryState,
   resolveInitialStreamQuality,
+  resolveWatchSessionQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
   nextEpisodeArtworkPaths,
@@ -132,6 +133,36 @@ describe("resolveInitialStreamQuality", () => {
       }),
     );
     expect(result).toEqual({ quality: "original", error: null, fpsAutoApplied: false });
+  });
+
+  it("locks first-play FPS quality per title and honors it on replay", () => {
+    localStorage.clear();
+    const highFps = makeStreamInfo({
+      fileName: "sports.mp4",
+      mimeType: "video/mp4",
+      videoCodec: "h264",
+      audioCodec: "aac",
+      height: 1080,
+      width: 1920,
+      fps: 59.94,
+      transcodingEnabled: true,
+    });
+    const item = { itemType: "movie", itemId: 42 };
+
+    expect(
+      resolveWatchSessionQuality(highFps, item, { nativeTv: true }),
+    ).toEqual({
+      quality: "1080p",
+      error: null,
+      locked: true,
+    });
+    expect(
+      resolveWatchSessionQuality(highFps, item, { nativeTv: true }),
+    ).toEqual({
+      quality: "1080p",
+      error: null,
+      locked: true,
+    });
   });
 });
 

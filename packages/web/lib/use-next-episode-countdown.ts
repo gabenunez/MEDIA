@@ -13,6 +13,10 @@ import {
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
 import { preloadNextEpisodeArtwork } from "@/lib/prefetch-artwork";
+import {
+  readStoredItemPlaybackQuality,
+  readStoredPlaybackQuality,
+} from "@/lib/quality-selection-storage";
 
 export interface NextEpisodeCountdownState extends NextEpisodeInfo {
   secondsLeft: number;
@@ -73,7 +77,14 @@ export function useNextEpisodeCountdown(options: {
     void api
       .getStreamInfo(next.episode.id, "episode")
       .then((info) => {
-        const initial = resolveInitialStreamQuality(info);
+        const itemQuality = readStoredItemPlaybackQuality(
+          "episode",
+          next.episode.id,
+        );
+        const initial = resolveInitialStreamQuality(info, {
+          preferredQuality: itemQuality ?? readStoredPlaybackQuality(),
+          allowFpsQualityAuto: false,
+        });
         const playback = resolvePlaybackStream(initial.quality, info);
         const relativeUrl = api.streamUrl(
           next.episode.id,

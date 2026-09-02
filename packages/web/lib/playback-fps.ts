@@ -59,12 +59,11 @@ export function measurePlaybackFps(
 
 export function shouldPreferEqualTranscodeForSourceFps(options: {
   fps?: number | null;
-  nativeTv: boolean;
+  nativeTv?: boolean;
   transcodingEnabled: boolean;
   directPlayMode: boolean;
 }): boolean {
   return (
-    options.nativeTv &&
     options.transcodingEnabled &&
     options.directPlayMode &&
     isHighSourceFrameRate(options.fps)

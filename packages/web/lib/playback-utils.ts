@@ -13,6 +13,11 @@ import {
   resolveOriginalPlaybackMode,
 } from "@media-app/shared";
 import { resolveFirstPlayFpsQuality } from "@/lib/playback-fps";
+import {
+  persistPlaybackQuality,
+  readStoredItemPlaybackQuality,
+  readStoredPlaybackQuality,
+} from "@/lib/quality-selection-storage";
 
 export const PROGRESS_SAVE_MS = 10_000;
 
@@ -544,6 +549,33 @@ export function resolveInitialStreamQuality(
   }
 
   return { quality: candidate, error: null, fpsAutoApplied };
+}
+
+/** Load stored quality for this title, or apply first-play FPS auto once. */
+export function resolveWatchSessionQuality(
+  streamInfo: StreamInfo,
+  item: { itemType: string; itemId: number },
+  options?: { nativeTv?: boolean },
+): {
+  quality: StreamQuality;
+  error: string | null;
+  locked: boolean;
+} {
+  const itemQuality = readStoredItemPlaybackQuality(item.itemType, item.itemId);
+  const alreadyLocked = itemQuality != null;
+  const initial = resolveInitialStreamQuality(streamInfo, {
+    preferredQuality: itemQuality ?? readStoredPlaybackQuality(),
+    allowFpsQualityAuto: !alreadyLocked,
+    nativeTv: options?.nativeTv,
+  });
+  if (initial.fpsAutoApplied) {
+    persistPlaybackQuality(initial.quality, item);
+  }
+  return {
+    quality: initial.quality,
+    error: initial.error,
+    locked: alreadyLocked || initial.fpsAutoApplied,
+  };
 }
 
 export interface TvEpisodeSummary {
