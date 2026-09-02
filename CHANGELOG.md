@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.246 — 2026-09-02
+
+### Playback
+- **Quality** — keep the current picture playing while the next quality buffers, instead of going black
+
+### TV
+- **Player** — native playback overlaps the outgoing and incoming streams on a quality change
+
 ## 0.1.245 — 2026-09-02
 
 ### Changes
