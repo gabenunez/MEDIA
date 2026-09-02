@@ -94,7 +94,7 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
         : null;
 
   return (
-    <div className="pt-1">
+    <div>
       {continueWatching.length > 0 && (
         <TvRow
           title="Continue Watching"

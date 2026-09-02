@@ -26,10 +26,48 @@ describe("TV living-room catalog scale", () => {
     expect(parseRem(tvUi["--tv-page-gutter"])).toBe(TV_LIVING_ROOM_LAYOUT.pageGutterRem);
     expect(parseRem(tvUi["--tv-row-gap"])).toBe(TV_LIVING_ROOM_LAYOUT.rowGapRem);
     expect(parseRem(tvUi["--tv-section-gap"])).toBe(TV_LIVING_ROOM_LAYOUT.sectionGapRem);
+    expect(parseRem(tvUi["--tv-scroll-pad-top"])).toBe(
+      TV_LIVING_ROOM_LAYOUT.scrollRowPadTopRem,
+    );
+    expect(parseRem(tvUi["--tv-scroll-pad-bottom"])).toBe(
+      TV_LIVING_ROOM_LAYOUT.scrollRowPadBottomRem,
+    );
     const scrollRow = extractCssBlock(css, ".tv-ui .tv-scroll-row {");
     expect(scrollRow).toMatch(/align-items:\s*flex-start/);
-    expect(scrollRow).toMatch(/padding-block:\s*0\.25rem 1\.75rem/);
+    expect(scrollRow).toMatch(
+      /padding-block:\s*var\(--tv-scroll-pad-top\)\s+var\(--tv-scroll-pad-bottom\)/,
+    );
     expect(scrollRow).toMatch(/overflow-y:\s*hidden/);
+    const main = extractCssBlock(css, ".tv-ui > main {");
+    expect(main).toMatch(
+      new RegExp(
+        `padding-block:\\s*${TV_LIVING_ROOM_LAYOUT.mainPadTopRem}rem ${TV_LIVING_ROOM_LAYOUT.mainPadBottomRem}rem`,
+      ),
+    );
+  });
+
+  it("keeps two home rows inside a 1080p TV viewport", () => {
+    const layout = TV_LIVING_ROOM_LAYOUT;
+    const headerRem = 1.2 + 0.125;
+    const tilePadRem = 0.5;
+    const artRem = layout.posterWidthRem * 1.5;
+    const titleRem = 0.5 + 1.3 * 0.875;
+    const subtitleRem = 0.25 + 0.875;
+    const row = (subtitle: boolean) =>
+      headerRem +
+      layout.scrollRowPadTopRem +
+      layout.scrollRowPadBottomRem +
+      tilePadRem +
+      artRem +
+      titleRem +
+      (subtitle ? subtitleRem : 0);
+    const stackRem =
+      layout.mainPadTopRem +
+      row(true) +
+      layout.sectionGapRem +
+      row(false) +
+      layout.mainPadBottomRem;
+    expect(stackRem * layout.rootFontPx).toBeLessThan(1080);
   });
 
   it("fits at least 10 posters in a 1080p TV row", () => {
