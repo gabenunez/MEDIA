@@ -8,6 +8,7 @@ import {
   playbackFpsSampleSpanMs,
   recordPlaybackFpsSample,
   resolveEqualTranscodeQuality,
+  resolveFirstPlayFpsQuality,
   shouldEscalateLowPlaybackFps,
   shouldPreferEqualTranscodeForSourceFps,
   formatLowFpsQualitySwitchNotice,
@@ -115,6 +116,32 @@ describe("playback fps escalation", () => {
     );
   });
 
+  it("picks a first-play transcode only when FPS auto is allowed", () => {
+    const highFpsArgs = {
+      fps: 59.94,
+      nativeTv: true,
+      transcodingEnabled: true,
+      directPlayMode: true,
+      availableQualities: ["original", "480p", "720p", "1080p"] as Array<
+        "original" | "480p" | "720p" | "1080p"
+      >,
+      sourceHeight: 1080,
+      sourceWidth: 1920,
+    };
+    expect(
+      resolveFirstPlayFpsQuality({
+        ...highFpsArgs,
+        allowFpsQualityAuto: true,
+      }),
+    ).toBe("1080p");
+    expect(
+      resolveFirstPlayFpsQuality({
+        ...highFpsArgs,
+        allowFpsQualityAuto: false,
+      }),
+    ).toBeNull();
+  });
+
   it("watch view waits for the sample span before switching to transcode", () => {
     const watchView = readFileSync(
       path.join(webRoot, "components/tv/views/watch-view.tsx"),
@@ -123,5 +150,8 @@ describe("playback fps escalation", () => {
     expect(watchView).toContain("playbackFpsSampleSpanMs");
     expect(watchView).toContain("elapsedMs");
     expect(watchView).toContain("shouldEscalateLowPlaybackFps");
+    expect(watchView).toContain("readStoredItemPlaybackQuality");
+    expect(watchView).toContain("allowFpsQualityAuto");
+    expect(watchView).toContain("fpsQualityLockedRef");
   });
 });

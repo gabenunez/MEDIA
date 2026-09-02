@@ -132,6 +132,35 @@ export function resolveEqualTranscodeQuality(
   return availableQualities.includes(tier) ? tier : null;
 }
 
+/** First play only: pick a source-matched transcode when high-fps direct play is risky. */
+export function resolveFirstPlayFpsQuality(options: {
+  allowFpsQualityAuto: boolean;
+  fps?: number | null;
+  nativeTv: boolean;
+  transcodingEnabled: boolean;
+  directPlayMode: boolean;
+  availableQualities: StreamQuality[];
+  sourceHeight?: number | null;
+  sourceWidth?: number | null;
+}): StreamQuality | null {
+  if (!options.allowFpsQualityAuto) return null;
+  if (
+    !shouldPreferEqualTranscodeForSourceFps({
+      fps: options.fps,
+      nativeTv: options.nativeTv,
+      transcodingEnabled: options.transcodingEnabled,
+      directPlayMode: options.directPlayMode,
+    })
+  ) {
+    return null;
+  }
+  return resolveEqualTranscodeQuality(
+    options.availableQualities,
+    options.sourceHeight,
+    options.sourceWidth,
+  );
+}
+
 export function formatLowFpsQualitySwitchNotice(
   quality: StreamQuality,
   sourceHeight?: number | null,

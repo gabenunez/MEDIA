@@ -12,7 +12,7 @@ import {
   resolveNativeTvPlaybackMode,
   resolveOriginalPlaybackMode,
 } from "@media-app/shared";
-import { shouldPreferEqualTranscodeForSourceFps } from "@/lib/playback-fps";
+import { resolveFirstPlayFpsQuality } from "@/lib/playback-fps";
 
 export const PROGRESS_SAVE_MS = 10_000;
 
@@ -448,26 +448,6 @@ export function resolvePlaybackStream(
     ? effectiveOriginalPlaybackMode(streamInfo, options)
     : "direct";
 
-  if (
-    streamInfo &&
-    shouldPreferEqualTranscodeForSourceFps({
-      fps: streamInfo.fps,
-      nativeTv: nativeTvPlayerAvailable(),
-      transcodingEnabled: streamInfo.transcodingEnabled,
-      directPlayMode: mode === "direct",
-    })
-  ) {
-    return {
-      usingHls: true,
-      hlsQuality: pickTranscodeQualityForPlayback(
-        streamInfo.availableQualities,
-        streamInfo.height,
-        streamInfo.width,
-      ),
-      audioCompatNotice: null,
-    };
-  }
-
   if (mode === "direct" || !streamInfo) {
     return { usingHls: false, audioCompatNotice: null };
   }
@@ -515,26 +495,55 @@ export function resolvePlaybackStream(
 /** Pick the quality setting to use when opening the player for this file. */
 export function resolveInitialStreamQuality(
   streamInfo: StreamInfo,
-  options?: { preferredQuality?: StreamQuality | null },
+  options?: {
+    preferredQuality?: StreamQuality | null;
+    allowFpsQualityAuto?: boolean;
+    nativeTv?: boolean;
+  },
 ): {
   quality: StreamQuality;
   error: string | null;
+  fpsAutoApplied: boolean;
 } {
   const preferred = options?.preferredQuality;
-  const candidate =
+  let candidate: StreamQuality =
     preferred &&
     streamInfo.availableQualities.includes(preferred) &&
     (preferred === "original" || streamInfo.transcodingEnabled)
       ? preferred
       : "original";
 
+  const nativeTv = options?.nativeTv ?? nativeTvPlayerAvailable();
+  const directPlayMode = nativeTv
+    ? resolveNativeTvPlaybackMode({
+        audioCodec: streamInfo.audioCodec,
+        videoCodec: streamInfo.videoCodec,
+        transcodingEnabled: streamInfo.transcodingEnabled,
+        dolbyVision: streamInfo.dynamicRange?.dolbyVision ?? false,
+      }) === "direct"
+    : effectiveOriginalPlaybackMode(streamInfo) === "direct";
+  const fpsAutoQuality = resolveFirstPlayFpsQuality({
+    allowFpsQualityAuto: options?.allowFpsQualityAuto === true,
+    fps: streamInfo.fps,
+    nativeTv,
+    transcodingEnabled: streamInfo.transcodingEnabled,
+    directPlayMode,
+    availableQualities: streamInfo.availableQualities,
+    sourceHeight: streamInfo.height,
+    sourceWidth: streamInfo.width,
+  });
+  const fpsAutoApplied = fpsAutoQuality != null;
+  if (fpsAutoQuality) {
+    candidate = fpsAutoQuality;
+  }
+
   const playback = resolvePlaybackStream(candidate, streamInfo);
 
   if (playback.audioCompatNotice && !streamInfo.transcodingEnabled) {
-    return { quality: "original", error: playback.audioCompatNotice };
+    return { quality: "original", error: playback.audioCompatNotice, fpsAutoApplied: false };
   }
 
-  return { quality: candidate, error: null };
+  return { quality: candidate, error: null, fpsAutoApplied };
 }
 
 export interface TvEpisodeSummary {
