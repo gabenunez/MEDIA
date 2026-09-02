@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.245 — 2026-09-02
+
+### Changes
+
+- **Release** — Only auto-change quality from FPS on a title’s first play
+- High-fps / choppy-original auto quality now runs only the first time a title plays, on **TV and desktop**. After that, the last quality for that title — including any quality the user picks — is what plays next.
+- Only auto-change quality from FPS on a title’s first play (#28)
+
 ## 0.1.244 — 2026-09-02
 
 ### Changes
