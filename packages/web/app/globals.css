@@ -128,7 +128,9 @@
     --tv-browse-card-min: 14rem;
     --tv-page-gutter: 2rem;
     --tv-row-gap: 0.75rem;
-    --tv-section-gap: 0.75rem;
+    --tv-section-gap: 0.25rem;
+    --tv-scroll-pad-top: 0.2rem;
+    --tv-scroll-pad-bottom: 0.35rem;
     --tv-media-poster-width: 7rem;
     --tv-episode-still-width: 6.75rem;
     --tv-episode-still-height: 3.75rem;
@@ -150,7 +152,7 @@
 
   /* Shared spacing rhythm for every TV view. */
   .tv-ui > main {
-    padding-block: 1rem 3.25rem;
+    padding-block: 0.75rem 1.5rem;
   }
 
   /* Watch is a fixed full-bleed player — drop main padding so loading/player
@@ -166,7 +168,7 @@
   }
 
   .tv-ui .tv-row-section:last-child {
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.75rem;
   }
 
   .tv-ui .tv-row-section > h2 {
@@ -196,8 +198,8 @@
   .tv-ui .tv-scroll-row {
     gap: var(--tv-row-gap);
     padding-inline: var(--tv-page-gutter);
-    /* Bottom padding keeps 2-line titles above overlay scrollbars / the viewport edge. */
-    padding-block: 0.25rem 1.75rem;
+    /* Tight block padding — inter-row space is --tv-section-gap; main pad is overscan. */
+    padding-block: var(--tv-scroll-pad-top) var(--tv-scroll-pad-bottom);
     scroll-padding-inline: var(--tv-page-gutter);
     align-items: flex-start;
     overflow-x: auto;
@@ -367,7 +369,7 @@
   }
 
   .tv-ui [data-tv-vertical] [data-tv-item] {
-    scroll-margin-block: 1.75rem;
+    scroll-margin-block: 0.5rem;
   }
 
   .tv-ui [data-tv-vertical] [data-tv-item].tv-focus-card {
@@ -390,7 +392,7 @@
 
   .tv-ui .tv-scroll-row {
     scroll-padding-inline: var(--tv-page-gutter);
-    scroll-padding-block: 1.75rem;
+    scroll-padding-block: 0.5rem;
     scroll-behavior: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -411,7 +413,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.3;
-    min-height: 2.6em;
+    min-height: 1.3em;
     max-width: 100%;
     overflow-wrap: anywhere;
     word-break: break-word;

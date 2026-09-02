@@ -9,7 +9,11 @@ export const TV_LIVING_ROOM_LAYOUT = {
   browseCardMinRem: 14,
   pageGutterRem: 2,
   rowGapRem: 0.75,
-  sectionGapRem: 0.75,
+  sectionGapRem: 0.25,
+  scrollRowPadTopRem: 0.2,
+  scrollRowPadBottomRem: 0.35,
+  mainPadTopRem: 0.75,
+  mainPadBottomRem: 1.5,
   asideWidthRem: 4.25,
   rootFontPx: 16,
   /** 1920×1080 WebView: keep a dense row, not 6–7 oversized tiles. */
