@@ -32,7 +32,7 @@ import {
   resolveSpuriousRecovery,
   type SpuriousRecoveryState,
   SPURIOUS_RECOVERY_PROGRESS_SECONDS,
-  resolveInitialStreamQuality,
+  resolveWatchSessionQuality,
   getPlaybackRestartSeconds,
   nextStableAbsoluteSeconds,
   resolvePlaybackStartSeconds,
@@ -65,6 +65,16 @@ import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { DesktopSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
 import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
+import { PlaybackQualityNotice } from "@/components/playback-quality-notice";
+import {
+  formatLowFpsQualitySwitchNotice,
+  measurePlaybackFps,
+  playbackFpsSampleSpanMs,
+  recordPlaybackFpsSample,
+  resolveEqualTranscodeQuality,
+  shouldEscalateLowPlaybackFps,
+} from "@/lib/playback-fps";
+import { persistPlaybackQuality } from "@/lib/quality-selection-storage";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { resolveWebSubtitlePlaybackSeconds } from "@/lib/subtitle-timeline";
 import { formatSubtitleLabel, isOnlineSubtitleSource } from "@/lib/watch-helpers";
@@ -127,6 +137,18 @@ function WatchDesktopClient() {
     anchorSeconds: 0,
   });
   const volumeBeforeMuteRef = useRef(1);
+  const streamInfoRef = useRef<StreamInfo | null>(null);
+  const qualityRef = useRef<StreamQuality>("original");
+  const isPlayingRef = useRef(false);
+  const playbackHasBegunRef = useRef(false);
+  const fpsQualityLockedRef = useRef(false);
+  const lowFpsEscalatedRef = useRef(false);
+  const playbackFpsStateRef = useRef({
+    samples: [] as Array<{ atMs: number; positionSeconds: number }>,
+  });
+  const lastUserSeekAtRef = useRef<number | null>(null);
+  const fpsQualityNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const escalateToEqualResolutionTranscodeRef = useRef<() => void>(() => {});
 
   const [quality, setQuality] = useState<StreamQuality>("original");
   const [hlsStartOffset, setHlsStartOffset] = useState(0);
@@ -172,6 +194,7 @@ function WatchDesktopClient() {
   const [volumeMenuOpen, setVolumeMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [playbackHasBegun, setPlaybackHasBegun] = useState(false);
+  const [fpsQualityNotice, setFpsQualityNotice] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
   const [videoDisplayMode, setVideoDisplayMode] = useState<VideoDisplayMode>("fit");
@@ -194,6 +217,10 @@ function WatchDesktopClient() {
   );
   const usingHlsPlayback = playbackStream.usingHls;
   playbackStreamRef.current = playbackStream;
+  qualityRef.current = quality;
+  streamInfoRef.current = streamInfo;
+  isPlayingRef.current = isPlaying;
+  playbackHasBegunRef.current = playbackHasBegun;
 
   const getSubtitlePlaybackSeconds = useCallback(() => {
     const video = videoRef.current;
@@ -380,6 +407,26 @@ function WatchDesktopClient() {
     });
   }, []);
 
+  const showFpsQualityNotice = useCallback((message: string) => {
+    if (fpsQualityNoticeTimerRef.current) {
+      clearTimeout(fpsQualityNoticeTimerRef.current);
+      fpsQualityNoticeTimerRef.current = null;
+    }
+    setFpsQualityNotice(message);
+    fpsQualityNoticeTimerRef.current = setTimeout(() => {
+      fpsQualityNoticeTimerRef.current = null;
+      setFpsQualityNotice(null);
+    }, 6_000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (fpsQualityNoticeTimerRef.current) {
+        clearTimeout(fpsQualityNoticeTimerRef.current);
+      }
+    };
+  }, []);
+
   const changeQuality = useCallback(
     (nextQuality: StreamQuality) => {
       const video = videoRef.current;
@@ -394,12 +441,63 @@ function WatchDesktopClient() {
         requestStreamRestartAt(absoluteTime);
       }
       setQuality(nextQuality);
+      if (fileId && !Number.isNaN(fileId)) {
+        persistPlaybackQuality(nextQuality, {
+          itemType: type === "movie" ? "movie" : "episode",
+          itemId: fileId,
+        });
+      }
+      fpsQualityLockedRef.current = true;
+      lowFpsEscalatedRef.current = true;
+      playbackFpsStateRef.current = { samples: [] };
       setQualityMenuOpen(false);
       setError(null);
+      setFpsQualityNotice(null);
+      if (fpsQualityNoticeTimerRef.current) {
+        clearTimeout(fpsQualityNoticeTimerRef.current);
+        fpsQualityNoticeTimerRef.current = null;
+      }
       revealControls(true);
     },
-    [revealControls, usingHlsPlayback, requestStreamRestartAt],
+    [fileId, revealControls, type, usingHlsPlayback, requestStreamRestartAt],
   );
+
+  const escalateToEqualResolutionTranscode = useCallback(() => {
+    const info = streamInfoRef.current;
+    if (!info || lowFpsEscalatedRef.current || fpsQualityLockedRef.current) return;
+    const next = resolveEqualTranscodeQuality(
+      info.availableQualities,
+      info.height,
+      info.width,
+    );
+    if (!next) return;
+    lowFpsEscalatedRef.current = true;
+    fpsQualityLockedRef.current = true;
+    if (fileId && !Number.isNaN(fileId)) {
+      persistPlaybackQuality(next, {
+        itemType: type === "movie" ? "movie" : "episode",
+        itemId: fileId,
+      });
+    }
+    const video = videoRef.current;
+    if (video) {
+      const absoluteTime = getPlaybackRestartSeconds({
+        usingHls: usingHlsPlayback,
+        hlsStartOffset: hlsStartOffsetRef.current,
+        relativeSeconds: video.currentTime,
+        stableAbsoluteSeconds: lastStableAbsoluteSecondsRef.current,
+      });
+      lastStableAbsoluteSecondsRef.current = absoluteTime;
+      requestStreamRestartAt(absoluteTime);
+    }
+    setQuality(next);
+    playbackFpsStateRef.current = { samples: [] };
+    setError(null);
+    showFpsQualityNotice(
+      formatLowFpsQualitySwitchNotice(next, info.height, info.width),
+    );
+  }, [fileId, requestStreamRestartAt, showFpsQualityNotice, type, usingHlsPlayback]);
+  escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
 
   const tryFallbackQuality = useCallback(() => {
     const next = resolveFallbackQuality(
@@ -421,9 +519,34 @@ function WatchDesktopClient() {
     pendingStreamStartRef.current = null;
     streamRestartTargetsRef.current.clear();
     setPlaybackHasBegun(false);
+    playbackHasBegunRef.current = false;
     lastStableAbsoluteSecondsRef.current = 0;
     hlsStartOffsetRef.current = 0;
     setHlsStartOffset(0);
+    fpsQualityLockedRef.current = false;
+    lowFpsEscalatedRef.current = false;
+    playbackFpsStateRef.current = { samples: [] };
+    lastUserSeekAtRef.current = null;
+    setFpsQualityNotice(null);
+    if (fpsQualityNoticeTimerRef.current) {
+      clearTimeout(fpsQualityNoticeTimerRef.current);
+      fpsQualityNoticeTimerRef.current = null;
+    }
+    return () => {
+      if (
+        !fileId ||
+        Number.isNaN(fileId) ||
+        fpsQualityLockedRef.current ||
+        !playbackHasBegunRef.current
+      ) {
+        return;
+      }
+      persistPlaybackQuality(qualityRef.current, {
+        itemType: type === "movie" ? "movie" : "episode",
+        itemId: fileId,
+      });
+      fpsQualityLockedRef.current = true;
+    };
   }, [fileId, type]);
 
   useEffect(() => {
@@ -455,9 +578,14 @@ function WatchDesktopClient() {
         setSourceDurationMs(info.durationMs ?? 0);
         setTranscodingEnabled(info.transcodingEnabled);
 
-        const initial = resolveInitialStreamQuality(info);
-        setQuality(initial.quality);
-        setError(initial.error);
+        const session = resolveWatchSessionQuality(info, {
+          itemType: type === "movie" ? "movie" : "episode",
+          itemId: fileId,
+        });
+        fpsQualityLockedRef.current = session.locked;
+        lowFpsEscalatedRef.current = session.locked;
+        setQuality(session.quality);
+        setError(session.error);
 
         const positionMs = info.watchProgress?.positionMs ?? 0;
         const durationMs =
@@ -776,6 +904,42 @@ function WatchDesktopClient() {
       },
       onCurrentTime: (seconds) => {
         setCurrentTime(seconds);
+        if (
+          isPlayingRef.current &&
+          !playbackBufferingRef.current &&
+          playbackHasBegunRef.current
+        ) {
+          const nowMs = Date.now();
+          playbackFpsStateRef.current = recordPlaybackFpsSample(
+            playbackFpsStateRef.current,
+            nowMs,
+            seconds,
+          );
+          const measuredFps = measurePlaybackFps(playbackFpsStateRef.current, nowMs);
+          const elapsedMs = playbackFpsSampleSpanMs(playbackFpsStateRef.current, nowMs);
+          if (
+            shouldEscalateLowPlaybackFps({
+              measuredFps,
+              elapsedMs,
+              sampleCount: playbackFpsStateRef.current.samples.length,
+              quality: qualityRef.current,
+              usingHls: usingHlsPlayback,
+              hlsQuality: playbackStreamRef.current?.hlsQuality,
+              transcodingEnabled: streamInfoRef.current?.transcodingEnabled ?? false,
+              alreadyEscalated:
+                lowFpsEscalatedRef.current || fpsQualityLockedRef.current,
+              isPlaying: isPlayingRef.current,
+              isBuffering: playbackBufferingRef.current,
+              playbackHasBegun: playbackHasBegunRef.current,
+              msSinceUserSeek:
+                lastUserSeekAtRef.current == null
+                  ? null
+                  : nowMs - lastUserSeekAtRef.current,
+            })
+          ) {
+            escalateToEqualResolutionTranscodeRef.current();
+          }
+        }
         if (!playbackBufferingRef.current) {
           const absoluteTime = usingHlsPlayback
             ? hlsStartOffsetRef.current + seconds
@@ -925,6 +1089,8 @@ function WatchDesktopClient() {
       const clamped = Math.max(0, Math.min(targetSeconds, totalDurationSeconds));
       setOptimisticAbsoluteSeconds(clamped);
       lastStableAbsoluteSecondsRef.current = clamped;
+      lastUserSeekAtRef.current = Date.now();
+      playbackFpsStateRef.current = { samples: [] };
 
       if (!usingHlsPlayback) {
         video.currentTime = clamped;
@@ -1182,6 +1348,13 @@ function WatchDesktopClient() {
           message={subtitleError}
           onDismiss={clearSubtitleError}
           className="absolute bottom-28 left-1/2 z-30 w-[min(24rem,calc(100%-2rem))] -translate-x-1/2"
+        />
+      )}
+
+      {fpsQualityNotice && (
+        <PlaybackQualityNotice
+          message={fpsQualityNotice}
+          className="absolute left-1/2 top-[max(1.25rem,env(safe-area-inset-top,0px))] z-30 w-[min(32rem,calc(100%-2rem))] -translate-x-1/2"
         />
       )}
 

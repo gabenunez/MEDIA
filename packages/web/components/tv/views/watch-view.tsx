@@ -28,7 +28,7 @@ import {
   resolveSkipTargetAbsoluteSeconds,
   shouldClearOptimisticSeek,
   getPlaybackAbsoluteSeconds,
-  resolveInitialStreamQuality,
+  resolveWatchSessionQuality,
   resolvePlaybackStream,
   shouldFailThroughContinuousMidBuffer,
   NATIVE_SEEK_COALESCE_MS,
@@ -58,10 +58,7 @@ import {
   qualityLabel,
   resolveFallbackQuality,
 } from "@/lib/watch-helpers";
-import {
-  readStoredPlaybackQuality,
-  writeStoredPlaybackQuality,
-} from "@/lib/quality-selection-storage";
+import { persistPlaybackQuality } from "@/lib/quality-selection-storage";
 import { is4KSource, isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
@@ -308,6 +305,7 @@ export function TvWatchView() {
   const nativeRemuxFallbackRef = useRef(false);
   const nativeTranscodeFallbackRef = useRef(false);
   const nativeLowFpsEscalatedRef = useRef(false);
+  const fpsQualityLockedRef = useRef(false);
   const playbackFpsStateRef = useRef({ samples: [] as Array<{ atMs: number; positionSeconds: number }> });
   const qualityRef = useRef<StreamQuality>("original");
   const [availableQualities, setAvailableQualities] = useState<StreamQuality[]>([
@@ -581,7 +579,9 @@ export function TvWatchView() {
   /** Native onError + web mid-buffer watchdog share this ladder. */
   const escalateToEqualResolutionTranscode = useCallback(() => {
     const info = streamInfoRef.current;
-    if (!info || nativeLowFpsEscalatedRef.current) return;
+    if (!info || nativeLowFpsEscalatedRef.current || fpsQualityLockedRef.current) {
+      return;
+    }
     const next = resolveEqualTranscodeQuality(
       info.availableQualities,
       info.height,
@@ -589,6 +589,13 @@ export function TvWatchView() {
     );
     if (!next) return;
     nativeLowFpsEscalatedRef.current = true;
+    fpsQualityLockedRef.current = true;
+    if (fileId && !Number.isNaN(fileId)) {
+      persistPlaybackQuality(next, {
+        itemType: type === "movie" ? "movie" : "episode",
+        itemId: fileId,
+      });
+    }
     showFpsQualityNotice(
       formatLowFpsQualitySwitchNotice(next, info.height, info.width),
     );
@@ -600,7 +607,7 @@ export function TvWatchView() {
     setStreamGeneration((generation) => generation + 1);
     playbackFpsStateRef.current = { samples: [] };
     setError(null);
-  }, [captureStreamRestartPosition, showFpsQualityNotice]);
+  }, [captureStreamRestartPosition, fileId, showFpsQualityNotice, type]);
 
   const escalateToEqualResolutionTranscodeRef = useRef(escalateToEqualResolutionTranscode);
   escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
@@ -795,10 +802,16 @@ export function TvWatchView() {
       lastStableAbsoluteSecondsRef.current = absoluteTime;
       requestStreamRestartAt(absoluteTime);
       setQuality(nextQuality);
-      writeStoredPlaybackQuality(nextQuality);
+      if (fileId && !Number.isNaN(fileId)) {
+        persistPlaybackQuality(nextQuality, {
+          itemType: type === "movie" ? "movie" : "episode",
+          itemId: fileId,
+        });
+      }
       nativeRemuxFallbackRef.current = false;
       nativeTranscodeFallbackRef.current = false;
-      nativeLowFpsEscalatedRef.current = false;
+      nativeLowFpsEscalatedRef.current = true;
+      fpsQualityLockedRef.current = true;
       playbackFpsStateRef.current = { samples: [] };
       setForceRemux(false);
       closeMenus();
@@ -810,7 +823,7 @@ export function TvWatchView() {
       }
       revealControls(true);
     },
-    [closeMenus, revealControls, usingHlsPlayback, usesNativePlayer, currentTime, requestStreamRestartAt],
+    [closeMenus, fileId, revealControls, type, usingHlsPlayback, usesNativePlayer, currentTime, requestStreamRestartAt],
   );
 
   const tryFallbackQuality = useCallback(() => {
@@ -1068,7 +1081,8 @@ export function TvWatchView() {
               usingHls: usingHlsRef.current,
               hlsQuality: playbackStreamRef.current?.hlsQuality,
               transcodingEnabled: streamInfoRef.current?.transcodingEnabled ?? false,
-              alreadyEscalated: nativeLowFpsEscalatedRef.current,
+              alreadyEscalated:
+                nativeLowFpsEscalatedRef.current || fpsQualityLockedRef.current,
               isPlaying: state.isPlaying,
               isBuffering: state.isBuffering,
               playbackHasBegun: playbackHasBegunRef.current,
@@ -1167,6 +1181,7 @@ export function TvWatchView() {
     nativeRemuxFallbackRef.current = false;
     nativeTranscodeFallbackRef.current = false;
     nativeLowFpsEscalatedRef.current = false;
+    fpsQualityLockedRef.current = false;
     playbackFpsStateRef.current = { samples: [] };
     setFpsQualityNotice(null);
     if (fpsQualityNoticeTimerRef.current) {
@@ -1211,6 +1226,21 @@ export function TvWatchView() {
     if (usesNativePlayer) {
       raiseNativeWebOverlay();
     }
+    return () => {
+      if (
+        !fileId ||
+        Number.isNaN(fileId) ||
+        fpsQualityLockedRef.current ||
+        !playbackHasBegunRef.current
+      ) {
+        return;
+      }
+      persistPlaybackQuality(qualityRef.current, {
+        itemType: type === "movie" ? "movie" : "episode",
+        itemId: fileId,
+      });
+      fpsQualityLockedRef.current = true;
+    };
   }, [fileId, type, usesNativePlayer]);
 
   useEffect(() => {
@@ -1270,12 +1300,17 @@ export function TvWatchView() {
         setSourceDurationMs(info.durationMs ?? 0);
         setTranscodingEnabled(info.transcodingEnabled);
 
-        const initial = resolveInitialStreamQuality(info, {
-          preferredQuality: readStoredPlaybackQuality(),
-        });
-        setQuality(initial.quality);
-        if (initial.error) {
-          setError(initial.error);
+        const itemType = type === "movie" ? "movie" : "episode";
+        const session = resolveWatchSessionQuality(
+          info,
+          { itemType, itemId: fileId },
+          { nativeTv: usesNativePlayer },
+        );
+        fpsQualityLockedRef.current = session.locked;
+        nativeLowFpsEscalatedRef.current = session.locked;
+        setQuality(session.quality);
+        if (session.error) {
+          setError(session.error);
         } else {
           setError(null);
         }
@@ -1303,7 +1338,7 @@ export function TvWatchView() {
         setError("Could not load this video. Check your connection and try again.");
         setInitialResumeSeconds(0);
       });
-  }, [fileId, type, castStartSeconds, fromStart]);
+  }, [fileId, type, castStartSeconds, fromStart, usesNativePlayer]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId) || !mediaId) return;

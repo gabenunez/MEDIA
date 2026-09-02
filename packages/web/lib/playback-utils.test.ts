@@ -22,6 +22,7 @@ import {
   resolveStallWatchdogAction,
   type SpuriousRecoveryState,
   resolveInitialStreamQuality,
+  resolveWatchSessionQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
   nextEpisodeArtworkPaths,
@@ -75,6 +76,7 @@ describe("resolveInitialStreamQuality", () => {
     expect(resolveInitialStreamQuality(makeStreamInfo())).toEqual({
       quality: "original",
       error: null,
+      fpsAutoApplied: false,
     });
   });
 
@@ -86,6 +88,7 @@ describe("resolveInitialStreamQuality", () => {
     ).toEqual({
       quality: "1080p",
       error: null,
+      fpsAutoApplied: false,
     });
   });
 
@@ -97,6 +100,7 @@ describe("resolveInitialStreamQuality", () => {
     ).toEqual({
       quality: "original",
       error: null,
+      fpsAutoApplied: false,
     });
   });
 
@@ -108,6 +112,7 @@ describe("resolveInitialStreamQuality", () => {
     ).toEqual({
       quality: "original",
       error: expect.stringMatching(/transcoding/i),
+      fpsAutoApplied: false,
     });
   });
 
@@ -127,7 +132,37 @@ describe("resolveInitialStreamQuality", () => {
         transcodingEnabled: true,
       }),
     );
-    expect(result).toEqual({ quality: "original", error: null });
+    expect(result).toEqual({ quality: "original", error: null, fpsAutoApplied: false });
+  });
+
+  it("locks first-play FPS quality per title and honors it on replay", () => {
+    localStorage.clear();
+    const highFps = makeStreamInfo({
+      fileName: "sports.mp4",
+      mimeType: "video/mp4",
+      videoCodec: "h264",
+      audioCodec: "aac",
+      height: 1080,
+      width: 1920,
+      fps: 59.94,
+      transcodingEnabled: true,
+    });
+    const item = { itemType: "movie", itemId: 42 };
+
+    expect(
+      resolveWatchSessionQuality(highFps, item, { nativeTv: true }),
+    ).toEqual({
+      quality: "1080p",
+      error: null,
+      locked: true,
+    });
+    expect(
+      resolveWatchSessionQuality(highFps, item, { nativeTv: true }),
+    ).toEqual({
+      quality: "1080p",
+      error: null,
+      locked: true,
+    });
   });
 });
 
@@ -282,7 +317,7 @@ describe("resolvePlaybackStream with native TV player", () => {
     });
   });
 
-  it("routes high frame-rate originals to a source-matched transcode on native TV", async () => {
+  it("keeps original as direct play on native TV even for high frame-rate sources", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
     }));
@@ -302,9 +337,53 @@ describe("resolvePlaybackStream with native TV player", () => {
         }),
       ),
     ).toEqual({
-      usingHls: true,
-      hlsQuality: "1080p",
+      usingHls: false,
       audioCompatNotice: null,
+    });
+  });
+
+  it("picks a source-matched transcode on the first high-fps play only", () => {
+    const highFps = makeStreamInfo({
+      fileName: "sports.mkv",
+      mimeType: "video/x-matroska",
+      videoCodec: "h264",
+      audioCodec: "ac3",
+      height: 1080,
+      width: 1920,
+      fps: 59.94,
+      transcodingEnabled: true,
+    });
+    expect(
+      resolveInitialStreamQuality(highFps, {
+        allowFpsQualityAuto: true,
+        nativeTv: true,
+      }),
+    ).toEqual({
+      quality: "1080p",
+      error: null,
+      fpsAutoApplied: true,
+    });
+    expect(
+      resolveInitialStreamQuality(highFps, {
+        preferredQuality: "original",
+        allowFpsQualityAuto: true,
+        nativeTv: true,
+      }),
+    ).toEqual({
+      quality: "1080p",
+      error: null,
+      fpsAutoApplied: true,
+    });
+    expect(
+      resolveInitialStreamQuality(highFps, {
+        preferredQuality: "original",
+        allowFpsQualityAuto: false,
+        nativeTv: true,
+      }),
+    ).toEqual({
+      quality: "original",
+      error: null,
+      fpsAutoApplied: false,
     });
   });
 
