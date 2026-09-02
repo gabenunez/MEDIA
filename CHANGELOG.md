@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.244 — 2026-09-02
+
+### Changes
+
+- **Release** — Fix TV player controls missing on the second video
+- ## Problem
+- Show TV player controls on every title, not only the first. (#27)
+
 ## 0.1.243 — 2026-09-01
 
 ### Playback
