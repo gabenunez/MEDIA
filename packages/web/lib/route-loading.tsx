@@ -12,7 +12,7 @@ function RouteLoading({ children }: { children: ReactNode }) {
     return (
       <div
         data-tv-route-loading=""
-        className="flex min-h-[55vh] items-center justify-center bg-background px-8"
+        className="flex min-h-[80vh] items-center justify-center bg-background px-8"
         role="status"
         aria-label="Loading"
       >
@@ -24,7 +24,8 @@ function RouteLoading({ children }: { children: ReactNode }) {
     );
   }
 
-  return children;
+  // Opaque fill so the body grid is not visible while the destination RSC loads.
+  return <div className="min-h-[80vh] bg-background">{children}</div>;
 }
 
 export function HomeLoadingSkeleton() {
@@ -111,4 +112,18 @@ export function SearchLoadingSkeleton() {
       <Skeleton className="h-10 w-56" />
     </div>
   </RouteLoading>;
+}
+
+export function MediaLoadingSkeleton() {
+  return (
+    <RouteLoading>
+      <div>
+        <Skeleton className="h-80 w-full" />
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+          <Skeleton className="mb-4 h-10 w-64" />
+          <Skeleton className="h-24 w-full max-w-2xl" />
+        </div>
+      </div>
+    </RouteLoading>
+  );
 }

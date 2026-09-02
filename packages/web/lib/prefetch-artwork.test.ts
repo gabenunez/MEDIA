@@ -134,3 +134,12 @@ describe("warmNextEpisodeArtwork", () => {
     expect(imageSrcs.length).toBe(before);
   });
 });
+
+describe("prefetchWatchExitTarget", () => {
+  it("prefetches the destination route", async () => {
+    const { prefetchWatchExitTarget } = await import("./prefetch-artwork.js");
+    const prefetch = vi.fn();
+    prefetchWatchExitTarget({ prefetch }, "/media/9/");
+    expect(prefetch).toHaveBeenCalledWith("/media/9/");
+  });
+});

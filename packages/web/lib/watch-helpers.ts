@@ -83,3 +83,33 @@ export function resolveFallbackQuality(
   }
   return next;
 }
+
+/** Watch chrome fades after this much idle time while playing. Desktop and TV. */
+export const WATCH_CONTROLS_IDLE_MS = 3_000;
+
+export function watchMenuOpen(state: {
+  subtitleMenuOpen?: boolean;
+  qualityMenuOpen?: boolean;
+  volumeMenuOpen?: boolean;
+  detailsOpen?: boolean;
+  subtitleAppearanceOpen?: boolean;
+  subtitleSearchOpen?: boolean;
+}): boolean {
+  return Boolean(
+    state.subtitleMenuOpen ||
+      state.qualityMenuOpen ||
+      state.volumeMenuOpen ||
+      state.detailsOpen ||
+      state.subtitleAppearanceOpen ||
+      state.subtitleSearchOpen,
+  );
+}
+
+/** Schedule a timed hide only while playing with no submenu open. */
+export function shouldScheduleWatchChromeHide(state: {
+  autoHideRequested: boolean;
+  playing: boolean;
+  panelOpen: boolean;
+}): boolean {
+  return state.autoHideRequested && state.playing && !state.panelOpen;
+}

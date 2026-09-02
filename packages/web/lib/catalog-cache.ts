@@ -24,3 +24,16 @@ export function invalidateClientCatalogCache() {
   invalidateApiCache("favorites");
   invalidateApiCache("continue");
 }
+
+export type HomeRefreshReason = "mount" | "scan-complete" | "library-counts" | "visible";
+
+/** Mount/tab-focus keep painting current home data; only catalog changes bust caches. */
+export function homeRefreshOptions(reason: HomeRefreshReason): {
+  bust: boolean;
+  refreshRsc: boolean;
+} {
+  if (reason === "scan-complete" || reason === "library-counts") {
+    return { bust: true, refreshRsc: true };
+  }
+  return { bust: false, refreshRsc: false };
+}

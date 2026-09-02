@@ -57,6 +57,8 @@ import {
   isOnlineSubtitleSource,
   qualityLabel,
   resolveFallbackQuality,
+  shouldScheduleWatchChromeHide,
+  WATCH_CONTROLS_IDLE_MS,
 } from "@/lib/watch-helpers";
 import { persistPlaybackQuality } from "@/lib/quality-selection-storage";
 import { is4KSource, isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
@@ -134,7 +136,7 @@ import {
   type WatchSkipFeedback,
 } from "@/lib/tv-watch-player";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
-import { warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
+import { prefetchWatchExitTarget, warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
@@ -288,6 +290,7 @@ export function TvWatchView() {
   const controlsRevealedAtRef = useRef<number | null>(null);
   const pendingRevealFocusRef = useRef<"play" | "scrub" | null>(null);
   const showControlsRef = useRef(true);
+  const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelOpenRef = useRef(false);
   const nativePaintTimeRef = useRef(0);
   const nativePlayingPaintRef = useRef<boolean | null>(null);
@@ -491,6 +494,10 @@ export function TvWatchView() {
       ? routes.media(parseInt(mediaId, 10))
       : routes.home();
 
+  useEffect(() => {
+    prefetchWatchExitTarget(router, backHref, mediaId);
+  }, [router, backHref, mediaId]);
+
   const exitWatch = useCallback(() => {
     if (progressInterval.current) {
       clearInterval(progressInterval.current);
@@ -509,11 +516,10 @@ export function TvWatchView() {
       hlsRef.current = null;
     }
 
+    router.replace(backHref);
     if (usingHlsRef.current && !Number.isNaN(fileId)) {
       void api.stopStream(fileId, type).catch(() => {});
     }
-
-    router.replace(backHref);
   }, [router, backHref, usesNativePlayer, fileId, type]);
 
   const handlePlaybackFinished = useCallback(() => {
@@ -545,6 +551,8 @@ export function TvWatchView() {
   // Only error/countdown block chrome — initial buffering may last longer on HLS
   // transcode (e.g. persisted quality) and must not eat the first D-pad reveal.
   const blockingOverlayVisible = Boolean(error || countdown);
+  const blockingOverlayVisibleRef = useRef(blockingOverlayVisible);
+  blockingOverlayVisibleRef.current = blockingOverlayVisible;
 
   const captureStreamRestartPosition = useCallback(() => {
     const absoluteTime = getPlaybackRestartSeconds({
@@ -726,6 +734,58 @@ export function TvWatchView() {
     });
   }, []);
 
+  const clearHideControlsTimer = useCallback(() => {
+    if (hideControlsTimer.current) {
+      clearTimeout(hideControlsTimer.current);
+      hideControlsTimer.current = null;
+    }
+  }, []);
+
+  const playbackIsPlaying = useCallback(() => {
+    if (usesNativePlayer) return nativeIsPlayingRef.current;
+    const video = videoRef.current;
+    return Boolean(video && !video.paused);
+  }, [usesNativePlayer]);
+
+  const hideWatchChrome = useCallback(() => {
+    clearHideControlsTimer();
+    setShowControls(false);
+    showControlsRef.current = false;
+    controlsRevealedAtRef.current = null;
+    releaseWatchFocus();
+  }, [clearHideControlsTimer, releaseWatchFocus]);
+
+  const scheduleWatchChromeHide = useCallback(
+    (autoHideRequested = true) => {
+      clearHideControlsTimer();
+      if (blockingOverlayVisibleRef.current) return;
+      if (
+        !shouldScheduleWatchChromeHide({
+          autoHideRequested,
+          playing: playbackIsPlaying(),
+          panelOpen: panelOpenRef.current,
+        })
+      ) {
+        return;
+      }
+      hideControlsTimer.current = setTimeout(() => {
+        hideControlsTimer.current = null;
+        if (blockingOverlayVisibleRef.current) return;
+        if (
+          !shouldScheduleWatchChromeHide({
+            autoHideRequested: true,
+            playing: playbackIsPlaying(),
+            panelOpen: panelOpenRef.current,
+          })
+        ) {
+          return;
+        }
+        hideWatchChrome();
+      }, WATCH_CONTROLS_IDLE_MS);
+    },
+    [clearHideControlsTimer, hideWatchChrome, playbackIsPlaying],
+  );
+
   const revealControls = useCallback(
     (_autoHide = true, focusPlay = false) => {
       if (blockingOverlayVisible) return;
@@ -743,8 +803,9 @@ export function TvWatchView() {
       if (focusPlay) {
         pendingRevealFocusRef.current = "play";
       }
+      scheduleWatchChromeHide();
     },
-    [blockingOverlayVisible, usesNativePlayer],
+    [blockingOverlayVisible, usesNativePlayer, scheduleWatchChromeHide],
   );
 
   const applyNativePlaybackOverlayAlpha = useCallback(() => {
@@ -1265,6 +1326,7 @@ export function TvWatchView() {
     setIsPlaying(false);
     nativePlayingPaintRef.current = null;
     nativeIsPlayingRef.current = false;
+    clearHideControlsTimer();
     setShowControls(true);
     showControlsRef.current = true;
     pendingRevealFocusRef.current = "play";
@@ -1296,7 +1358,7 @@ export function TvWatchView() {
       });
       fpsQualityLockedRef.current = true;
     };
-  }, [fileId, type, usesNativePlayer]);
+  }, [fileId, type, usesNativePlayer, clearHideControlsTimer]);
 
   useEffect(() => {
     const isPreparingPlayback = initialResumeSeconds === null || !streamInfo;
@@ -1310,6 +1372,7 @@ export function TvWatchView() {
   useEffect(() => {
     if (blockingOverlayVisible) {
       blockingOverlayWasVisibleRef.current = true;
+      clearHideControlsTimer();
       setShowControls(false);
       return;
     }
@@ -1325,7 +1388,7 @@ export function TvWatchView() {
       setShowControls(true);
       showControlsRef.current = true;
     }
-  }, [blockingOverlayVisible, isPlaying, bufferingMidPlayback, usesNativePlayer]);
+  }, [blockingOverlayVisible, isPlaying, bufferingMidPlayback, usesNativePlayer, clearHideControlsTimer]);
 
   useEffect(() => {
     if (!shouldCloseWatchMenusOnRebuffer()) return;
@@ -2055,8 +2118,33 @@ export function TvWatchView() {
   }, [pausePlayback, playPlayback, usesNativePlayer]);
 
   useEffect(() => {
-    setPanelOpen(subtitleMenuOpen || subtitleAppearanceOpen || qualityMenuOpen);
-  }, [subtitleMenuOpen, subtitleAppearanceOpen, qualityMenuOpen]);
+    setPanelOpen(
+      subtitleMenuOpen ||
+        subtitleAppearanceOpen ||
+        qualityMenuOpen ||
+        subtitleSearchOpen,
+    );
+  }, [subtitleMenuOpen, subtitleAppearanceOpen, qualityMenuOpen, subtitleSearchOpen]);
+
+  useEffect(() => {
+    if (panelOpen) {
+      clearHideControlsTimer();
+      setShowControls(true);
+      showControlsRef.current = true;
+      return;
+    }
+    scheduleWatchChromeHide();
+  }, [panelOpen, clearHideControlsTimer, scheduleWatchChromeHide]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      scheduleWatchChromeHide();
+      return;
+    }
+    clearHideControlsTimer();
+  }, [isPlaying, scheduleWatchChromeHide, clearHideControlsTimer]);
+
+  useEffect(() => () => clearHideControlsTimer(), [clearHideControlsTimer]);
 
   useEffect(() => {
     if (!error) return;
@@ -2369,9 +2457,7 @@ export function TvWatchView() {
       return true;
     }
     if (action === "hide-chrome") {
-      setShowControls(false);
-      controlsRevealedAtRef.current = null;
-      releaseWatchFocus();
+      hideWatchChrome();
       return true;
     }
     exitWatch();
@@ -2385,8 +2471,8 @@ export function TvWatchView() {
     panelOpen,
     closeMenus,
     revealControls,
+    hideWatchChrome,
     controlsVisible,
-    releaseWatchFocus,
   ]);
 
   useEffect(() => registerWatchBackHandler(handleWatchBack), [handleWatchBack]);
@@ -2410,7 +2496,10 @@ export function TvWatchView() {
         return;
       }
 
-      if (subtitleSearchOpen) return;
+      if (subtitleSearchOpen) {
+        scheduleWatchChromeHide();
+        return;
+      }
 
       if (!blockingOverlayVisible) {
         const mediaIntent = watchMediaKeyIntent(e.key);
@@ -2431,7 +2520,10 @@ export function TvWatchView() {
         }
       }
 
-      if (panelOpen) return;
+      if (panelOpen) {
+        scheduleWatchChromeHide();
+        return;
+      }
 
       if (blockingOverlayVisible) return;
 
@@ -2456,6 +2548,10 @@ export function TvWatchView() {
           revealControls(true);
           return;
         }
+      }
+
+      if (controlsVisible) {
+        scheduleWatchChromeHide();
       }
 
       if (active?.hasAttribute("data-tv-watch-scrub")) {
@@ -2607,6 +2703,7 @@ export function TvWatchView() {
     subtitleSearchOpen,
     closeMenus,
     revealControls,
+    scheduleWatchChromeHide,
     blockingOverlayVisible,
     controlsVisible,
     showTransportControls,
