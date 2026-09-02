@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.249 — 2026-09-02
+
+### TV
+- **Home** — tighten catalog rows so Continue Watching and Favorites both fit on screen
+
 ## 0.1.248 — 2026-09-02
 
 ### TV
