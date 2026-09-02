@@ -12,6 +12,7 @@ import {
   isWatchPlayerChromeVisible,
   isWatchTextInputKeyTarget,
   nativeWebOverlayAlpha,
+  nativeOverlayRaiseMustReassertZOrder,
   resolveWatchMenuDpadTarget,
   shouldExposeNativeVideoSurface,
   shouldRetargetWatchMenuDpad,
@@ -452,6 +453,12 @@ describe("TV native WebView overlay", () => {
     showControls = true;
     expect(overlayFor()).toBe(1);
   });
+
+  it("re-asserts WebView z-order when last overlay alpha is already 1", () => {
+    expect(nativeOverlayRaiseMustReassertZOrder(1)).toBe(true);
+    expect(nativeOverlayRaiseMustReassertZOrder(0)).toBe(false);
+    expect(nativeOverlayRaiseMustReassertZOrder(null)).toBe(false);
+  });
 });
 
 describe("TV watch remote — wiring (do not revert)", () => {
@@ -465,6 +472,10 @@ describe("TV watch remote — wiring (do not revert)", () => {
   );
   const mediaView = readFileSync(
     path.join(webRoot, "components/tv/views/media-view.tsx"),
+    "utf8",
+  );
+  const tvShell = readFileSync(
+    path.join(webRoot, "components/tv/tv-shell.tsx"),
     "utf8",
   );
 
@@ -544,10 +555,12 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(starts.length).toBeGreaterThanOrEqual(2);
     for (const match of starts) {
       const after = watchView.slice(match.index ?? 0, (match.index ?? 0) + 1200);
-      expect(after).toContain("nativeWebOverlayAlpha({");
-      expect(after).toContain("nativePlaybackBegun: playbackHasBegunRef.current");
+      expect(after).toContain("applyNativePlaybackOverlayAlpha()");
       expect(after).not.toMatch(/setNativeWebOverlayAlpha\(\s*0\s*\)/);
     }
+    expect(watchView).toContain("nativeWebOverlayAlpha({");
+    expect(watchView).toContain("nativePlaybackBegun: playbackHasBegunRef.current");
+    expect(watchView).toContain("raiseNativeWebOverlay()");
     expect(watchView).toContain("nativeWebOverlayShouldRaise({");
     expect(watchView).toContain("nativePlaybackBegun:");
     expect(watchView).toContain("shouldExposeNativeVideoSurface");
@@ -579,8 +592,28 @@ describe("TV watch remote — wiring (do not revert)", () => {
       watchView.indexOf("const revealControls"),
       watchView.indexOf("const updateBufferedPosition"),
     );
-    expect(reveal).toContain("setNativeWebOverlayAlpha(1, true)");
+    expect(reveal).toContain("raiseNativeWebOverlay()");
     expect(reveal).toContain("showControlsRef.current = true");
+  });
+
+  it("shows chrome and re-raises the overlay on every new title", () => {
+    const reset = watchView.slice(
+      watchView.indexOf("nativePlaySessionRef.current = 0"),
+      watchView.indexOf("}, [fileId, type, usesNativePlayer]"),
+    );
+    expect(reset).toContain("setShowControls(true)");
+    expect(reset).toContain("showControlsRef.current = true");
+    expect(reset).toContain('pendingRevealFocusRef.current = "play"');
+    expect(reset).toContain("raiseNativeWebOverlay()");
+    expect(reset).toContain("setIsPlaying(false)");
+    expect(tvShell).toContain("raiseNativeWebOverlay()");
+    const mainActivity = readFileSync(
+      path.join(webRoot, "../android-tv/app/src/main/java/com/media/app/MainActivity.kt"),
+      "utf8",
+    );
+    expect(mainActivity).toContain("NativeWebOverlay.shouldBringWebViewToFront");
+    expect(mainActivity).toContain("fun raiseWebOverlay()");
+    expect(mainActivity).not.toContain("if (clamped == lastWebOverlayAlpha) return");
   });
 
   it("offers Start from beginning on TV media pages and in the player", () => {
