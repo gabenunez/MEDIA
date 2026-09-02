@@ -234,3 +234,13 @@ export function shouldExposeNativeVideoSurface(state: {
 export function nativeWebOverlayAlpha(state: NativeWebOverlayState): 0 | 1 {
   return nativeWebOverlayShouldRaise(state) ? 1 : 0;
 }
+
+/**
+ * After title A hid chrome, last overlay alpha may already be 1 while
+ * ExoPlayer is still in front. A duplicate alpha=1 write must still raise.
+ */
+export function nativeOverlayRaiseMustReassertZOrder(
+  lastAlpha: number | null,
+): boolean {
+  return lastAlpha === 1;
+}

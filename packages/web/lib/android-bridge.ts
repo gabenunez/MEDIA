@@ -153,6 +153,26 @@ export function setNativeWebOverlayAlpha(alpha: number, force = false): void {
   getAndroidBridge()?.setWebOverlayAlpha?.(clamped);
 }
 
+/**
+ * Put the WebView in front of ExoPlayer so HTML chrome can paint.
+ *
+ * Older APKs skip setWebOverlayAlpha(1) when the last value was already 1,
+ * leaving the player view in front after the previous title hid chrome.
+ * Pulse 0→1 on those builds so z-order is re-applied.
+ */
+export function raiseNativeWebOverlay(): void {
+  const bridge = getAndroidBridge();
+  if (typeof bridge?.raiseWebOverlay === "function") {
+    lastNativeWebOverlayAlpha = 1;
+    bridge.raiseWebOverlay();
+    return;
+  }
+  if (lastNativeWebOverlayAlpha === 1) {
+    setNativeWebOverlayAlpha(0, true);
+  }
+  setNativeWebOverlayAlpha(1, true);
+}
+
 /** Native TV startup splash — dismiss once web UI is painted. */
 export function notifyAndroidTvBootReady(): void {
   getAndroidBridge()?.notifyTvBootReady?.();
@@ -219,6 +239,7 @@ declare global {
       setVideoDisplayMode?: (mode: NativeVideoDisplayMode) => void;
       syncPlaybackState?: () => void;
       setWebOverlayAlpha?: (alpha: number) => void;
+      raiseWebOverlay?: () => void;
       notifyTvBootReady?: () => void;
     };
     /** Legacy Android TV shell before MEDIA! rebrand. */
