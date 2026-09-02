@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.247 — 2026-09-02
+
+### UI
+- **Watch** — fade player controls after 3 seconds idle; keep them up while subtitle or quality menus are open
+
+### Performance
+- **Watch** — prefetch the title page while you play so leaving a movie is not a blank grid
+
+### TV
+- **Player** — same 3-second idle chrome fade, pinned while submenus are open
+- **Player** — navigate away before stopping the stream so Back is not waiting on teardown
+
 ## 0.1.246 — 2026-09-02
 
 ### Playback
