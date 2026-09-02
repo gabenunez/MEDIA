@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { HOME_CATALOG_CACHE_TAG } from "@media-app/shared";
 import {
   catalogDataCache,
+  homeRefreshOptions,
   invalidateClientCatalogCache,
   libraryCountsSignature,
 } from "./catalog-cache";
@@ -42,5 +43,23 @@ describe("invalidateClientCatalogCache", () => {
     expect(peekApiCache("home")).toEqual({ recentlyAdded: [] });
     invalidateClientCatalogCache();
     expect(peekApiCache("home")).toBeUndefined();
+  });
+});
+
+describe("homeRefreshOptions", () => {
+  it("keeps cached home on the screen when remounting after watch", () => {
+    expect(homeRefreshOptions("mount")).toEqual({ bust: false, refreshRsc: false });
+    expect(homeRefreshOptions("visible")).toEqual({ bust: false, refreshRsc: false });
+  });
+
+  it("busts caches only when the catalog itself changed", () => {
+    expect(homeRefreshOptions("scan-complete")).toEqual({
+      bust: true,
+      refreshRsc: true,
+    });
+    expect(homeRefreshOptions("library-counts")).toEqual({
+      bust: true,
+      refreshRsc: true,
+    });
   });
 });

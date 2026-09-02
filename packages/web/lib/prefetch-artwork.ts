@@ -177,3 +177,19 @@ export function prefetchCarouselPosters(
     }
   });
 }
+
+/** Warm the post-watch route so Back is not a blank layout while RSC loads. */
+export function prefetchWatchExitTarget(
+  router: { prefetch: (href: string) => void },
+  href: string,
+  mediaId?: string | number | null,
+): void {
+  router.prefetch(href);
+  const id =
+    typeof mediaId === "number"
+      ? mediaId
+      : mediaId
+        ? parseInt(String(mediaId), 10)
+        : NaN;
+  if (!Number.isNaN(id)) prefetchMediaPage(id);
+}

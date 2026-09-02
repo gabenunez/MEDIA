@@ -1,3 +1,5 @@
+import { shouldScheduleWatchChromeHide } from "./watch-helpers";
+
 /** Watch-player caption/menu policy — keep captions on screen and menus usable. */
 
 export function hidePlaybackCaptions(state: {
@@ -20,13 +22,12 @@ export function shouldCloseWatchMenusOnRebuffer(): boolean {
   return false;
 }
 
-export function shouldAutoHideWatchControls(_state: {
+export function shouldAutoHideWatchControls(state: {
   autoHideRequested: boolean;
   playing: boolean;
   panelOpen: boolean;
 }): boolean {
-  // TV watch chrome is dismissed with Back only — never timed auto-hide.
-  return false;
+  return shouldScheduleWatchChromeHide(state);
 }
 
 /** HLS `emptied` is a buffer reload, not the end of captions. */

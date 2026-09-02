@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -528,6 +528,25 @@ describe("TV native player unbind on exit", () => {
       "requestAnimationFrame(() => stopNativePlayback())",
     );
     expect(watchView).toContain('video.removeAttribute("src")');
+  });
+
+  it("prefetches the post-watch page so Back is not an empty layout", () => {
+    expect(watchView).toContain("prefetchWatchExitTarget(router, backHref, mediaId)");
+    const desktopWatch = readFileSync(
+      path.join(webRoot, "app/watch/client.tsx"),
+      "utf8",
+    );
+    expect(desktopWatch).toContain("prefetchWatchExitTarget(router, backHref, mediaId)");
+    const exit = watchView.slice(watchView.indexOf("const exitWatch"));
+    expect(exit.indexOf("router.replace(backHref)")).toBeGreaterThan(-1);
+    expect(exit.indexOf("router.replace(backHref)")).toBeLessThan(
+      exit.indexOf("api.stopStream"),
+    );
+    expect(existsSync(path.join(webRoot, "app/media/[id]/loading.tsx"))).toBe(true);
+    expect(existsSync(path.join(webRoot, "app/loading.tsx"))).toBe(true);
+    const routeLoading = readFileSync(path.join(webRoot, "lib/route-loading.tsx"), "utf8");
+    expect(routeLoading).toContain("export function MediaLoadingSkeleton");
+    expect(routeLoading).toContain('className="min-h-[80vh] bg-background"');
   });
 
   it("keeps the current quality playing until the next quality can take over", () => {

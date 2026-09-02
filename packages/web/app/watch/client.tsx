@@ -53,7 +53,7 @@ import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { WatchControlHint } from "@/components/watch-control-hint";
-import { warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
+import { prefetchWatchExitTarget, warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { cn, formatDuration, resolveWatchInitialResumeSeconds } from "@/lib/utils";
@@ -78,13 +78,20 @@ import {
 import { persistPlaybackQuality } from "@/lib/quality-selection-storage";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { resolveWebSubtitlePlaybackSeconds } from "@/lib/subtitle-timeline";
-import { formatSubtitleLabel, isOnlineSubtitleSource } from "@/lib/watch-helpers";
+import {
+  WATCH_CONTROLS_IDLE_MS,
+  qualityLabel,
+  resolveFallbackQuality,
+  shouldScheduleWatchChromeHide,
+  watchMenuOpen,
+  formatSubtitleLabel,
+  isOnlineSubtitleSource,
+} from "@/lib/watch-helpers";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvWatchView } from "@/components/tv/views/watch-view";
-import { resolveFallbackQuality, qualityLabel } from "@/lib/watch-helpers";
 import {
   cycleVideoDisplayMode,
   loadVideoDisplayMode,
@@ -292,6 +299,10 @@ function WatchDesktopClient() {
       ? routes.media(parseInt(mediaId, 10))
       : routes.home();
 
+  useEffect(() => {
+    prefetchWatchExitTarget(router, backHref, mediaId);
+  }, [router, backHref, mediaId]);
+
   const handlePlaybackFinished = useCallback(() => {
     router.push(backHref);
   }, [router, backHref]);
@@ -317,22 +328,60 @@ function WatchDesktopClient() {
 
   useDocumentTitle(title || null);
 
+  const desktopWatchPanelOpen = watchMenuOpen({
+    subtitleMenuOpen,
+    qualityMenuOpen,
+    volumeMenuOpen,
+    detailsOpen,
+    subtitleAppearanceOpen,
+    subtitleSearchOpen,
+  });
+  const desktopWatchPanelOpenRef = useRef(desktopWatchPanelOpen);
+  desktopWatchPanelOpenRef.current = desktopWatchPanelOpen;
+
   const revealControls = useCallback((autoHide = true) => {
     setShowControls(true);
     if (hideControlsTimer.current) {
       clearTimeout(hideControlsTimer.current);
+      hideControlsTimer.current = null;
     }
     const video = videoRef.current;
-    if (autoHide && video && !video.paused) {
-      hideControlsTimer.current = setTimeout(() => {
-        setShowControls(false);
-        setSubtitleMenuOpen(false);
-        setQualityMenuOpen(false);
-        setVolumeMenuOpen(false);
-        setDetailsOpen(false);
-      }, 3000);
+    if (
+      !shouldScheduleWatchChromeHide({
+        autoHideRequested: autoHide,
+        playing: Boolean(video && !video.paused),
+        panelOpen: desktopWatchPanelOpenRef.current,
+      })
+    ) {
+      return;
     }
+    hideControlsTimer.current = setTimeout(() => {
+      hideControlsTimer.current = null;
+      const playing = Boolean(videoRef.current && !videoRef.current.paused);
+      if (
+        !shouldScheduleWatchChromeHide({
+          autoHideRequested: true,
+          playing,
+          panelOpen: desktopWatchPanelOpenRef.current,
+        })
+      ) {
+        return;
+      }
+      setShowControls(false);
+    }, WATCH_CONTROLS_IDLE_MS);
   }, []);
+
+  useEffect(() => {
+    if (desktopWatchPanelOpen) {
+      setShowControls(true);
+      if (hideControlsTimer.current) {
+        clearTimeout(hideControlsTimer.current);
+        hideControlsTimer.current = null;
+      }
+      return;
+    }
+    revealControls(true);
+  }, [desktopWatchPanelOpen, revealControls]);
 
   const setVolumeLevel = useCallback((level: number) => {
     const clamped = Math.min(1, Math.max(0, level));
