@@ -103,9 +103,9 @@ export function nudgeScrubPreviewPercent(options: {
 export type ScrubCommitDecision = "commit" | "discard" | "noop";
 
 /**
- * Enter/click and blur share this decision. Always require a real timeline
- * move — a no-op seek on native stamps lastUserSeek and suppresses stall
- * recovery for 12s.
+ * OK/click only. Blur, Back, and chrome hide discard the preview instead of
+ * seeking. Always require a real timeline move — a no-op seek on native
+ * stamps lastUserSeek and suppresses stall recovery for 12s.
  */
 export function resolveScrubCommitDecision(options: {
   previewPercent: number | null;
