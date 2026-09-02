@@ -529,4 +529,13 @@ describe("TV native player unbind on exit", () => {
     );
     expect(watchView).toContain('video.removeAttribute("src")');
   });
+
+  it("keeps the current quality playing until the next quality can take over", () => {
+    expect(watchView).toContain("handoff: qualityHandoff");
+    expect(watchView).toContain("if (qualityHandoffRef.current) return");
+    expect(watchView).toContain("attachQualityHandoffPoller");
+    expect(nativePlayer).toContain("beginQualityHandoff");
+    expect(nativePlayer).toContain('put("playbackEpoch", playbackEpoch)');
+    expect(nativePlayer).toContain("setKeepContentOnPlayerReset(true)");
+  });
 });

@@ -22,6 +22,8 @@ interface UseVideoPlaybackEventsOptions {
   usingHlsPlayback: boolean;
   hlsStartOffset: number;
   optimisticAbsoluteSeconds: number | null;
+  /** Re-bind listeners when the active media element changes (quality handoff). */
+  mediaEpoch?: string | number;
   handlers: VideoPlaybackEventHandlers;
 }
 
@@ -32,6 +34,7 @@ export function useVideoPlaybackEvents(options: UseVideoPlaybackEventsOptions): 
     usingHlsPlayback,
     hlsStartOffset,
     optimisticAbsoluteSeconds,
+    mediaEpoch,
     handlers,
   } = options;
 
@@ -111,5 +114,5 @@ export function useVideoPlaybackEvents(options: UseVideoPlaybackEventsOptions): 
       video.removeEventListener("seeked", onSeeked);
       video.removeEventListener("ended", onEnded);
     };
-  }, [enabled, videoRef, usingHlsPlayback, hlsStartOffset]);
+  }, [enabled, videoRef, usingHlsPlayback, hlsStartOffset, mediaEpoch]);
 }

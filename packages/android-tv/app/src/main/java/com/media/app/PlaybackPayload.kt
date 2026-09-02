@@ -14,6 +14,8 @@ data class PlaybackPayload(
     val subtitleUrl: String?,
     val isHdr: Boolean,
     val dolbyVision: Boolean,
+    /** Keep the current player running until this payload is ready to take over. */
+    val handoff: Boolean,
 ) {
     companion object {
         fun parse(json: String): PlaybackPayload? {
@@ -33,6 +35,7 @@ data class PlaybackPayload(
                         ?.let(PlaybackUrl::sanitize),
                     isHdr = obj.optBoolean("isHdr", false),
                     dolbyVision = obj.optBoolean("dolbyVision", false),
+                    handoff = obj.optBoolean("handoff", false),
                 )
             } catch (_: Exception) {
                 null
