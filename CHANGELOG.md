@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.248 — 2026-09-02
+
+### TV
+- **Player** — Back on the highlighted progress bar keeps playing; only OK seeks
+
 ## 0.1.247 — 2026-09-02
 
 ### UI
