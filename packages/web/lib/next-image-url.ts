@@ -1,4 +1,5 @@
 import { withBasePath } from "./base-path";
+import { isTvClient } from "./tv-mode-detect";
 
 /** Must stay in sync with `images.qualities` in `next.config.mjs`. */
 export const NEXT_IMAGE_QUALITIES = [75, 80] as const;
@@ -47,6 +48,15 @@ export function snapNextImageQuality(quality: number): number {
   return best;
 }
 
+/**
+ * Cached `/api/images/…` files are already sized. Skipping `/_next/image`
+ * keeps preload and `<img>` on one HTTP cache key (and avoids a TV hydration
+ * mismatch from toggling `unoptimized` via `isTvClient()`).
+ */
+export function shouldSkipImageOptimizer(src: string): boolean {
+  return src.includes("/api/images/");
+}
+
 /** Build a `/_next/image` URL for warming the optimizer cache before navigation. */
 export function nextOptimizedImageUrl(
   src: string,
@@ -59,4 +69,17 @@ export function nextOptimizedImageUrl(
     q: String(snapNextImageQuality(quality)),
   });
   return withBasePath(`/_next/image?${params.toString()}`);
+}
+
+/**
+ * URL the browser will actually request. Local artwork skips the optimizer so
+ * preload and decode share a cache key.
+ */
+export function browserImageUrl(
+  src: string,
+  width: number,
+  quality = DEFAULT_IMAGE_QUALITY,
+): string {
+  if (shouldSkipImageOptimizer(src) || isTvClient()) return src;
+  return nextOptimizedImageUrl(src, width, quality);
 }

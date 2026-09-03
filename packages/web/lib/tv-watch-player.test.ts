@@ -534,6 +534,13 @@ describe("TV native player unbind on exit", () => {
     expect(watchView).toContain('video.removeAttribute("src")');
   });
 
+  it("starts catalog Back in JS during evaluateJavascript", () => {
+    expect(mainActivity).toContain("__mediaHandleBack");
+    expect(tvShell).toContain("installTvRemoteBackBridge");
+    expect(tvShell).toContain("router.prefetch(routes.home())");
+    expect(tvShell).not.toContain("if (homeActive || onWatch) return");
+  });
+
   it("prefetches the post-watch page so Back is not an empty layout", () => {
     expect(watchView).toContain("prefetchWatchExitTarget(router, backHref, mediaId)");
     const desktopWatch = readFileSync(

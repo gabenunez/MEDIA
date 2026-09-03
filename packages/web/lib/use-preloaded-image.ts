@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  nextOptimizedImageUrl,
+  browserImageUrl,
   PLAYBACK_IMAGE_QUALITY,
   PLAYBACK_IMAGE_WIDTH,
 } from "@/lib/next-image-url";
@@ -28,7 +28,7 @@ export function usePreloadedImage(
     const finish = () => setReady(true);
     img.onload = finish;
     img.onerror = finish;
-    img.src = nextOptimizedImageUrl(url, width, quality);
+    img.src = browserImageUrl(url, width, quality);
 
     if (img.complete && img.naturalWidth > 0) {
       finish();

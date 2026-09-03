@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { forwardRef, type ComponentProps } from "react";
+import { forwardRef, type ComponentProps, type FocusEvent } from "react";
+import { useRouter } from "next/navigation";
+import { isTvClient } from "@/lib/tv-mode-detect";
 
 /** Side rail nav icons */
 export const tvNavItemClassName =
@@ -55,15 +57,29 @@ export function TvFocusLink({
   className,
   variant = "default",
   selected,
+  onFocus,
+  prefetch,
+  href,
   ...props
 }: ComponentProps<typeof Link> & {
   variant?: "default" | "poster" | "card" | "nav" | "chip" | "watch";
   selected?: boolean;
 }) {
+  const router = useRouter();
+  const onTv = isTvClient();
+
+  const handleFocus = (event: FocusEvent<HTMLAnchorElement>) => {
+    if (typeof href === "string") router.prefetch(href);
+    onFocus?.(event);
+  };
+
   return (
     <Link
+      href={href}
       data-tv-item=""
       tabIndex={0}
+      prefetch={prefetch ?? !onTv}
+      onFocus={handleFocus}
       className={cn(variantClassName(variant), className)}
       {...focusSelectedProps(selected)}
       {...props}

@@ -209,6 +209,9 @@ class MainActivity : AppCompatActivity() {
                     webView.evaluateJavascript(
                         """
                         (function() {
+                          if (typeof window.__mediaHandleBack === 'function') {
+                            return window.__mediaHandleBack();
+                          }
                           if (typeof window.__mediaWatchHandleBack === 'function') {
                             return window.__mediaWatchHandleBack();
                           }

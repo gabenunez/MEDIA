@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type PointerEvent, type ReactNode } from "react";
 import type { MediaItem } from "@/lib/api";
 import { prefetchCarouselPosters } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ export function TvRow({
   seeAllDetail,
   prefetchItems,
 }: TvRowProps) {
+  const rowRef = useRef<HTMLDivElement>(null);
   const prefetchRowPosters = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
       if (!prefetchItems?.length) return;
@@ -38,6 +39,30 @@ export function TvRow({
     },
     [prefetchItems],
   );
+
+  useEffect(() => {
+    if (!prefetchItems?.length) return;
+    const row = rowRef.current;
+    if (!row) return;
+
+    let frame = 0;
+    const warm = () => {
+      frame = 0;
+      prefetchCarouselPosters(row, prefetchItems);
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(warm);
+    };
+
+    const mount = requestAnimationFrame(warm);
+    row.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(mount);
+      if (frame) cancelAnimationFrame(frame);
+      row.removeEventListener("scroll", onScroll);
+    };
+  }, [prefetchItems]);
 
   return (
     <section className={cn("tv-row-section", className)}>
@@ -50,6 +75,7 @@ export function TvRow({
         {title}
       </h2>
       <div
+        ref={rowRef}
         data-tv-row=""
         data-tv-content-row=""
         data-tv-scroll-row=""

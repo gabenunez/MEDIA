@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useBrowserPathname } from "@/lib/use-browser-pathname";
 import type { ReactNode } from "react";
 import { Home, Heart, LogOut, Search } from "lucide-react";
@@ -17,6 +18,7 @@ import {
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { closeTvSideNav } from "@/lib/tv-side-nav";
+import { installTvRemoteBackBridge } from "@/lib/tv-back";
 
 function TvNavButton({
   href,
@@ -29,6 +31,7 @@ function TvNavButton({
   active: boolean;
   children: ReactNode;
 }) {
+  const router = useRouter();
   return (
     <Link
       href={href}
@@ -37,6 +40,8 @@ function TvNavButton({
       aria-current={active ? "page" : undefined}
       aria-label={label}
       title={label}
+      prefetch={false}
+      onFocus={() => router.prefetch(href)}
       {...(active ? { "data-tv-nav-active": "" as const } : {})}
       className={cn(
         "flex h-11 w-11 items-center justify-center",
@@ -65,17 +70,24 @@ function TvLogoutButton({ onLogout }: { onLogout: () => void }) {
 
 export function TvShell({ children }: { children: React.ReactNode }) {
   const pathname = useBrowserPathname();
+  const router = useRouter();
   const wasOnWatchRef = useRef(false);
   const { required, authenticated, logout } = useAuth();
   const onWatch = pathname.startsWith("/watch");
-  const homeActive = pathname === "/";
+  const homeActive = pathname === "/" || pathname === "";
   const favoritesActive = pathname.startsWith("/favorites");
   const searchActive = pathname.startsWith("/search");
   const showLogout = required && authenticated;
 
   useEffect(() => {
     closeTvSideNav();
+    return installTvRemoteBackBridge();
   }, []);
+
+  useEffect(() => {
+    if (homeActive) return;
+    router.prefetch(routes.home());
+  }, [router, homeActive]);
 
   useEffect(() => {
     // Set before watch-view mounts so loading.tsx / CSS can cover the rail
