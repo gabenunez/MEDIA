@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import type { MediaItem } from "@/lib/api";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Clapperboard, Tv } from "lucide-react";
 import { isTvClient } from "@/lib/tv-mode-detect";
 import { MediaImage } from "@/components/media-image";
+import { measureTvMarqueeShift } from "@/lib/tv-marquee";
 
 interface TvPosterProps {
   item: MediaItem;
@@ -41,10 +42,28 @@ export const TvPoster = memo(function TvPoster({
   // Android TV WebView often never loads lazy images inside horizontal rows/grids.
   // Keep eager decode on TV, but only mark the first few tiles as priority.
   const loading = onTv || priority ? ("eager" as const) : ("lazy" as const);
+  const subtitleRef = useRef<HTMLParagraphElement>(null);
+  const [marqueeShiftPx, setMarqueeShiftPx] = useState(0);
+
+  const measureSubtitleMarquee = useCallback(() => {
+    const el = subtitleRef.current;
+    const inner = el?.firstElementChild;
+    if (!el) {
+      setMarqueeShiftPx(0);
+      return;
+    }
+    const textEl = inner instanceof HTMLElement ? inner : el;
+    setMarqueeShiftPx(measureTvMarqueeShift(el, textEl));
+  }, []);
+
+  useLayoutEffect(() => {
+    measureSubtitleMarquee();
+  }, [measureSubtitleMarquee, subtitle]);
 
   const warmNavigation = useCallback(() => {
     prefetchPosterFocus(item);
-  }, [item]);
+    measureSubtitleMarquee();
+  }, [item, measureSubtitleMarquee]);
 
   return (
     <div className={cn("tv-poster-tile shrink-0", className)}>
@@ -59,7 +78,7 @@ export const TvPoster = memo(function TvPoster({
           "group w-[var(--tv-poster-width,7.5rem)]",
           linkClassName,
         )}
-        aria-label={item.title}
+        aria-label={subtitle ? `${item.title}, ${subtitle}` : item.title}
         onMouseEnter={warmNavigation}
         onFocus={warmNavigation}
       >
@@ -112,12 +131,19 @@ export const TvPoster = memo(function TvPoster({
         </p>
         {subtitle && (
           <p
+            ref={subtitleRef}
             className={cn(
-              "mt-1 line-clamp-1 text-muted-foreground",
+              "tv-poster-subtitle text-muted-foreground",
               layout === "grid" ? "text-base" : "text-sm",
             )}
+            data-tv-marquee={marqueeShiftPx < 0 ? "" : undefined}
+            style={
+              marqueeShiftPx < 0
+                ? ({ "--tv-marquee-shift": `${marqueeShiftPx}px` } as CSSProperties)
+                : undefined
+            }
           >
-            {subtitle}
+            <span className="tv-poster-subtitle-text">{subtitle}</span>
           </p>
         )}
       </Link>
