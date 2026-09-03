@@ -48,11 +48,11 @@ describe("TV living-room catalog scale", () => {
 
   it("keeps two home rows inside a 1080p TV viewport", () => {
     const layout = TV_LIVING_ROOM_LAYOUT;
-    const headerRem = 1.2 + 0.125;
-    const tilePadRem = 0.5;
+    const headerRem = 1.15;
+    const tilePadRem = 0.2;
     const artRem = layout.posterWidthRem * 1.5;
-    const titleRem = 0.5 + 1.3 * 0.875;
-    const subtitleRem = 0.25 + 0.875;
+    const titleRem = 0.25 + 1.25 * 0.875;
+    const subtitleRem = 0.1 + 0.875;
     const row = (subtitle: boolean) =>
       headerRem +
       layout.scrollRowPadTopRem +

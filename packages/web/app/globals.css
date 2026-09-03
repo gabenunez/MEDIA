@@ -128,9 +128,9 @@
     --tv-browse-card-min: 14rem;
     --tv-page-gutter: 2rem;
     --tv-row-gap: 0.75rem;
-    --tv-section-gap: 0.25rem;
-    --tv-scroll-pad-top: 0.2rem;
-    --tv-scroll-pad-bottom: 0.35rem;
+    --tv-section-gap: 0.05rem;
+    --tv-scroll-pad-top: 0.1rem;
+    --tv-scroll-pad-bottom: 0rem;
     --tv-media-poster-width: 7rem;
     --tv-episode-still-width: 6.75rem;
     --tv-episode-still-height: 3.75rem;
@@ -152,7 +152,7 @@
 
   /* Shared spacing rhythm for every TV view. */
   .tv-ui > main {
-    padding-block: 0.75rem 1.5rem;
+    padding-block: 0.35rem 0.4rem;
   }
 
   /* Watch is a fixed full-bleed player — drop main padding so loading/player
@@ -168,14 +168,15 @@
   }
 
   .tv-ui .tv-row-section:last-child {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.4rem;
   }
 
   .tv-ui .tv-row-section > h2 {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    margin-bottom: 0.125rem;
+    margin-bottom: 0;
+    line-height: 1.15;
     padding-inline: var(--tv-page-gutter);
     font-size: 1rem;
     font-weight: 600;
@@ -404,19 +405,62 @@
 
   /* Room above posters so focus ring is not clipped by scroll rows */
   .tv-ui .tv-poster-tile {
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
+    padding-top: 0.2rem;
+    padding-bottom: 0;
   }
 
   .tv-ui .tv-poster-title {
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
     font-size: 0.875rem;
     font-weight: 600;
-    line-height: 1.3;
-    min-height: 1.3em;
+    line-height: 1.25;
+    min-height: 1.25em;
     max-width: 100%;
     overflow-wrap: anywhere;
     word-break: break-word;
+  }
+
+  .tv-ui .tv-poster-title + p,
+  .tv-ui .tv-poster-subtitle {
+    margin-top: 0.1rem;
+  }
+
+  .tv-ui .tv-poster-subtitle {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .tv-ui .tv-poster-subtitle-text {
+    white-space: nowrap;
+  }
+
+  .tv-ui a.tv-poster-link[data-tv-focused] .tv-poster-subtitle[data-tv-marquee],
+  .tv-ui a.tv-poster-link:focus .tv-poster-subtitle[data-tv-marquee],
+  .tv-ui a.tv-poster-link:focus-visible .tv-poster-subtitle[data-tv-marquee] {
+    text-overflow: clip;
+  }
+
+  .tv-ui a.tv-poster-link[data-tv-focused] .tv-poster-subtitle[data-tv-marquee] .tv-poster-subtitle-text,
+  .tv-ui a.tv-poster-link:focus .tv-poster-subtitle[data-tv-marquee] .tv-poster-subtitle-text,
+  .tv-ui a.tv-poster-link:focus-visible .tv-poster-subtitle[data-tv-marquee] .tv-poster-subtitle-text {
+    display: inline-block;
+    animation: tv-poster-marquee 8s ease-in-out infinite;
+  }
+
+  @keyframes tv-poster-marquee {
+    0%,
+    18% {
+      transform: translateX(0);
+    }
+    48%,
+    68% {
+      transform: translateX(var(--tv-marquee-shift, 0px));
+    }
+    92%,
+    100% {
+      transform: translateX(0);
+    }
   }
 
   .tv-ui .tv-poster-art {
@@ -448,6 +492,9 @@
   @media (prefers-reduced-motion: reduce) {
     .tv-ui .tv-scroll-row {
       scroll-behavior: auto;
+    }
+    .tv-ui .tv-poster-subtitle-text {
+      animation: none;
     }
   }
 
