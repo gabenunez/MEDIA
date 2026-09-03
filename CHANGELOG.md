@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.250 — 2026-09-03
+
+### TV
+- **Home** — publish a Continue watching channel so sideloaded MEDIA! can show on a real Google TV (Play Next stays certified-apps only)
+- **Home** — keep one Watch Next card per title instead of stacking duplicates on the emulator
+- **Home** — tighten catalog rows so Favorites titles stay on screen
+- **Posters** — marquee overflowing episode titles when a poster is focused
+
 ## 0.1.249 — 2026-09-02
 
 ### TV
