@@ -11,7 +11,10 @@ export function prefetchMediaPage(mediaId: number): void {
 
 function readCachedMedia(mediaId: number | null) {
   if (mediaId == null) return null;
-  return peekApiCache<Record<string, unknown>>(`media:${mediaId}`) ?? null;
+  return (
+    peekApiCache<Record<string, unknown>>(`media:${mediaId}`, { allowStale: true }) ??
+    null
+  );
 }
 
 function readSeed(

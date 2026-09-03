@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  browserImageUrl,
   nextOptimizedImageUrl,
   PLAYBACK_IMAGE_QUALITY,
+  shouldSkipImageOptimizer,
   snapNextImageQuality,
   snapNextImageWidth,
 } from "./next-image-url";
@@ -39,5 +41,19 @@ describe("nextOptimizedImageUrl", () => {
     expect(url).toContain("w=1920");
     expect(url).toContain("q=80");
     expect(url).not.toContain("q=85");
+  });
+});
+
+describe("browserImageUrl", () => {
+  it("skips the optimizer for cached /api/images files so preload matches <img>", () => {
+    expect(browserImageUrl("/api/images/foo.jpg", 256, 75)).toBe("/api/images/foo.jpg");
+    expect(shouldSkipImageOptimizer("/api/images/foo.jpg")).toBe(true);
+    expect(shouldSkipImageOptimizer("https://image.tmdb.org/t/p/w500/x.jpg")).toBe(false);
+  });
+
+  it("still builds optimizer URLs for non-artwork sources off TV", () => {
+    expect(browserImageUrl("https://image.tmdb.org/t/p/w500/x.jpg", 256, 75)).toBe(
+      nextOptimizedImageUrl("https://image.tmdb.org/t/p/w500/x.jpg", 256, 75),
+    );
   });
 });

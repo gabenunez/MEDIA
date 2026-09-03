@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import Image, { type ImageProps } from "next/image";
+import { shouldSkipImageOptimizer } from "@/lib/next-image-url";
 import { cn } from "@/lib/utils";
 
 type MediaImageProps = Omit<ImageProps, "src" | "alt"> & {
@@ -19,6 +20,7 @@ export const MediaImage = forwardRef<HTMLImageElement, MediaImageProps>(
       loading,
       quality = 80,
       sizes,
+      unoptimized,
       ...props
     },
     ref,
@@ -26,6 +28,8 @@ export const MediaImage = forwardRef<HTMLImageElement, MediaImageProps>(
     if (!src) return null;
 
     const loadingProp = priority ? undefined : (loading ?? "lazy");
+    const skipOptimizer = unoptimized ?? shouldSkipImageOptimizer(src);
+    const fetchPriorityProp = priority ? "high" : loadingProp === "eager" ? "low" : undefined;
 
     if (fill) {
       return (
@@ -38,6 +42,8 @@ export const MediaImage = forwardRef<HTMLImageElement, MediaImageProps>(
           loading={loadingProp}
           quality={quality}
           sizes={sizes ?? "100vw"}
+          unoptimized={skipOptimizer}
+          fetchPriority={fetchPriorityProp}
           className={cn(className)}
           {...props}
         />
@@ -53,6 +59,8 @@ export const MediaImage = forwardRef<HTMLImageElement, MediaImageProps>(
         loading={loadingProp}
         quality={quality}
         sizes={sizes}
+        unoptimized={skipOptimizer}
+        fetchPriority={fetchPriorityProp}
         className={cn(className)}
         {...props}
       />

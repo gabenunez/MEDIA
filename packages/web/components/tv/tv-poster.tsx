@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import type { MediaItem } from "@/lib/api";
@@ -36,6 +37,7 @@ export const TvPoster = memo(function TvPoster({
   priority = false,
   layout = "row",
 }: TvPosterProps) {
+  const router = useRouter();
   const imageUrl = tvImageUrl(item.posterPath);
   const linkHref = href ?? routes.media(item.id);
   const onTv = isTvClient();
@@ -56,14 +58,14 @@ export const TvPoster = memo(function TvPoster({
     setMarqueeShiftPx(measureTvMarqueeShift(el, textEl));
   }, []);
 
-  useLayoutEffect(() => {
-    measureSubtitleMarquee();
-  }, [measureSubtitleMarquee, subtitle]);
+  useEffect(() => {
+    setMarqueeShiftPx(0);
+  }, [subtitle]);
 
   const warmNavigation = useCallback(() => {
-    prefetchPosterFocus(item);
+    prefetchPosterFocus(item, router, linkHref);
     measureSubtitleMarquee();
-  }, [item, measureSubtitleMarquee]);
+  }, [item, linkHref, measureSubtitleMarquee, router]);
 
   return (
     <div className={cn("tv-poster-tile shrink-0", className)}>

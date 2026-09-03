@@ -1,9 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
-import { withBasePath } from "@/lib/base-path";
 import { cn } from "@/lib/utils";
 
 /** Shared page frame — gutters match home rows. */
@@ -68,6 +68,11 @@ export function TvPageHeader({
   subtitle,
   className,
 }: TvPageHeaderProps) {
+  const router = useRouter();
+  useEffect(() => {
+    router.prefetch(backHref);
+  }, [router, backHref]);
+
   return (
     <header className={cn("mb-6", className)}>
       <div data-tv-row="" data-tv-content-row="" className="mb-4">
@@ -97,6 +102,11 @@ export function TvHistoryBackButton({
   fallbackHref: string;
   label?: string;
 }) {
+  const router = useRouter();
+  useEffect(() => {
+    router.prefetch(fallbackHref);
+  }, [router, fallbackHref]);
+
   return (
     <div data-tv-row="" data-tv-content-row="">
       <TvFocusButton
@@ -110,7 +120,7 @@ export function TvHistoryBackButton({
           } catch {
             // fall through
           }
-          window.location.assign(withBasePath(fallbackHref));
+          router.push(fallbackHref);
         }}
         className="inline-flex h-11 items-center gap-2 rounded-lg px-4 text-base font-semibold"
       >

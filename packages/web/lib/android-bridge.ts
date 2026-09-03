@@ -253,6 +253,8 @@ declare global {
     __mediaNativePlayer?: NativePlayerBridge;
     /** Watch view back handler for Android TV remote. Return true when consumed. */
     __mediaWatchHandleBack?: () => boolean;
+    /** Catalog + watch Back — consumes in JS so native goBack is not a second hop. */
+    __mediaHandleBack?: () => boolean;
   }
 }
 

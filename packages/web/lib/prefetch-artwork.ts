@@ -1,27 +1,31 @@
 import { api, type MediaItem } from "@/lib/api";
 import {
-  nextOptimizedImageUrl,
+  browserImageUrl,
   PLAYBACK_IMAGE_QUALITY,
   PLAYBACK_IMAGE_WIDTH,
 } from "@/lib/next-image-url";
+import { routes } from "@/lib/routes";
 import {
   findNextEpisode,
   nextEpisodeArtworkPaths,
   type NextEpisodeInfo,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
+import { peekApiCache } from "@/lib/api-cache";
 import { prefetchMediaPage } from "@/lib/use-media-page-data";
 import { prefetchThemeMusic } from "@/components/theme-music-player";
-import { TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
+import { TV_HERO_IMAGE_QUALITY, TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { isTvClient } from "@/lib/tv-mode-detect";
 
 const inflight = new Set<string>();
+const warmed = new Set<string>();
 /** Match TV poster CSS width (~7.5–10rem) to Next imageSizes. */
 const TV_LIST_POSTER_WIDTH = 256;
 const DESKTOP_LIST_POSTER_WIDTH = 384;
 const FOCUS_NAV_DWELL_MS = 160;
 
-const pendingNavPrefetch = new Map<number, number>();
+let pendingHeavyPrefetchTimer: number | null = null;
+const prefetchedRoutes = new Set<string>();
 
 function hintDocumentImagePreload(href: string): void {
   if (typeof document === "undefined") return;
@@ -40,18 +44,20 @@ export function preloadImageUrl(
   options?: { documentHint?: boolean },
 ): void {
   if (!url) return;
-  const optimized = nextOptimizedImageUrl(url, width, quality);
-  if (inflight.has(optimized)) return;
-  inflight.add(optimized);
+  const warmedUrl = browserImageUrl(url, width, quality);
+  if (warmed.has(warmedUrl) || inflight.has(warmedUrl)) return;
+  inflight.add(warmedUrl);
   if (options?.documentHint) {
-    hintDocumentImagePreload(optimized);
+    hintDocumentImagePreload(warmedUrl);
   }
   const img = new Image();
   img.decoding = "async";
-  const done = () => inflight.delete(optimized);
-  img.onload = done;
-  img.onerror = done;
-  img.src = optimized;
+  img.onload = () => {
+    inflight.delete(warmedUrl);
+    warmed.add(warmedUrl);
+  };
+  img.onerror = () => inflight.delete(warmedUrl);
+  img.src = warmedUrl;
 }
 
 type PosterLike = Pick<MediaItem, "id" | "posterPath" | "backdropPath">;
@@ -79,35 +85,50 @@ export function prefetchPosterNavigation(item: PosterLike): void {
   preloadImageUrl(
     tvImageUrl(item.backdropPath ?? item.posterPath, { hd: true }),
     1920,
-    TV_LIST_IMAGE_QUALITY,
+    TV_HERO_IMAGE_QUALITY,
   );
 }
 
+export function prefetchTvRoute(
+  router: { prefetch: (href: string) => void } | undefined,
+  href: string | undefined,
+): void {
+  if (!router || !href || prefetchedRoutes.has(href)) return;
+  prefetchedRoutes.add(href);
+  router.prefetch(href);
+}
+
 /**
- * Focus/hover warm-up for TV: only the list poster immediately; defer detail
- * prefetch until the focus dwells so rapid D-pad scrolling does not storm the network.
+ * Focus/hover warm-up for TV: list poster + destination route immediately.
+ * Defer media JSON / theme / hero until the focus dwells — and only for the
+ * last focused tile so D-pad scrolling does not storm the network.
  */
-export function prefetchPosterFocus(item: PosterLike): void {
+export function prefetchPosterFocus(
+  item: PosterLike,
+  router?: { prefetch: (href: string) => void },
+  href?: string,
+): void {
   if (!Number.isFinite(item.id)) return;
   warmListPoster(item);
+  prefetchTvRoute(router, href ?? routes.media(item.id));
 
   if (!isTvClient()) {
     prefetchPosterNavigation(item);
     return;
   }
 
-  const existing = pendingNavPrefetch.get(item.id);
-  if (existing != null) window.clearTimeout(existing);
+  if (pendingHeavyPrefetchTimer != null) {
+    window.clearTimeout(pendingHeavyPrefetchTimer);
+  }
 
-  const timer = window.setTimeout(() => {
-    pendingNavPrefetch.delete(item.id);
+  pendingHeavyPrefetchTimer = window.setTimeout(() => {
+    pendingHeavyPrefetchTimer = null;
     const idle =
       typeof window.requestIdleCallback === "function"
         ? window.requestIdleCallback
         : (cb: IdleRequestCallback) => window.setTimeout(() => cb({} as IdleDeadline), 1);
     idle(() => prefetchPosterNavigation(item));
   }, FOCUS_NAV_DWELL_MS);
-  pendingNavPrefetch.set(item.id, timer);
 }
 
 /** Warm a 16:9 still / hero so the up-next overlay can paint immediately. */
@@ -162,8 +183,11 @@ export function prefetchCarouselPosters(
   const containerRect = scroller.getBoundingClientRect();
   const margin = 280;
 
-  scroller.childNodes.forEach((node, index) => {
-    if (!(node instanceof HTMLElement)) return;
+  const tiles = Array.from(scroller.children).filter(
+    (node): node is HTMLElement => node instanceof HTMLElement,
+  );
+
+  tiles.forEach((node, index) => {
     const item = items[index];
     if (!item) return;
 
@@ -184,12 +208,34 @@ export function prefetchWatchExitTarget(
   href: string,
   mediaId?: string | number | null,
 ): void {
-  router.prefetch(href);
+  prefetchTvRoute(router, href);
   const id =
     typeof mediaId === "number"
       ? mediaId
       : mediaId
         ? parseInt(String(mediaId), 10)
         : NaN;
-  if (!Number.isNaN(id)) prefetchMediaPage(id);
+  if (Number.isNaN(id)) return;
+  prefetchMediaPage(id);
+  const cached = peekCachedMediaArtwork(id);
+  if (cached) {
+    warmListPoster(cached);
+    preloadImageUrl(
+      tvImageUrl(cached.backdropPath ?? cached.posterPath, { hd: true }),
+      1920,
+      TV_HERO_IMAGE_QUALITY,
+    );
+  }
+}
+
+function peekCachedMediaArtwork(mediaId: number): PosterLike | null {
+  const cached = peekApiCache<Record<string, unknown>>(`media:${mediaId}`, {
+    allowStale: true,
+  });
+  if (!cached) return null;
+  return {
+    id: mediaId,
+    posterPath: typeof cached.posterPath === "string" ? cached.posterPath : null,
+    backdropPath: typeof cached.backdropPath === "string" ? cached.backdropPath : null,
+  };
 }
