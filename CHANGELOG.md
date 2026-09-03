@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.251 — 2026-09-03
+
+### TV
+- **Navigation** — remote Back starts in the WebView immediately instead of waiting on a native round-trip
+- **Posters** — keep artwork in cache so titles and Back are not empty tiles
+- **Home** — prefetch the focused destination so OK is not a loading spinner
+
+### Performance
+- **Images** — serve cached `/api/images` files directly so preload and on-screen posters share one cache key
+
 ## 0.1.250 — 2026-09-03
 
 ### TV
