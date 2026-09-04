@@ -13,6 +13,6 @@ export default defineConfig({
   test: {
     name: "@media-app/web",
     environment: "happy-dom",
-    include: ["lib/**/*.test.ts", "components/**/*.test.ts"],
+    include: ["app/**/*.test.ts", "lib/**/*.test.ts", "components/**/*.test.ts"],
   },
 });
