@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.253 — 2026-09-04
+
+### Changes
+
+- **Release** — Add iPhone PWA install and compressed offline downloads
+- Install MEDIA! as a Home Screen app and download highly compressed copies to watch without the server.
+
 ## 0.1.252 — 2026-09-04
 
 ### UI
