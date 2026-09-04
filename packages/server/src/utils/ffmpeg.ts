@@ -137,6 +137,29 @@ function audioMapArgs(audioStreamIndex?: number | null): string[] {
   return ["-map", "0:a:0?"];
 }
 
+const HEVC_ENCODER_CACHE_MS = 10 * 60 * 1000;
+let hevcEncoderCache: { available: boolean; checkedAt: number } | null = null;
+
+/** libx265 produces hvc1 MP4s that iPhone Safari decodes in hardware. */
+export async function checkHevcEncoderAvailable(): Promise<boolean> {
+  const now = Date.now();
+  if (hevcEncoderCache && now - hevcEncoderCache.checkedAt < HEVC_ENCODER_CACHE_MS) {
+    return hevcEncoderCache.available;
+  }
+
+  try {
+    const { stdout } = await execFileAsync("ffmpeg", ["-hide_banner", "-encoders"], {
+      timeout: 8_000,
+    });
+    const available = stdout.includes("libx265");
+    hevcEncoderCache = { available, checkedAt: now };
+    return available;
+  } catch {
+    hevcEncoderCache = { available: false, checkedAt: now };
+    return false;
+  }
+}
+
 export async function checkFfmpegAvailable(): Promise<boolean> {
   const now = Date.now();
   if (

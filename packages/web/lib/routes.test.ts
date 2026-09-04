@@ -8,5 +8,6 @@ describe("routes", () => {
       "/watch/episode/42/?fromStart=1&media=110",
     );
     expect(routes.login()).toBe("/login/");
+    expect(routes.downloads()).toBe("/downloads/");
   });
 });

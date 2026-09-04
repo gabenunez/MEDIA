@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Film, Heart, Home, Settings, Tv } from "lucide-react";
+import { Download, Film, Heart, Home, Settings, Tv } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { mainNavGroupClassName, NavTab } from "@/components/nav-tabs";
 import { SearchPopover } from "@/components/search-popover";
@@ -18,6 +18,7 @@ export function Navbar() {
   }
 
   const homeActive = isNavActive(pathname, "/");
+  const downloadsActive = isNavActive(pathname, "/downloads");
   const favoritesActive = isNavActive(pathname, "/favorites");
   const settingsActive = isNavActive(pathname, "/settings");
 
@@ -46,6 +47,13 @@ export function Navbar() {
 
           <nav aria-label="Main" className={mainNavGroupClassName}>
             <NavTab href={routes.home()} icon={Home} label="Home" active={homeActive} compact />
+            <NavTab
+              href={routes.downloads()}
+              icon={Download}
+              label="Downloads"
+              active={downloadsActive}
+              compact
+            />
             <NavTab
               href={routes.favorites()}
               icon={Heart}

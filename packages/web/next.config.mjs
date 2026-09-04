@@ -109,6 +109,16 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "",
     NEXT_PUBLIC_BASE_PATH: publicPrefix,
   },
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+    ];
+  },
   experimental: {
     optimizePackageImports: [
       "@radix-ui/react-dialog",
