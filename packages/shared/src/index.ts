@@ -2,6 +2,7 @@ export * from "./constants.js";
 export * from "./version.js";
 export * from "./types.js";
 export * from "./stream-quality.js";
+export * from "./offline-quality.js";
 export * from "./direct-play.js";
 export * from "./frame-rate.js";
 export * from "./video-dynamic-range.js";

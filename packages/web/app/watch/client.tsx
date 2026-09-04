@@ -89,6 +89,12 @@ import {
 } from "@/lib/watch-helpers";
 import { FileDetailsDialog } from "@/components/file-details-dialog";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
+import { OfflineDownloadButton } from "@/components/offline-download-button";
+import {
+  getOfflineItem,
+  getOfflineVideoFile,
+  updateOfflinePosition,
+} from "@/lib/offline-storage";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvWatchView } from "@/components/tv/views/watch-view";
@@ -219,6 +225,9 @@ function WatchDesktopClient() {
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
   const [videoDisplayMode, setVideoDisplayMode] = useState<VideoDisplayMode>("fit");
+  const [offlineObjectUrl, setOfflineObjectUrl] = useState<string | null>(null);
+  const [offlineReady, setOfflineReady] = useState(false);
+  const [offlineLabel, setOfflineLabel] = useState<string | null>(null);
 
   useEffect(() => {
     setVideoDisplayMode(loadVideoDisplayMode());
@@ -453,7 +462,14 @@ function WatchDesktopClient() {
       positionMs: Math.floor(positionSeconds * 1000),
       durationMs,
     }).catch(() => {});
-  }, [fileId, type, usingHlsPlayback, sourceDurationMs]);
+    if (offlineObjectUrl) {
+      void updateOfflinePosition(
+        type === "movie" ? "movie" : "episode",
+        fileId,
+        Math.floor(positionSeconds * 1000),
+      );
+    }
+  }, [fileId, type, usingHlsPlayback, sourceDurationMs, offlineObjectUrl]);
 
   saveProgressRef.current = saveProgress;
 
@@ -618,15 +634,55 @@ function WatchDesktopClient() {
   }, [fileId, type]);
 
   useEffect(() => {
-    const isPreparingPlayback = initialResumeSeconds === null || !streamInfo;
+    const isPreparingPlayback =
+      initialResumeSeconds === null || (!streamInfo && !offlineObjectUrl);
     if (!isPreparingPlayback && isPlaying && !buffering) {
       setPlaybackHasBegun(true);
       playbackHasBegunRef.current = true;
     }
-  }, [initialResumeSeconds, streamInfo, isPlaying, buffering]);
+  }, [initialResumeSeconds, streamInfo, offlineObjectUrl, isPlaying, buffering]);
 
   useEffect(() => {
     setPosterPath(null);
+  }, [fileId, type]);
+
+  useEffect(() => {
+    if (!fileId || Number.isNaN(fileId)) {
+      setOfflineReady(true);
+      return;
+    }
+
+    let revokedUrl: string | null = null;
+    let cancelled = false;
+    setOfflineReady(false);
+    setOfflineObjectUrl(null);
+    setOfflineLabel(null);
+
+    void (async () => {
+      const watchType = type === "movie" ? "movie" : "episode";
+      const item = await getOfflineItem(watchType, fileId);
+      const file = await getOfflineVideoFile(watchType, fileId);
+      if (cancelled) return;
+      if (item && file) {
+        const url = URL.createObjectURL(file);
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        revokedUrl = url;
+        setOfflineObjectUrl(url);
+        setOfflineLabel(
+          `Downloaded · ${item.height}p ${item.codec === "hevc" ? "HEVC" : "H.264"}`,
+        );
+        setTitle((current) => current || item.title);
+      }
+      setOfflineReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (revokedUrl) URL.revokeObjectURL(revokedUrl);
+    };
   }, [fileId, type]);
 
   useEffect(() => {
@@ -675,8 +731,26 @@ function WatchDesktopClient() {
         }
         setInitialResumeSeconds(resumeSeconds);
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.error(err);
+        const watchType = type === "movie" ? "movie" : "episode";
+        const local = await getOfflineItem(watchType, fileId);
+        if (local) {
+          setSourceDurationMs(local.durationMs);
+          setTitle((current) => current || local.title);
+          setTranscodingEnabled(false);
+          setAvailableQualities(["original"]);
+          setQuality("original");
+          setError(null);
+          const resumeSeconds = resolveWatchInitialResumeSeconds({
+            fromStart,
+            castStartSeconds,
+            positionMs: local.positionMs ?? 0,
+            durationMs: local.durationMs,
+          });
+          setInitialResumeSeconds(resumeSeconds);
+          return;
+        }
         setError("Could not load this video. Check your connection and try again.");
         setInitialResumeSeconds(0);
       });
@@ -722,17 +796,20 @@ function WatchDesktopClient() {
 
   useEffect(() => {
     const video = videoRef.current ?? videoARef.current;
-    if (!video || !fileId || Number.isNaN(fileId) || initialResumeSeconds === null || !streamInfo) {
+    if (!video || !fileId || Number.isNaN(fileId) || initialResumeSeconds === null || !offlineReady) {
+      return;
+    }
+    if (!streamInfo && !offlineObjectUrl) {
       return;
     }
 
     const playback = resolvePlaybackStream(quality, streamInfo);
-    if (!playback.usingHls && playback.audioCompatNotice) {
+    if (!offlineObjectUrl && !playback.usingHls && playback.audioCompatNotice) {
       return;
     }
 
     const stream = resolvePlaybackStream(quality, streamInfo);
-    const usingHls = stream.usingHls;
+    const usingHls = offlineObjectUrl ? false : stream.usingHls;
     const qualityHandoff = qualityHandoffRef.current;
     qualityHandoffRef.current = false;
 
@@ -762,14 +839,16 @@ function WatchDesktopClient() {
       wasUsingHlsRef.current = usingHls;
     }
 
-    const url = api.streamUrl(
-      fileId,
-      type === "movie" ? "movie" : "episode",
-      quality,
-      usingHls ? startAt : undefined,
-      streamGeneration,
-      stream.hlsQuality,
-    );
+    const url = offlineObjectUrl
+      ? offlineObjectUrl
+      : api.streamUrl(
+          fileId,
+          type === "movie" ? "movie" : "episode",
+          quality,
+          usingHls ? startAt : undefined,
+          streamGeneration,
+          stream.hlsQuality,
+        );
 
     const sessionGen = streamGeneration;
     const onFatalError = () => {
@@ -950,7 +1029,7 @@ function WatchDesktopClient() {
       video.removeAttribute("src");
       video.load();
     };
-  }, [fileId, type, quality, streamGeneration, initialResumeSeconds, streamInfo]);
+  }, [fileId, type, quality, streamGeneration, initialResumeSeconds, streamInfo, offlineObjectUrl, offlineReady]);
 
   // Keep the buffer status bar in sync on a steady cadence. Buffer events
   // (`progress`, hls.js BUFFER_APPENDED) are sparse and browser-throttled, and
@@ -1617,8 +1696,9 @@ function WatchDesktopClient() {
                 {title}
               </p>
               <p className="watch-meta mt-0.5 truncate">
-                {qualityLabel(quality, streamInfo?.height ?? null, streamInfo?.width ?? null)}
-                {formatDynamicRangeChromeSuffix(streamInfo?.dynamicRange)}
+                {offlineLabel ??
+                  qualityLabel(quality, streamInfo?.height ?? null, streamInfo?.width ?? null)}
+                {!offlineLabel && formatDynamicRangeChromeSuffix(streamInfo?.dynamicRange)}
                 {activeSubtitle !== null && " · Subtitles on"}
               </p>
             </div>
@@ -1998,7 +2078,7 @@ function WatchDesktopClient() {
                         setSubtitleAppearanceOpen(false);
                         setVolumeMenuOpen(false);
                       }}
-                      disabled={!transcodingEnabled && quality === "original"}
+                      disabled={Boolean(offlineObjectUrl) || (!transcodingEnabled && quality === "original")}
                       aria-label={`Quality: ${qualityLabel(quality, sourceHeight, sourceWidth)}`}
                     >
                       <Settings2 className="h-4 w-4" />
@@ -2027,6 +2107,14 @@ function WatchDesktopClient() {
                 <CastButton onCast={handleCast} className="watch-control-btn" />
 
                 <TvCastButton onCast={handleTvCast} className="watch-control-btn" />
+
+                {fileId && !Number.isNaN(fileId) ? (
+                  <OfflineDownloadButton
+                    fileId={fileId}
+                    type={type === "movie" ? "movie" : "episode"}
+                    size="sm"
+                  />
+                ) : null}
 
                 <WatchControlHint label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
                   <Button

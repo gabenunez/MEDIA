@@ -296,6 +296,33 @@ export interface TvCastStatusResponse {
 
 export type StreamQuality = "original" | "480p" | "720p" | "1080p" | "2160p";
 
+export interface OfflineEncodePlan {
+  height: 360 | 480 | 720;
+  videoBitrate: number;
+  audioBitrate: number;
+  codec: "hevc" | "h264";
+  crf: number;
+  estimatedBytes: number;
+  maxBytes: number;
+}
+
+export interface OfflineJob {
+  id: string;
+  fileId: number;
+  type: "movie" | "episode";
+  mediaId: number | null;
+  title: string;
+  subtitle: string | null;
+  posterPath: string | null;
+  durationMs: number;
+  status: "plan" | "queued" | "encoding" | "ready" | "error";
+  progress: number;
+  plan: OfflineEncodePlan;
+  error: string | null;
+  bytes: number | null;
+  estimatedBytes: number;
+}
+
 export interface StreamInfo {
   id: number;
   type: "movie" | "episode";
@@ -688,6 +715,21 @@ export const api = {
         body: JSON.stringify(releaseTag ? { releaseTag } : {}),
       },
     ),
+  getOfflinePlan: (fileId: number, type: "movie" | "episode") =>
+    fetchApi<OfflineJob>(
+      `/api/offline/plan?fileId=${fileId}&type=${type}`,
+    ),
+  startOfflineJob: (fileId: number, type: "movie" | "episode") =>
+    fetchApi<OfflineJob>("/api/offline/jobs", {
+      method: "POST",
+      body: JSON.stringify({ fileId, type }),
+    }),
+  getOfflineJob: (id: string) => fetchApi<OfflineJob>(`/api/offline/jobs/${id}`),
+  deleteOfflineJob: (id: string) =>
+    fetchApi<{ success: boolean }>(`/api/offline/jobs/${id}`, {
+      method: "DELETE",
+    }),
+  offlineFileUrl: (id: string) => apiUrl(`/api/offline/jobs/${id}/file`),
   saveProgress: (
     data: {
       itemType: "movie" | "episode";

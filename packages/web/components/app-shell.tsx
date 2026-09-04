@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { AuthProvider } from "@/components/auth-gate";
 import { AudioUnlock } from "@/components/audio-unlock";
+import { PwaRegister } from "@/components/pwa-register";
+import { PwaInstallBanner } from "@/components/pwa-install-banner";
 import { ThemeMusicSettingsProvider } from "@/components/theme-music-settings";
 import { SubtitleStylesProvider } from "@/components/subtitle-style-settings";
 import { ScanStatusProvider } from "@/components/scan-status-provider";
@@ -40,7 +42,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                   <TvShell>{children}</TvShell>
                 ) : (
                   <div data-web-only>
+                    <PwaRegister />
                     <Navbar />
+                    <PwaInstallBanner />
                     <ScanStatusBar />
                     <main>{children}</main>
                   </div>

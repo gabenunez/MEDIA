@@ -11,6 +11,7 @@ import { SubtitleService } from "./services/subtitles.js";
 import { ThemeService } from "./services/themes.js";
 import { ScannerService } from "./services/scanner.js";
 import { apiRoutes } from "./routes/api.js";
+import { offlineRoutes } from "./routes/offline.js";
 import { streamRoutes, subtitleRoutes } from "./routes/stream.js";
 import { subtitleSearchRoutes } from "./routes/subtitles-search.js";
 import { settingsRoutes } from "./routes/settings.js";
@@ -24,6 +25,11 @@ import {
   killOrphanFfmpegInCache,
   stopAllHlsSessions,
 } from "./utils/ffmpeg.js";
+import {
+  pruneReadyOfflineJobs,
+  recoverOrphanedOfflineJobs,
+  stopAllOfflineEncodes,
+} from "./services/offline-downloads.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -116,6 +122,7 @@ async function main() {
   await updateRoutes(app);
   await castRoutes(app, db, config, auth);
   await streamRoutes(app, db, config);
+  await offlineRoutes(app, db, config);
   await subtitleSearchRoutes(app, db, configManager, subtitles);
   await subtitleRoutes(app, db, subtitles);
 
@@ -129,6 +136,10 @@ async function main() {
       setHeaders: (res, filePath) => {
         if (filePath.includes(`${path.sep}_next${path.sep}static${path.sep}`)) {
           res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          return;
+        }
+        if (filePath.endsWith(`${path.sep}sw.js`)) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           return;
         }
         if (filePath.endsWith(`${path.sep}index.html`)) {
@@ -167,6 +178,14 @@ async function main() {
   if (removed > 0) {
     app.log.info({ removed }, "Pruned stale transcode cache directories");
   }
+  const orphanedOffline = recoverOrphanedOfflineJobs(config.transcoding.cache_dir);
+  if (orphanedOffline > 0) {
+    app.log.info({ recovered: orphanedOffline }, "Marked interrupted offline encodes as failed");
+  }
+  const prunedOffline = pruneReadyOfflineJobs(config.transcoding.cache_dir);
+  if (prunedOffline > 0) {
+    app.log.info({ removed: prunedOffline }, "Pruned stale offline encode cache");
+  }
   setInterval(() => {
     try {
       const count = pruneStaleTranscodeCache(config.transcoding.cache_dir, 60 * 60 * 1000);
@@ -184,6 +203,7 @@ async function main() {
     shuttingDown = true;
     app.log.info({ signal }, "Shutting down MEDIA! server");
     stopAllHlsSessions();
+    stopAllOfflineEncodes();
     try {
       await app.close();
     } finally {

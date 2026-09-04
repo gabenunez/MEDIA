@@ -11,6 +11,7 @@ export const routes = {
     type ? `/favorites/${type}/` : "/favorites/",
   continueWatching: () => "/continue/",
   recentlyAdded: () => "/recent/",
+  downloads: () => "/downloads/",
   browse: () => "/browse/",
   settings: () => "/settings/",
   watch: (type: WatchType, fileId: number, mediaId?: number) => {

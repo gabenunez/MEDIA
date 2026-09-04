@@ -6,6 +6,7 @@ import { Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
+import { OfflineDownloadButton } from "@/components/offline-download-button";
 import { formatDuration, getPlaybackButtonLabel, canResumePlayback, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
 import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
 import { MediaImage } from "@/components/media-image";
@@ -116,6 +117,7 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
                     </Link>
                   </Button>
                 )}
+                <OfflineDownloadButton fileId={ep.id} type="episode" size="sm" />
               </div>
             </div>
           );

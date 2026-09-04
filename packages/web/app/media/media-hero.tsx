@@ -6,6 +6,7 @@ import { Calendar, ChevronLeft, Clock3, Layers3, Play, Star } from "lucide-react
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/favorite-button";
+import { OfflineDownloadButton } from "@/components/offline-download-button";
 import { FixMatchDialog } from "@/components/fix-match-dialog";
 import { ThemeMusicWaveform } from "@/components/theme-music-player";
 import { formatDuration, getPlaybackButtonLabel, canResumePlayback, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
@@ -143,6 +144,7 @@ export function MediaHero({ media }: { media: MediaDetail }) {
                       </Link>
                     </Button>
                   )}
+                  <OfflineDownloadButton fileId={movieFile.id} type="movie" />
                 </>
               )}
               <FavoriteButton

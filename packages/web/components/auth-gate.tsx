@@ -15,6 +15,7 @@ import { MediaIcon } from "@/components/media-icon";
 import { api } from "@/lib/api";
 import { invalidateApiCache } from "@/lib/api-cache";
 import { resolvePostLoginHref } from "@/lib/auth-html-gate";
+import { cacheAuthStatus, readCachedAuthStatus } from "@/lib/pwa";
 import { stripBasePath, withBasePath } from "@/lib/base-path";
 import { routes } from "@/lib/routes";
 import {
@@ -53,9 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const wasLockedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    const status = await api.getAuthStatus();
-    setRequired(status.required);
-    setAuthenticated(status.authenticated);
+    try {
+      const status = await api.getAuthStatus();
+      cacheAuthStatus(status);
+      setRequired(status.required);
+      setAuthenticated(status.authenticated);
+    } catch (err) {
+      const cached = readCachedAuthStatus();
+      if (cached) {
+        setRequired(cached.required);
+        setAuthenticated(cached.authenticated);
+        return;
+      }
+      throw err;
+    }
   }, []);
 
   useEffect(() => {

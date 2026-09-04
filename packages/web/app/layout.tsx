@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
@@ -20,6 +20,18 @@ export const metadata: Metadata = {
     template: `%s · ${APP_NAME}`,
   },
   description: "Self-hosted movies and TV streaming",
+  applicationName: APP_NAME,
+  appleWebApp: {
+    capable: true,
+    title: APP_NAME,
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   robots: {
     index: false,
     follow: false,
@@ -30,6 +42,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0c1415",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -38,7 +57,6 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <style dangerouslySetInnerHTML={{ __html: TV_CRITICAL_CSS }} />
         <script dangerouslySetInnerHTML={{ __html: TV_MODE_BOOTSTRAP_SCRIPT }} />
       </head>
