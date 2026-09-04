@@ -57,6 +57,10 @@ export function getOfflineTransfer(
   return transfers.get(offlineRecordId(type, fileId)) ?? null;
 }
 
+export function listOfflineTransfers(): OfflineTransfer[] {
+  return [...transfers.values()];
+}
+
 export { subscribeOfflineLibrary, listOfflineItems, getOfflineItem };
 
 function setTransfer(next: OfflineTransfer): void {
@@ -239,6 +243,7 @@ export async function startOfflineDownload(input: {
   }
 }
 
+/** Remove a saved copy from this device only. Server library files stay. */
 export async function deleteOfflineDownload(
   type: OfflineWatchType,
   fileId: number,
@@ -246,5 +251,13 @@ export async function deleteOfflineDownload(
   const id = offlineRecordId(type, fileId);
   await removeOfflineItem(type, fileId);
   clearTransfer(id);
-  void api.deleteOfflineJob(id).catch(() => {});
+}
+
+/** Remove every saved copy from this device only. */
+export async function deleteAllOfflineDownloads(): Promise<void> {
+  const items = await listOfflineItems();
+  for (const item of items) {
+    await removeOfflineItem(item.type, item.fileId);
+    clearTransfer(item.id);
+  }
 }

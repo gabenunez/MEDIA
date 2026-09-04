@@ -11,10 +11,13 @@ import {
   subscribeOfflineLibrary,
   subscribeOfflineTransfers,
 } from "@/lib/offline-downloads";
-import { formatFileSize } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useTvMode } from "@/lib/tv-mode";
 import type { OfflineWatchType } from "@/lib/offline-storage";
+import {
+  REMOVE_LOCAL_DOWNLOAD_CONFIRM,
+  formatDownloadSize,
+} from "@/lib/offline-library";
 
 export function OfflineDownloadButton({
   fileId,
@@ -48,7 +51,7 @@ export function OfflineDownloadButton({
         }
         setBusy(false);
         if (item) {
-          setLabel(`Saved · ${formatFileSize(item.bytes)}`);
+          setLabel(`Saved · ${formatDownloadSize(item.bytes)}`);
           setError(null);
         } else {
           setLabel("Download");
@@ -72,7 +75,7 @@ export function OfflineDownloadButton({
     event.stopPropagation();
     setError(null);
     if (saved) {
-      if (!window.confirm("Remove the downloaded copy from this device?")) return;
+      if (!window.confirm(REMOVE_LOCAL_DOWNLOAD_CONFIRM)) return;
       await deleteOfflineDownload(type, fileId);
       return;
     }
