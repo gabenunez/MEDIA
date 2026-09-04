@@ -24,6 +24,7 @@ import { DeckManager } from "@/components/deck-manager";
 import { UpdateManager } from "@/components/update-manager";
 import { SettingsSection } from "@/components/settings-shell";
 import { AliasManager } from "@/components/alias-manager";
+import { PhoneDownloadsSettings } from "@/components/phone-downloads-settings";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
 export function SettingsClient() {
@@ -512,6 +513,8 @@ export function SettingsClient() {
             </SettingsSection>
 
             <UpdateManager />
+
+            <PhoneDownloadsSettings />
 
             <SettingsSection icon={Database} title="System status">
               <div className="space-y-1">
