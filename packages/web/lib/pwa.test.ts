@@ -32,7 +32,11 @@ describe("standalone / install offer", () => {
         media: query,
         addEventListener: () => {},
         removeEventListener: () => {},
-      })) as typeof window.matchMedia;
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+        onchange: null,
+      })) as unknown as typeof window.matchMedia;
     expect(isStandalonePwa()).toBe(true);
     expect(shouldOfferPwaInstall()).toBe(false);
     window.matchMedia = matchMedia;

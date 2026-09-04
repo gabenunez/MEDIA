@@ -9,8 +9,8 @@ import {
   type OfflineEncodePlan,
   type VideoDynamicRange,
 } from "@media-app/shared";
-import { checkHevcEncoderAvailable, probeFile } from "./ffmpeg.js";
-import { progressFromFfmpegLine } from "./ffmpeg-progress.js";
+import { checkHevcEncoderAvailable, probeFile } from "../utils/ffmpeg.js";
+import { progressFromFfmpegLine } from "../utils/ffmpeg-progress.js";
 
 export type OfflineJobStatus = "queued" | "encoding" | "ready" | "error";
 
