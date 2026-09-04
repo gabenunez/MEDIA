@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.254 — 2026-09-04
+
+### Fix
+- **PWA** — Home Screen installs open under `/reel` (or your public prefix) instead of the site root
+
 ## 0.1.253 — 2026-09-04
 
 ### Changes
