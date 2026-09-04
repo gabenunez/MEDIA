@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.252 — 2026-09-04
+
+### UI
+- **PWA** — Add MEDIA! to the iPhone Home Screen (Share → Add to Home Screen) or install it on Android
+- **Downloads** — save a highly compressed copy (under 500 MB) to the phone and watch it offline
+- **Downloads** — see each title’s size and remove copies from this device without touching the server library
+
+### Playback
+- **Watch** — play the downloaded file when one is on the device, including with no network
+
+### Settings
+- **Downloads** — show how much space saved titles use on this phone
+
 ## 0.1.251 — 2026-09-03
 
 ### TV
