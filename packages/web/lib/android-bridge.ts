@@ -22,6 +22,10 @@ export interface NativePlaybackRequest {
   dolbyVision?: boolean;
   /** Keep the current native player running until this request can take over. */
   handoff?: boolean;
+  /** Coded frame height when known — TV uses a tighter ExoPlayer buffer for UHD. */
+  sourceHeight?: number;
+  /** Coded frame width when known. */
+  sourceWidth?: number;
 }
 
 export interface NativePlaybackState {
