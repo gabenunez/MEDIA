@@ -1,8 +1,15 @@
-/** Source frame rates at or above this often struggle on TV direct play. */
+/** Source frame rates at or above this are flagged for diagnostics (not auto-transcode). */
 export const HIGH_SOURCE_FPS_THRESHOLD = 50;
 
-/** Measured playback below this suggests direct/remux should step to transcode. */
-export const LOW_PLAYBACK_FPS_THRESHOLD = 20;
+/**
+ * Measured playback realtime ratio (media-seconds / wall-seconds).
+ * Healthy play is ≈ 1.0; sustained values below this mean the decoder is falling behind.
+ * (Historically mis-set to 20 while the sampler returned a ratio — that auto-transcoded everything.)
+ */
+export const LOW_PLAYBACK_REALTIME_RATIO_THRESHOLD = 0.85;
+
+/** @deprecated Alias for {@link LOW_PLAYBACK_REALTIME_RATIO_THRESHOLD}. */
+export const LOW_PLAYBACK_FPS_THRESHOLD = LOW_PLAYBACK_REALTIME_RATIO_THRESHOLD;
 
 export function parseFfprobeFrameRate(value?: string | null): number | null {
   if (!value?.trim() || value === "0/0" || value === "N/A") return null;

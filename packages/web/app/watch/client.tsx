@@ -553,12 +553,7 @@ function WatchDesktopClient() {
     if (!next) return;
     lowFpsEscalatedRef.current = true;
     fpsQualityLockedRef.current = true;
-    if (fileId && !Number.isNaN(fileId)) {
-      persistPlaybackQuality(next, {
-        itemType: type === "movie" ? "movie" : "episode",
-        itemId: fileId,
-      });
-    }
+    // Session-only — do not persist automatic stutter fallbacks as the title default.
     const video = videoRef.current;
     if (video) {
       const absoluteTime = getPlaybackRestartSeconds({
@@ -578,7 +573,7 @@ function WatchDesktopClient() {
     showFpsQualityNotice(
       formatLowFpsQualitySwitchNotice(next, info.height, info.width),
     );
-  }, [fileId, requestStreamRestartAt, showFpsQualityNotice, type]);
+  }, [requestStreamRestartAt, showFpsQualityNotice]);
   escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
 
   const tryFallbackQuality = useCallback(() => {

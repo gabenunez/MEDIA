@@ -20,7 +20,7 @@ describe("frame rate helpers", () => {
     ).toBe(24);
   });
 
-  it("flags high source frame rates for TV transcode routing", () => {
+  it("flags high source frame rates for diagnostics", () => {
     expect(isHighSourceFrameRate(59.94)).toBe(true);
     expect(isHighSourceFrameRate(24)).toBe(false);
   });
