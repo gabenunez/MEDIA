@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.256 — 2026-09-07
+
+### UI
+- **Downloads** — show offline download controls only on phones and tablets
+
 ## 0.1.255 — 2026-09-07
 
 ### TV
