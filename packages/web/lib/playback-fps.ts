@@ -3,6 +3,7 @@ import {
   HIGH_SOURCE_FPS_THRESHOLD,
   isHighSourceFrameRate,
   LOW_PLAYBACK_FPS_THRESHOLD,
+  LOW_PLAYBACK_REALTIME_RATIO_THRESHOLD,
   pickTranscodeQualityForPlayback,
   qualityLabel,
 } from "@media-app/shared";
@@ -40,6 +41,10 @@ export function playbackFpsSampleSpanMs(
   return samples[samples.length - 1].atMs - samples[0].atMs;
 }
 
+/**
+ * Realtime playback ratio: media-seconds advanced / wall-seconds elapsed.
+ * ≈ 1.0 while keeping up; ≈ 0.5 when playing at half speed / decoder backlog.
+ */
 export function measurePlaybackFps(
   state: PlaybackFpsSampleState,
   nowMs: number,
@@ -57,17 +62,17 @@ export function measurePlaybackFps(
   return (advancedSeconds / elapsedMs) * 1000;
 }
 
-export function shouldPreferEqualTranscodeForSourceFps(options: {
+/**
+ * First-open prophylactic transcode for high source FPS is disabled.
+ * Prefer direct/remux; only step to a transcode after measured stutter or a hard failure.
+ */
+export function shouldPreferEqualTranscodeForSourceFps(_options: {
   fps?: number | null;
   nativeTv?: boolean;
   transcodingEnabled: boolean;
   directPlayMode: boolean;
 }): boolean {
-  return (
-    options.transcodingEnabled &&
-    options.directPlayMode &&
-    isHighSourceFrameRate(options.fps)
-  );
+  return false;
 }
 
 export function shouldEscalateLowPlaybackFps(options: {
@@ -115,7 +120,10 @@ export function shouldEscalateLowPlaybackFps(options: {
   }
   if (options.measuredFps == null) return false;
 
-  return options.measuredFps < (options.threshold ?? LOW_PLAYBACK_FPS_THRESHOLD);
+  return (
+    options.measuredFps <
+    (options.threshold ?? LOW_PLAYBACK_REALTIME_RATIO_THRESHOLD)
+  );
 }
 
 export function resolveEqualTranscodeQuality(
@@ -131,7 +139,7 @@ export function resolveEqualTranscodeQuality(
   return availableQualities.includes(tier) ? tier : null;
 }
 
-/** First play only: pick a source-matched transcode when high-fps direct play is risky. */
+/** First play only: previously auto-picked a transcode for high FPS; now always null. */
 export function resolveFirstPlayFpsQuality(options: {
   allowFpsQualityAuto: boolean;
   fps?: number | null;
@@ -165,7 +173,12 @@ export function formatLowFpsQualitySwitchNotice(
   sourceHeight?: number | null,
   sourceWidth?: number | null,
 ): string {
-  return `Playback is choppy. Switching to ${qualityLabel(quality, sourceHeight, sourceWidth)} for smoother playback.`;
+  return `Playback is falling behind. Switching to ${qualityLabel(quality, sourceHeight, sourceWidth)} for smoother playback.`;
 }
 
-export { HIGH_SOURCE_FPS_THRESHOLD, LOW_PLAYBACK_FPS_THRESHOLD };
+export {
+  HIGH_SOURCE_FPS_THRESHOLD,
+  LOW_PLAYBACK_FPS_THRESHOLD,
+  LOW_PLAYBACK_REALTIME_RATIO_THRESHOLD,
+  isHighSourceFrameRate,
+};

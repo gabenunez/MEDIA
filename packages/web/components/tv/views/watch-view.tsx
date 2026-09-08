@@ -614,12 +614,7 @@ export function TvWatchView() {
     if (!next) return;
     nativeLowFpsEscalatedRef.current = true;
     fpsQualityLockedRef.current = true;
-    if (fileId && !Number.isNaN(fileId)) {
-      persistPlaybackQuality(next, {
-        itemType: type === "movie" ? "movie" : "episode",
-        itemId: fileId,
-      });
-    }
+    // Session-only — do not persist automatic stutter fallbacks as the title default.
     showFpsQualityNotice(
       formatLowFpsQualitySwitchNotice(next, info.height, info.width),
     );
@@ -633,7 +628,7 @@ export function TvWatchView() {
     setStreamGeneration((generation) => generation + 1);
     playbackFpsStateRef.current = { samples: [] };
     setError(null);
-  }, [captureStreamRestartPosition, fileId, showFpsQualityNotice, type]);
+  }, [captureStreamRestartPosition, showFpsQualityNotice]);
 
   const escalateToEqualResolutionTranscodeRef = useRef(escalateToEqualResolutionTranscode);
   escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;

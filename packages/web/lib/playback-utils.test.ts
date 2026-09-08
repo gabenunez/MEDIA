@@ -137,7 +137,7 @@ describe("resolveInitialStreamQuality", () => {
     expect(result).toEqual({ quality: "original", error: null, fpsAutoApplied: false });
   });
 
-  it("locks first-play FPS quality per title and honors it on replay", () => {
+  it("keeps high-fps titles on original until the user picks a quality", () => {
     localStorage.clear();
     const highFps = makeStreamInfo({
       fileName: "sports.mp4",
@@ -154,16 +154,16 @@ describe("resolveInitialStreamQuality", () => {
     expect(
       resolveWatchSessionQuality(highFps, item, { nativeTv: true }),
     ).toEqual({
-      quality: "1080p",
+      quality: "original",
       error: null,
-      locked: true,
+      locked: false,
     });
     expect(
       resolveWatchSessionQuality(highFps, item, { nativeTv: true }),
     ).toEqual({
-      quality: "1080p",
+      quality: "original",
       error: null,
-      locked: true,
+      locked: false,
     });
   });
 });
@@ -344,7 +344,7 @@ describe("resolvePlaybackStream with native TV player", () => {
     });
   });
 
-  it("picks a source-matched transcode on the first high-fps play only", () => {
+  it("keeps original on the first high-fps play instead of auto-transcoding", () => {
     const highFps = makeStreamInfo({
       fileName: "sports.mkv",
       mimeType: "video/x-matroska",
@@ -361,9 +361,9 @@ describe("resolvePlaybackStream with native TV player", () => {
         nativeTv: true,
       }),
     ).toEqual({
-      quality: "1080p",
+      quality: "original",
       error: null,
-      fpsAutoApplied: true,
+      fpsAutoApplied: false,
     });
     expect(
       resolveInitialStreamQuality(highFps, {
@@ -372,9 +372,9 @@ describe("resolvePlaybackStream with native TV player", () => {
         nativeTv: true,
       }),
     ).toEqual({
-      quality: "1080p",
+      quality: "original",
       error: null,
-      fpsAutoApplied: true,
+      fpsAutoApplied: false,
     });
     expect(
       resolveInitialStreamQuality(highFps, {

@@ -14,7 +14,6 @@ import {
 } from "@media-app/shared";
 import { resolveFirstPlayFpsQuality } from "@/lib/playback-fps";
 import {
-  persistPlaybackQuality,
   readStoredItemPlaybackQuality,
   readStoredPlaybackQuality,
 } from "@/lib/quality-selection-storage";
@@ -568,9 +567,6 @@ export function resolveWatchSessionQuality(
     allowFpsQualityAuto: !alreadyLocked,
     nativeTv: options?.nativeTv,
   });
-  if (initial.fpsAutoApplied) {
-    persistPlaybackQuality(initial.quality, item);
-  }
   return {
     quality: initial.quality,
     error: initial.error,

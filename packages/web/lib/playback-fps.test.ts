@@ -17,7 +17,7 @@ import {
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const escalateArgs = {
-  measuredFps: 12,
+  measuredFps: 0.5,
   sampleCount: 4,
   quality: "original" as const,
   usingHls: false,
@@ -29,7 +29,7 @@ const escalateArgs = {
 };
 
 describe("playback fps escalation", () => {
-  it("prefers equal transcode for high source fps on native direct play", () => {
+  it("does not prophylactically transcode high source fps", () => {
     expect(
       shouldPreferEqualTranscodeForSourceFps({
         fps: 59.94,
@@ -37,7 +37,7 @@ describe("playback fps escalation", () => {
         transcodingEnabled: true,
         directPlayMode: true,
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldPreferEqualTranscodeForSourceFps({
         fps: 24,
@@ -46,17 +46,9 @@ describe("playback fps escalation", () => {
         directPlayMode: true,
       }),
     ).toBe(false);
-    expect(
-      shouldPreferEqualTranscodeForSourceFps({
-        fps: 59.94,
-        nativeTv: false,
-        transcodingEnabled: true,
-        directPlayMode: true,
-      }),
-    ).toBe(true);
   });
 
-  it("measures playback fps from position samples", () => {
+  it("measures realtime ratio from position samples", () => {
     let state = { samples: [] as Array<{ atMs: number; positionSeconds: number }> };
     state = recordPlaybackFpsSample(state, 0, 0);
     state = recordPlaybackFpsSample(state, 2000, 1);
@@ -65,6 +57,16 @@ describe("playback fps escalation", () => {
 
     expect(measurePlaybackFps(state, 6000)).toBeCloseTo(0.5, 2);
     expect(playbackFpsSampleSpanMs(state, 6000)).toBe(6000);
+  });
+
+  it("does not escalate healthy realtime playback (~1.0)", () => {
+    expect(
+      shouldEscalateLowPlaybackFps({
+        ...escalateArgs,
+        measuredFps: 1.0,
+        elapsedMs: LOW_PLAYBACK_FPS_MIN_ELAPSED_MS,
+      }),
+    ).toBe(false);
   });
 
   it("does not escalate original to transcode before 5 seconds of playback", () => {
@@ -81,7 +83,7 @@ describe("playback fps escalation", () => {
     ).toBe(false);
   });
 
-  it("escalates original direct play when measured fps stays low for 5 seconds", () => {
+  it("escalates original direct play when realtime ratio stays low for 5 seconds", () => {
     expect(
       shouldEscalateLowPlaybackFps({
         ...escalateArgs,
@@ -93,7 +95,7 @@ describe("playback fps escalation", () => {
   it("does not escalate when already on an explicit transcode tier", () => {
     expect(
       shouldEscalateLowPlaybackFps({
-        measuredFps: 12,
+        measuredFps: 0.5,
         elapsedMs: LOW_PLAYBACK_FPS_MIN_ELAPSED_MS,
         sampleCount: 4,
         quality: "1080p",
@@ -120,11 +122,11 @@ describe("playback fps escalation", () => {
 
   it("formats a user-facing low-fps quality switch notice", () => {
     expect(formatLowFpsQualitySwitchNotice("1080p", 1080, 1920)).toBe(
-      "Playback is choppy. Switching to 1080p for smoother playback.",
+      "Playback is falling behind. Switching to 1080p for smoother playback.",
     );
   });
 
-  it("picks a first-play transcode only when FPS auto is allowed", () => {
+  it("never picks a first-play transcode for high source fps", () => {
     const highFpsArgs = {
       fps: 59.94,
       nativeTv: true,
@@ -141,7 +143,7 @@ describe("playback fps escalation", () => {
         ...highFpsArgs,
         allowFpsQualityAuto: true,
       }),
-    ).toBe("1080p");
+    ).toBeNull();
     expect(
       resolveFirstPlayFpsQuality({
         ...highFpsArgs,
@@ -160,9 +162,10 @@ describe("playback fps escalation", () => {
     expect(watchView).toContain("shouldEscalateLowPlaybackFps");
     expect(watchView).toContain("resolveWatchSessionQuality");
     expect(watchView).toContain("fpsQualityLockedRef");
+    expect(watchView).toContain("Session-only");
   });
 
-  it("desktop watch client applies the same first-play FPS quality lock", () => {
+  it("desktop watch client applies the same session-only stutter fallback", () => {
     const desktopWatch = readFileSync(
       path.join(webRoot, "app/watch/client.tsx"),
       "utf8",
@@ -170,6 +173,6 @@ describe("playback fps escalation", () => {
     expect(desktopWatch).toContain("resolveWatchSessionQuality");
     expect(desktopWatch).toContain("shouldEscalateLowPlaybackFps");
     expect(desktopWatch).toContain("fpsQualityLockedRef");
-    expect(desktopWatch).toContain("persistPlaybackQuality");
+    expect(desktopWatch).toContain("Session-only");
   });
 });
