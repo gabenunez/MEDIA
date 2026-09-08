@@ -226,6 +226,8 @@ class WatchNextManager(context: Context) {
                 isHdr = false,
                 dolbyVision = false,
                 handoff = false,
+                sourceHeight = 0,
+                sourceWidth = 0,
             ),
         )
     }

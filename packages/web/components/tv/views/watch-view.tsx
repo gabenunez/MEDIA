@@ -998,6 +998,8 @@ export function TvWatchView() {
         isHdr: needsHdrToneMap(info.dynamicRange),
         dolbyVision: info.dynamicRange?.dolbyVision ?? false,
         subtitleUrl,
+        sourceHeight: info.height ?? 0,
+        sourceWidth: info.width ?? 0,
       });
       // New titles reset playbackHasBegunRef in the fileId effect, so a stale
       // showControlsRef still raises the overlay. Mid-play restarts keep the
@@ -1589,6 +1591,8 @@ export function TvWatchView() {
             ? toAbsoluteMediaUrl(api.subtitleUrl(activeSubtitle, usingHls ? startAt : 0))
             : undefined,
         handoff: qualityHandoff,
+        sourceHeight: streamInfo.height ?? 0,
+        sourceWidth: streamInfo.width ?? 0,
       });
       applyNativePlaybackOverlayAlpha();
 

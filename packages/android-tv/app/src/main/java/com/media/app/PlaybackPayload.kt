@@ -16,7 +16,23 @@ data class PlaybackPayload(
     val dolbyVision: Boolean,
     /** Keep the current player running until this payload is ready to take over. */
     val handoff: Boolean,
+    /** Source coded height when known — picks a tighter ExoPlayer buffer for UHD. */
+    val sourceHeight: Int,
+    /** Source coded width when known. */
+    val sourceWidth: Int,
 ) {
+    /**
+     * Prefer the short UHD buffer when coded size is UHD or still unknown.
+     * Unknown defaults to the safe profile so an older web shell cannot ask
+     * ExoPlayer to hold ~2 minutes of 4K before the hard byte ceiling applies.
+     */
+    val isUhd: Boolean
+        get() =
+            sourceHeight >= 2160 ||
+                sourceWidth >= 3840 ||
+                (sourceHeight <= 0 && sourceWidth <= 0)
+
+
     companion object {
         fun parse(json: String): PlaybackPayload? {
             return try {
@@ -36,6 +52,8 @@ data class PlaybackPayload(
                     isHdr = obj.optBoolean("isHdr", false),
                     dolbyVision = obj.optBoolean("dolbyVision", false),
                     handoff = obj.optBoolean("handoff", false),
+                    sourceHeight = obj.optInt("sourceHeight", 0),
+                    sourceWidth = obj.optInt("sourceWidth", 0),
                 )
             } catch (_: Exception) {
                 null

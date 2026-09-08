@@ -25,8 +25,9 @@ import kotlin.math.min
  * Range cancel/reopen thrash on HTTP Range streams — mid-play BUFFERING even on a
  * stable LAN.
  *
- * This subclass keeps the intended time-band hysteresis: only [maxBufferMs]
- * may pause the loader. The byte target still sizes the allocator for trimming.
+ * This subclass keeps time-band hysteresis, and adds a hard [maxAllocatedBytes]
+ * ceiling that may pause loading only after the min band is met — so UHD cannot
+ * grow the Java heap without bound while HD still fills toward maxBufferMs.
  */
 @UnstableApi
 class TimeBandLoadControl private constructor(
@@ -36,6 +37,7 @@ class TimeBandLoadControl private constructor(
     bufferForPlaybackMs: Int,
     bufferForPlaybackAfterRebufferMs: Int,
     targetBufferBytes: Int,
+    private val maxAllocatedBytes: Int,
     backBufferDurationMs: Int,
     retainBackBufferFromKeyframe: Boolean,
 ) : DefaultLoadControl(
@@ -70,14 +72,18 @@ class TimeBandLoadControl private constructor(
         // Match DefaultLoadControl: never treat the floor as < 500ms.
         minUs = max(minUs, 500_000L)
 
-        val bufferedMs = parameters.bufferedDurationUs / 1000L
         val wasLoading = isLoading
-        when {
-            parameters.bufferedDurationUs < minUs -> isLoading = true
-            parameters.bufferedDurationUs >= maxBufferUs -> isLoading = false
-            // Between min and max: keep prior loading state (true hysteresis).
-        }
+        isLoading =
+            TimeBandLoadingPolicy.shouldContinueLoading(
+                bufferedUs = parameters.bufferedDurationUs,
+                minBufferUs = minUs,
+                maxBufferUs = maxBufferUs,
+                allocatedBytes = allocatedBytes(),
+                maxAllocatedBytes = maxAllocatedBytes.toLong(),
+                wasLoading = wasLoading,
+            )
         if (isLoading != wasLoading) {
+            val bufferedMs = parameters.bufferedDurationUs / 1000L
             PlaybackDiag.onLoadControl(isLoading, bufferedMs, allocatedBytes())
         }
         return isLoading
@@ -91,6 +97,7 @@ class TimeBandLoadControl private constructor(
             bufferForPlaybackAfterRebufferMs: Int,
             targetBufferBytes: Int,
             backBufferDurationMs: Int,
+            maxAllocatedBytes: Int = targetBufferBytes,
         ): TimeBandLoadControl {
             return TimeBandLoadControl(
                 DefaultAllocator(/* trimOnReset= */ true, C.DEFAULT_BUFFER_SEGMENT_SIZE),
@@ -99,6 +106,7 @@ class TimeBandLoadControl private constructor(
                 bufferForPlaybackMs,
                 bufferForPlaybackAfterRebufferMs,
                 targetBufferBytes,
+                maxAllocatedBytes,
                 backBufferDurationMs,
                 retainBackBufferFromKeyframe = true,
             )

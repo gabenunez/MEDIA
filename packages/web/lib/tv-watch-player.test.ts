@@ -568,4 +568,15 @@ describe("TV native player unbind on exit", () => {
     expect(nativePlayer).toContain('put("playbackEpoch", playbackEpoch)');
     expect(nativePlayer).toContain("setKeepContentOnPlayerReset(true)");
   });
+
+  it("uses a shorter ExoPlayer buffer band for UHD native playback", () => {
+    expect(nativePlayer).toContain("UHD_PROGRESSIVE_MAX_BUFFER_MS");
+    expect(nativePlayer).toContain("createLoadControl");
+    expect(watchView).toContain("sourceHeight:");
+    const manifest = readFileSync(
+      path.join(webRoot, "../android-tv/app/src/main/AndroidManifest.xml"),
+      "utf8",
+    );
+    expect(manifest).toContain('android:largeHeap="true"');
+  });
 });
