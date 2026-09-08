@@ -1,6 +1,6 @@
 {
   "name": "@media-app/server",
-  "version": "0.1.256",
+  "version": "0.1.257",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

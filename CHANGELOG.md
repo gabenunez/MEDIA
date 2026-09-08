@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.257 — 2026-09-07
+
+### Playback
+- **Quality** — stop healthy Original playback from auto-switching to a transcode; only escalate when playback actually falls behind
+
 ## 0.1.256 — 2026-09-07
 
 ### UI
