@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.255 — 2026-09-07
+
+### TV
+- **Playback** — stop large 4K titles from crashing the TV app with out-of-memory errors (APK 1.5.18)
+
+### Fix
+- **Playback** — pass source resolution to the native player so HD keeps a longer buffer while UHD stays capped
+
 ## 0.1.254 — 2026-09-04
 
 ### Fix
