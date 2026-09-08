@@ -5,6 +5,16 @@ export function isIosDevice(): boolean {
   return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
 }
 
+/** Phones and tablets that should offer offline downloads (not desktop or TV). */
+export function isMobileClient(): boolean {
+  if (typeof navigator === "undefined") return false;
+  if (isIosDevice()) return true;
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return true;
+  if (/Mobile|Opera Mini|IEMobile|Windows Phone/i.test(ua)) return true;
+  return false;
+}
+
 export function isStandalonePwa(): boolean {
   if (typeof window === "undefined") return false;
   if (window.matchMedia("(display-mode: standalone)").matches) return true;

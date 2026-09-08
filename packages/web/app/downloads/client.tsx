@@ -7,6 +7,7 @@ import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
+import { useMobileClient } from "@/lib/use-mobile-client";
 import {
   deleteAllOfflineDownloads,
   deleteOfflineDownload,
@@ -32,6 +33,7 @@ import {
 
 export function DownloadsClient() {
   const isTvMode = useTvMode();
+  const isMobile = useMobileClient();
   useDocumentTitle("Downloads");
   const [items, setItems] = useState<OfflineItem[]>([]);
   const [transfers, setTransfers] = useState<OfflineTransfer[]>([]);
@@ -40,6 +42,7 @@ export function DownloadsClient() {
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isTvMode || !isMobile) return;
     let cancelled = false;
     const objectUrls: string[] = [];
 
@@ -81,7 +84,7 @@ export function DownloadsClient() {
       unsubTx();
       for (const url of objectUrls) URL.revokeObjectURL(url);
     };
-  }, []);
+  }, [isTvMode, isMobile]);
 
   const totalBytes = useMemo(() => sumOfflineBytes(items), [items]);
   const activeTransfers = transfers.filter(
@@ -91,10 +94,11 @@ export function DownloadsClient() {
       transfer.phase === "downloading",
   );
 
-  if (isTvMode) {
+  if (isTvMode || !isMobile) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 text-muted-foreground">
-        Downloads are for phones and the Home Screen app, not TV.
+        Downloads are for phones and the Home Screen app
+        {isTvMode ? ", not TV." : "."}
       </div>
     );
   }

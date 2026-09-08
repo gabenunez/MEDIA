@@ -13,6 +13,7 @@ import {
 } from "@/lib/offline-downloads";
 import { cn } from "@/lib/utils";
 import { useTvMode } from "@/lib/tv-mode";
+import { useMobileClient } from "@/lib/use-mobile-client";
 import type { OfflineWatchType } from "@/lib/offline-storage";
 import {
   REMOVE_LOCAL_DOWNLOAD_CONFIRM,
@@ -31,12 +32,14 @@ export function OfflineDownloadButton({
   className?: string;
 }) {
   const isTvMode = useTvMode();
+  const isMobile = useMobileClient();
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [label, setLabel] = useState("Download");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isTvMode || !isMobile) return;
     let cancelled = false;
     const refresh = () => {
       void getOfflineItem(type, fileId).then((item) => {
@@ -66,9 +69,9 @@ export function OfflineDownloadButton({
       unsubLib();
       unsubTx();
     };
-  }, [fileId, type]);
+  }, [fileId, type, isTvMode, isMobile]);
 
-  if (isTvMode) return null;
+  if (isTvMode || !isMobile) return null;
 
   const onClick = async (event: React.MouseEvent) => {
     event.preventDefault();

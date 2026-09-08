@@ -23,6 +23,37 @@ describe("isIosDevice", () => {
   });
 });
 
+describe("isMobileClient", () => {
+  it("treats Android phones as mobile", async () => {
+    const { isMobileClient } = await import("./pwa");
+    const original = navigator.userAgent;
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Mobile Safari/537.36",
+    });
+    expect(isMobileClient()).toBe(true);
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: original,
+    });
+  });
+
+  it("does not treat desktop Chrome as mobile", async () => {
+    const { isMobileClient } = await import("./pwa");
+    const original = navigator.userAgent;
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    });
+    expect(isMobileClient()).toBe(false);
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: original,
+    });
+  });
+});
+
 describe("standalone / install offer", () => {
   it("does not offer install when already standalone", () => {
     const matchMedia = window.matchMedia;

@@ -9,9 +9,11 @@ import { SearchPopover } from "@/components/search-popover";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { isNavActive } from "@/lib/nav-utils";
 import { routes } from "@/lib/routes";
+import { useMobileClient } from "@/lib/use-mobile-client";
 
 export function Navbar() {
   const pathname = usePathname();
+  const isMobile = useMobileClient();
 
   if (pathname.startsWith("/watch")) {
     return null;
@@ -47,13 +49,15 @@ export function Navbar() {
 
           <nav aria-label="Main" className={mainNavGroupClassName}>
             <NavTab href={routes.home()} icon={Home} label="Home" active={homeActive} compact />
-            <NavTab
-              href={routes.downloads()}
-              icon={Download}
-              label="Downloads"
-              active={downloadsActive}
-              compact
-            />
+            {isMobile ? (
+              <NavTab
+                href={routes.downloads()}
+                icon={Download}
+                label="Downloads"
+                active={downloadsActive}
+                compact
+              />
+            ) : null}
             <NavTab
               href={routes.favorites()}
               icon={Heart}
