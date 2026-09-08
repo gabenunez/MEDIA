@@ -12,13 +12,16 @@ import {
 } from "@/lib/offline-downloads";
 import { formatDownloadSize, sumOfflineBytes } from "@/lib/offline-library";
 import { useTvMode } from "@/lib/tv-mode";
+import { useMobileClient } from "@/lib/use-mobile-client";
 
 export function PhoneDownloadsSettings() {
   const isTvMode = useTvMode();
+  const isMobile = useMobileClient();
   const [count, setCount] = useState(0);
   const [bytes, setBytes] = useState(0);
 
   useEffect(() => {
+    if (isTvMode || !isMobile) return;
     const refresh = () => {
       void listOfflineItems().then((items) => {
         setCount(items.length);
@@ -27,9 +30,9 @@ export function PhoneDownloadsSettings() {
     };
     refresh();
     return subscribeOfflineLibrary(refresh);
-  }, []);
+  }, [isTvMode, isMobile]);
 
-  if (isTvMode) return null;
+  if (isTvMode || !isMobile) return null;
 
   return (
     <SettingsSection
