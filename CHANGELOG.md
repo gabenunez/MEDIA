@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.258 — 2026-09-08
+
+### TV
+- **Watch** — show the title poster while native playback is still loading
+
+### UI
+- **Subtitles** — keep Remove pinned to the right of each track so it stays clickable
+
 ## 0.1.257 — 2026-09-07
 
 ### Playback
