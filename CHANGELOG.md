@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.260 — 2026-09-08
+
+### TV
+- **Navigation** — stop soft Back from watch from flashing a bordered Loading chip; route loading is a quiet page fill instead
+
 ## 0.1.259 — 2026-09-08
 
 ### TV
