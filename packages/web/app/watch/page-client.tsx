@@ -18,7 +18,7 @@ function WatchRouteLoading() {
   return (
     <div
       data-tv-watch-loading=""
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black"
     >
       <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </div>
