@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.261 — 2026-09-08
+
+### Fix
+- **Web player** — restore stable z-order so poster, video, chrome, and menus stack correctly
+
+### TV
+- **Playback** — keep the existing TV watch layering; desktop stacking fixes stay scoped to `data-watch-player`
+
 ## 0.1.260 — 2026-09-08
 
 ### TV
