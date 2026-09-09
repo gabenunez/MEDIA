@@ -9,18 +9,16 @@ function RouteLoading({ children }: { children: ReactNode }) {
   const isTvMode = useTvMode();
 
   if (isTvMode) {
+    // Opaque page fill only — never a bordered loading chip. Back from watch
+    // (and other soft nav) can flash loading.tsx briefly; button-like chrome
+    // is worse than a quiet background until the destination paints.
     return (
       <div
         data-tv-route-loading=""
-        className="flex min-h-[80vh] items-center justify-center bg-background px-8"
+        className="min-h-[80vh] bg-background"
         role="status"
         aria-label="Loading"
-      >
-        <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-card px-7 py-4 text-lg text-muted-foreground">
-          <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden />
-          Loading...
-        </div>
-      </div>
+      />
     );
   }
 

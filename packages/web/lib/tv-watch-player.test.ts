@@ -558,6 +558,9 @@ describe("TV native player unbind on exit", () => {
     const routeLoading = readFileSync(path.join(webRoot, "lib/route-loading.tsx"), "utf8");
     expect(routeLoading).toContain("export function MediaLoadingSkeleton");
     expect(routeLoading).toContain('className="min-h-[80vh] bg-background"');
+    // TV soft-nav (watch → media/home) must not flash a bordered Loading chip.
+    expect(routeLoading).not.toMatch(/>\s*Loading\.\.\.\s*</);
+    expect(routeLoading).not.toContain("rounded-2xl border border-white/10 bg-card");
   });
 
   it("keeps the current quality playing until the next quality can take over", () => {
