@@ -2339,8 +2339,7 @@ export function TvWatchView() {
     });
   }, [error]);
 
-  const showPosterBackdrop =
-    Boolean(posterUrl) && !playbackHasBegun && !error && !usesNativePlayer;
+  const showPosterBackdrop = Boolean(posterUrl) && !playbackHasBegun && !error;
   const showMidPlaybackBuffering =
     bufferingMidPlayback && playbackHasBegun && !error && !countdown;
   const showBufferingBar = showMidPlaybackBuffering;

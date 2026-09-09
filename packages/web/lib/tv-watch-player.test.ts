@@ -579,4 +579,15 @@ describe("TV native player unbind on exit", () => {
     );
     expect(manifest).toContain('android:largeHeap="true"');
   });
+
+  it("shows the poster backdrop while native TV playback is still loading", () => {
+    expect(watchView).toContain("PlaybackPosterBackdrop");
+    expect(watchView).toContain(
+      "const showPosterBackdrop = Boolean(posterUrl) && !playbackHasBegun && !error;",
+    );
+    expect(watchView).not.toContain(
+      "Boolean(posterUrl) && !playbackHasBegun && !error && !usesNativePlayer",
+    );
+    expect(watchView).toContain("transparentBackground={usesNativePlayer}");
+  });
 });
