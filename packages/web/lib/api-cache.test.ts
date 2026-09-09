@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cachedFetch, invalidateApiCache, peekApiCache } from "./api-cache";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  cachedFetch,
+  invalidateApiCache,
+  peekApiCache,
+  seedApiCache,
+} from "./api-cache";
 
 describe("peekApiCache", () => {
   afterEach(() => {
@@ -26,5 +31,42 @@ describe("peekApiCache", () => {
       id: 8,
       title: "Stale",
     });
+  });
+});
+
+describe("seedApiCache", () => {
+  afterEach(() => {
+    invalidateApiCache();
+  });
+
+  it("fills an empty key so the next cachedFetch is a hit", async () => {
+    expect(seedApiCache("home", { recentlyAdded: [] }, 60_000)).toBe(true);
+    const fetcher = vi.fn(async () => ({ recentlyAdded: ["network"] }));
+    await expect(cachedFetch("home", fetcher, 60_000)).resolves.toEqual({
+      recentlyAdded: [],
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite an existing cache entry", async () => {
+    await cachedFetch("home", async () => ({ recentlyAdded: ["live"] }), 60_000);
+    expect(seedApiCache("home", { recentlyAdded: ["ssr"] }, 60_000)).toBe(false);
+    expect(peekApiCache("home")).toEqual({ recentlyAdded: ["live"] });
+  });
+
+  it("refuses to seed after invalidate until a live fetch lands", async () => {
+    await cachedFetch("home", async () => ({ recentlyAdded: ["old"] }), 60_000);
+    invalidateApiCache("home");
+    expect(peekApiCache("home")).toBeUndefined();
+    expect(seedApiCache("home", { recentlyAdded: ["stale-ssr"] }, 60_000)).toBe(
+      false,
+    );
+
+    const fetcher = vi.fn(async () => ({ recentlyAdded: ["fresh"] }));
+    await expect(cachedFetch("home", fetcher, 60_000)).resolves.toEqual({
+      recentlyAdded: ["fresh"],
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(seedApiCache("home", { recentlyAdded: ["ssr"] }, 60_000)).toBe(false);
   });
 });

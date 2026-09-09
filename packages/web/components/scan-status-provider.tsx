@@ -11,9 +11,8 @@ import {
 } from "react";
 import { api, type ServerStatus } from "@/lib/api";
 import { invalidateApiCache } from "@/lib/api-cache";
-
-const SCAN_POLL_MS = 1500;
-const IDLE_POLL_MS = 8000;
+import { scanPollDelayMs } from "@/lib/scan-poll";
+import { isTvClient } from "@/lib/tv-mode-detect";
 
 type ScanStatusContextValue = {
   status: ServerStatus | null;
@@ -41,7 +40,15 @@ export function ScanStatusProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let timeout: ReturnType<typeof setTimeout>;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = (delayMs: number | null) => {
+      if (timeout) clearTimeout(timeout);
+      if (delayMs == null) return;
+      timeout = setTimeout(() => {
+        void poll();
+      }, delayMs);
+    };
 
     const poll = async () => {
       const next = await refresh();
@@ -53,14 +60,33 @@ export function ScanStatusProvider({ children }: { children: ReactNode }) {
       }
       wasScanningRef.current = scanning;
 
-      timeout = setTimeout(poll, scanning ? SCAN_POLL_MS : IDLE_POLL_MS);
+      const hidden =
+        typeof document !== "undefined" && document.visibilityState === "hidden";
+      schedule(
+        scanPollDelayMs({
+          scanning,
+          tv: isTvClient(),
+          hidden,
+        }),
+      );
+    };
+
+    const onVisibility = () => {
+      if (cancelled) return;
+      if (document.visibilityState === "visible") {
+        void poll();
+        return;
+      }
+      schedule(null);
     };
 
     void poll();
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
-      clearTimeout(timeout);
+      if (timeout) clearTimeout(timeout);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refresh]);
 
