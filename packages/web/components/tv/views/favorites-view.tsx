@@ -44,6 +44,14 @@ export function TvFavoritesView({
   }, [filter]);
 
   useEffect(() => {
+    if (page === 1 && initialPage) {
+      setItems(initialPage.items);
+      setTotalPages(initialPage.totalPages);
+      setTotalItems(initialPage.total ?? initialPage.items.length);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     api
       .getFavorites(page, filter === "all" ? undefined : filter)
@@ -54,7 +62,7 @@ export function TvFavoritesView({
       })
       .catch(console.warn)
       .finally(() => setLoading(false));
-  }, [filter, page]);
+  }, [filter, page, initialPage]);
 
   useEffect(() => {
     if (loading) return;

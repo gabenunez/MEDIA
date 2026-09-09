@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { seedApiCache } from "@/lib/api-cache";
 import { useScanStatus } from "@/components/scan-status-provider";
 import {
   homeRefreshOptions,
@@ -11,6 +12,8 @@ import {
   type HomeRefreshReason,
 } from "@/lib/catalog-cache";
 import type { HomeData } from "@/lib/server-api";
+
+const HOME_CLIENT_TTL_MS = 30_000;
 
 export function useLiveHomeData(initialData: HomeData | null) {
   const router = useRouter();
@@ -38,7 +41,15 @@ export function useLiveHomeData(initialData: HomeData | null) {
   );
 
   useEffect(() => {
+    // Seed from SSR so the mount refresh is a client-cache hit unless
+    // saveProgress / catalog writes blocked seeding via invalidate.
+    // Depend only on refresh — remount picks up a new SSR seed; scan-complete
+    // already refreshes live and must not double-fetch when RSC props update.
+    if (initialData) {
+      seedApiCache("home", initialData, HOME_CLIENT_TTL_MS);
+    }
     void refresh("mount");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [refresh]);
 
   useEffect(() => {

@@ -7,11 +7,10 @@ import {
   resolveAuthStatusUrl,
   safeInternalPath,
 } from "./lib/auth-html-gate";
-
-type AuthStatus = {
-  required: boolean;
-  authenticated: boolean;
-};
+import {
+  getCachedAuthStatus,
+  type ProxyAuthStatus,
+} from "./lib/auth-status-cache";
 
 /**
  * Runs before the Next.js cache. Unauthenticated HTML/RSC never hits HomePage
@@ -70,22 +69,25 @@ export const config = {
   ],
 };
 
-async function getAuthStatus(request: NextRequest): Promise<AuthStatus> {
-  try {
-    const res = await fetch(resolveAuthStatusUrl(process.env), {
-      headers: { cookie: request.headers.get("cookie") ?? "" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(2500),
-    });
-    if (!res.ok) {
+async function getAuthStatus(request: NextRequest): Promise<ProxyAuthStatus> {
+  const cookie = request.headers.get("cookie") ?? "";
+  return getCachedAuthStatus(cookie, async () => {
+    try {
+      const res = await fetch(resolveAuthStatusUrl(process.env), {
+        headers: { cookie },
+        cache: "no-store",
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!res.ok) {
+        return { required: true, authenticated: false };
+      }
+      const data = (await res.json()) as Partial<ProxyAuthStatus>;
+      return {
+        required: Boolean(data.required),
+        authenticated: Boolean(data.authenticated),
+      };
+    } catch {
       return { required: true, authenticated: false };
     }
-    const data = (await res.json()) as Partial<AuthStatus>;
-    return {
-      required: Boolean(data.required),
-      authenticated: Boolean(data.authenticated),
-    };
-  } catch {
-    return { required: true, authenticated: false };
-  }
+  });
 }

@@ -12,7 +12,6 @@ import { useDocumentTitle } from "@/lib/use-document-title";
 import { useTvMode } from "@/lib/tv-mode";
 import { TvRecentView } from "@/components/tv/views/recent-view";
 import { routes } from "@/lib/routes";
-import { invalidateClientCatalogCache } from "@/lib/catalog-cache";
 
 export function RecentClient({
   initialPage = null,
@@ -37,10 +36,15 @@ function RecentDesktopClient({
   useDocumentTitle("Recently Added");
 
   useEffect(() => {
+    if (page === 1 && initialPage) {
+      setItems(initialPage.items);
+      setTotalPages(initialPage.totalPages);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
-    const seeded = page === 1 && Boolean(initialPage);
-    if (!seeded) setLoading(true);
-    invalidateClientCatalogCache();
+    setLoading(true);
     api
       .getRecentlyAdded(page)
       .then((data) => {
