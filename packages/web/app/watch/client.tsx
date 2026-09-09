@@ -1990,7 +1990,7 @@ function WatchDesktopClient() {
                           onBack={() => setSubtitleAppearanceOpen(false)}
                         />
                       ) : (
-                        <div className="min-w-56">
+                        <div className="min-w-72 max-w-[min(90vw,22rem)]">
                           {subtitleListError ? (
                             <p className="px-3 py-1.5 text-sm text-red-400">{subtitleListError}</p>
                           ) : subtitles.length === 0 ? (
@@ -2010,12 +2010,9 @@ function WatchDesktopClient() {
                             </button>
                           )}
                           {subtitles.map((sub) => (
-                            <div
-                              key={sub.id}
-                              className="flex items-center gap-1 rounded-lg px-0.5"
-                            >
+                            <div key={sub.id} className="watch-menu-row">
                               <button
-                                className="watch-menu-item min-w-0 flex-1"
+                                className="watch-menu-item break-words text-left"
                                 data-active={activeSubtitle === sub.id ? "true" : undefined}
                                 onClick={() => {
                                   setActiveSubtitle(sub.id);
@@ -2026,7 +2023,8 @@ function WatchDesktopClient() {
                               </button>
                               {isOnlineSubtitleSource(sub.source) && (
                                 <button
-                                  className="watch-menu-item watch-menu-muted w-auto shrink-0 px-2 py-1 text-xs hover:text-red-300"
+                                  type="button"
+                                  className="watch-menu-remove"
                                   onClick={() => {
                                     void removeSubtitleTrack(sub.id);
                                   }}
