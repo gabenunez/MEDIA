@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.259 — 2026-09-08
+
+### TV
+- **Performance** — trust SSR seeds for Recent and Favorites instead of wiping the catalog cache on every open
+- **Home** — seed the client home cache from SSR without undoing progress-save invalidation
+- **Status** — poll scan status every 60s on TV when idle, and pause while the app is hidden
+
+### Fix
+- **Auth** — reuse a short-lived auth status result across HTML navigations so soft navs skip a forced no-store round trip
+
 ## 0.1.258 — 2026-09-08
 
 ### TV
