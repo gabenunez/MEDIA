@@ -1571,36 +1571,38 @@ function WatchDesktopClient() {
     <div
       ref={containerRef}
       data-watch-player=""
-      className="fixed inset-0 z-40 bg-black"
+      className="fixed inset-0 z-50 isolate bg-black"
       onMouseMove={() => revealControls(true)}
       onTouchStart={() => revealControls(true)}
     >
-      <PlaybackPosterBackdrop posterUrl={posterUrl} visible={showPosterBackdrop} />
-      <video
-        ref={videoARef}
-        className={cn(
-          "media-subtitles absolute inset-0 z-[2] h-full w-full",
-          videoDisplayModeClass(videoDisplayMode),
-          activeVideoSlot !== "a" && "pointer-events-none opacity-0",
-        )}
-        controls={false}
-        playsInline
-        preload={streamInfo ? "auto" : "metadata"}
-        onClick={togglePlay}
-      />
-      <video
-        ref={stagingVideoRef}
-        aria-hidden={activeVideoSlot !== "b"}
-        className={cn(
-          "media-subtitles absolute inset-0 z-[2] h-full w-full",
-          videoDisplayModeClass(videoDisplayMode),
-          activeVideoSlot !== "b" && "pointer-events-none opacity-0",
-        )}
-        controls={false}
-        playsInline
-        preload="auto"
-        onClick={togglePlay}
-      />
+      <div data-watch-video-stage="" className="absolute inset-0 z-0">
+        <PlaybackPosterBackdrop posterUrl={posterUrl} visible={showPosterBackdrop} />
+        <video
+          ref={videoARef}
+          className={cn(
+            "media-subtitles absolute inset-0 z-[2] h-full w-full",
+            videoDisplayModeClass(videoDisplayMode),
+            activeVideoSlot !== "a" && "pointer-events-none opacity-0",
+          )}
+          controls={false}
+          playsInline
+          preload={streamInfo ? "auto" : "metadata"}
+          onClick={togglePlay}
+        />
+        <video
+          ref={stagingVideoRef}
+          aria-hidden={activeVideoSlot !== "b"}
+          className={cn(
+            "media-subtitles absolute inset-0 z-[2] h-full w-full",
+            videoDisplayModeClass(videoDisplayMode),
+            activeVideoSlot !== "b" && "pointer-events-none opacity-0",
+          )}
+          controls={false}
+          playsInline
+          preload="auto"
+          onClick={togglePlay}
+        />
+      </div>
       {activeSubtitle !== null && activeVtt && (
         <WebSubtitleCueOverlay
           videoRef={videoRef}
