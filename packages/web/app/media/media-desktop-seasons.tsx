@@ -57,61 +57,62 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
               key={ep.id}
               className="group relative flex items-center gap-4 overflow-hidden rounded-md border border-border/80 bg-card/70 p-3 transition-all hover:border-primary/50 hover:bg-card sm:p-4"
             >
+              <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
               <Link
                 href={routes.watch("episode", ep.id, media.id)}
-                className="absolute inset-0 z-0"
+                className="relative flex min-w-0 flex-1 items-center gap-4"
                 aria-label={episodeActionLabel}
-              />
-              <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
-              <div className="relative z-10 flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                {ep.stillPath ? (
-                  <MediaImage
-                    src={api.imageUrl(ep.stillPath)}
-                    alt=""
-                    fill
-                    sizes="7rem"
-                    className="object-cover"
-                  />
-                ) : (
-                  <span className="font-mono text-2xl font-bold text-muted-foreground">
-                    {String(ep.episodeNumber).padStart(2, "0")}
-                  </span>
-                )}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Play className="h-8 w-8 fill-white text-white" />
-                </div>
-                {ep.watchProgress && ep.watchProgress.positionMs > 0 && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
-                    <div
-                      className="h-full bg-accent"
-                      style={{
-                        width: `${Math.min(100, (ep.watchProgress.positionMs / (ep.durationMs ?? 1)) * 100)}%`,
-                      }}
+              >
+                <div className="relative flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                  {ep.stillPath ? (
+                    <MediaImage
+                      src={api.imageUrl(ep.stillPath)}
+                      alt=""
+                      fill
+                      sizes="7rem"
+                      className="object-cover"
                     />
+                  ) : (
+                    <span className="font-mono text-2xl font-bold text-muted-foreground">
+                      {String(ep.episodeNumber).padStart(2, "0")}
+                    </span>
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Play className="h-8 w-8 fill-white text-white" />
                   </div>
-                )}
-              </div>
-              <div className="relative z-10 min-w-0 flex-1">
-                <p className="font-medium">
-                  <span className="mr-2 font-mono text-xs text-primary">
-                    E{String(ep.episodeNumber).padStart(2, "0")}
-                  </span>
-                  {ep.title}
-                </p>
-                {ep.overview && (
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                    {ep.overview}
+                  {ep.watchProgress && ep.watchProgress.positionMs > 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
+                      <div
+                        className="h-full bg-accent"
+                        style={{
+                          width: `${Math.min(100, (ep.watchProgress.positionMs / (ep.durationMs ?? 1)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">
+                    <span className="mr-2 font-mono text-xs text-primary">
+                      E{String(ep.episodeNumber).padStart(2, "0")}
+                    </span>
+                    {ep.title}
                   </p>
-                )}
-              </div>
-              <div className="relative z-10 flex shrink-0 flex-col items-end gap-2">
-                <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
+                  {ep.overview && (
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                      {ep.overview}
+                    </p>
+                  )}
+                </div>
+                <span className="hidden shrink-0 font-mono text-xs text-muted-foreground sm:inline">
                   {episodeActionLabel === "Play" && ep.durationMs
                     ? formatDuration(ep.durationMs)
                     : episodeActionLabel}
                 </span>
+              </Link>
+              <div className="relative z-10 flex shrink-0 flex-col items-end gap-2">
                 {episodeCanResume && (
-                  <Button variant="outline" size="sm" asChild className="relative z-10">
+                  <Button variant="outline" size="sm" asChild>
                     <Link href={routes.watchFromStart("episode", ep.id, media.id)}>
                       {START_FROM_BEGINNING_LABEL}
                     </Link>
