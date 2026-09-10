@@ -18,7 +18,10 @@ import {
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { closeTvSideNav } from "@/lib/tv-side-nav";
-import { installTvRemoteBackBridge } from "@/lib/tv-back";
+import {
+  installTvRemoteBackBridge,
+  installTvWatchReentryGuard,
+} from "@/lib/tv-back";
 
 function TvNavButton({
   href,
@@ -81,8 +84,16 @@ export function TvShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     closeTvSideNav();
-    return installTvRemoteBackBridge();
-  }, []);
+    const uninstallBack = installTvRemoteBackBridge();
+    // Catalog Back must never reopen a leftover /watch history entry.
+    const uninstallWatchGuard = installTvWatchReentryGuard({
+      replace: (href) => router.replace(href),
+    });
+    return () => {
+      uninstallBack();
+      uninstallWatchGuard();
+    };
+  }, [router]);
 
   useEffect(() => {
     if (homeActive) return;

@@ -1386,7 +1386,24 @@ export interface NextEpisodeInfo {
 }
 
 export const WATCH_COMPLETED_FRACTION = 0.95;
-export const NEXT_EPISODE_COUNTDOWN_SECONDS = 10;
+/** Show the next-episode card for the final N seconds of playback. */
+export const NEXT_EPISODE_COUNTDOWN_SECONDS = 15;
+
+/**
+ * Remaining time inside the next-episode prompt window, or null when outside it.
+ * Used to drive the inline card from the playhead (not a wall clock).
+ */
+export function remainingInNextEpisodeWindow(
+  absoluteSeconds: number,
+  durationSeconds: number,
+  windowSeconds = NEXT_EPISODE_COUNTDOWN_SECONDS,
+): number | null {
+  if (!(durationSeconds > 0) || !Number.isFinite(absoluteSeconds)) return null;
+  if (absoluteSeconds < 0) return null;
+  const remaining = durationSeconds - absoluteSeconds;
+  if (remaining > windowSeconds) return null;
+  return Math.max(0, remaining);
+}
 
 /** Next episode in season order (same season, then following seasons). */
 export function findNextEpisode(

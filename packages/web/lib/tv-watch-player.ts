@@ -48,8 +48,8 @@ export function isWatchConfirmKey(key: string): boolean {
 }
 
 export type WatchBackAction =
-  | "exit-after-countdown"
-  | "close-search"
+  | "cancel-countdown"
+  | "search-to-menu"
   | "appearance-to-menu"
   | "close-panel"
   | "hide-chrome"
@@ -63,8 +63,8 @@ export function resolveWatchBackAction(state: {
   panelOpen: boolean;
   controlsVisible: boolean;
 }): WatchBackAction {
-  if (state.countdown) return "exit-after-countdown";
-  if (state.subtitleSearchOpen) return "close-search";
+  if (state.countdown) return "cancel-countdown";
+  if (state.subtitleSearchOpen) return "search-to-menu";
   if (state.subtitleAppearanceOpen) return "appearance-to-menu";
   if (state.panelOpen) return "close-panel";
   if (state.controlsVisible) return "hide-chrome";

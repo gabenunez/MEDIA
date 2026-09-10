@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
+import { isTvWatchPath } from "@/lib/tv-back";
 import { cn } from "@/lib/utils";
 
 /** Shared page frame — gutters match home rows. */
@@ -113,9 +114,17 @@ export function TvHistoryBackButton({
         onClick={() => {
           try {
             const referrer = document.referrer;
-            if (referrer && new URL(referrer).origin === window.location.origin) {
-              window.history.back();
-              return;
+            if (referrer) {
+              const url = new URL(referrer);
+              if (url.origin === window.location.origin) {
+                // Never history.back() into the player you already left.
+                if (isTvWatchPath(url.pathname)) {
+                  router.replace(fallbackHref);
+                  return;
+                }
+                window.history.back();
+                return;
+              }
             }
           } catch {
             // fall through

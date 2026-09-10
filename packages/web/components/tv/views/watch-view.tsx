@@ -33,6 +33,7 @@ import {
   shouldFailThroughContinuousMidBuffer,
   NATIVE_SEEK_COALESCE_MS,
   NATIVE_SEEK_STALL_SUPPRESS_MS,
+  NEXT_EPISODE_COUNTDOWN_SECONDS,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
 import {
@@ -286,7 +287,6 @@ export function TvWatchView() {
   const nativeIsPlayingRef = useRef(false);
   const nativePausedAtRef = useRef<number | null>(null);
   const nativeHlsRecoveryAttemptsRef = useRef(0);
-  const startNextEpisodeCountdownRef = useRef<() => void>(() => {});
   const controlsRevealedAtRef = useRef<number | null>(null);
   const pendingRevealFocusRef = useRef<"play" | "scrub" | null>(null);
   const showControlsRef = useRef(true);
@@ -533,7 +533,8 @@ export function TvWatchView() {
   const {
     countdown,
     countdownLabel,
-    startNextEpisodeCountdown,
+    syncPlaybackProgress,
+    notifyPlaybackEnded,
     cancelCountdown,
     playNextEpisodeNow,
   } = useNextEpisodeCountdown({
@@ -541,10 +542,14 @@ export function TvWatchView() {
     fileId,
     mediaId,
     media: mediaDetail,
-    onNavigate: (href) => router.push(href),
+    // Replace so binge episodes do not stack /watch under the title page.
+    onNavigate: (href) => router.replace(href),
     onFinished: handlePlaybackFinished,
   });
-  startNextEpisodeCountdownRef.current = startNextEpisodeCountdown;
+  const syncPlaybackProgressRef = useRef(syncPlaybackProgress);
+  const notifyPlaybackEndedRef = useRef(notifyPlaybackEnded);
+  syncPlaybackProgressRef.current = syncPlaybackProgress;
+  notifyPlaybackEndedRef.current = notifyPlaybackEnded;
 
   const isPreparing = initialResumeSeconds === null;
   useMarkTvBootReadyWhen(!isPreparing || Boolean(error));
@@ -686,10 +691,6 @@ export function TvWatchView() {
 
   const failThroughNativePlaybackRef = useRef(failThroughNativePlayback);
   failThroughNativePlaybackRef.current = failThroughNativePlayback;
-
-  useEffect(() => {
-    cancelCountdown();
-  }, [fileId, cancelCountdown]);
 
   useDocumentTitle(title || null);
 
@@ -1054,15 +1055,32 @@ export function TvWatchView() {
             setOptimisticAbsoluteSeconds(null);
           }
         }
-        // While chrome is hidden, keep time in refs only — avoid full watch-tree re-renders.
+        // While chrome is hidden, keep time in refs only — avoid full watch-tree
+        // re-renders. Still paint near the end so the next-episode card can track.
+        const absoluteForPrompt = getPlaybackAbsoluteSeconds({
+          usingHls: usingHlsRef.current,
+          hlsStartOffset: hlsStartOffsetRef.current,
+          relativeSeconds: state.currentTime,
+        });
+        const durationForPrompt =
+          (streamInfoRef.current?.durationMs || 0) / 1000 ||
+          (state.duration > 0
+            ? usingHlsRef.current
+              ? hlsStartOffsetRef.current + state.duration
+              : state.duration
+            : 0);
+        const nearNextEpisodePrompt =
+          durationForPrompt > 0 &&
+          durationForPrompt - absoluteForPrompt <= NEXT_EPISODE_COUNTDOWN_SECONDS + 1;
         if (
-          controlsNeedPaint &&
+          (controlsNeedPaint || nearNextEpisodePrompt) &&
           Math.abs(state.currentTime - nativePaintTimeRef.current) >= 0.25
         ) {
           nativePaintTimeRef.current = state.currentTime;
           setCurrentTime(state.currentTime);
         }
         if (state.duration > 0) setDuration(state.duration);
+        syncPlaybackProgressRef.current(absoluteForPrompt, durationForPrompt);
         if (
           typeof state.playbackEpoch === "number" &&
           state.playbackEpoch !== nativePlaybackEpochRef.current
@@ -1268,7 +1286,7 @@ export function TvWatchView() {
         }
         setIsPlaying(false);
         saveProgressRef.current();
-        startNextEpisodeCountdownRef.current();
+        notifyPlaybackEndedRef.current();
       },
     });
   }, [usesNativePlayer, captureStreamRestartPosition, restartNativeHlsAtCurrentPosition, syncNativeSubtitles]);
@@ -2246,14 +2264,22 @@ export function TvWatchView() {
           anchorSeconds: 0,
         };
         setIsPlaying(false);
-        startNextEpisodeCountdown();
+        notifyPlaybackEnded();
       },
       onCurrentTime: (seconds) => {
         setCurrentTime(seconds);
+        const absoluteTime = usingHlsPlayback
+          ? hlsStartOffsetRef.current + seconds
+          : seconds;
+        const durationSeconds =
+          (sourceDurationMs || 0) / 1000 ||
+          (duration > 0
+            ? usingHlsPlayback
+              ? hlsStartOffsetRef.current + duration
+              : duration
+            : 0);
+        syncPlaybackProgress(absoluteTime, durationSeconds);
         if (!playbackBufferingRef.current) {
-          const absoluteTime = usingHlsPlayback
-            ? hlsStartOffsetRef.current + seconds
-            : seconds;
           lastStableAbsoluteSecondsRef.current = nextStableAbsoluteSeconds(
             lastStableAbsoluteSecondsRef.current,
             absoluteTime,
@@ -2310,12 +2336,12 @@ export function TvWatchView() {
   useEffect(() => {
     if (!countdown) return;
     requestAnimationFrame(() => {
-      const first = document.querySelector<HTMLElement>(
-        "[data-tv-watch-next-episode] [data-tv-item]",
+      const cancel = document.querySelector<HTMLElement>(
+        "[data-tv-watch-next-episode] [data-tv-next-cancel]",
       );
-      if (first) focusTvItem(first);
+      if (cancel) focusTvItem(cancel);
     });
-  }, [countdown]);
+  }, [countdown?.episode.id]);
 
   useEffect(() => {
     if (!subtitleMenuOpen && !subtitleAppearanceOpen && !qualityMenuOpen) return;
@@ -2438,14 +2464,16 @@ export function TvWatchView() {
       panelOpen,
       controlsVisible,
     });
-    if (action === "exit-after-countdown") {
+    if (action === "cancel-countdown") {
       cancelCountdown();
-      exitWatch();
+      revealControls(true);
       return true;
     }
-    if (action === "close-search") {
+    if (action === "search-to-menu") {
+      // Return to the subtitle menu — not the bare video.
       setSubtitleSearchOpen(false);
-      revealControls(false);
+      setSubtitleMenuOpen(true);
+      setPanelOpen(true);
       return true;
     }
     if (action === "appearance-to-menu") {
@@ -2910,7 +2938,7 @@ export function TvWatchView() {
             tv
             onCancel={() => {
               cancelCountdown();
-              exitWatch();
+              revealControls(true);
             }}
             onPlayNow={playNextEpisodeNow}
           />
