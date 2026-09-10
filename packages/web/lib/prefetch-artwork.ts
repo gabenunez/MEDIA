@@ -19,7 +19,7 @@ import { isTvClient } from "@/lib/tv-mode-detect";
 
 const inflight = new Set<string>();
 const warmed = new Set<string>();
-/** Match TV poster CSS width (~7.5–10rem) to Next imageSizes. */
+/** Match TV poster CSS width (~7–10rem) to Next imageSizes. */
 const TV_LIST_POSTER_WIDTH = 256;
 const DESKTOP_LIST_POSTER_WIDTH = 384;
 const FOCUS_NAV_DWELL_MS = 160;

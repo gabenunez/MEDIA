@@ -2,18 +2,21 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Pre-v0.1.197 living-room catalog scale. 10-foot commits overshot this. */
+/**
+ * Living-room catalog rhythm: slightly smaller posters buy clear gaps so
+ * rows, titles, and focus rings breathe without bloating past two 1080p rows.
+ */
 export const TV_LIVING_ROOM_LAYOUT = {
-  posterWidthRem: 7.5,
-  gridPosterMinRem: 9.5,
+  posterWidthRem: 7,
+  gridPosterMinRem: 9,
   browseCardMinRem: 14,
   pageGutterRem: 2,
-  rowGapRem: 0.75,
-  sectionGapRem: 0.05,
-  scrollRowPadTopRem: 0.1,
-  scrollRowPadBottomRem: 0,
-  mainPadTopRem: 0.35,
-  mainPadBottomRem: 0.4,
+  rowGapRem: 1,
+  sectionGapRem: 0.65,
+  scrollRowPadTopRem: 0.25,
+  scrollRowPadBottomRem: 0.3,
+  mainPadTopRem: 0.55,
+  mainPadBottomRem: 0.8,
   asideWidthRem: 4.25,
   rootFontPx: 16,
   /** 1920×1080 WebView: keep a dense row, not 6–7 oversized tiles. */

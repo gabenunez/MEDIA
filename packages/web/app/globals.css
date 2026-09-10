@@ -122,15 +122,15 @@
     height: 100vh;
     max-height: 100vh;
     overflow: hidden;
-    /* Match the pre-v0.1.197 living-room scale — 197/206 overshot 10-foot sizing. */
-    --tv-poster-width: 7.5rem;
-    --tv-grid-poster-min: 9.5rem;
+    /* Slightly smaller posters + clearer gaps — dense without feeling cramped. */
+    --tv-poster-width: 7rem;
+    --tv-grid-poster-min: 9rem;
     --tv-browse-card-min: 14rem;
     --tv-page-gutter: 2rem;
-    --tv-row-gap: 0.75rem;
-    --tv-section-gap: 0.05rem;
-    --tv-scroll-pad-top: 0.1rem;
-    --tv-scroll-pad-bottom: 0rem;
+    --tv-row-gap: 1rem;
+    --tv-section-gap: 0.65rem;
+    --tv-scroll-pad-top: 0.25rem;
+    --tv-scroll-pad-bottom: 0.3rem;
     --tv-media-poster-width: 7rem;
     --tv-episode-still-width: 6.75rem;
     --tv-episode-still-height: 3.75rem;
@@ -150,7 +150,7 @@
 
   /* Shared spacing rhythm for every TV view. */
   .tv-ui > main {
-    padding-block: 0.35rem 0.4rem;
+    padding-block: 0.55rem 0.8rem;
   }
 
   /* Watch is a fixed full-bleed player — drop main padding so loading/player
@@ -166,14 +166,14 @@
   }
 
   .tv-ui .tv-row-section:last-child {
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.75rem;
   }
 
   .tv-ui .tv-row-section > h2 {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    margin-bottom: 0;
+    margin-bottom: 0.1rem;
     line-height: 1.15;
     padding-inline: var(--tv-page-gutter);
     font-size: 1rem;
@@ -197,7 +197,7 @@
   .tv-ui .tv-scroll-row {
     gap: var(--tv-row-gap);
     padding-inline: var(--tv-page-gutter);
-    /* Tight block padding — inter-row space is --tv-section-gap; main pad is overscan. */
+    /* Block pad keeps focus rings + titles clear; section gap separates rows. */
     padding-block: var(--tv-scroll-pad-top) var(--tv-scroll-pad-bottom);
     scroll-padding-inline: var(--tv-page-gutter);
     align-items: flex-start;
@@ -217,7 +217,7 @@
       minmax(var(--tv-grid-poster-min), 1fr)
     );
     column-gap: var(--tv-row-gap);
-    row-gap: 1.5rem;
+    row-gap: 1.75rem;
     padding-top: 0.5rem;
     justify-items: stretch;
   }
@@ -389,14 +389,14 @@
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
   }
 
-  /* Room above posters so focus ring is not clipped by scroll rows */
+  /* Room around posters so focus rings aren't clipped by scroll rows */
   .tv-ui .tv-poster-tile {
-    padding-top: 0.2rem;
-    padding-bottom: 0;
+    padding-top: 0.25rem;
+    padding-bottom: 0.15rem;
   }
 
   .tv-ui .tv-poster-title {
-    margin-top: 0.25rem;
+    margin-top: 0.4rem;
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.25;
@@ -408,7 +408,7 @@
 
   .tv-ui .tv-poster-title + p,
   .tv-ui .tv-poster-subtitle {
-    margin-top: 0.1rem;
+    margin-top: 0.15rem;
   }
 
   .tv-ui .tv-poster-subtitle {
@@ -455,7 +455,7 @@
     width: 100%;
     aspect-ratio: 2 / 3;
     /* Android TV WebView can ignore aspect-ratio on fill images and inflate the row. */
-    height: calc(var(--tv-poster-width, 7.5rem) * 1.5);
+    height: calc(var(--tv-poster-width, 7rem) * 1.5);
     /* Solid border focus — inset box-shadow rings render poorly on Android TV WebView. */
     border: var(--tv-focus-border-width) solid transparent;
   }
