@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.263 — 2026-09-10
+
+### TV
+- **Back** — never reopen a leftover watch entry; return to the previous menu instead
+- **Watch** — show an inline next-episode card in the last 15 seconds with Cancel, instead of a full-screen takeover
+
 ## 0.1.262 — 2026-09-09
 
 ### TV
