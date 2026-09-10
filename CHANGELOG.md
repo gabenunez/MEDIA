@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.262 — 2026-09-09
+
+### TV
+- **Focus** — unify selected vs focused states across nav, chips, buttons, cards, and watch controls
+- **Favorite** — use the shared selected state instead of a separate accent style
+
 ## 0.1.261 — 2026-09-08
 
 ### Fix
