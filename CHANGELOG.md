@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.265 — 2026-09-10
+
+### Fix
+- **Web** — clicking an episode still or title on a series page opens playback again
+
 ## 0.1.264 — 2026-09-10
 
 ### TV
