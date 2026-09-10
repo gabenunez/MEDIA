@@ -6,11 +6,11 @@ import { forwardRef, type ComponentProps, type FocusEvent } from "react";
 import { useRouter } from "next/navigation";
 import { isTvClient } from "@/lib/tv-mode-detect";
 
-/** Side rail nav icons */
+/** Side rail nav icons — active via data-tv-nav-active */
 export const tvNavItemClassName =
   "tv-focus-nav rounded-lg border-2 border-transparent outline-none ring-0 shadow-none transition-colors duration-75 ease-out";
 
-/** Standard TV buttons (back, pagination, play controls on light bg) */
+/** Standard TV buttons (back, pagination, media actions) */
 export const tvFocusRingClassName =
   "tv-focus-button rounded-lg border-2 border-transparent outline-none ring-0 shadow-none transition-colors duration-75 ease-out";
 
@@ -22,7 +22,7 @@ export const tvPosterLinkClassName =
 export const tvCardLinkClassName =
   "tv-focus-card block rounded-lg border-2 border-transparent outline-none ring-0 shadow-none transition-colors duration-75 ease-out";
 
-/** Filter / season tabs — selected state via data-tv-selected */
+/** Filter / season tabs — selected via data-tv-selected */
 export const tvChipClassName =
   "tv-focus-chip shrink-0 snap-center rounded-lg border-2 border-transparent outline-none ring-0 shadow-none transition-colors duration-75 ease-out";
 

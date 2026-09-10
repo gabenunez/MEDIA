@@ -45,13 +45,11 @@ export function TvFavoriteButton({
       type="button"
       disabled={loading}
       onClick={() => void toggle()}
+      selected={favorite}
       aria-pressed={favorite}
       aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
       className={cn(
-        "inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-base font-semibold",
-        favorite
-          ? "border-accent/40 bg-accent/15 text-accent"
-          : "border-border bg-muted/60 text-foreground",
+        "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-base font-semibold",
         className,
       )}
     >
