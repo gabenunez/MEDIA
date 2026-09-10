@@ -19,7 +19,7 @@ describe("TV living-room catalog scale", () => {
   const css = readTvGlobalsCss(webRoot);
   const tvUi = readCssCustomProps(extractCssBlock(css, ".tv-ui {"));
 
-  it("keeps catalog tokens at pre-v0.1.197 living-room size", () => {
+  it("keeps catalog tokens at a breathing living-room scale", () => {
     expect(parseRem(tvUi["--tv-poster-width"])).toBe(TV_LIVING_ROOM_LAYOUT.posterWidthRem);
     expect(parseRem(tvUi["--tv-grid-poster-min"])).toBe(TV_LIVING_ROOM_LAYOUT.gridPosterMinRem);
     expect(parseRem(tvUi["--tv-browse-card-min"])).toBe(TV_LIVING_ROOM_LAYOUT.browseCardMinRem);
@@ -48,11 +48,11 @@ describe("TV living-room catalog scale", () => {
 
   it("keeps two home rows inside a 1080p TV viewport", () => {
     const layout = TV_LIVING_ROOM_LAYOUT;
-    const headerRem = 1.15;
-    const tilePadRem = 0.2;
+    const headerRem = 1.25;
+    const tilePadRem = 0.4;
     const artRem = layout.posterWidthRem * 1.5;
-    const titleRem = 0.25 + 1.25 * 0.875;
-    const subtitleRem = 0.1 + 0.875;
+    const titleRem = 0.4 + 1.25 * 0.875;
+    const subtitleRem = 0.15 + 0.875;
     const row = (subtitle: boolean) =>
       headerRem +
       layout.scrollRowPadTopRem +

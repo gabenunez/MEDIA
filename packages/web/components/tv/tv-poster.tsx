@@ -77,7 +77,7 @@ export const TvPoster = memo(function TvPoster({
         tabIndex={0}
         className={cn(
           tvPosterLinkClassName,
-          "group w-[var(--tv-poster-width,7.5rem)]",
+          "group w-[var(--tv-poster-width,7rem)]",
           linkClassName,
         )}
         aria-label={subtitle ? `${item.title}, ${subtitle}` : item.title}
@@ -98,8 +98,8 @@ export const TvPoster = memo(function TvPoster({
               quality={TV_LIST_IMAGE_QUALITY}
               sizes={
                 layout === "grid"
-                  ? "(min-width: 1920px) 12rem, 9.5rem"
-                  : "(min-width: 1920px) 8rem, 7.5rem"
+                  ? "(min-width: 1920px) 11rem, 9rem"
+                  : "(min-width: 1920px) 7.5rem, 7rem"
               }
               className="object-cover"
             />

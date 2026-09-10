@@ -20,7 +20,7 @@ export function TvSeeAllTile({ href, label, detail, className }: TvSeeAllTilePro
         href={href}
         variant="poster"
         aria-label={label}
-        className="group w-[var(--tv-poster-width,7.5rem)]"
+        className="group w-[var(--tv-poster-width,7rem)]"
       >
         <div className="tv-poster-art relative flex aspect-[2/3] flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary/10">
           <LayoutGrid className="h-8 w-8 text-primary" />
