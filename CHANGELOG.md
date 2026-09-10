@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.264 — 2026-09-10
+
+### TV
+- **Home** — slightly smaller posters with clearer row and section gaps so catalog rows breathe on 1080p
+
 ## 0.1.263 — 2026-09-10
 
 ### TV
