@@ -1692,8 +1692,41 @@
     background-color: transparent !important;
   }
 
+  /* Inline next-episode card — keep video visible; do not paint a full-screen black sheet */
   html[data-native-video="true"] [data-tv-watch-next-episode] {
-    background-color: rgb(0 0 0) !important;
+    background-color: transparent !important;
+  }
+
+  @keyframes tv-next-episode-in {
+    from {
+      opacity: 0;
+      transform: translate3d(1.25rem, 1.5rem, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  .animate-tv-next-episode-in {
+    animation: tv-next-episode-in 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-tv-next-episode-in {
+      animation: tv-next-episode-in 160ms ease-out both;
+    }
+
+    @keyframes tv-next-episode-in {
+      from {
+        opacity: 0;
+        transform: none;
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
   }
 
   html[data-native-video="true"] [data-tv-watch-player] [class*="backdrop-blur"] {
@@ -1717,28 +1750,31 @@
   }
 
   .tv-ui [data-tv-watch-next-preview] {
-    width: min(42rem, 46vw);
+    width: 100%;
     aspect-ratio: 16 / 9;
   }
 
-  .tv-ui [data-tv-watch-next-episode] [data-tv-item].tv-focus-button {
-    min-height: 3.5rem;
-    padding-inline: 1.5rem;
-    font-size: 1.25rem;
-  }
-
-  .tv-ui [data-tv-watch-next-episode] [data-tv-next-play] {
-    background-color: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    border-color: transparent;
-  }
-
-  .tv-ui [data-tv-watch-next-episode] [data-tv-next-play][data-tv-focused] {
-    background-color: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    border-color: hsl(var(--primary-foreground) / 0.85);
+  /* Poster card: focus = solid border only — keep the still visible */
+  .tv-ui [data-tv-watch-next-episode] [data-tv-item][data-tv-watch-next-preview],
+  .tv-ui [data-tv-watch-next-episode] [data-tv-item][data-tv-watch-next-preview][data-tv-focused],
+  .tv-ui [data-tv-watch-next-episode] [data-tv-item][data-tv-watch-next-preview][data-tv-selected],
+  .tv-ui [data-tv-watch-next-episode] [data-tv-item][data-tv-watch-next-preview][data-tv-selected][data-tv-focused] {
+    background-color: rgb(10 10 10);
+    color: #fff;
     box-shadow: none;
     transform: none;
+  }
+
+  .tv-ui [data-tv-watch-next-episode] [data-tv-item][data-tv-watch-next-preview][data-tv-focused] {
+    border: var(--tv-focus-border);
+  }
+
+  .tv-ui [data-tv-watch-next-episode] [data-tv-next-cancel].tv-focus-button {
+    min-height: 3rem;
+    padding-inline: 1.25rem;
+    font-size: 1.05rem;
+    background-color: rgb(0 0 0 / 0.82);
+    border: 2px solid rgb(255 255 255 / 0.22);
   }
 
   .tv-ui [data-tv-watch-next-episode] [data-tv-next-cancel][data-tv-focused] {
@@ -1748,8 +1784,8 @@
     transform: none;
   }
 
-  html.tv-mode.tv-4k .tv-ui [data-tv-watch-next-preview] {
-    width: min(48rem, 46vw);
+  html.tv-mode.tv-4k .tv-ui [data-tv-watch-next-episode] {
+    width: min(26rem, 30vw);
   }
 
   /* TV watch — compact overlay chrome; video stays full-screen behind controls */

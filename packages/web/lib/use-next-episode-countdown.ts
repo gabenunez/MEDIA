@@ -7,6 +7,7 @@ import {
   findNextEpisode,
   formatEpisodeLabel,
   NEXT_EPISODE_COUNTDOWN_SECONDS,
+  remainingInNextEpisodeWindow,
   resolveInitialStreamQuality,
   resolvePlaybackStream,
   type NextEpisodeInfo,
@@ -22,6 +23,11 @@ export interface NextEpisodeCountdownState extends NextEpisodeInfo {
   secondsLeft: number;
 }
 
+function displaySecondsLeft(remaining: number): number {
+  if (remaining <= 0) return 0;
+  return Math.max(1, Math.ceil(remaining));
+}
+
 export function useNextEpisodeCountdown(options: {
   type: "movie" | "episode";
   fileId: number;
@@ -32,48 +38,35 @@ export function useNextEpisodeCountdown(options: {
 }) {
   const { type, fileId, mediaId, media, onNavigate, onFinished } = options;
   const [countdown, setCountdown] = useState<NextEpisodeCountdownState | null>(null);
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onFinishedRef = useRef(onFinished);
-  const pendingStartRef = useRef(false);
+  const dismissedRef = useRef(false);
+  const navigatingRef = useRef(false);
+  const mediaRef = useRef(media);
+  const countdownRef = useRef(countdown);
   onFinishedRef.current = onFinished;
+  mediaRef.current = media;
+  countdownRef.current = countdown;
 
   const clearCountdown = useCallback(() => {
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
     setCountdown(null);
-    pendingStartRef.current = false;
   }, []);
 
   const playNextEpisodeNow = useCallback(
     (next: NextEpisodeInfo) => {
+      if (navigatingRef.current) return;
       if (!mediaId) {
         onFinishedRef.current?.();
         return;
       }
 
+      navigatingRef.current = true;
       clearCountdown();
       onNavigate(routes.watch("episode", next.episode.id, parseInt(mediaId, 10)));
     },
     [clearCountdown, mediaId, onNavigate],
   );
 
-  const beginCountdown = useCallback((
-    next: NextEpisodeInfo,
-    mediaDetail?: PlaybackMediaDetail | null,
-  ) => {
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-
-    setCountdown({
-      ...next,
-      secondsLeft: NEXT_EPISODE_COUNTDOWN_SECONDS,
-    });
-    preloadNextEpisodeArtwork(next, mediaDetail);
-
+  const warmNextEpisodeStream = useCallback((next: NextEpisodeInfo) => {
     void api
       .getStreamInfo(next.episode.id, "episode")
       .then((info) => {
@@ -102,25 +95,106 @@ export function useNextEpisodeCountdown(options: {
       .catch(() => {});
   }, []);
 
-  const startNextEpisodeCountdown = useCallback(() => {
+  const resolveNext = useCallback((): NextEpisodeInfo | null => {
+    if (type !== "episode" || !mediaId) return null;
+    const detail = mediaRef.current;
+    if (!detail) return null;
+    return findNextEpisode(detail, fileId);
+  }, [type, mediaId, fileId]);
+
+  const showOrUpdateCountdown = useCallback(
+    (next: NextEpisodeInfo, remaining: number) => {
+      const secondsLeft = displaySecondsLeft(remaining);
+      const detail = mediaRef.current;
+      setCountdown((current) => {
+        if (
+          current &&
+          current.episode.id === next.episode.id &&
+          current.secondsLeft === secondsLeft
+        ) {
+          return current;
+        }
+        if (!current || current.episode.id !== next.episode.id) {
+          preloadNextEpisodeArtwork(next, detail);
+          warmNextEpisodeStream(next);
+        }
+        return { ...next, secondsLeft };
+      });
+    },
+    [warmNextEpisodeStream],
+  );
+
+  /** Drive the card from the playhead — appears in the last N seconds. */
+  const syncPlaybackProgress = useCallback(
+    (absoluteSeconds: number, durationSeconds: number) => {
+      if (navigatingRef.current || dismissedRef.current) return;
+      if (type !== "episode" || !mediaId) return;
+
+      const remaining = remainingInNextEpisodeWindow(
+        absoluteSeconds,
+        durationSeconds,
+        NEXT_EPISODE_COUNTDOWN_SECONDS,
+      );
+
+      if (remaining === null) {
+        // Seeked back out of the window — hide, but allow it again later.
+        if (countdownRef.current) clearCountdown();
+        return;
+      }
+
+      const next = resolveNext();
+      if (!next) return;
+
+      // End of file is handled by notifyPlaybackEnded to avoid double navigate.
+      if (remaining <= 0.05) return;
+
+      showOrUpdateCountdown(next, remaining);
+    },
+    [
+      type,
+      mediaId,
+      resolveNext,
+      showOrUpdateCountdown,
+      clearCountdown,
+    ],
+  );
+
+  /**
+   * Episode ended. Play next unless the user cancelled the prompt, or leave
+   * watch when there is no next episode.
+   */
+  const notifyPlaybackEnded = useCallback(() => {
+    if (navigatingRef.current) return;
+
     if (type !== "episode" || !mediaId) {
       onFinishedRef.current?.();
       return;
     }
 
-    if (!media) {
-      pendingStartRef.current = true;
+    if (dismissedRef.current) {
+      onFinishedRef.current?.();
       return;
     }
 
-    const next = findNextEpisode(media, fileId);
+    const next = resolveNext() ?? countdownRef.current;
     if (!next) {
       onFinishedRef.current?.();
       return;
     }
 
-    beginCountdown(next, media);
-  }, [type, mediaId, media, fileId, beginCountdown]);
+    playNextEpisodeNow(next);
+  }, [type, mediaId, resolveNext, playNextEpisodeNow]);
+
+  const cancelCountdown = useCallback(() => {
+    dismissedRef.current = true;
+    clearCountdown();
+  }, [clearCountdown]);
+
+  useEffect(() => {
+    dismissedRef.current = false;
+    navigatingRef.current = false;
+    clearCountdown();
+  }, [fileId, clearCountdown]);
 
   useEffect(() => {
     if (type !== "episode" || !media) return;
@@ -129,54 +203,19 @@ export function useNextEpisodeCountdown(options: {
     preloadNextEpisodeArtwork(next, media);
   }, [type, media, fileId]);
 
-  useEffect(() => {
-    if (!media || !pendingStartRef.current) return;
-    pendingStartRef.current = false;
-
-    const next = findNextEpisode(media, fileId);
-    if (!next) {
-      onFinishedRef.current?.();
-      return;
-    }
-
-    beginCountdown(next, media);
-  }, [media, fileId, beginCountdown]);
-
-  useEffect(() => {
-    if (!countdown) return;
-
-    countdownTimerRef.current = setInterval(() => {
-      setCountdown((current) => {
-        if (!current) return null;
-        if (current.secondsLeft <= 1) {
-          if (countdownTimerRef.current) {
-            clearInterval(countdownTimerRef.current);
-            countdownTimerRef.current = null;
-          }
-          playNextEpisodeNow(current);
-          return null;
-        }
-        return { ...current, secondsLeft: current.secondsLeft - 1 };
-      });
-    }, 1000);
-
-    return () => {
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
-    };
-  }, [countdown?.episode.id, playNextEpisodeNow]);
-
   return {
     countdown,
     countdownLabel: countdown
       ? formatEpisodeLabel(countdown.episode, countdown.seasonNumber)
       : null,
-    startNextEpisodeCountdown,
-    cancelCountdown: clearCountdown,
+    syncPlaybackProgress,
+    notifyPlaybackEnded,
+    /** @deprecated Prefer syncPlaybackProgress + notifyPlaybackEnded */
+    startNextEpisodeCountdown: notifyPlaybackEnded,
+    cancelCountdown,
     playNextEpisodeNow: () => {
-      if (countdown) playNextEpisodeNow(countdown);
+      const next = countdownRef.current ?? resolveNext();
+      if (next) playNextEpisodeNow(next);
     },
   };
 }

@@ -319,7 +319,8 @@ function WatchDesktopClient() {
   const {
     countdown,
     countdownLabel,
-    startNextEpisodeCountdown,
+    syncPlaybackProgress,
+    notifyPlaybackEnded,
     cancelCountdown,
     playNextEpisodeNow,
   } = useNextEpisodeCountdown({
@@ -330,10 +331,6 @@ function WatchDesktopClient() {
     onNavigate: (href) => router.push(href),
     onFinished: handlePlaybackFinished,
   });
-
-  useEffect(() => {
-    cancelCountdown();
-  }, [fileId, cancelCountdown]);
 
   useDocumentTitle(title || null);
 
@@ -1151,10 +1148,21 @@ function WatchDesktopClient() {
           anchorSeconds: 0,
         };
         setIsPlaying(false);
-        startNextEpisodeCountdown();
+        notifyPlaybackEnded();
       },
       onCurrentTime: (seconds) => {
         setCurrentTime(seconds);
+        const absoluteTime = usingHlsPlayback
+          ? hlsStartOffsetRef.current + seconds
+          : seconds;
+        const durationSeconds =
+          (sourceDurationMs || 0) / 1000 ||
+          (duration > 0
+            ? usingHlsPlayback
+              ? hlsStartOffsetRef.current + duration
+              : duration
+            : 0);
+        syncPlaybackProgress(absoluteTime, durationSeconds);
         if (
           isPlayingRef.current &&
           !playbackBufferingRef.current &&
@@ -1192,9 +1200,6 @@ function WatchDesktopClient() {
           }
         }
         if (!playbackBufferingRef.current) {
-          const absoluteTime = usingHlsPlayback
-            ? hlsStartOffsetRef.current + seconds
-            : seconds;
           lastStableAbsoluteSecondsRef.current = nextStableAbsoluteSeconds(
             lastStableAbsoluteSecondsRef.current,
             absoluteTime,
@@ -1647,7 +1652,6 @@ function WatchDesktopClient() {
           fallbackArt={mediaDetail?.backdropPath ?? mediaDetail?.posterPath}
           onCancel={() => {
             cancelCountdown();
-            router.push(backHref);
           }}
           onPlayNow={playNextEpisodeNow}
         />

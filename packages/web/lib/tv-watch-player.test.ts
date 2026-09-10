@@ -90,10 +90,10 @@ describe("resolveWatchBackAction", () => {
 
   it("peels one layer per Back press", () => {
     expect(resolveWatchBackAction({ ...idle, countdown: true })).toBe(
-      "exit-after-countdown",
+      "cancel-countdown",
     );
     expect(resolveWatchBackAction({ ...idle, subtitleSearchOpen: true })).toBe(
-      "close-search",
+      "search-to-menu",
     );
     expect(resolveWatchBackAction({ ...idle, subtitleAppearanceOpen: true })).toBe(
       "appearance-to-menu",
@@ -114,7 +114,7 @@ describe("resolveWatchBackAction", () => {
         panelOpen: true,
         controlsVisible: true,
       }),
-    ).toBe("exit-after-countdown");
+    ).toBe("cancel-countdown");
   });
 });
 

@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { tvImageUrl } from "@/lib/tv-image";
 import { NEXT_EPISODE_COUNTDOWN_SECONDS } from "@/lib/playback-utils";
 import { PLAYBACK_IMAGE_QUALITY, PLAYBACK_IMAGE_WIDTH } from "@/lib/next-image-url";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { usePreloadedImage } from "@/lib/use-preloaded-image";
 import type { NextEpisodeCountdownState } from "@/lib/use-next-episode-countdown";
 
@@ -21,7 +21,8 @@ interface NextEpisodeCountdownOverlayProps {
   fallbackArt?: string | null;
 }
 
-function CountdownRing({
+/** Circular progress loader overlaid on the next-episode still. */
+function CountdownLoader({
   secondsLeft,
   total,
   size,
@@ -30,30 +31,25 @@ function CountdownRing({
   total: number;
   size: "tv" | "desktop";
 }) {
-  const r = 34;
+  const r = 28;
   const c = 2 * Math.PI * r;
   const progress = Math.max(0, Math.min(1, secondsLeft / total));
+  const dim = size === "tv" ? "h-14 w-14" : "h-12 w-12";
 
   return (
-    <div
-      className={cn(
-        "relative shrink-0 text-primary",
-        size === "tv" ? "h-[5.5rem] w-[5.5rem]" : "h-16 w-16",
-      )}
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
+    <div className={cn("relative shrink-0 text-primary", dim)} aria-hidden="true">
+      <svg viewBox="0 0 68 68" className="h-full w-full -rotate-90">
         <circle
-          cx="40"
-          cy="40"
+          cx="34"
+          cy="34"
           r={r}
           fill="none"
-          stroke="rgba(255,255,255,0.22)"
+          stroke="rgba(255,255,255,0.28)"
           strokeWidth="4"
         />
         <circle
-          cx="40"
-          cy="40"
+          cx="34"
+          cy="34"
           r={r}
           fill="none"
           stroke="currentColor"
@@ -64,8 +60,13 @@ function CountdownRing({
           className="transition-[stroke-dashoffset] duration-1000 ease-linear"
         />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center font-semibold tabular-nums text-white">
-        <span className={size === "tv" ? "text-3xl" : "text-2xl"}>{secondsLeft}</span>
+      <span
+        className={cn(
+          "absolute inset-0 flex items-center justify-center font-semibold tabular-nums text-white",
+          size === "tv" ? "text-xl" : "text-lg",
+        )}
+      >
+        {secondsLeft}
       </span>
     </div>
   );
@@ -104,15 +105,21 @@ function PreviewStill({
   );
 }
 
+/**
+ * Inline “up next” card — bottom-right over the playing/ended frame.
+ * Auto-advances; Cancel dismisses without starting the next episode.
+ */
 export function NextEpisodeCountdownOverlay({
   countdown,
   label,
   onCancel,
   onPlayNow,
   tv = false,
-  seriesTitle,
+  seriesTitle: _seriesTitle,
   fallbackArt,
 }: NextEpisodeCountdownOverlayProps) {
+  void _seriesTitle;
+
   const previewPath = countdown.episode.stillPath ?? fallbackArt ?? null;
   const previewUrl = tv
     ? tvImageUrl(previewPath, { hd: true })
@@ -122,85 +129,114 @@ export function NextEpisodeCountdownOverlay({
     PLAYBACK_IMAGE_WIDTH,
     PLAYBACK_IMAGE_QUALITY,
   );
-  const overview = countdown.episode.overview?.trim();
-  const duration = countdown.episode.durationMs
-    ? formatDuration(countdown.episode.durationMs)
-    : null;
   const progressPct =
     (countdown.secondsLeft / NEXT_EPISODE_COUNTDOWN_SECONDS) * 100;
+  const statusText = `Next episode playing in ${countdown.secondsLeft} ${
+    countdown.secondsLeft === 1 ? "second" : "seconds"
+  }`;
 
-  const playNow = tv ? (
+  const cancelButton = tv ? (
     <TvFocusButton
       autoFocus
-      data-tv-next-play=""
-      onClick={onPlayNow}
-      className="rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground"
-    >
-      Play now
-    </TvFocusButton>
-  ) : (
-    <Button autoFocus onClick={onPlayNow} className="rounded-xl px-6 py-3 font-semibold">
-      Play now
-    </Button>
-  );
-
-  const cancel = tv ? (
-    <TvFocusButton
       data-tv-next-cancel=""
       onClick={onCancel}
-      className="rounded-xl border border-white/20 px-6 py-3 font-semibold text-white"
+      className="w-full rounded-lg px-4 py-2.5 text-base font-semibold text-white"
     >
       Cancel
     </TvFocusButton>
   ) : (
     <Button
+      autoFocus
       variant="outline"
       onClick={onCancel}
-      className="rounded-xl border-white/20 bg-transparent px-6 py-3 font-semibold text-white hover:bg-white/10"
+      className="w-full rounded-lg border-white/20 bg-black/80 px-4 py-2.5 font-semibold text-white hover:bg-white/10"
     >
       Cancel
     </Button>
   );
 
-  const copy = (
-    <>
-      <p
-        className={cn(
-          "mb-2 font-mono uppercase tracking-[0.2em] text-white/60",
-          tv ? "text-sm" : "text-xs",
-        )}
-      >
-        Up next
-      </p>
-      {seriesTitle ? (
-        <p className={cn("mb-1 text-white/80", tv ? "text-lg" : "text-sm")}>{seriesTitle}</p>
-      ) : null}
-      <p
-        className={cn(
-          "mb-3 font-semibold leading-tight text-white",
-          tv ? "text-3xl" : "text-2xl",
-        )}
-      >
-        {label}
-      </p>
-      {overview ? (
+  const previewBody = (
+    <div className="relative aspect-video w-full">
+      {previewUrl ? (
+        <PreviewStill
+          url={previewUrl}
+          ready={previewReady}
+          eager={tv}
+          quality={PLAYBACK_IMAGE_QUALITY}
+          sizes={tv ? "32vw" : "20rem"}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center bg-neutral-900 font-mono text-3xl font-bold text-white/35">
+          {String(countdown.episode.episodeNumber).padStart(2, "0")}
+        </div>
+      )}
+
+      {/* Solid scrim — no backdrop-blur (Android TV WebView). */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/15" />
+
+      <div className="pointer-events-none absolute right-3 top-3">
+        <CountdownLoader
+          secondsLeft={countdown.secondsLeft}
+          total={NEXT_EPISODE_COUNTDOWN_SECONDS}
+          size={tv ? "tv" : "desktop"}
+        />
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3.5 pt-10">
         <p
           className={cn(
-            "mb-4 line-clamp-3 text-white/75",
-            tv ? "text-lg leading-snug" : "text-sm leading-6",
+            "font-semibold leading-snug text-white",
+            tv ? "text-base" : "text-sm",
+          )}
+          aria-live="polite"
+        >
+          {statusText}
+        </p>
+        <p
+          className={cn(
+            "mt-1 truncate text-white/75",
+            tv ? "text-sm" : "text-xs",
           )}
         >
-          {overview}
+          {label}
         </p>
-      ) : null}
-      <p
-        className={cn("text-white/80", tv ? "mb-6 text-lg" : "mb-6 text-base")}
-        aria-live="polite"
-      >
-        {duration ? `${duration} · ` : null}
-        Playing in {countdown.secondsLeft}s
-      </p>
-    </>
+        <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/20">
+          <div
+            className="h-full bg-primary transition-[width] duration-1000 ease-linear"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const previewCard = tv ? (
+    <TvFocusButton
+      variant="card"
+      data-tv-watch-next-preview=""
+      data-tv-next-play=""
+      onClick={onPlayNow}
+      aria-label={`Play now: ${label}`}
+      className="relative block w-full overflow-hidden rounded-xl border-2 border-white/20 bg-neutral-950 p-0 text-left"
+    >
+      {previewBody}
+    </TvFocusButton>
+  ) : (
+    <button
+      type="button"
+      onClick={onPlayNow}
+      className="relative block w-full overflow-hidden rounded-xl border-2 border-white/20 bg-neutral-950 text-left outline-none focus-visible:border-primary"
+      aria-label={`Play now: ${label}`}
+    >
+      {previewBody}
+    </button>
+  );
+
+  const card = (
+    <div className="flex flex-col gap-3">
+      {previewCard}
+      {cancelButton}
+    </div>
   );
 
   if (tv) {
@@ -208,122 +244,21 @@ export function NextEpisodeCountdownOverlay({
       <div
         data-tv-watch-next-episode=""
         role="dialog"
-        aria-label="Up next"
-        className="absolute inset-0 z-30 overflow-hidden bg-black"
+        aria-label="Next episode"
+        className="pointer-events-none absolute bottom-10 right-10 z-30 w-[min(22rem,32vw)] animate-tv-next-episode-in"
       >
-        {previewUrl ? (
-          <div className="absolute inset-0 opacity-80">
-            <PreviewStill
-              url={previewUrl}
-              ready={previewReady}
-              eager
-              quality={PLAYBACK_IMAGE_QUALITY}
-              sizes="100vw"
-            />
-          </div>
-        ) : null}
-        <div className="pointer-events-none absolute inset-0 bg-black/50" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black via-black/75 to-black/20" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black to-transparent" />
-
-        <div className="relative z-10 flex h-full items-center gap-10 px-16 py-12">
-          <div
-            data-tv-watch-next-preview=""
-            className="relative shrink-0 overflow-hidden rounded-xl border-2 border-white/20 bg-black"
-          >
-            {previewUrl ? (
-              <PreviewStill
-                url={previewUrl}
-                ready={previewReady}
-                eager
-                quality={PLAYBACK_IMAGE_QUALITY}
-                sizes="50vw"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center font-mono text-4xl font-bold text-white/40">
-                {String(countdown.episode.episodeNumber).padStart(2, "0")}
-              </div>
-            )}
-            <div className="absolute right-4 top-4">
-              <CountdownRing
-                secondsLeft={countdown.secondsLeft}
-                total={NEXT_EPISODE_COUNTDOWN_SECONDS}
-                size="tv"
-              />
-            </div>
-            <div className="absolute inset-x-0 bottom-0 h-1.5 bg-white/20">
-              <div
-                className="h-full bg-primary transition-[width] duration-1000 ease-linear"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="min-w-0 max-w-xl flex-1">
-            {copy}
-            <div className="flex flex-wrap items-center gap-3">
-              {playNow}
-              {cancel}
-            </div>
-          </div>
-        </div>
+        <div className="pointer-events-auto">{card}</div>
       </div>
     );
   }
 
   return (
-    <div className="absolute inset-0 z-30 overflow-hidden bg-black" role="dialog" aria-label="Up next">
-      {previewUrl ? (
-        <div className="absolute inset-0 opacity-70">
-          <PreviewStill
-            url={previewUrl}
-            ready={previewReady}
-            quality={PLAYBACK_IMAGE_QUALITY}
-            sizes="100vw"
-          />
-        </div>
-      ) : null}
-      <div className="absolute inset-0 bg-black/70" />
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-8">
-        {previewUrl ? (
-          <div className="relative mb-6 aspect-video w-full max-w-xl overflow-hidden rounded-xl border border-white/15 bg-black">
-            <PreviewStill
-              url={previewUrl}
-              ready={previewReady}
-              quality={PLAYBACK_IMAGE_QUALITY}
-              sizes="36rem"
-            />
-            <div className="absolute right-3 top-3">
-              <CountdownRing
-                secondsLeft={countdown.secondsLeft}
-                total={NEXT_EPISODE_COUNTDOWN_SECONDS}
-                size="desktop"
-              />
-            </div>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
-              <div
-                className="h-full bg-primary transition-[width] duration-1000 ease-linear"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="mb-6">
-            <CountdownRing
-              secondsLeft={countdown.secondsLeft}
-              total={NEXT_EPISODE_COUNTDOWN_SECONDS}
-              size="desktop"
-            />
-          </div>
-        )}
-        <div className="min-w-0 max-w-lg text-center">
-          {copy}
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {playNow}
-            {cancel}
-          </div>
-        </div>
-      </div>
+    <div
+      role="dialog"
+      aria-label="Next episode"
+      className="pointer-events-none absolute bottom-8 right-8 z-30 w-[min(20rem,38vw)] animate-tv-next-episode-in"
+    >
+      <div className="pointer-events-auto">{card}</div>
     </div>
   );
 }
