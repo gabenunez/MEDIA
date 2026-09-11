@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.267 — 2026-09-11
+
+### TV
+- **Playback** — size ExoPlayer buffers from the TV's available heap and system memory for all titles, not fixed worst-case constants (APK 1.5.22)
+
 ## 0.1.266 — 2026-09-11
 
 ### TV
