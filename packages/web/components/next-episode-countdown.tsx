@@ -107,7 +107,7 @@ function PreviewStill({
 
 /**
  * Inline “up next” card — bottom-right over the playing/ended frame.
- * Auto-advances; Cancel dismisses without starting the next episode.
+ * Auto-advances; Play now starts immediately; Cancel dismisses the prompt.
  */
 export function NextEpisodeCountdownOverlay({
   countdown,
@@ -135,28 +135,48 @@ export function NextEpisodeCountdownOverlay({
     countdown.secondsLeft === 1 ? "second" : "seconds"
   }`;
 
-  const cancelButton = tv ? (
-    <TvFocusButton
-      autoFocus
-      data-tv-next-cancel=""
-      onClick={onCancel}
-      className="w-full rounded-lg px-4 py-2.5 text-base font-semibold text-white"
-    >
-      Cancel
-    </TvFocusButton>
+  const actions = tv ? (
+    <div className="flex flex-col gap-2">
+      <TvFocusButton
+        autoFocus
+        data-tv-next-play=""
+        onClick={onPlayNow}
+        className="w-full rounded-lg bg-primary px-4 py-2.5 text-base font-semibold text-primary-foreground"
+      >
+        Play now
+      </TvFocusButton>
+      <TvFocusButton
+        data-tv-next-cancel=""
+        onClick={onCancel}
+        className="w-full rounded-lg px-4 py-2.5 text-base font-semibold text-white"
+      >
+        Cancel
+      </TvFocusButton>
+    </div>
   ) : (
-    <Button
-      autoFocus
-      variant="outline"
-      onClick={onCancel}
-      className="w-full rounded-lg border-white/20 bg-black/80 px-4 py-2.5 font-semibold text-white hover:bg-white/10"
-    >
-      Cancel
-    </Button>
+    <div className="flex flex-col gap-2">
+      <Button
+        autoFocus
+        onClick={onPlayNow}
+        className="w-full rounded-lg px-4 py-2.5 font-semibold"
+      >
+        Play now
+      </Button>
+      <Button
+        variant="outline"
+        onClick={onCancel}
+        className="w-full rounded-lg border-white/20 bg-black/80 px-4 py-2.5 font-semibold text-white hover:bg-white/10"
+      >
+        Cancel
+      </Button>
+    </div>
   );
 
-  const previewBody = (
-    <div className="relative aspect-video w-full">
+  const preview = (
+    <div
+      data-tv-watch-next-preview=""
+      className="relative aspect-video w-full overflow-hidden rounded-xl border-2 border-white/20 bg-neutral-950"
+    >
       {previewUrl ? (
         <PreviewStill
           url={previewUrl}
@@ -210,32 +230,10 @@ export function NextEpisodeCountdownOverlay({
     </div>
   );
 
-  const previewCard = tv ? (
-    <TvFocusButton
-      variant="card"
-      data-tv-watch-next-preview=""
-      data-tv-next-play=""
-      onClick={onPlayNow}
-      aria-label={`Play now: ${label}`}
-      className="relative block w-full overflow-hidden rounded-xl border-2 border-white/20 bg-neutral-950 p-0 text-left"
-    >
-      {previewBody}
-    </TvFocusButton>
-  ) : (
-    <button
-      type="button"
-      onClick={onPlayNow}
-      className="relative block w-full overflow-hidden rounded-xl border-2 border-white/20 bg-neutral-950 text-left outline-none focus-visible:border-primary"
-      aria-label={`Play now: ${label}`}
-    >
-      {previewBody}
-    </button>
-  );
-
   const card = (
     <div className="flex flex-col gap-3">
-      {previewCard}
-      {cancelButton}
+      {preview}
+      {actions}
     </div>
   );
 

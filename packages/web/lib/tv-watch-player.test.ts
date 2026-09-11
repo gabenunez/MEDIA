@@ -572,8 +572,9 @@ describe("TV native player unbind on exit", () => {
     expect(nativePlayer).toContain("setKeepContentOnPlayerReset(true)");
   });
 
-  it("uses a shorter ExoPlayer buffer band for UHD native playback", () => {
+  it("uses a mid-band ExoPlayer buffer for UHD native playback", () => {
     expect(nativePlayer).toContain("UHD_PROGRESSIVE_MAX_BUFFER_MS");
+    expect(nativePlayer).toContain("UHD_TRANSFER_STALL_AHEAD_MS");
     expect(nativePlayer).toContain("createLoadControl");
     expect(watchView).toContain("sourceHeight:");
     const manifest = readFileSync(
