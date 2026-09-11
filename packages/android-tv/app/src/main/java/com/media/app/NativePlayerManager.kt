@@ -1,5 +1,7 @@
 package com.media.app
 
+import android.app.ActivityManager
+import android.content.Context
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
@@ -63,6 +65,7 @@ class NativePlayerManager(
     /** Timestamps of mid-playback rebuffer starts (after first READY). */
     private val midRebufferAtMs = ArrayDeque<Long>()
     private var activeLoadControl: TimeBandLoadControl? = null
+    private var activeTransferStallAheadMs = 60_000L
     private var transferListener: DiagTransferListener? = null
     private var lastBandwidthEstimate: Long = 0L
     private var lastEmittedPlaybackState: Int = Player.STATE_IDLE
@@ -76,6 +79,7 @@ class NativePlayerManager(
     private var stagingPlayer: ExoPlayer? = null
     private var stagingPayload: PlaybackPayload? = null
     private var stagingLoadControl: TimeBandLoadControl? = null
+    private var stagingTransferStallAheadMs = 60_000L
     private var handoffOriginPositionMs = 0L
     private var handoffCheckRunnable: Runnable? = null
     private var playbackEpoch = 0
@@ -152,23 +156,25 @@ class NativePlayerManager(
 
         val diagTransfers = DiagTransferListener()
         transferListener = diagTransfers
-        // Progressive: clamp each Range to 4MB so a hung socket cannot drain the
-        // ~110s buffer (see 1.5.14 logs: one len=-1 transfer open for 508s).
-        // HLS segments are already bounded — leave them unchunked.
+        // Progressive: clamp each Range so a hung socket cannot drain the buffer
+        // (see 1.5.14 logs: one len=-1 transfer open for 508s). Chunk size and
+        // time bands come from DeviceBufferBudget. HLS is unchunked.
+        val setup = createLoadControl(payload)
         val mediaSourceFactory =
             authenticatedMediaSourceFactory(
                 sessionToken = sessionToken,
                 transferListener = diagTransfers,
-                chunkBytes = if (payload.isHls) 0L else PROGRESSIVE_HTTP_CHUNK_BYTES,
+                chunkBytes = setup.progressiveChunkBytes,
             )
         // Time-band LoadControl (see TimeBandLoadControl): fill to max, pause
         // until min, refill. DefaultLoadControl also stops when the byte target
         // is hit once buffered>=min — that collapsed this band into min-watermark
         // Range thrash on high-bitrate progressive (mid-play BUFFERING on a
         // stable LAN). TimeBandLoadControl only pauses at maxBufferMs, with a
-        // hard allocator ceiling after min for UHD heap safety.
-        val loadControl = createLoadControl(payload)
-        activeLoadControl = loadControl
+        // hard allocator ceiling after min for heap safety.
+        activeLoadControl = setup.loadControl
+        activeTransferStallAheadMs = setup.transferStallAheadMs
+        val loadControl = setup.loadControl
         val exoPlayer =
             ExoPlayer.Builder(playerView.context)
                 .setMediaSourceFactory(mediaSourceFactory)
@@ -330,13 +336,14 @@ class NativePlayerManager(
         handoffOriginPositionMs = outgoing.currentPosition.coerceAtLeast(0L)
 
         val diagTransfers = DiagTransferListener()
+        val setup = createLoadControl(payload)
         val mediaSourceFactory =
             authenticatedMediaSourceFactory(
                 sessionToken = sessionToken,
                 transferListener = diagTransfers,
-                chunkBytes = if (payload.isHls) 0L else PROGRESSIVE_HTTP_CHUNK_BYTES,
+                chunkBytes = setup.progressiveChunkBytes,
             )
-        val loadControl = createLoadControl(payload)
+        val loadControl = setup.loadControl
         val exoPlayer =
             ExoPlayer.Builder(playerView.context)
                 .setMediaSourceFactory(mediaSourceFactory)
@@ -344,6 +351,7 @@ class NativePlayerManager(
                 .build()
         stagingPlayer = exoPlayer
         stagingLoadControl = loadControl
+        stagingTransferStallAheadMs = setup.transferStallAheadMs
         exoPlayer.volume = 0f
         exoPlayer.playWhenReady = true
         exoPlayer.trackSelectionParameters =
@@ -440,7 +448,9 @@ class NativePlayerManager(
         wasBuffering = false
         midRebufferAtMs.clear()
         activeLoadControl = stagingLoadControl
+        activeTransferStallAheadMs = stagingTransferStallAheadMs
         stagingLoadControl = null
+        stagingTransferStallAheadMs = 60_000L
         lastEmittedPlaybackState = incoming.playbackState
         transferStallSinceMs = 0L
 
@@ -545,6 +555,7 @@ class NativePlayerManager(
         stagingPlayer = null
         stagingPayload = null
         stagingLoadControl = null
+        stagingTransferStallAheadMs = 60_000L
         releaseExoPlayerOnly(staging)
     }
 
@@ -553,51 +564,70 @@ class NativePlayerManager(
         handoffCheckRunnable = null
     }
 
-    private fun createLoadControl(payload: PlaybackPayload): TimeBandLoadControl {
-        val uhd = payload.isUhd
-        return if (payload.isHls) {
-            if (uhd) {
-                TimeBandLoadControl.create(
-                    UHD_HLS_MIN_BUFFER_MS,
-                    UHD_HLS_MAX_BUFFER_MS,
-                    UHD_HLS_BUFFER_FOR_PLAYBACK_MS,
-                    UHD_HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-                    UHD_HLS_TARGET_BUFFER_BYTES,
-                    UHD_HLS_BACK_BUFFER_MS,
-                    UHD_HLS_TARGET_BUFFER_BYTES,
-                )
-            } else {
-                TimeBandLoadControl.create(
-                    HLS_MIN_BUFFER_MS,
-                    HLS_MAX_BUFFER_MS,
-                    HLS_BUFFER_FOR_PLAYBACK_MS,
-                    HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-                    HLS_TARGET_BUFFER_BYTES,
-                    HLS_BACK_BUFFER_MS,
-                    HLS_TARGET_BUFFER_BYTES,
-                )
+    private data class LoadControlSetup(
+        val loadControl: TimeBandLoadControl,
+        val transferStallAheadMs: Long,
+        val progressiveChunkBytes: Long,
+    )
+
+    private fun resolveDeviceBufferProfile(hls: Boolean, uhd: Boolean): DeviceBufferProfile {
+        val runtime = Runtime.getRuntime()
+        val maxHeap = runtime.maxMemory()
+        val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+        var availSystem = 0L
+        var lowMemory = false
+        try {
+            val am =
+                playerView.context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            if (am != null) {
+                val info = ActivityManager.MemoryInfo()
+                am.getMemoryInfo(info)
+                availSystem = info.availMem
+                lowMemory = info.lowMemory
             }
-        } else if (uhd) {
-            TimeBandLoadControl.create(
-                UHD_PROGRESSIVE_MIN_BUFFER_MS,
-                UHD_PROGRESSIVE_MAX_BUFFER_MS,
-                UHD_PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS,
-                UHD_PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-                UHD_PROGRESSIVE_TARGET_BUFFER_BYTES,
-                UHD_PROGRESSIVE_BACK_BUFFER_MS,
-                UHD_PROGRESSIVE_TARGET_BUFFER_BYTES,
-            )
-        } else {
-            TimeBandLoadControl.create(
-                PROGRESSIVE_MIN_BUFFER_MS,
-                PROGRESSIVE_MAX_BUFFER_MS,
-                PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS,
-                PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-                PROGRESSIVE_TARGET_BUFFER_BYTES,
-                PROGRESSIVE_BACK_BUFFER_MS,
-                PROGRESSIVE_TARGET_BUFFER_BYTES,
-            )
+        } catch (_: Exception) {
+            // Fall through — budget still uses heap headroom.
         }
+        val profile =
+            DeviceBufferBudget.resolve(
+                maxHeapBytes = maxHeap,
+                usedHeapBytes = usedHeap,
+                availSystemBytes = availSystem,
+                lowMemory = lowMemory,
+                hls = hls,
+                uhd = uhd,
+            )
+        Log.i(
+            TAG,
+            "Buffer profile uhd=$uhd hls=$hls targetMb=${profile.targetBufferBytes / (1024 * 1024)} " +
+                "minMs=${profile.minBufferMs} maxMs=${profile.maxBufferMs} " +
+                "heapMaxMb=${maxHeap / (1024 * 1024)} heapUsedMb=${usedHeap / (1024 * 1024)} " +
+                "sysAvailMb=${availSystem / (1024 * 1024)} lowMemory=$lowMemory",
+        )
+        return profile
+    }
+
+    private fun createLoadControl(payload: PlaybackPayload): LoadControlSetup {
+        val profile =
+            resolveDeviceBufferProfile(
+                hls = payload.isHls,
+                uhd = payload.isUhd,
+            )
+        val loadControl =
+            TimeBandLoadControl.create(
+                profile.minBufferMs,
+                profile.maxBufferMs,
+                profile.bufferForPlaybackMs,
+                profile.bufferForPlaybackAfterRebufferMs,
+                profile.targetBufferBytes,
+                profile.backBufferMs,
+                profile.targetBufferBytes,
+            )
+        return LoadControlSetup(
+            loadControl = loadControl,
+            transferStallAheadMs = profile.transferStallAheadMs,
+            progressiveChunkBytes = profile.progressiveChunkBytes,
+        )
     }
 
     private fun releaseExoPlayerOnly(exoPlayer: ExoPlayer?) {
@@ -1322,13 +1352,7 @@ class NativePlayerManager(
         val openTransfers = transfers?.openTransferCount ?: 0
         val noByteProgress =
             lastByteAt > 0L && nowMs - lastByteAt >= TRANSFER_STALL_RECOVERY_MS
-        // UHD max ahead is ~64s — the HD 60s "draining" threshold would always fire.
-        val stallAheadMs =
-            if (currentPayload?.isUhd == true) {
-                UHD_TRANSFER_STALL_AHEAD_MS
-            } else {
-                TRANSFER_STALL_AHEAD_MS
-            }
+        val stallAheadMs = activeTransferStallAheadMs
         val draining =
             (exoPlayer.isPlaying || buffering) &&
                 aheadMs < stallAheadMs &&
@@ -1414,49 +1438,10 @@ class NativePlayerManager(
         private const val REBUFFER_ESCALATION_COUNT = 3
         private const val REBUFFER_ESCALATION_WINDOW_MS = 180_000L
 
-        // HLS / remux — time band + allocator ceiling (see TimeBandLoadControl).
-        private const val HLS_MIN_BUFFER_MS = 108_000
-        private const val HLS_MAX_BUFFER_MS = 116_000
-        private const val HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
-        private const val HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 10_000
-        private const val HLS_BACK_BUFFER_MS = 60_000
-        /** Allocator trim + hard ceiling after min band for non-UHD HLS. */
-        private const val HLS_TARGET_BUFFER_BYTES = 384 * 1024 * 1024
+        // Progressive / HLS buffer sizes come from [DeviceBufferBudget] at play
+        // start (heap headroom + system availMem), not fixed worst-case constants.
 
-        // Progressive HD — ~110s time band so slow NAS Range reopens still have runway.
-        private const val PROGRESSIVE_MIN_BUFFER_MS = 108_000
-        private const val PROGRESSIVE_MAX_BUFFER_MS = 116_000
-        private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
-        /** After seek/underrun: enough runway that play doesn't immediately re-stall. */
-        private const val PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
-        private const val PROGRESSIVE_BACK_BUFFER_MS = 30_000
-        /** Hard ceiling after min — HD bitrates fit ~110s under this with largeHeap. */
-        private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 384 * 1024 * 1024
-
-        // UHD progressive / remux — mid band under largeHeap. The 1.5.18 OOM fix
-        // used 18–32s / 240MB which stopped crashes but underran on Wi‑Fi/NAS blips;
-        // ~40–64s with 320MB keeps runway without restoring the old ~110s/512MB path.
-        private const val UHD_PROGRESSIVE_MIN_BUFFER_MS = 40_000
-        private const val UHD_PROGRESSIVE_MAX_BUFFER_MS = 64_000
-        private const val UHD_PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
-        private const val UHD_PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
-        private const val UHD_PROGRESSIVE_BACK_BUFFER_MS = 15_000
-        private const val UHD_PROGRESSIVE_TARGET_BUFFER_BYTES = 320 * 1024 * 1024
-
-        private const val UHD_HLS_MIN_BUFFER_MS = 45_000
-        private const val UHD_HLS_MAX_BUFFER_MS = 72_000
-        private const val UHD_HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
-        private const val UHD_HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 10_000
-        private const val UHD_HLS_BACK_BUFFER_MS = 20_000
-        private const val UHD_HLS_TARGET_BUFFER_BYTES = 320 * 1024 * 1024
-
-        /** Match server STREAM_READ_HIGH_WATER_MARK family — finite Ranges only. */
-        private const val PROGRESSIVE_HTTP_CHUNK_BYTES = 4L * 1024L * 1024L
         /** Reopen when ahead is low and no HTTP bytes for this long. */
         private const val TRANSFER_STALL_RECOVERY_MS = 12_000L
-        /** HD deep band (~110s): treat ahead under 60s as draining. */
-        private const val TRANSFER_STALL_AHEAD_MS = 60_000L
-        /** UHD mid band (~64s max): must be below max buffer or the watchdog is always armed. */
-        private const val UHD_TRANSFER_STALL_AHEAD_MS = 24_000L
     }
 }
