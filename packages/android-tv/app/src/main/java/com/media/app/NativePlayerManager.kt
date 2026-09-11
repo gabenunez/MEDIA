@@ -1322,9 +1322,16 @@ class NativePlayerManager(
         val openTransfers = transfers?.openTransferCount ?: 0
         val noByteProgress =
             lastByteAt > 0L && nowMs - lastByteAt >= TRANSFER_STALL_RECOVERY_MS
+        // UHD max ahead is ~64s — the HD 60s "draining" threshold would always fire.
+        val stallAheadMs =
+            if (currentPayload?.isUhd == true) {
+                UHD_TRANSFER_STALL_AHEAD_MS
+            } else {
+                TRANSFER_STALL_AHEAD_MS
+            }
         val draining =
             (exoPlayer.isPlaying || buffering) &&
-                aheadMs < TRANSFER_STALL_AHEAD_MS &&
+                aheadMs < stallAheadMs &&
                 (openTransfers > 0 || buffering)
 
         if (!draining || !noByteProgress) {
@@ -1426,25 +1433,30 @@ class NativePlayerManager(
         /** Hard ceiling after min — HD bitrates fit ~110s under this with largeHeap. */
         private const val PROGRESSIVE_TARGET_BUFFER_BYTES = 384 * 1024 * 1024
 
-        // UHD progressive / remux — shorter band so ~50–100 Mbps cannot OOM the TV heap.
-        private const val UHD_PROGRESSIVE_MIN_BUFFER_MS = 18_000
-        private const val UHD_PROGRESSIVE_MAX_BUFFER_MS = 32_000
+        // UHD progressive / remux — mid band under largeHeap. The 1.5.18 OOM fix
+        // used 18–32s / 240MB which stopped crashes but underran on Wi‑Fi/NAS blips;
+        // ~40–64s with 320MB keeps runway without restoring the old ~110s/512MB path.
+        private const val UHD_PROGRESSIVE_MIN_BUFFER_MS = 40_000
+        private const val UHD_PROGRESSIVE_MAX_BUFFER_MS = 64_000
         private const val UHD_PROGRESSIVE_BUFFER_FOR_PLAYBACK_MS = 2_500
         private const val UHD_PROGRESSIVE_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
-        private const val UHD_PROGRESSIVE_BACK_BUFFER_MS = 8_000
-        private const val UHD_PROGRESSIVE_TARGET_BUFFER_BYTES = 240 * 1024 * 1024
+        private const val UHD_PROGRESSIVE_BACK_BUFFER_MS = 15_000
+        private const val UHD_PROGRESSIVE_TARGET_BUFFER_BYTES = 320 * 1024 * 1024
 
-        private const val UHD_HLS_MIN_BUFFER_MS = 20_000
-        private const val UHD_HLS_MAX_BUFFER_MS = 36_000
+        private const val UHD_HLS_MIN_BUFFER_MS = 45_000
+        private const val UHD_HLS_MAX_BUFFER_MS = 72_000
         private const val UHD_HLS_BUFFER_FOR_PLAYBACK_MS = 5_000
         private const val UHD_HLS_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 10_000
-        private const val UHD_HLS_BACK_BUFFER_MS = 12_000
-        private const val UHD_HLS_TARGET_BUFFER_BYTES = 240 * 1024 * 1024
+        private const val UHD_HLS_BACK_BUFFER_MS = 20_000
+        private const val UHD_HLS_TARGET_BUFFER_BYTES = 320 * 1024 * 1024
 
         /** Match server STREAM_READ_HIGH_WATER_MARK family — finite Ranges only. */
         private const val PROGRESSIVE_HTTP_CHUNK_BYTES = 4L * 1024L * 1024L
         /** Reopen when ahead is low and no HTTP bytes for this long. */
         private const val TRANSFER_STALL_RECOVERY_MS = 12_000L
+        /** HD deep band (~110s): treat ahead under 60s as draining. */
         private const val TRANSFER_STALL_AHEAD_MS = 60_000L
+        /** UHD mid band (~64s max): must be below max buffer or the watchdog is always armed. */
+        private const val UHD_TRANSFER_STALL_AHEAD_MS = 24_000L
     }
 }

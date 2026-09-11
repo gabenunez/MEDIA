@@ -22,7 +22,7 @@ data class PlaybackPayload(
     val sourceWidth: Int,
 ) {
     /**
-     * Prefer the short UHD buffer when coded size is UHD or still unknown.
+     * Prefer the UHD mid-band buffer when coded size is UHD or still unknown.
      * Unknown defaults to the safe profile so an older web shell cannot ask
      * ExoPlayer to hold ~2 minutes of 4K before the hard byte ceiling applies.
      */

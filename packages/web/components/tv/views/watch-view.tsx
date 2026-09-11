@@ -2336,10 +2336,10 @@ export function TvWatchView() {
   useEffect(() => {
     if (!countdown) return;
     requestAnimationFrame(() => {
-      const cancel = document.querySelector<HTMLElement>(
-        "[data-tv-watch-next-episode] [data-tv-next-cancel]",
+      const playNow = document.querySelector<HTMLElement>(
+        "[data-tv-watch-next-episode] [data-tv-next-play]",
       );
-      if (cancel) focusTvItem(cancel);
+      if (playNow) focusTvItem(playNow);
     });
   }, [countdown?.episode.id]);
 
