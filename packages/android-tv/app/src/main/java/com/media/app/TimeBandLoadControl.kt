@@ -28,6 +28,10 @@ import kotlin.math.min
  * This subclass keeps time-band hysteresis, and adds a hard [maxAllocatedBytes]
  * ceiling that may pause loading only after the min band is met — so UHD cannot
  * grow the Java heap without bound while HD still fills toward maxBufferMs.
+ *
+ * Callers must keep minBufferMs under what maxAllocatedBytes can hold at the
+ * worst expected bitrate. If min sits above the byte ceiling (e.g. 40s min with
+ * ~25s of 4K in 288MB), loading always stops at min and HTTP Range thrash returns.
  */
 @UnstableApi
 class TimeBandLoadControl private constructor(

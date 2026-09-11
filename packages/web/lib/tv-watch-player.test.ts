@@ -572,11 +572,14 @@ describe("TV native player unbind on exit", () => {
     expect(nativePlayer).toContain("setKeepContentOnPlayerReset(true)");
   });
 
-  it("uses a mid-band ExoPlayer buffer for UHD native playback", () => {
-    expect(nativePlayer).toContain("UHD_PROGRESSIVE_MAX_BUFFER_MS");
-    expect(nativePlayer).toContain("UHD_TRANSFER_STALL_AHEAD_MS");
+  it("sizes ExoPlayer buffers from device memory headroom for all videos", () => {
+    expect(nativePlayer).toContain("DeviceBufferBudget.resolve");
+    expect(nativePlayer).toContain("resolveDeviceBufferProfile");
+    expect(nativePlayer).toContain("activeTransferStallAheadMs");
     expect(nativePlayer).toContain("createLoadControl");
     expect(watchView).toContain("sourceHeight:");
+    expect(nativePlayer).not.toContain("PROGRESSIVE_MIN_BUFFER_MS =");
+    expect(nativePlayer).not.toContain("UHD_PROGRESSIVE_MIN_BUFFER_MS =");
     const manifest = readFileSync(
       path.join(webRoot, "../android-tv/app/src/main/AndroidManifest.xml"),
       "utf8",
