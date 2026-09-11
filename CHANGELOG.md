@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.266 — 2026-09-11
+
+### TV
+- **Watch** — add Play now on the inline next-episode card so you can start immediately
+- **Playback** — raise the UHD ExoPlayer buffer band and stall threshold so 4K titles buffer less often without bringing back OOM crashes (APK 1.5.19)
+
 ## 0.1.265 — 2026-09-10
 
 ### Fix
