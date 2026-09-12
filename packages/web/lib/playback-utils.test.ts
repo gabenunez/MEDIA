@@ -4,6 +4,7 @@ import {
   getPlaybackRestartSeconds,
   getContiguousBufferedAhead,
   getScrubberBufferedRanges,
+  scrubberBufferDisplayWidthPercent,
   resolveAbsoluteScrubberBufferedRanges,
   resolveScrubberDurationMs,
   qualityHandoffSeekSeconds,
@@ -563,6 +564,38 @@ describe("getScrubberBufferedRanges", () => {
         20,
       ),
     ).toEqual([{ start: 20, end: 54 }]);
+  });
+});
+
+describe("scrubberBufferDisplayWidthPercent", () => {
+  it("boosts short UHD ahead so it stays visible on long titles", () => {
+    // 20s ahead on a 2h movie is ~0.28% raw — boost toward a readable bar.
+    const width = scrubberBufferDisplayWidthPercent({
+      startSeconds: 3600,
+      endSeconds: 3620,
+      durationSeconds: 7200,
+    });
+    expect(width).toBeGreaterThan(1);
+    expect(width).toBeLessThanOrEqual(8);
+  });
+
+  it("prefers true duration percent once the buffer is deep", () => {
+    const width = scrubberBufferDisplayWidthPercent({
+      startSeconds: 0,
+      endSeconds: 3600,
+      durationSeconds: 7200,
+    });
+    expect(width).toBeCloseTo(50, 5);
+  });
+
+  it("returns 0 when nothing is ahead", () => {
+    expect(
+      scrubberBufferDisplayWidthPercent({
+        startSeconds: 20,
+        endSeconds: 20,
+        durationSeconds: 7200,
+      }),
+    ).toBe(0);
   });
 });
 

@@ -1304,7 +1304,27 @@ class NativePlayerManager(
     }
 
     private fun bufferAheadMs(exoPlayer: ExoPlayer): Long {
-        return (exoPlayer.bufferedPosition - exoPlayer.currentPosition).coerceAtLeast(0L)
+        val fromPosition =
+            (exoPlayer.bufferedPosition - exoPlayer.currentPosition).coerceAtLeast(0L)
+        // totalBufferedDuration is measured from the playhead forward; take the
+        // stronger signal when bufferedPosition briefly lags after a Range reopen.
+        val fromTotal = exoPlayer.totalBufferedDuration.coerceAtLeast(0L)
+        return maxOf(fromPosition, fromTotal)
+    }
+
+    private fun buildBufferedRanges(exoPlayer: ExoPlayer): org.json.JSONArray {
+        val ranges = org.json.JSONArray()
+        val aheadMs = bufferAheadMs(exoPlayer)
+        if (aheadMs <= 0L && exoPlayer.bufferedPosition <= 0L) return ranges
+        val bufferedEndMs =
+            maxOf(exoPlayer.bufferedPosition, exoPlayer.currentPosition + aheadMs)
+        if (bufferedEndMs <= 0L) return ranges
+        ranges.put(
+            org.json.JSONObject()
+                .put("start", 0.0)
+                .put("end", bufferedEndMs / 1000.0),
+        )
+        return ranges
     }
 
     private fun playbackStateName(state: Int): String {
@@ -1378,19 +1398,6 @@ class NativePlayerManager(
             aheadMs,
         )
         schedulePlaybackRecovery(exoPlayer, "transfer-stall", maxAttempts = 1)
-    }
-
-    private fun buildBufferedRanges(exoPlayer: ExoPlayer): org.json.JSONArray {
-        val ranges = org.json.JSONArray()
-        val bufferedEndMs = exoPlayer.bufferedPosition
-        if (bufferedEndMs <= 0L) return ranges
-
-        ranges.put(
-            org.json.JSONObject()
-                .put("start", 0.0)
-                .put("end", bufferedEndMs / 1000.0),
-        )
-        return ranges
     }
 
     private fun saveProgress(positionMs: Long, ended: Boolean) {

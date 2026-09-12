@@ -727,6 +727,34 @@ export function getScrubberBufferedRanges(
   return merged.filter((range) => range.end > playheadSeconds + 0.05);
 }
 
+/**
+ * Timeline % width for a scrubber buffer segment.
+ *
+ * UHD LoadControl often holds only ~15–45s ahead. On a 2h title that is
+ * <0.5% of the bar — easy to miss and looks "stuck" at the playhead. Boost
+ * the first ~90s of ahead up to ~8% so living-room TVs show real growth,
+ * while still preferring the true duration% once the buffer is deep.
+ */
+export function scrubberBufferDisplayWidthPercent(options: {
+  startSeconds: number;
+  endSeconds: number;
+  durationSeconds: number;
+}): number {
+  const duration = options.durationSeconds;
+  if (!(duration > 0)) return 0;
+  const start = Math.max(0, options.startSeconds);
+  const end = Math.max(start, options.endSeconds);
+  const ahead = end - start;
+  if (ahead <= 0.05) return 0;
+
+  const rawPercent = (ahead / duration) * 100;
+  const remainingPercent = Math.max(0, ((duration - start) / duration) * 100);
+  const BOOST_SECONDS = 90;
+  const BOOST_PERCENT = 8;
+  const boosted = Math.min(BOOST_PERCENT, (ahead / BOOST_SECONDS) * BOOST_PERCENT);
+  return Math.min(remainingPercent, Math.max(rawPercent, boosted));
+}
+
 /** Seconds of media the incoming quality must have past the live playhead before swap. */
 export const QUALITY_HANDOFF_MIN_AHEAD_SECONDS = 0.75;
 

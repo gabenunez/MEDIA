@@ -28,6 +28,7 @@ import {
   getVideoSeekableEnd,
   readAbsoluteScrubberBufferedRanges,
   resolveScrubberDurationMs,
+  scrubberBufferDisplayWidthPercent,
   isSpuriousHlsEnded,
   resolveSpuriousRecovery,
   type SpuriousRecoveryState,
@@ -1760,7 +1761,11 @@ function WatchDesktopClient() {
                 <div className="watch-scrub-track absolute inset-x-0 top-1/2 -translate-y-1/2">
                   {bufferedRanges.map((range, index) => {
                     const left = toTimelinePercent(range.start);
-                    const width = Math.max(0, toTimelinePercent(range.end) - left);
+                    const width = scrubberBufferDisplayWidthPercent({
+                      startSeconds: range.start,
+                      endSeconds: range.end,
+                      durationSeconds: totalDurationSeconds,
+                    });
                     if (width <= 0) return null;
                     return (
                       <div
