@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.268 — 2026-09-11
+
+### TV
+- **Watch** — make short UHD scrubber buffer ahead visible on long titles instead of looking stuck at the playhead
+- **Playback** — blend device memory more fully for buffer sizing and report ahead from the stronger ExoPlayer signal (APK 1.5.23)
+
 ## 0.1.267 — 2026-09-11
 
 ### TV
