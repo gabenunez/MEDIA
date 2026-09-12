@@ -11,6 +11,7 @@ import { routes } from "@/lib/routes";
 import {
   buildPlaybackTitle,
   getScrubberBufferedRanges,
+  scrubberBufferDisplayWidthPercent,
   getVideoSeekableEnd,
   readAbsoluteScrubberBufferedRanges,
   resolveScrubberDurationMs,
@@ -155,6 +156,7 @@ function TvWatchScrubTrack({
   previewPercent,
   bufferingMidPlayback,
   toTimelinePercent,
+  durationSeconds,
   optimisticSeek,
 }: {
   bufferedRanges: Array<{ start: number; end: number }>;
@@ -162,6 +164,7 @@ function TvWatchScrubTrack({
   previewPercent?: number | null;
   bufferingMidPlayback: boolean;
   toTimelinePercent: (seconds: number) => number;
+  durationSeconds: number;
   optimisticSeek: boolean;
 }) {
   const progressClamped = Math.min(100, Math.max(0, progress));
@@ -173,8 +176,12 @@ function TvWatchScrubTrack({
     (max, range) => Math.max(max, range.end),
     0,
   );
-  const bufferEndPercent = toTimelinePercent(bufferEndSeconds);
-  const aheadWidth = Math.max(0, bufferEndPercent - progressClamped);
+  const playheadSeconds = (progressClamped / 100) * Math.max(durationSeconds, 0);
+  const aheadWidth = scrubberBufferDisplayWidthPercent({
+    startSeconds: playheadSeconds,
+    endSeconds: bufferEndSeconds,
+    durationSeconds,
+  });
 
   return (
     <div
@@ -185,7 +192,11 @@ function TvWatchScrubTrack({
     >
       {bufferedRanges.map((range, index) => {
         const left = toTimelinePercent(range.start);
-        const width = Math.max(0, toTimelinePercent(range.end) - left);
+        const width = scrubberBufferDisplayWidthPercent({
+          startSeconds: range.start,
+          endSeconds: range.end,
+          durationSeconds,
+        });
         if (width <= 0) return null;
         return (
           <div
@@ -2913,6 +2924,7 @@ export function TvWatchView() {
                     progress={displayedProgress}
                     bufferingMidPlayback={bufferingMidPlayback}
                     toTimelinePercent={toTimelinePercent}
+                    durationSeconds={totalDurationSeconds}
                     optimisticSeek={optimisticAbsoluteSeconds !== null}
                   />
                 </div>
@@ -3068,6 +3080,7 @@ export function TvWatchView() {
                       previewPercent={scrubPreview}
                       bufferingMidPlayback={bufferingMidPlayback}
                       toTimelinePercent={toTimelinePercent}
+                      durationSeconds={totalDurationSeconds}
                       optimisticSeek={
                         scrubPreview !== null || optimisticAbsoluteSeconds !== null
                       }

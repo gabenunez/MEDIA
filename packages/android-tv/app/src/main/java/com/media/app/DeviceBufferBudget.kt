@@ -55,7 +55,9 @@ object DeviceBufferBudget {
                 fromHeap <= 0L && fromSystem <= 0L -> MIN_TARGET_BYTES
                 fromHeap <= 0L -> fromSystem
                 fromSystem <= 0L -> fromHeap
-                else -> min(fromHeap, fromSystem)
+                // Blend both signals — min() was so conservative that healthy
+                // TVs still got a tiny forward band and an invisible scrubber.
+                else -> (fromHeap + fromSystem) / 2L
             }
         target = target.coerceIn(MIN_TARGET_BYTES, MAX_TARGET_BYTES)
         if (lowMemory) {
@@ -88,7 +90,7 @@ object DeviceBufferBudget {
         val maxMs =
             max(minMs + 12_000, maxFromBudget)
                 .coerceIn(minMs + 8_000, 96_000)
-        val backMs = (minMs * 0.65).roundToInt().coerceIn(6_000, 24_000)
+        val backMs = (minMs * 0.45).roundToInt().coerceIn(4_000, 16_000)
         val chunk =
             when {
                 target >= 320L * 1024L * 1024L -> 16L * 1024L * 1024L
