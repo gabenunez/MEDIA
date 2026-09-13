@@ -136,19 +136,23 @@ export function NextEpisodeCountdownOverlay({
   }`;
 
   const actions = tv ? (
-    <div className="flex flex-col gap-2">
+    <div
+      data-tv-row=""
+      data-tv-content-row=""
+      className="flex items-center gap-2"
+    >
       <TvFocusButton
         autoFocus
         data-tv-next-play=""
         onClick={onPlayNow}
-        className="w-full rounded-lg bg-primary px-4 py-2.5 text-base font-semibold text-primary-foreground"
+        className="min-w-0 flex-1 rounded-lg bg-primary px-4 py-2.5 text-base font-semibold text-primary-foreground"
       >
         Play now
       </TvFocusButton>
       <TvFocusButton
         data-tv-next-cancel=""
         onClick={onCancel}
-        className="w-full rounded-lg px-4 py-2.5 text-base font-semibold text-white"
+        className="min-w-0 flex-1 rounded-lg px-4 py-2.5 text-base font-semibold text-white"
       >
         Cancel
       </TvFocusButton>
