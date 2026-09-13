@@ -34,7 +34,7 @@ describe("watch skip amounts", () => {
     expect(WATCH_SKIP_FORWARD_SECONDS).toBe(30);
   });
 
-  it("flashes a fading badge only for D-pad left/right", () => {
+  it("shows feedback only for D-pad left/right and keeps it for one second", () => {
     expect(isWatchRemoteSkipArrowKey("ArrowLeft")).toBe(true);
     expect(isWatchRemoteSkipArrowKey("ArrowRight")).toBe(true);
     expect(isWatchRemoteSkipArrowKey("MediaRewind")).toBe(false);
