@@ -93,9 +93,11 @@ object DeviceBufferBudget {
         val backMs = (minMs * 0.45).roundToInt().coerceIn(4_000, 16_000)
         val chunk =
             when {
-                target >= 320L * 1024L * 1024L -> 16L * 1024L * 1024L
-                target >= 240L * 1024L * 1024L -> 12L * 1024L * 1024L
-                else -> 8L * 1024L * 1024L
+                // Larger ranges reduce connection/reopen gaps without increasing the
+                // allocator ceiling. UHD has enough runway for these larger reads.
+                target >= 320L * 1024L * 1024L -> 32L * 1024L * 1024L
+                target >= 240L * 1024L * 1024L -> 24L * 1024L * 1024L
+                else -> 16L * 1024L * 1024L
             }
         val stallAhead = min(8_000L, (minMs * 0.55).roundToInt().toLong()).coerceAtLeast(4_000L)
 
