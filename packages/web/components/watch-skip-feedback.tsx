@@ -22,17 +22,30 @@ export function WatchSkipFeedbackBadge({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-y-0 z-30 flex items-center",
-        direction === "back" ? "left-10" : "right-10",
+        "pointer-events-none absolute inset-y-0 z-30 flex items-center px-8",
+        direction === "back" ? "left-0" : "right-0",
         className,
       )}
       role="status"
       aria-live="polite"
       aria-label={label}
     >
-      <div key={nonce} className="watch-skip-feedback" data-tv-watch-skip-feedback="">
-        <Icon size={40} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-        <span className="mt-1 text-xl font-semibold tabular-nums">{seconds}</span>
+      <div
+        key={nonce}
+        className={cn(
+          "watch-skip-feedback",
+          direction === "back" && "watch-skip-feedback--back",
+          direction === "forward" && "watch-skip-feedback--forward",
+        )}
+        data-tv-watch-skip-feedback=""
+      >
+        <span className="watch-skip-feedback-icon" aria-hidden>
+          <Icon size={28} strokeWidth={2.25} absoluteStrokeWidth />
+        </span>
+        <span className="watch-skip-feedback-copy">
+          <span className="watch-skip-feedback-value tabular-nums">{seconds}</span>
+          <span className="watch-skip-feedback-unit">sec</span>
+        </span>
       </div>
     </div>
   );
