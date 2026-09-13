@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.270 — 2026-09-13
+
+### Changes
+
+- Include remaining TV playback updates
+- Redesign TV skip feedback
+
 ## 0.1.269 — 2026-09-13
 
 ### TV
