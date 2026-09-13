@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.269 — 2026-09-13
+
+### TV
+- **Playback** — reduce brief 4K buffering pauses by using larger progressive HTTP ranges while preserving the device memory ceiling
+
 ## 0.1.268 — 2026-09-11
 
 ### TV

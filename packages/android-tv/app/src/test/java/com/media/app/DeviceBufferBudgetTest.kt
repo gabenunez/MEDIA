@@ -28,6 +28,7 @@ class DeviceBufferBudgetTest {
             )
         assertTrue(profile.targetBufferBytes >= 300 * 1024 * 1024)
         assertTrue(profile.minBufferMs < profile.maxBufferMs)
+        assertEquals(32L * 1024L * 1024L, profile.progressiveChunkBytes)
         val capacity =
             DeviceBufferBudget.durationMsForBytes(profile.targetBufferBytes.toLong(), 100.0)
         assertTrue(
