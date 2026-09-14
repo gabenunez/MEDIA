@@ -260,6 +260,29 @@ export async function apiRoutes(
       .send(fs.createReadStream(themePath));
   });
 
+  app.patch<{
+    Params: { id: string };
+    Body: { watched?: boolean };
+  }>("/api/media/:id/watched", async (request, reply) => {
+    const mediaId = parseInt(request.params.id, 10);
+    if (!Number.isFinite(mediaId)) {
+      return reply.status(400).send({ error: "Invalid media id" });
+    }
+
+    const watched = request.body?.watched === true;
+    const item = await db.query.mediaItems.findFirst({
+      where: eq(mediaItems.id, mediaId),
+    });
+    if (!item) return reply.status(404).send({ error: "Not found" });
+
+    await db
+      .update(mediaItems)
+      .set({ watchedAt: watched ? new Date() : null, updatedAt: new Date() })
+      .where(eq(mediaItems.id, mediaId));
+
+    return { success: true, watched };
+  });
+
   app.get<{ Params: { id: string } }>("/api/media/:id", async (request, reply) => {
     const id = parseInt(request.params.id, 10);
     const item = await db.query.mediaItems.findFirst({

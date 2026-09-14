@@ -639,8 +639,7 @@ describe("TV watch remote — wiring (do not revert)", () => {
   });
 
   it("offers Start from beginning on TV media pages and in the player", () => {
-    expect(mediaView).toContain("START_FROM_BEGINNING_LABEL");
-    expect(mediaView).toContain("watchFromStart");
+    expect(mediaView).toContain("TvPlaybackOptions");
     expect(mediaView).toContain("movieCanResume");
     expect(mediaView).toContain("episodeCanResume");
     expect(watchView).toContain("resolveWatchInitialResumeSeconds");

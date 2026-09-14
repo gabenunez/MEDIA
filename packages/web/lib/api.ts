@@ -57,6 +57,7 @@ export interface MediaItem {
   rating?: number | null;
   needsMatch?: boolean | null;
   matchConfidence?: number | null;
+  watchedAt?: string | null;
 }
 
 export interface MetadataSearchCandidate {
@@ -589,6 +590,19 @@ export const api = {
       invalidateApiCache("home");
       invalidateApiCache("favorites");
       invalidateApiCache(`media:${mediaItemId}`);
+      return result;
+    }),
+  setMediaWatched: (mediaItemId: number, watched: boolean) =>
+    fetchApi<{ success: boolean; watched: boolean }>(`/api/media/${mediaItemId}/watched`, {
+      method: "PATCH",
+      body: JSON.stringify({ watched }),
+    }).then((result) => {
+      invalidateApiCache("home");
+      invalidateApiCache("continue");
+      invalidateApiCache(`media:${mediaItemId}`);
+      invalidateApiCache("recent:");
+      invalidateApiCache("library:");
+      invalidateApiCache("deck:");
       return result;
     }),
   updateMetadata: (tmdb_api_key: string) =>

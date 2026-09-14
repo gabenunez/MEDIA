@@ -25,12 +25,10 @@ describe("desktop episode list click targets", () => {
     expect(titleAt).toBeGreaterThan(watchAt);
   });
 
-  it("keeps Start from beginning as a sibling control after the watch Link", () => {
+  it("keeps playback alternatives outside the watch Link", () => {
     const watchAt = source.indexOf('routes.watch("episode", ep.id, media.id)');
-    const fromStartAt = source.indexOf(
-      'routes.watchFromStart("episode", ep.id, media.id)',
-    );
+    const optionsAt = source.indexOf("PlaybackOptionsMenu", watchAt);
     expect(watchAt).toBeGreaterThan(-1);
-    expect(fromStartAt).toBeGreaterThan(watchAt);
+    expect(optionsAt).toBeGreaterThan(watchAt);
   });
 });
