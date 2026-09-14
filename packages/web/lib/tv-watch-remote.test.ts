@@ -506,6 +506,12 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(watchView).toContain("getWatchTransportFocusItems");
   });
 
+  it("routes horizontal D-pad through next-episode actions while countdown is open", () => {
+    expect(watchView).toContain('data-tv-watch-next-episode');
+    expect(watchView).toContain('overlay?.querySelector<HTMLElement>("[data-tv-row]")');
+    expect(watchView).toContain("if (countdown && active?.closest");
+  });
+
   it("spatial nav does not click the scrubber on Enter — watch-view commits the seek", () => {
     const enterBlock = spatialNav.slice(
       spatialNav.indexOf("if (isEnter)"),

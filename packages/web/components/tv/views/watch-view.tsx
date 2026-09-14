@@ -133,6 +133,7 @@ import {
   watchSkipDeltaSeconds,
   accumulateWatchSkipFeedback,
   isWatchRemoteSkipArrowKey,
+  WATCH_NATIVE_HLS_PAUSE_RESTART_MS,
   moveWatchTransportFocus,
   WATCH_SKIP_FEEDBACK_MS,
   type WatchSkipFeedback,
@@ -607,9 +608,9 @@ export function TvWatchView() {
     const pausedMs = nativePausedAtRef.current
       ? Date.now() - nativePausedAtRef.current
       : 0;
-    // Server drops idle transcode sessions after ~10 min — refresh HLS before
-    // resume when paused long enough that the encoder may already be gone.
-    if (usingHlsRef.current && pausedMs >= 45_000) {
+    // Server drops idle transcode sessions after ~10 min. Keep a several-minute
+    // pause in the existing player so resume does not flash a fresh load/buffer.
+    if (usingHlsRef.current && pausedMs >= WATCH_NATIVE_HLS_PAUSE_RESTART_MS) {
       restartNativeHlsAtCurrentPosition();
       return;
     }
@@ -1271,7 +1272,15 @@ export function TvWatchView() {
         const rangesKey = absoluteRanges
           .map((range) => `${range.start.toFixed(1)}-${range.end.toFixed(1)}`)
           .join("|");
-        if (rangesKey !== lastBufferedRangesKeyRef.current) {
+        // ExoPlayer briefly reports no ranges while reopening a paused HLS
+        // request. Keep the last valid bar during that buffering transition;
+        // otherwise the playhead visibly jumps to a zero-length buffer before
+        // the replacement range arrives.
+        const hasUsableRanges = absoluteRanges.some((range) => range.end > range.start + 0.05);
+        if (
+          (hasUsableRanges || !state.isBuffering) &&
+          rangesKey !== lastBufferedRangesKeyRef.current
+        ) {
           lastBufferedRangesKeyRef.current = rangesKey;
           setBufferedRanges(absoluteRanges);
         }
@@ -2563,6 +2572,21 @@ export function TvWatchView() {
 
       if (panelOpen) {
         scheduleWatchChromeHide();
+        return;
+      }
+
+      if (countdown && active?.closest("[data-tv-watch-next-episode]")) {
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          const overlay = active.closest<HTMLElement>("[data-tv-watch-next-episode]");
+          const row = overlay?.querySelector<HTMLElement>("[data-tv-row]");
+          const next = moveWatchTransportFocus(
+            getWatchTransportFocusItems(row ?? null),
+            active,
+            e.key === "ArrowLeft" ? "left" : "right",
+          );
+          if (next) focusTvItem(next);
+        }
         return;
       }
 

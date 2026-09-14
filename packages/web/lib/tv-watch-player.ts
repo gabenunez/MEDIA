@@ -9,6 +9,8 @@ import {
 export const WATCH_SKIP_BACK_SECONDS = 10;
 export const WATCH_SKIP_FORWARD_SECONDS = 30;
 export const WATCH_SCRUB_NUDGE_SECONDS = 10;
+/** Refresh an idle native HLS session only near the server's 10-minute expiry. */
+export const WATCH_NATIVE_HLS_PAUSE_RESTART_MS = 8 * 60 * 1000;
 
 export function watchSkipDeltaSeconds(intent: "skip-back" | "skip-forward"): number {
   return intent === "skip-back" ? -WATCH_SKIP_BACK_SECONDS : WATCH_SKIP_FORWARD_SECONDS;
