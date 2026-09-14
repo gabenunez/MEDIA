@@ -21,6 +21,7 @@ import {
   watchSkipDeltaSeconds,
   accumulateWatchSkipFeedback,
   isWatchRemoteSkipArrowKey,
+  WATCH_NATIVE_HLS_PAUSE_RESTART_MS,
   WATCH_SKIP_FEEDBACK_MS,
 } from "./tv-watch-player";
 
@@ -53,6 +54,13 @@ describe("watch skip amounts", () => {
       direction: "forward",
       seconds: 30,
     });
+  });
+});
+
+describe("native HLS pause recovery", () => {
+  it("does not rebuild the stream during a normal several-minute pause", () => {
+    expect(WATCH_NATIVE_HLS_PAUSE_RESTART_MS).toBe(8 * 60 * 1000);
+    expect(WATCH_NATIVE_HLS_PAUSE_RESTART_MS).toBeGreaterThan(45_000);
   });
 });
 
