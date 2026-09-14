@@ -30,6 +30,7 @@ export interface MediaDetail {
   needsMatch?: boolean | null;
   matchConfidence?: number | null;
   isFavorite?: boolean;
+  watchedAt?: string | null;
   hasThemeMusic?: boolean;
   watchProgress?: { positionMs: number; durationMs?: number | null } | null;
   files?: Array<{ id: number; filePath?: string; durationMs?: number | null }>;

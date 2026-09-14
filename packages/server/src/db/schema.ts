@@ -39,6 +39,7 @@ export const mediaItems = sqliteTable(
     rating: real("rating"),
     matchConfidence: real("match_confidence"),
     needsMatch: integer("needs_match", { mode: "boolean" }).default(false),
+    watchedAt: integer("watched_at", { mode: "timestamp" }),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .$defaultFn(() => new Date()),

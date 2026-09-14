@@ -17,7 +17,7 @@ function createDb(overrides: {
   }>;
   episodes?: Map<number, { id: number; seasonId: number; episodeNumber: number; title: string; durationMs: number | null; stillPath: string | null }>;
   seasons?: Map<number, { id: number; mediaItemId: number; seasonNumber: number }>;
-  media?: Map<number, { id: number; title: string; posterPath: string | null }>;
+  media?: Map<number, { id: number; title: string; posterPath: string | null; watchedAt?: Date | null }>;
   movieFiles?: Map<number, { id: number; mediaItemId: number; durationMs: number | null }>;
   deletedIds?: number[];
 }) {
@@ -94,5 +94,31 @@ describe("listContinueWatching", () => {
     expect(result.items).toEqual([]);
     expect(result.total).toBe(0);
     expect(db.delete).toHaveBeenCalled();
+  });
+
+  it("does not surface progress for a media item marked watched", async () => {
+    const db = createDb({
+      progress: [
+        {
+          id: 2,
+          itemType: "movie",
+          itemId: 12,
+          positionMs: 120_000,
+          durationMs: 600_000,
+          updatedAt: new Date(),
+        },
+      ],
+      movieFiles: new Map([
+        [12, { id: 12, mediaItemId: 7, durationMs: 600_000 }],
+      ]),
+      media: new Map([
+        [7, { id: 7, title: "Already Seen", posterPath: null, watchedAt: new Date() }],
+      ]),
+    });
+
+    const result = await listContinueWatching(db as DatabaseInstance);
+
+    expect(result.items).toEqual([]);
+    expect(result.total).toBe(0);
   });
 });

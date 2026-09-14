@@ -119,6 +119,7 @@ async function resolveEpisodeContinueWatchingEntry(
       where: eq(mediaItems.id, season.mediaItemId),
     });
     if (!media) return null;
+    if (media.watchedAt) return null;
 
     const episodeProgress =
       episodeId === progress.itemId
@@ -167,6 +168,7 @@ async function resolveContinueWatchingEntry(
       where: eq(mediaItems.id, file.mediaItemId),
     });
     if (!media) return null;
+    if (media.watchedAt) return null;
 
     const duration = progress.durationMs ?? file.durationMs ?? 1;
     return {

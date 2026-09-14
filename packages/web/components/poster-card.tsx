@@ -2,7 +2,7 @@
 
 import { memo, useCallback } from "react";
 import Link from "next/link";
-import { Clapperboard, Play, Tv } from "lucide-react";
+import { CheckCircle2, Clapperboard, Play, Tv } from "lucide-react";
 import { api, type MediaItem } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { prefetchPosterNavigation, preloadImageUrl } from "@/lib/prefetch-artwork";
@@ -78,6 +78,15 @@ export const PosterCard = memo(function PosterCard({
         <div className="absolute right-2 top-2 rounded border border-white/10 bg-black/55 px-1.5 py-1 font-mono text-[0.62rem] uppercase text-white/80 opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
           {item.type === "movie" ? "Film" : "Series"}
         </div>
+        {item.watchedAt && (
+          <span
+            className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent-foreground shadow-sm"
+            aria-label="Already watched"
+          >
+            <CheckCircle2 className="h-3 w-3" />
+            Seen
+          </span>
+        )}
 
         <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
           <div className="flex h-12 w-12 items-center justify-center rounded-full border border-primary/40 bg-primary text-primary-foreground shadow-[0_0_30px_hsl(var(--primary)/0.35)]">

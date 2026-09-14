@@ -3,17 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
-import { Loader2, Play } from "lucide-react";
+import { CheckCircle2, Loader2, Play } from "lucide-react";
 import { TV_HERO_IMAGE_QUALITY, TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
+import { TvWatchedButton } from "@/components/tv/tv-watched-button";
+import { TvPlaybackOptions } from "@/components/tv/tv-playback-options";
 import { TvHistoryBackButton, TvSectionLabel } from "@/components/tv/tv-page-header";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
 import { FixMatchDialog } from "@/components/fix-match-dialog";
-import { formatDuration, getPlaybackButtonLabel, canResumePlayback, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
+import { formatDuration, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
 import { resolveNextEpisodeTarget } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusEpisodeItem, focusFirstContentItem, focusMediaPlayItem } from "@/lib/tv-focus";
@@ -130,6 +132,7 @@ function TvMediaViewContent({
 }) {
   const [selectedSeason, setSelectedSeason] = useState(0);
   const [fixMatchOpen, setFixMatchOpen] = useState(false);
+  const [watched, setWatched] = useState(Boolean(media.watchedAt));
   const nextEpisodeIdRef = useRef<number | null>(null);
   const initializedMediaIdRef = useRef<number | null>(null);
 
@@ -171,14 +174,14 @@ function TvMediaViewContent({
   const movieFile = media.files?.[0];
   const moviePlaybackLabel = movieFile
     ? getPlaybackButtonLabel(
-        media.watchProgress?.positionMs,
+      watched ? null : media.watchProgress?.positionMs,
         media.watchProgress?.durationMs ?? movieFile.durationMs,
       )
     : "Play";
   const movieCanResume = Boolean(
     movieFile &&
       canResumePlayback(
-        media.watchProgress?.positionMs,
+        watched ? null : media.watchProgress?.positionMs,
         media.watchProgress?.durationMs ?? movieFile?.durationMs,
       ),
   );
@@ -253,6 +256,12 @@ function TvMediaViewContent({
                   Unmatched — pick the correct listing below.
                 </p>
               )}
+              {watched && (
+                <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Already watched
+                </div>
+              )}
 
               <div
                 data-tv-row=""
@@ -267,15 +276,14 @@ function TvMediaViewContent({
                       className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 text-primary-foreground"
                     >
                       <Play className="h-4 w-4 fill-current" />
-                      {moviePlaybackLabel}
+                       {watched ? "Play again" : moviePlaybackLabel}
                     </TvFocusLink>
-                    {movieCanResume && (
-                      <TvFocusLink
-                        href={routes.watchFromStart("movie", movieFile.id, media.id)}
-                        className="inline-flex items-center rounded-lg border-2 border-white/20 px-4 text-sm text-white"
-                      >
-                        {START_FROM_BEGINNING_LABEL}
-                      </TvFocusLink>
+                    {movieCanResume && !watched && (
+                      <TvPlaybackOptions
+                        type="movie"
+                        fileId={movieFile.id}
+                        mediaId={media.id}
+                      />
                     )}
                   </>
                 )}
@@ -284,13 +292,35 @@ function TvMediaViewContent({
                   initialFavorite={media.isFavorite}
                   className="!gap-2 !px-4 !py-2 !text-sm"
                 />
-                <TvFocusButton
-                  onClick={() => setFixMatchOpen(true)}
-                  className="rounded-lg px-4 text-muted-foreground"
-                >
-                  {needsMatch ? "Match title" : "Wrong match?"}
-                </TvFocusButton>
+                <TvWatchedButton
+                  mediaId={media.id}
+                  initialWatched={watched}
+                  className="!gap-2 !px-4 !py-2 !text-sm"
+                  onChange={setWatched}
+                />
+                {needsMatch && (
+                  <TvFocusButton
+                    onClick={() => setFixMatchOpen(true)}
+                    className="rounded-lg px-4 text-muted-foreground"
+                  >
+                    Match title
+                  </TvFocusButton>
+                )}
               </div>
+              {!needsMatch && (
+                <div
+                  data-tv-row=""
+                  data-tv-content-row=""
+                  className="mt-1"
+                >
+                  <TvFocusButton
+                    onClick={() => setFixMatchOpen(true)}
+                    className="!min-h-0 !px-1 !py-1 text-xs text-muted-foreground/60"
+                  >
+                    Wrong match?
+                  </TvFocusButton>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -350,12 +380,12 @@ function TvMediaViewContent({
                   : 0;
 
               return (
-                <div key={ep.id} className="flex flex-col gap-1">
+                <div key={ep.id} className="flex items-center gap-1">
                   <TvFocusLink
                     href={routes.watch("episode", ep.id, media.id)}
                     variant="card"
                     data-tv-episode-id={ep.id}
-                    className="tv-media-episode flex items-center gap-3 px-3 py-2"
+                    className="tv-media-episode flex min-w-0 flex-1 items-center gap-3 px-3 py-2"
                   >
                   <div className="tv-episode-still relative shrink-0 overflow-hidden rounded-md bg-muted">
                     {ep.stillPath ? (
@@ -402,12 +432,7 @@ function TvMediaViewContent({
                   </span>
                 </TvFocusLink>
                 {episodeCanResume && (
-                  <TvFocusLink
-                    href={routes.watchFromStart("episode", ep.id, media.id)}
-                    className="mx-3 mb-1 inline-flex self-start rounded-lg border-2 border-white/15 px-3 py-1.5 text-xs text-muted-foreground"
-                  >
-                    {START_FROM_BEGINNING_LABEL}
-                  </TvFocusLink>
+                  <TvPlaybackOptions fileId={ep.id} mediaId={media.id} />
                 )}
               </div>
               );

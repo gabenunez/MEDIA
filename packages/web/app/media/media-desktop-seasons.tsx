@@ -7,9 +7,10 @@ import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { OfflineDownloadButton } from "@/components/offline-download-button";
-import { formatDuration, getPlaybackButtonLabel, canResumePlayback, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
+import { formatDuration, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
 import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
 import { MediaImage } from "@/components/media-image";
+import { PlaybackOptionsMenu } from "@/components/playback-options-menu";
 import type { MediaDetail } from "./types";
 
 export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
@@ -112,11 +113,7 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
               </Link>
               <div className="relative z-10 flex shrink-0 flex-col items-end gap-2">
                 {episodeCanResume && (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={routes.watchFromStart("episode", ep.id, media.id)}>
-                      {START_FROM_BEGINNING_LABEL}
-                    </Link>
-                  </Button>
+                  <PlaybackOptionsMenu type="episode" fileId={ep.id} mediaId={media.id} />
                 )}
                 <OfflineDownloadButton fileId={ep.id} type="episode" size="sm" />
               </div>
