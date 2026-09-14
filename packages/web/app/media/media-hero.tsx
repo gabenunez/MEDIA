@@ -2,33 +2,36 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calendar, ChevronLeft, Clock3, Layers3, Play, Star } from "lucide-react";
+import { Calendar, CheckCircle2, ChevronLeft, Clock3, Layers3, Play, Star } from "lucide-react";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/favorite-button";
+import { WatchedButton } from "@/components/watched-button";
+import { PlaybackOptionsMenu } from "@/components/playback-options-menu";
 import { OfflineDownloadButton } from "@/components/offline-download-button";
 import { FixMatchDialog } from "@/components/fix-match-dialog";
 import { ThemeMusicWaveform } from "@/components/theme-music-player";
-import { formatDuration, getPlaybackButtonLabel, canResumePlayback, START_FROM_BEGINNING_LABEL } from "@/lib/utils";
+import { formatDuration, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { MediaImage } from "@/components/media-image";
 import type { MediaDetail } from "./types";
 
 export function MediaHero({ media }: { media: MediaDetail }) {
   const [fixMatchOpen, setFixMatchOpen] = useState(false);
+  const [watched, setWatched] = useState(Boolean(media.watchedAt));
   const backdropUrl = api.imageUrl(media.backdropPath ?? media.posterPath);
   const posterUrl = api.imageUrl(media.posterPath);
   const movieFile = media.files?.[0];
   const moviePlaybackLabel = movieFile
     ? getPlaybackButtonLabel(
-        media.watchProgress?.positionMs,
+      watched ? null : media.watchProgress?.positionMs,
         media.watchProgress?.durationMs ?? movieFile.durationMs,
       )
     : "Play";
   const movieCanResume = Boolean(
     movieFile &&
       canResumePlayback(
-        media.watchProgress?.positionMs,
+        watched ? null : media.watchProgress?.positionMs,
         media.watchProgress?.durationMs ?? movieFile?.durationMs,
       ),
   );
@@ -108,6 +111,12 @@ export function MediaHero({ media }: { media: MediaDetail }) {
                   {media.genres}
                 </span>
               )}
+              {watched && (
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 px-2.5 py-1 text-accent">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Watched
+                </span>
+              )}
             </div>
 
             {media.overview && (
@@ -134,15 +143,15 @@ export function MediaHero({ media }: { media: MediaDetail }) {
                 <>
                   <Button size="lg" asChild>
                     <Link href={routes.watch("movie", movieFile.id, media.id)}>
-                      <Play className="h-5 w-5 fill-current" /> {moviePlaybackLabel}
+                      <Play className="h-5 w-5 fill-current" /> {watched ? "Play again" : moviePlaybackLabel}
                     </Link>
                   </Button>
-                  {movieCanResume && (
-                    <Button size="lg" variant="outline" asChild>
-                      <Link href={routes.watchFromStart("movie", movieFile.id, media.id)}>
-                        {START_FROM_BEGINNING_LABEL}
-                      </Link>
-                    </Button>
+                  {movieCanResume && !watched && (
+                    <PlaybackOptionsMenu
+                      type="movie"
+                      fileId={movieFile.id}
+                      mediaId={media.id}
+                    />
                   )}
                   <OfflineDownloadButton fileId={movieFile.id} type="movie" />
                 </>
@@ -152,17 +161,25 @@ export function MediaHero({ media }: { media: MediaDetail }) {
                 initialFavorite={media.isFavorite}
                 size="lg"
               />
-              {!needsMatch && (
+              <WatchedButton
+                mediaId={media.id}
+                initialWatched={watched}
+                size="lg"
+                onChange={setWatched}
+              />
+            </div>
+            {!needsMatch && (
+              <div className="mt-2">
                 <Button
                   variant="ghost"
-                  size="lg"
+                  size="sm"
                   onClick={() => setFixMatchOpen(true)}
-                  className="text-muted-foreground"
+                  className="h-auto px-0 text-xs text-muted-foreground/70 hover:bg-transparent hover:text-muted-foreground"
                 >
                   Wrong match?
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

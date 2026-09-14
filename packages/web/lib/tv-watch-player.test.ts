@@ -476,6 +476,8 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("isWatchRemoteSkipArrowKey");
     expect(watchView).toContain("WatchSkipFeedbackBadge");
     expect(watchView).toContain("revealControls: false");
+    expect(watchView).toContain("flashRemoteSkipFeedback(hiddenArrow);");
+    expect(watchView).toContain("revealControls(false);");
     expect(watchView).toContain("moveWatchTransportFocus");
     expect(watchView).toContain("getWatchTransportFocusItems");
     expect(watchView).toContain("getWatchPlayerFocusedItem");

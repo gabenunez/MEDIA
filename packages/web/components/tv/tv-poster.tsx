@@ -9,7 +9,7 @@ import Link from "next/link";
 import { tvPosterLinkClassName } from "@/components/tv/tv-focus-link";
 import { prefetchPosterFocus } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
-import { Clapperboard, Tv } from "lucide-react";
+import { CheckCircle2, Clapperboard, Tv } from "lucide-react";
 import { isTvClient } from "@/lib/tv-mode-detect";
 import { MediaImage } from "@/components/media-image";
 import { measureTvMarqueeShift } from "@/lib/tv-marquee";
@@ -126,6 +126,15 @@ export const TvPoster = memo(function TvPoster({
                 style={{ width: `${Math.min(100, progress)}%` }}
               />
             </div>
+          )}
+          {item.watchedAt && (
+            <span
+              className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent-foreground shadow-sm"
+              aria-label="Already watched"
+            >
+              <CheckCircle2 className="h-3 w-3" />
+              Seen
+            </span>
           )}
         </div>
         <p className="tv-poster-title line-clamp-2 leading-snug text-muted-foreground">

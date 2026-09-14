@@ -561,6 +561,17 @@
     line-height: 1.35;
   }
 
+  /* Episode alternatives stay quiet until Right moves focus to them. */
+  .tv-ui .tv-media-episode-options {
+    opacity: 0;
+    transition: opacity 90ms ease-out;
+  }
+
+  .tv-ui .tv-media-episode-options[data-tv-focused],
+  .tv-ui .tv-media-episode-options:focus-visible {
+    opacity: 1;
+  }
+
   .tv-ui .tv-search-field {
     min-height: 3rem;
     font-size: 1.05rem;
@@ -997,7 +1008,7 @@
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
   }
 
-  /* Remote L/R skip — use the same dark rail, radius, and primary accent as player chrome. */
+  /* Remote L/R skip — a light, readable surface that does not compete with the video. */
   .watch-skip-feedback {
     display: flex;
     align-items: center;
@@ -1005,11 +1016,11 @@
     min-width: 9.5rem;
     height: 4.5rem;
     padding: 0 1rem;
-    border: 1px solid rgb(255 255 255 / 0.2);
+    border: 1px solid rgb(255 255 255 / 0.88);
     border-radius: 9999px;
-    background: rgb(0 0 0 / 0.72);
-    color: #fff;
-    box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.28);
+    background: rgb(255 255 255 / 0.88);
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.2);
     animation: none;
   }
 
@@ -1020,9 +1031,9 @@
     width: 2.75rem;
     height: 2.75rem;
     flex: 0 0 2.75rem;
-    border: 1px solid hsl(var(--primary) / 0.65);
+    border: 1px solid hsl(var(--primary) / 0.7);
     border-radius: 9999px;
-    background: hsl(var(--primary) / 0.2);
+    background: hsl(var(--primary) / 0.28);
     color: hsl(var(--primary-foreground));
   }
 
@@ -1040,7 +1051,7 @@
   }
 
   .watch-skip-feedback-unit {
-    color: rgb(255 255 255 / 0.68);
+    color: hsl(var(--primary-foreground) / 0.64);
     font-size: 0.875rem;
     font-weight: 600;
     letter-spacing: 0.03em;
