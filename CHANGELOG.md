@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.271 — 2026-09-14
+
+### Changes
+
+- **Release** — Fix TV countdown navigation and playback resume
+- ## Summary
+- Fix TV resume and countdown navigation (#30)
+
 ## 0.1.270 — 2026-09-13
 
 ### Changes
