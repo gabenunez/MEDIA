@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.272 — 2026-09-14
+
+### Changes
+
+- **Release** — Add watched state and playback options
+- ## Summary
+- Add watched state and playback options (#31)
+
 ## 0.1.271 — 2026-09-14
 
 ### Changes
