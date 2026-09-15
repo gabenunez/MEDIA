@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.273 — 2026-09-15
+
+### Changes
+
+- **Release** — Restore TV skip feedback
+- ## Summary
+- Restore TV skip feedback (#32)
+
 ## 0.1.272 — 2026-09-14
 
 ### Changes
