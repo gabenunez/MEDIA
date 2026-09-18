@@ -100,14 +100,15 @@ object DeviceBufferBudget {
                 else -> 16L * 1024L * 1024L
             }
         val stallAhead = min(8_000L, (minMs * 0.55).roundToInt().toLong()).coerceAtLeast(4_000L)
+        val gates = playbackGates(minMs, hls)
 
         return if (hls) {
             DeviceBufferProfile(
                 minBufferMs = minMs,
                 maxBufferMs = maxMs,
-                bufferForPlaybackMs = 5_000,
-                bufferForPlaybackAfterRebufferMs = 10_000,
-                backBufferMs = max(backMs, 10_000),
+                bufferForPlaybackMs = gates.playbackMs,
+                bufferForPlaybackAfterRebufferMs = gates.afterRebufferMs,
+                backBufferMs = max(backMs, min(10_000, minMs)),
                 targetBufferBytes = target.toInt(),
                 progressiveChunkBytes = 0L,
                 transferStallAheadMs = stallAhead,
@@ -116,8 +117,8 @@ object DeviceBufferBudget {
             DeviceBufferProfile(
                 minBufferMs = minMs,
                 maxBufferMs = maxMs,
-                bufferForPlaybackMs = 2_500,
-                bufferForPlaybackAfterRebufferMs = 5_000,
+                bufferForPlaybackMs = gates.playbackMs,
+                bufferForPlaybackAfterRebufferMs = gates.afterRebufferMs,
                 backBufferMs = backMs,
                 targetBufferBytes = target.toInt(),
                 progressiveChunkBytes = chunk,
@@ -153,13 +154,14 @@ object DeviceBufferBudget {
         // Was 60s against ~110s min — keep ~55% of min so healthy HD isn't "always draining".
         val stallAhead =
             min(60_000L, (minMs * 0.55).roundToInt().toLong()).coerceAtLeast(20_000L)
+        val gates = playbackGates(minMs, hls)
 
         return if (hls) {
             DeviceBufferProfile(
                 minBufferMs = minMs,
                 maxBufferMs = maxMs,
-                bufferForPlaybackMs = 5_000,
-                bufferForPlaybackAfterRebufferMs = 10_000,
+                bufferForPlaybackMs = gates.playbackMs,
+                bufferForPlaybackAfterRebufferMs = gates.afterRebufferMs,
                 backBufferMs = backMs,
                 targetBufferBytes = target.toInt(),
                 progressiveChunkBytes = 0L,
@@ -169,8 +171,8 @@ object DeviceBufferBudget {
             DeviceBufferProfile(
                 minBufferMs = minMs,
                 maxBufferMs = maxMs,
-                bufferForPlaybackMs = 2_500,
-                bufferForPlaybackAfterRebufferMs = 5_000,
+                bufferForPlaybackMs = gates.playbackMs,
+                bufferForPlaybackAfterRebufferMs = gates.afterRebufferMs,
                 backBufferMs = backMs,
                 targetBufferBytes = target.toInt(),
                 progressiveChunkBytes = chunk,
@@ -178,4 +180,24 @@ object DeviceBufferBudget {
             )
         }
     }
+
+    /**
+     * DefaultLoadControl requires minBufferMs >= bufferForPlaybackAfterRebufferMs
+     * >= bufferForPlaybackMs. Tight UHD budgets can put min at 8s while HLS
+     * after-rebuffer was hardcoded to 10s — that crashed mid-play on remux handoff.
+     * Lower the start gates rather than raising min (min must stay under the
+     * byte ceiling at 4K bitrate).
+     */
+    internal fun playbackGates(minBufferMs: Int, hls: Boolean): PlaybackGates {
+        val desiredAfter = if (hls) 10_000 else 5_000
+        val desiredStart = if (hls) 5_000 else 2_500
+        val afterRebuffer = desiredAfter.coerceIn(1_000, minBufferMs)
+        val playback = desiredStart.coerceIn(500, afterRebuffer)
+        return PlaybackGates(playbackMs = playback, afterRebufferMs = afterRebuffer)
+    }
+
+    data class PlaybackGates(
+        val playbackMs: Int,
+        val afterRebufferMs: Int,
+    )
 }

@@ -103,12 +103,15 @@ class TimeBandLoadControl private constructor(
             backBufferDurationMs: Int,
             maxAllocatedBytes: Int = targetBufferBytes,
         ): TimeBandLoadControl {
+            val afterRebuffer = min(bufferForPlaybackAfterRebufferMs, minBufferMs).coerceAtLeast(500)
+            val playback = min(bufferForPlaybackMs, afterRebuffer).coerceAtLeast(500)
+            val maxBuffer = max(maxBufferMs, minBufferMs)
             return TimeBandLoadControl(
                 DefaultAllocator(/* trimOnReset= */ true, C.DEFAULT_BUFFER_SEGMENT_SIZE),
                 minBufferMs,
-                maxBufferMs,
-                bufferForPlaybackMs,
-                bufferForPlaybackAfterRebufferMs,
+                maxBuffer,
+                playback,
+                afterRebuffer,
                 targetBufferBytes,
                 maxAllocatedBytes,
                 backBufferDurationMs,
