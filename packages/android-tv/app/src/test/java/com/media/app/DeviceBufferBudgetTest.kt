@@ -92,5 +92,59 @@ class DeviceBufferBudgetTest {
             DeviceBufferBudget.durationMsForBytes(profile.targetBufferBytes.toLong(), 100.0)
         assertTrue(profile.minBufferMs < capacity)
         assertEquals(0L, profile.progressiveChunkBytes)
+        assertExoPlayerLoadControlInvariants(profile)
+    }
+
+    @Test
+    fun uhdHlsTightMemoryKeepsMinAtOrAboveAfterRebuffer() {
+        // Heap already full of 4K progressive buffers — remux handoff used to crash:
+        // minMs=8000 < HLS afterRebuffer=10000.
+        val profile =
+            DeviceBufferBudget.resolve(
+                maxHeapBytes = 256L * 1024L * 1024L,
+                usedHeapBytes = 220L * 1024L * 1024L,
+                availSystemBytes = 120L * 1024L * 1024L,
+                lowMemory = true,
+                hls = true,
+                uhd = true,
+            )
+        assertExoPlayerLoadControlInvariants(profile)
+        assertTrue(profile.minBufferMs <= 28_000)
+        assertTrue(
+            "afterRebuffer=${profile.bufferForPlaybackAfterRebufferMs} should not exceed min",
+            profile.bufferForPlaybackAfterRebufferMs <= profile.minBufferMs,
+        )
+    }
+
+    @Test
+    fun generousUhdHlsKeepsDesiredAfterRebuffer() {
+        val profile =
+            DeviceBufferBudget.resolve(
+                maxHeapBytes = 768L * 1024L * 1024L,
+                usedHeapBytes = 64L * 1024L * 1024L,
+                availSystemBytes = 2L * 1024L * 1024L * 1024L,
+                lowMemory = false,
+                hls = true,
+                uhd = true,
+            )
+        assertExoPlayerLoadControlInvariants(profile)
+        assertEquals(10_000, profile.bufferForPlaybackAfterRebufferMs)
+        assertEquals(5_000, profile.bufferForPlaybackMs)
+    }
+
+    private fun assertExoPlayerLoadControlInvariants(profile: DeviceBufferProfile) {
+        assertTrue(
+            "min=${profile.minBufferMs} max=${profile.maxBufferMs}",
+            profile.minBufferMs <= profile.maxBufferMs,
+        )
+        assertTrue(
+            "min=${profile.minBufferMs} afterRebuffer=${profile.bufferForPlaybackAfterRebufferMs}",
+            profile.minBufferMs >= profile.bufferForPlaybackAfterRebufferMs,
+        )
+        assertTrue(
+            "afterRebuffer=${profile.bufferForPlaybackAfterRebufferMs} playback=${profile.bufferForPlaybackMs}",
+            profile.bufferForPlaybackAfterRebufferMs >= profile.bufferForPlaybackMs,
+        )
+        assertTrue(profile.transferStallAheadMs < profile.minBufferMs)
     }
 }
