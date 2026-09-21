@@ -2607,6 +2607,9 @@ export function TvWatchView() {
           if (isWatchRemoteSkipArrowKey(e.key)) {
             skipRelative(watchSkipDeltaSeconds(hiddenArrow), { revealControls: false });
             flashRemoteSkipFeedback(hiddenArrow);
+            // Seeking can briefly emit playback events; keep chrome hidden even
+            // if those events arrive after the remote press.
+            revealControls(false);
             return;
           }
           skipRelative(watchSkipDeltaSeconds(hiddenArrow));

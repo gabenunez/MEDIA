@@ -484,6 +484,16 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("e.defaultPrevented");
   });
 
+  it("keeps chrome hidden while a remote skip settles", () => {
+    const hiddenSkip = watchView.slice(
+      watchView.indexOf('if (isWatchRemoteSkipArrowKey(e.key))'),
+      watchView.indexOf("return;", watchView.indexOf('if (isWatchRemoteSkipArrowKey(e.key))')) +
+        "return;".length,
+    );
+    expect(hiddenSkip).toContain("skipRelative(watchSkipDeltaSeconds(hiddenArrow), { revealControls: false })");
+    expect(hiddenSkip).toContain("revealControls(false)");
+  });
+
   it("spatial nav uses the extracted watch-arrow guard", () => {
     expect(spatialNav).toContain("spatialNavShouldHandleWatchArrow");
     expect(spatialNav).toContain("resolveWatchMenuDpadTarget");
