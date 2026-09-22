@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.274 — 2026-09-22
+
+### Changes
+
+- **Release** — Keep TV controls hidden after remote skip
+- Prevent TV video controls from reopening after a left/right remote skip.
+- Stop 4K remux handoff from crashing the TV app.
+
 ## 0.1.273 — 2026-09-15
 
 ### Changes
