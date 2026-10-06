@@ -21,6 +21,7 @@ import {
   tvEpisodes,
   scanJobs,
 } from "../db/schema.js";
+import { dedupeDuplicateSeasons } from "./dedupe-seasons.js";
 import { MetadataService } from "./metadata.js";
 import { SubtitleService } from "./subtitles.js";
 import { ThemeService } from "./themes.js";
@@ -30,6 +31,7 @@ import { probeFile } from "../utils/ffmpeg.js";
 export class ScannerService {
   private watchers = new Map<number, FSWatcher>();
   private activeScan: { libraryId: number; jobId: number } | null = null;
+  private seasonCreateChain = new Map<string, Promise<void>>();
 
   constructor(
     private db: DatabaseInstance,
@@ -44,6 +46,11 @@ export class ScannerService {
   }
 
   async initializeLibraries(): Promise<void> {
+    const removedSeasons = await dedupeDuplicateSeasons(this.db);
+    if (removedSeasons > 0) {
+      console.log(`Merged ${removedSeasons} duplicate TV season(s)`);
+    }
+
     for (const libConfig of this.config.libraries) {
       const existing = await this.db.query.libraries.findFirst({
         where: eq(libraries.path, libConfig.path),
@@ -211,6 +218,10 @@ export class ScannerService {
         const merged = await this.dedupeTvShows(libraryId);
         if (merged > 0) {
           console.log(`Merged ${merged} duplicate TV show(s) in ${lib.name}`);
+        }
+        const removedSeasons = await dedupeDuplicateSeasons(this.db, libraryId);
+        if (removedSeasons > 0) {
+          console.log(`Merged ${removedSeasons} duplicate TV season(s) in ${lib.name}`);
         }
       }
 
@@ -911,6 +922,81 @@ export class ScannerService {
     return merged;
   }
 
+  /** Serialize season creation so a batch of new episodes shares one season row. */
+  private async withSeasonLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.seasonCreateChain.get(key) ?? Promise.resolve();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.then(() => gate);
+    this.seasonCreateChain.set(key, tail);
+    await previous;
+    try {
+      return await fn();
+    } finally {
+      release();
+      if (this.seasonCreateChain.get(key) === tail) {
+        this.seasonCreateChain.delete(key);
+      }
+    }
+  }
+
+  private async ensureTvSeason(
+    mediaItemId: number,
+    seasonNumber: number,
+    tmdbId: number | null,
+  ): Promise<typeof tvSeasons.$inferSelect> {
+    return this.withSeasonLock(`${mediaItemId}:${seasonNumber}`, async () => {
+      const existing = await this.db.query.tvSeasons.findFirst({
+        where: and(
+          eq(tvSeasons.mediaItemId, mediaItemId),
+          eq(tvSeasons.seasonNumber, seasonNumber),
+        ),
+      });
+      if (existing) return existing;
+
+      let seasonMeta = null;
+      if (tmdbId) {
+        seasonMeta = await this.metadata.getTvSeason(tmdbId, seasonNumber);
+      }
+
+      const seasonPoster = seasonMeta
+        ? await this.metadata.cachePoster(seasonMeta.poster_path)
+        : null;
+
+      const [created] = await this.db
+        .insert(tvSeasons)
+        .values({
+          mediaItemId,
+          seasonNumber,
+          name: seasonMeta?.name ?? `Season ${seasonNumber}`,
+          overview: seasonMeta?.overview ?? null,
+          posterPath: seasonPoster,
+          airDate: seasonMeta?.air_date ?? null,
+        })
+        .onConflictDoNothing({
+          target: [tvSeasons.mediaItemId, tvSeasons.seasonNumber],
+        })
+        .returning();
+
+      if (created) return created;
+
+      const raced = await this.db.query.tvSeasons.findFirst({
+        where: and(
+          eq(tvSeasons.mediaItemId, mediaItemId),
+          eq(tvSeasons.seasonNumber, seasonNumber),
+        ),
+      });
+      if (!raced) {
+        throw new Error(
+          `Failed to create season ${seasonNumber} for media ${mediaItemId}`,
+        );
+      }
+      return raced;
+    });
+  }
+
   private async processTvFile(
     lib: typeof libraries.$inferSelect,
     filePath: string,
@@ -990,40 +1076,11 @@ export class ScannerService {
       mediaItem = item;
     }
 
-    let season = await this.db.query.tvSeasons.findFirst({
-      where: and(
-        eq(tvSeasons.mediaItemId, mediaItem.id),
-        eq(tvSeasons.seasonNumber, parsed.season),
-      ),
-    });
-
-    if (!season) {
-      let seasonMeta = null;
-      if (mediaItem.tmdbId) {
-        seasonMeta = await this.metadata.getTvSeason(
-          mediaItem.tmdbId,
-          parsed.season,
-        );
-      }
-
-      const seasonPoster = seasonMeta
-        ? await this.metadata.cachePoster(seasonMeta.poster_path)
-        : null;
-
-      const [newSeason] = await this.db
-        .insert(tvSeasons)
-        .values({
-          mediaItemId: mediaItem.id,
-          seasonNumber: parsed.season,
-          name: seasonMeta?.name ?? `Season ${parsed.season}`,
-          overview: seasonMeta?.overview ?? null,
-          posterPath: seasonPoster,
-          airDate: seasonMeta?.air_date ?? null,
-        })
-        .returning();
-
-      season = newSeason;
-    }
+    const season = await this.ensureTvSeason(
+      mediaItem.id,
+      parsed.season,
+      mediaItem.tmdbId,
+    );
 
     const episodeMeta = mediaItem.tmdbId
       ? (await this.metadata.getTvSeason(mediaItem.tmdbId, parsed.season))

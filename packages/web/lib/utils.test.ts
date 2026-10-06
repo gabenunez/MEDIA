@@ -6,13 +6,19 @@ import {
 } from "./utils";
 
 describe("canResumePlayback", () => {
-  it("requires progress inside the 2–95% window", () => {
+  it("requires progress past the opening and before the credits", () => {
     expect(canResumePlayback(null, 3_600_000)).toBe(false);
     expect(canResumePlayback(0, 3_600_000)).toBe(false);
     expect(canResumePlayback(60_000, 3_600_000)).toBe(false);
     expect(canResumePlayback(72_001, 3_600_000)).toBe(true);
     expect(canResumePlayback(600_000, 3_600_000)).toBe(true);
     expect(canResumePlayback(3_420_000, 3_600_000)).toBe(false);
+  });
+
+  it("does not resume a movie left in the credits", () => {
+    const durationMs = 120 * 60_000;
+    expect(canResumePlayback(durationMs - 8 * 60_000, durationMs)).toBe(false);
+    expect(canResumePlayback(60 * 60_000, durationMs)).toBe(true);
   });
 });
 

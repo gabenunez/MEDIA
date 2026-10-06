@@ -7,6 +7,52 @@ import {
   watchProgress,
 } from "../db/schema.js";
 
+type SeasonEpisode = { id: number; episodeNumber: number };
+
+type ConsolidatableSeason<TEpisode extends SeasonEpisode> = {
+  id: number;
+  seasonNumber: number;
+  name: string | null;
+  overview: string | null;
+  posterPath: string | null;
+  airDate: string | null;
+  episodes: TEpisode[];
+};
+
+/** One chip per season number, with every episode from duplicate rows. */
+export function consolidateSeasonsByNumber<
+  TEpisode extends SeasonEpisode,
+  TSeason extends ConsolidatableSeason<TEpisode>,
+>(seasons: TSeason[]): TSeason[] {
+  const grouped = new Map<number, TSeason>();
+
+  for (const season of seasons) {
+    const existing = grouped.get(season.seasonNumber);
+    if (!existing) {
+      grouped.set(season.seasonNumber, {
+        ...season,
+        episodes: [...season.episodes],
+      });
+      continue;
+    }
+
+    existing.episodes.push(...season.episodes);
+    existing.name = existing.name ?? season.name;
+    existing.overview = existing.overview ?? season.overview;
+    existing.posterPath = existing.posterPath ?? season.posterPath;
+    existing.airDate = existing.airDate ?? season.airDate;
+  }
+
+  return [...grouped.values()]
+    .map((season) => ({
+      ...season,
+      episodes: [...season.episodes].sort(
+        (a, b) => a.episodeNumber - b.episodeNumber || a.id - b.id,
+      ),
+    }))
+    .sort((a, b) => a.seasonNumber - b.seasonNumber);
+}
+
 export async function loadTvSeasonsWithEpisodes(
   db: DatabaseInstance,
   mediaItemId: number,
@@ -61,12 +107,14 @@ export async function loadTvSeasonsWithEpisodes(
     episodesBySeasonId.set(episode.seasonId, list);
   }
 
-  return seasons.map((season) => ({
-    ...season,
-    episodes: (episodesBySeasonId.get(season.id) ?? []).map((episode) => ({
-      ...episode,
-      watchProgress: progressByEpisodeId.get(episode.id) ?? null,
-      subtitles: subtitlesByEpisodeId.get(episode.id) ?? [],
+  return consolidateSeasonsByNumber(
+    seasons.map((season) => ({
+      ...season,
+      episodes: (episodesBySeasonId.get(season.id) ?? []).map((episode) => ({
+        ...episode,
+        watchProgress: progressByEpisodeId.get(episode.id) ?? null,
+        subtitles: subtitlesByEpisodeId.get(episode.id) ?? [],
+      })),
     })),
-  }));
+  );
 }

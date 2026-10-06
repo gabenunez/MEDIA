@@ -4,6 +4,7 @@ import {
   integer,
   real,
   index,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 export const libraries = sqliteTable("libraries", {
@@ -69,6 +70,10 @@ export const tvSeasons = sqliteTable(
   },
   (table) => ({
     mediaItemIdIdx: index("tv_seasons_media_item_id_idx").on(table.mediaItemId),
+    mediaItemSeasonUnique: uniqueIndex("tv_seasons_media_item_season_unique").on(
+      table.mediaItemId,
+      table.seasonNumber,
+    ),
   }),
 );
 

@@ -1,3 +1,4 @@
+import { isWatchCompleted } from "@media-app/shared";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { DatabaseInstance } from "../db/index.js";
 import {
@@ -20,8 +21,6 @@ export interface ContinueWatchingEntry {
   durationMs: number;
   percent: number;
 }
-
-const WATCH_COMPLETED_FRACTION = 0.95;
 
 async function findNextEpisodeInDb(
   db: DatabaseInstance,
@@ -134,9 +133,8 @@ async function resolveEpisodeContinueWatchingEntry(
     const durationMs =
       episodeProgress?.durationMs ?? episode.durationMs ?? progress.durationMs ?? 1;
     const positionMs = episodeProgress?.positionMs ?? 0;
-    const percent = positionMs / durationMs;
 
-    if (percent >= WATCH_COMPLETED_FRACTION) {
+    if (isWatchCompleted(positionMs, durationMs)) {
       const next = await findNextEpisodeInDb(db, episodeId);
       if (!next) return null;
       episodeId = next.episode.id;
@@ -171,6 +169,8 @@ async function resolveContinueWatchingEntry(
     if (media.watchedAt) return null;
 
     const duration = progress.durationMs ?? file.durationMs ?? 1;
+    if (isWatchCompleted(progress.positionMs, duration)) return null;
+
     return {
       id: progress.id,
       itemType: "movie",
