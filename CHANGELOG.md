@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.275 — 2026-10-06
+
+### Fix
+- **Seasons** — repeated chips for the same season, such as four Season 6 buttons, collapse into one season on desktop and TV
+- **Continue Watching** — movies and episodes left during the credits leave the row, including titles you already finished
+
+### TV
+- **Playback** — opening a title left in the credits starts from the beginning instead of resuming into the credits
+
 ## 0.1.274 — 2026-09-22
 
 ### Changes
