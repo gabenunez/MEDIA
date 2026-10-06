@@ -7,6 +7,7 @@ import {
   isBrowserDirectPlayVideoSupported,
   is4KSource,
   isHlsVideoCopySupported,
+  isWatchCompleted,
   normalizeCodecName,
   pickTranscodeQualityForPlayback,
   resolveNativeTvPlaybackMode,
@@ -1413,7 +1414,6 @@ export interface NextEpisodeInfo {
   seasonNumber: number;
 }
 
-export const WATCH_COMPLETED_FRACTION = 0.95;
 /** Show the next-episode card for the final N seconds of playback. */
 export const NEXT_EPISODE_COUNTDOWN_SECONDS = 15;
 
@@ -1573,8 +1573,10 @@ export function resolveNextEpisodeTarget(
   if (bestEpisode?.watchProgress) {
     const durationMs =
       bestEpisode.watchProgress.durationMs ?? bestEpisode.durationMs ?? 1;
-    const completed =
-      bestEpisode.watchProgress.positionMs / durationMs >= WATCH_COMPLETED_FRACTION;
+    const completed = isWatchCompleted(
+      bestEpisode.watchProgress.positionMs,
+      durationMs,
+    );
 
     if (!completed) {
       return { seasonIndex: bestSeasonIndex, episodeId: bestEpisode.id };

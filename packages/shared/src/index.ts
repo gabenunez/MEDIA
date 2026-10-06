@@ -13,4 +13,5 @@ export * from "./srt-to-vtt.js";
 export * from "./parsers/movie.js";
 export * from "./parsers/tv.js";
 export * from "./routes.js";
+export * from "./watch-progress.js";
 export * from "./cache-tags.js";

@@ -1,3 +1,4 @@
+import { isWatchCompleted } from "@media-app/shared";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -18,7 +19,6 @@ export function formatDuration(ms?: number | null): string {
 }
 
 const RESUME_MIN_PERCENT = 0.02;
-const RESUME_MAX_PERCENT = 0.95;
 
 export function canResumePlayback(
   positionMs?: number | null,
@@ -27,8 +27,8 @@ export function canResumePlayback(
   if (!positionMs || positionMs <= 0 || !durationMs || durationMs <= 0) {
     return false;
   }
-  const percent = positionMs / durationMs;
-  return percent > RESUME_MIN_PERCENT && percent < RESUME_MAX_PERCENT;
+  if (isWatchCompleted(positionMs, durationMs)) return false;
+  return positionMs / durationMs > RESUME_MIN_PERCENT;
 }
 
 export function getPlaybackButtonLabel(
