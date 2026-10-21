@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.276 — 2026-10-21
+
+### TV
+- **Playback** — the screen stays on while a title is playing, including buffering and resume, so the TV does not sleep mid-watch
+- **Media** — movie and series pages no longer leave an empty band above the title
+- **Login** — the sign-in card keeps its padding on TV
+
 ## 0.1.275 — 2026-10-06
 
 ### Fix
