@@ -224,7 +224,7 @@ function LoginGate({
       )}
       data-tv-login-gate={onTv ? "" : undefined}
     >
-      <div className="tv-login-card rounded-md border border-border/80 bg-card shadow-2xl">
+      <div className="tv-login-card box-border rounded-md border border-border/80 bg-card p-8 shadow-2xl">
         <div className="mb-6 flex items-center gap-3">
           <MediaIcon className="h-12 w-12" />
           <div>

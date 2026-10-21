@@ -193,8 +193,8 @@ function TvMediaViewContent({
 
   const page = (
     <div className="tv-media-page">
-      <section className="relative mb-4">
-        <div className="relative overflow-hidden tv-media-hero">
+      <section className="relative mb-4 overflow-hidden">
+        <div className="tv-media-hero" aria-hidden="true">
           {backdropUrl ? (
             <MediaImage
               src={backdropUrl}
@@ -215,12 +215,9 @@ function TvMediaViewContent({
           )}
         </div>
 
-        <div className="tv-media-gutter absolute inset-x-0 top-4 z-20">
+        <div className="relative z-10 tv-media-gutter">
           <TvHistoryBackButton fallbackHref={routes.home()} />
-        </div>
-
-        <div className="relative z-10 -mt-20 tv-media-gutter">
-          <div className="flex gap-4">
+          <div className="mt-3 flex gap-4">
             <div className="tv-media-poster shrink-0">
               {posterUrl ? (
                 <MediaImage

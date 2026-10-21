@@ -28,7 +28,6 @@ export const TV_LIVING_ROOM_MEDIA = {
   posterWidthRem: 7,
   episodeStillWidthRem: 6.75,
   episodeStillHeightRem: 3.75,
-  heroMaxHeightRem: 15,
   titleMaxRem: 1.75,
 } as const;
 

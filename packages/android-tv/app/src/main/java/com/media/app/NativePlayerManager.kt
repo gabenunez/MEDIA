@@ -31,6 +31,7 @@ class NativePlayerManager(
     private val emitJs: (String) -> Unit,
     private val onPlaybackStopped: () -> Unit = {},
     private val onHdrContentChanged: (Boolean) -> Unit = {},
+    private val onScreenAwakeChanged: () -> Unit = {},
     private val watchNextManager: WatchNextManager? = null,
 ) {
     private val handler = Handler(Looper.getMainLooper())
@@ -324,6 +325,7 @@ class NativePlayerManager(
         if (!payload.subtitleUrl.isNullOrBlank()) {
             updateSubtitles(payload.subtitleUrl)
         }
+        onScreenAwakeChanged()
     }
 
     private fun beginQualityHandoff(payload: PlaybackPayload) {
@@ -647,6 +649,19 @@ class NativePlayerManager(
 
     fun isPlaying(): Boolean = player?.isPlaying == true
 
+    /**
+     * True for the whole user-initiated session, including buffer and seek.
+     * [isPlaying] flickers off in those gaps and must not drive the wake flag.
+     */
+    fun shouldKeepScreenOn(): Boolean {
+        val exoPlayer = player ?: return false
+        return PlaybackScreenAwake.shouldKeepScreenOn(
+            playerPresent = true,
+            playWhenReady = exoPlayer.playWhenReady,
+            playbackState = exoPlayer.playbackState,
+        )
+    }
+
     fun isActive(): Boolean = playerView.visibility == View.VISIBLE && player != null
 
     fun togglePlayPause() {
@@ -802,6 +817,7 @@ class NativePlayerManager(
         hasReachedReady = false
         sdUpscaleApplied = false
         onPlaybackStopped()
+        onScreenAwakeChanged()
     }
 
     fun setDisplayMode(mode: String) {
@@ -1142,6 +1158,7 @@ class NativePlayerManager(
         }
 
         emitJs("window.__mediaNativePlayer?.onState?.($payload)")
+        onScreenAwakeChanged()
     }
 
     /**

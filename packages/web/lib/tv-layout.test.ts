@@ -109,10 +109,10 @@ describe("TV living-room series title page", () => {
       TV_LIVING_ROOM_MEDIA.episodeStillHeightRem,
     );
 
-    const hero = extractCssBlock(css, ".tv-media-hero {");
-    expect(parseRem(hero.match(/max-height\s*:\s*([^;]+);/)?.[1])).toBe(
-      TV_LIVING_ROOM_MEDIA.heroMaxHeightRem,
-    );
+    const hero = extractCssBlock(css, ".tv-ui .tv-media-hero {");
+    expect(hero).toMatch(/position:\s*absolute/);
+    expect(hero).not.toMatch(/min-height\s*:/);
+    expect(mediaView).not.toMatch(/-mt-20/);
 
     const title = extractCssBlock(css, ".tv-ui .tv-media-title {");
     expect(parseClampMaxRem(title.match(/font-size\s*:\s*([^;]+);/)?.[1])).toBe(
