@@ -94,6 +94,9 @@ class MainActivity : AppCompatActivity() {
             onHdrContentChanged = { active ->
                 runOnUiThread { setHdrPlaybackActive(active) }
             },
+            onScreenAwakeChanged = {
+                runOnUiThread { updateKeepScreenOn() }
+            },
             watchNextManager = watchNextManager,
         )
 
@@ -455,7 +458,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateKeepScreenOn() {
-        val shouldKeepOn = keepScreenOn || nativePlayer.isPlaying()
+        // Hold the display for the whole play request. isPlaying is false while
+        // buffering and in the instant after resume; clearing the flag then lets
+        // Android TV ambient mode start mid-title (about ten minutes later).
+        val shouldKeepOn = keepScreenOn || nativePlayer.shouldKeepScreenOn()
+        nativePlayerView.keepScreenOn = shouldKeepOn
         if (shouldKeepOn) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
@@ -632,9 +639,9 @@ class MainActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
 
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 setNativeVideoOverlayActive(true)
                 nativePlayer.play(serverUrl, sessionToken, parsed)
+                updateKeepScreenOn()
             }
         }
 

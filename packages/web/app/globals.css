@@ -499,10 +499,13 @@
     font-weight: 600;
   }
 
-  .tv-media-hero {
-    height: 26vh;
-    min-height: 11.25rem;
-    max-height: 15rem;
+  /* Backdrop only. An in-flow hero left a blank band above the title. */
+  .tv-ui .tv-media-hero {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: min(12rem, 100%);
+    pointer-events: none;
   }
 
   .tv-ui .tv-media-page {
