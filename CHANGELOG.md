@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.277 — 2026-10-21
+
+### Playback
+- **Quality** — rapid pauses no longer count as stutter, so desktop and TV do not switch quality on their own
+
 ## 0.1.276 — 2026-10-21
 
 ### TV
