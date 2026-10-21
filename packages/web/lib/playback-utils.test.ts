@@ -30,6 +30,7 @@ import {
   resolvePlaybackStream,
   nextEpisodeArtworkPaths,
   nextEpisodePreviewPath,
+  posterPathForWatchItem,
   isAbsoluteTimeInBufferedRanges,
   resolveHlsSeekAction,
   resolveNativeHlsSeekAction,
@@ -1564,5 +1565,30 @@ describe("nextEpisodePreviewPath", () => {
         { title: "The Office", posterPath: "/poster.jpg", backdropPath: "/poster.jpg" },
       ),
     ).toEqual(["/poster.jpg"]);
+  });
+});
+
+describe("posterPathForWatchItem", () => {
+  const series = {
+    posterPath: "/show.jpg",
+    seasons: [
+      {
+        episodes: [
+          { id: 1, stillPath: "/ep1.jpg" },
+          { id: 2, stillPath: null },
+        ],
+      },
+    ],
+  } as Parameters<typeof posterPathForWatchItem>[0];
+
+  it("uses the episode now on screen", () => {
+    expect(posterPathForWatchItem(series, "episode", 1)).toBe("/ep1.jpg");
+    expect(posterPathForWatchItem(series, "episode", 2)).toBe("/show.jpg");
+  });
+
+  it("does not keep a previous title when the episode is unknown", () => {
+    expect(posterPathForWatchItem(series, "episode", 9)).toBeNull();
+    expect(posterPathForWatchItem(series, "movie", 1)).toBeNull();
+    expect(posterPathForWatchItem(null, "episode", 1)).toBeNull();
   });
 });

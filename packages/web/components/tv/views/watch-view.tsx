@@ -31,6 +31,7 @@ import {
   getPlaybackAbsoluteSeconds,
   resolveWatchSessionQuality,
   resolvePlaybackStream,
+  posterPathForWatchItem,
   shouldFailThroughContinuousMidBuffer,
   NATIVE_SEEK_COALESCE_MS,
   NATIVE_SEEK_STALL_SUPPRESS_MS,
@@ -367,6 +368,9 @@ export function TvWatchView() {
   const fpsQualityNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState("");
   const [posterPath, setPosterPath] = useState<string | null>(null);
+  const [boundWatchItemKey, setBoundWatchItemKey] = useState(
+    () => `${type}:${fileId}`,
+  );
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [initialResumeSeconds, setInitialResumeSeconds] = useState<number | null>(null);
@@ -440,6 +444,21 @@ export function TvWatchView() {
   titleRef.current = title;
   streamInfoRef.current = streamInfo;
   qualityRef.current = quality;
+
+  const watchItemKey = `${type}:${fileId}`;
+  if (boundWatchItemKey !== watchItemKey) {
+    // Drop the previous episode before paint. The stream effect would otherwise
+    // start with the old stream info and the video element would keep its frame.
+    setBoundWatchItemKey(watchItemKey);
+    setStreamInfo(null);
+    setInitialResumeSeconds(null);
+    setPlaybackHasBegun(false);
+    setPosterPath(posterPathForWatchItem(mediaDetail, type, fileId));
+    setIsPlaying(false);
+    setActiveVideoSlot("a");
+    playbackHasBegunRef.current = false;
+    streamInfoRef.current = null;
+  }
 
   const getSubtitlePlaybackSeconds = useCallback(() => {
     const usingHls = usingHlsRef.current;
@@ -1442,19 +1461,26 @@ export function TvWatchView() {
     closeMenus();
   }, [bufferingMidPlayback, panelOpen, closeMenus]);
 
-  useEffect(() => {
-    setPosterPath(null);
-  }, [fileId, type]);
+  useLayoutEffect(() => {
+    document.documentElement.removeAttribute("data-native-video");
+    if (!usesNativePlayer) return;
+    // Hide ExoPlayer before paint. SurfaceView otherwise keeps the previous
+    // episode on screen until the next file decodes.
+    stopNativePlayback();
+    raiseNativeWebOverlay();
+  }, [fileId, type, usesNativePlayer]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
 
+    let cancelled = false;
     setInitialResumeSeconds(null);
     setError(null);
 
     api
       .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
       .then((info: StreamInfo) => {
+        if (cancelled || info.id !== fileId) return;
         setStreamInfo(info);
         if (info.posterPath) {
           setPosterPath(info.posterPath);
@@ -1499,18 +1525,24 @@ export function TvWatchView() {
         setInitialResumeSeconds(resumeSeconds);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error(err);
         setError("Could not load this video. Check your connection and try again.");
         setInitialResumeSeconds(0);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [fileId, type, castStartSeconds, fromStart, usesNativePlayer]);
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId) || !mediaId) return;
 
+    let cancelled = false;
     api
       .getMedia(parseInt(mediaId, 10))
       .then((data) => {
+        if (cancelled) return;
         const media = data as unknown as PlaybackMediaDetail;
         setMediaDetail(media);
         setTitle(buildPlaybackTitle(type, media, fileId));
@@ -1527,7 +1559,12 @@ export function TvWatchView() {
         }
         setPosterPath(media.posterPath ?? null);
       })
-      .catch(console.error);
+      .catch((err) => {
+        if (!cancelled) console.error(err);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [mediaId, fileId, type]);
 
   useLayoutEffect(() => {
@@ -1537,6 +1574,12 @@ export function TvWatchView() {
 
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId) || initialResumeSeconds === null || !streamInfo) {
+      return;
+    }
+    if (
+      streamInfo.id !== fileId ||
+      streamInfo.type !== (type === "movie" ? "movie" : "episode")
+    ) {
       return;
     }
 
@@ -2859,7 +2902,8 @@ export function TvWatchView() {
               videoDisplayModeClass(videoDisplayMode),
               needsTvSdUpscaleSoftening(sourceHeight, sourceWidth) &&
                 "tv-sd-upscale-soften",
-              activeVideoSlot !== "a" && "pointer-events-none opacity-0",
+              (!playbackHasBegun || activeVideoSlot !== "a") &&
+                "pointer-events-none opacity-0",
             )}
             controls={false}
             playsInline
@@ -2882,7 +2926,8 @@ export function TvWatchView() {
               videoDisplayModeClass(videoDisplayMode),
               needsTvSdUpscaleSoftening(sourceHeight, sourceWidth) &&
                 "tv-sd-upscale-soften",
-              activeVideoSlot !== "b" && "pointer-events-none opacity-0",
+              (!playbackHasBegun || activeVideoSlot !== "b") &&
+                "pointer-events-none opacity-0",
             )}
             controls={false}
             playsInline

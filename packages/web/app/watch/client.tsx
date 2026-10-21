@@ -44,6 +44,7 @@ import {
   resolvePlaybackStream,
   buildPlaybackTitle,
   findEpisode,
+  posterPathForWatchItem,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
 import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback, attachQualityHandoffPoller } from "@/lib/playback-engine";
@@ -214,6 +215,9 @@ function WatchDesktopClient() {
   const [title, setTitle] = useState("");
   const [mediaDetail, setMediaDetail] = useState<PlaybackMediaDetail | null>(null);
   const [posterPath, setPosterPath] = useState<string | null>(null);
+  const [boundWatchItemKey, setBoundWatchItemKey] = useState(
+    () => `${type}:${fileId}`,
+  );
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
@@ -256,6 +260,23 @@ function WatchDesktopClient() {
   streamInfoRef.current = streamInfo;
   isPlayingRef.current = isPlaying;
   playbackHasBegunRef.current = playbackHasBegun;
+
+  const watchItemKey = `${type}:${fileId}`;
+  if (boundWatchItemKey !== watchItemKey) {
+    // Drop the previous episode before paint so its last frame cannot show
+    // while the next item's stream info is still loading.
+    setBoundWatchItemKey(watchItemKey);
+    setStreamInfo(null);
+    setInitialResumeSeconds(null);
+    setPlaybackHasBegun(false);
+    setPosterPath(posterPathForWatchItem(mediaDetail, type, fileId));
+    setIsPlaying(false);
+    setActiveVideoSlot("a");
+    setOfflineObjectUrl(null);
+    setOfflineReady(false);
+    playbackHasBegunRef.current = false;
+    streamInfoRef.current = null;
+  }
 
   const getSubtitlePlaybackSeconds = useCallback(() => {
     const video = videoRef.current;
@@ -637,10 +658,6 @@ function WatchDesktopClient() {
   }, [initialResumeSeconds, streamInfo, offlineObjectUrl, isPlaying, buffering]);
 
   useEffect(() => {
-    setPosterPath(null);
-  }, [fileId, type]);
-
-  useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) {
       setOfflineReady(true);
       return;
@@ -682,11 +699,13 @@ function WatchDesktopClient() {
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId)) return;
 
+    let cancelled = false;
     setInitialResumeSeconds(null);
 
     api
       .getStreamInfo(fileId, type === "movie" ? "movie" : "episode")
       .then((info) => {
+        if (cancelled || info.id !== fileId) return;
         setStreamInfo(info);
         if (info.posterPath) {
           setPosterPath(info.posterPath);
@@ -726,9 +745,11 @@ function WatchDesktopClient() {
         setInitialResumeSeconds(resumeSeconds);
       })
       .catch(async (err) => {
+        if (cancelled) return;
         console.error(err);
         const watchType = type === "movie" ? "movie" : "episode";
         const local = await getOfflineItem(watchType, fileId);
+        if (cancelled) return;
         if (local) {
           setSourceDurationMs(local.durationMs);
           setTitle((current) => current || local.title);
@@ -748,6 +769,9 @@ function WatchDesktopClient() {
         setError("Could not load this video. Check your connection and try again.");
         setInitialResumeSeconds(0);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [fileId, type, castStartSeconds, fromStart]);
 
   useEffect(() => {
@@ -769,9 +793,11 @@ function WatchDesktopClient() {
   useEffect(() => {
     if (!fileId || Number.isNaN(fileId) || !mediaId) return;
 
+    let cancelled = false;
     api
       .getMedia(parseInt(mediaId, 10))
       .then((data) => {
+        if (cancelled) return;
         const media = data as unknown as MediaDetail;
         setMediaDetail(media);
         setTitle(buildPlaybackTitle(type, media, fileId));
@@ -785,7 +811,12 @@ function WatchDesktopClient() {
 
         setPosterPath(media.posterPath ?? null);
       })
-      .catch(console.error);
+      .catch((err) => {
+        if (!cancelled) console.error(err);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [mediaId, fileId, type]);
 
   useEffect(() => {
@@ -794,6 +825,13 @@ function WatchDesktopClient() {
       return;
     }
     if (!streamInfo && !offlineObjectUrl) {
+      return;
+    }
+    if (
+      streamInfo &&
+      (streamInfo.id !== fileId ||
+        streamInfo.type !== (type === "movie" ? "movie" : "episode"))
+    ) {
       return;
     }
 
@@ -1592,7 +1630,8 @@ function WatchDesktopClient() {
           className={cn(
             "media-subtitles absolute inset-0 z-[2] h-full w-full",
             videoDisplayModeClass(videoDisplayMode),
-            activeVideoSlot !== "a" && "pointer-events-none opacity-0",
+            (!playbackHasBegun || activeVideoSlot !== "a") &&
+              "pointer-events-none opacity-0",
           )}
           controls={false}
           playsInline
@@ -1605,7 +1644,8 @@ function WatchDesktopClient() {
           className={cn(
             "media-subtitles absolute inset-0 z-[2] h-full w-full",
             videoDisplayModeClass(videoDisplayMode),
-            activeVideoSlot !== "b" && "pointer-events-none opacity-0",
+            (!playbackHasBegun || activeVideoSlot !== "b") &&
+              "pointer-events-none opacity-0",
           )}
           controls={false}
           playsInline

@@ -1395,6 +1395,21 @@ export function buildPlaybackTitle(
   return media.title;
 }
 
+/**
+ * Artwork for the title now on screen. Unknown episodes and movies return
+ * null so a route change cannot keep showing the previous title's still.
+ */
+export function posterPathForWatchItem(
+  media: PlaybackMediaDetail | null | undefined,
+  type: "movie" | "episode",
+  fileId: number,
+): string | null {
+  if (!media || type !== "episode") return null;
+  const episode = findEpisode(media, fileId);
+  if (!episode) return null;
+  return episode.stillPath ?? media.posterPath ?? null;
+}
+
 export function findEpisode(
   media: PlaybackMediaDetail,
   fileId: number,

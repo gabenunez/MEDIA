@@ -3,9 +3,12 @@ package com.media.app
 import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Color
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -84,9 +87,31 @@ class NativePlayerManager(
     private var handoffOriginPositionMs = 0L
     private var handoffCheckRunnable: Runnable? = null
     private var playbackEpoch = 0
+    /** False until this item's first frame — SurfaceView otherwise shows the previous title. */
+    private var videoFrameRevealed = false
 
     /** When true, JS chrome is hidden — emit progress less often to cut WebView work. */
     private var uiOverlayVisible = true
+
+    private val clearStaleSurfaceOnCreate =
+        object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                if (!videoFrameRevealed) blankSurface(holder)
+            }
+
+            override fun surfaceChanged(
+                holder: SurfaceHolder,
+                format: Int,
+                width: Int,
+                height: Int,
+            ) = Unit
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
+        }
+
+    init {
+        (playerView.videoSurfaceView as? SurfaceView)?.holder?.addCallback(clearStaleSurfaceOnCreate)
+    }
 
     private val progressRunnable = object : Runnable {
         override fun run() {
@@ -153,6 +178,12 @@ class NativePlayerManager(
         cancelStallRecovery()
 
         releasePlayer()
+        videoFrameRevealed = false
+        // SurfaceView keeps the previous episode's buffer and punches it through
+        // the WebView as soon as the view is shown. Stay invisible until this
+        // item's first frame, and paint black if a new surface is created first.
+        playerView.alpha = 0f
+        playerView.setShutterBackgroundColor(Color.BLACK)
         playerView.visibility = View.VISIBLE
 
         val diagTransfers = DiagTransferListener()
@@ -188,7 +219,7 @@ class NativePlayerManager(
         playbackEpoch += 1
         playerView.useController = false
         playerView.videoSurfaceView?.visibility = View.VISIBLE
-        playerView.setShutterBackgroundColor(Color.TRANSPARENT)
+        blankVideoSurface()
         playerView.subtitleView?.visibility = View.GONE
         ensureOverlaySubtitleView()
         applyStoredSubtitleStyles()
@@ -214,6 +245,14 @@ class NativePlayerManager(
             apkVersion = apkVersionName(),
         )
 
+        exoPlayer.addListener(
+            object : Player.Listener {
+                override fun onRenderedFirstFrame() {
+                    if (player !== exoPlayer) return
+                    revealPresentedVideoFrame()
+                }
+            },
+        )
         exoPlayer.setMediaItem(buildMediaItem(payload))
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
@@ -458,6 +497,9 @@ class NativePlayerManager(
 
         incoming.volume = 1f
         incoming.playWhenReady = outgoing?.playWhenReady != false
+        // Same title — keep the current picture. A new episode stays hidden
+        // until its own first frame (playImmediate).
+        revealPresentedVideoFrame()
         playerView.setKeepContentOnPlayerReset(true)
         playerView.player = incoming
         player = incoming
@@ -907,6 +949,38 @@ class NativePlayerManager(
         playerView.visibility = View.GONE
     }
 
+    private fun revealPresentedVideoFrame() {
+        if (videoFrameRevealed) return
+        videoFrameRevealed = true
+        playerView.alpha = 1f
+        playerView.setShutterBackgroundColor(Color.TRANSPARENT)
+    }
+
+    private fun blankVideoSurface() {
+        val surfaceView = playerView.videoSurfaceView as? SurfaceView ?: return
+        blankSurface(surfaceView.holder)
+    }
+
+    private fun blankSurface(holder: SurfaceHolder) {
+        val surface = holder.surface
+        if (!surface.isValid) return
+        try {
+            val canvas =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    surface.lockHardwareCanvas()
+                } else {
+                    surface.lockCanvas(null) ?: return
+                }
+            try {
+                canvas.drawColor(Color.BLACK)
+            } finally {
+                surface.unlockCanvasAndPost(canvas)
+            }
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "blank video surface failed", error)
+        }
+    }
+
     private fun releasePlayer() {
         cancelQualityHandoff()
         mediaSessionManager?.release()
@@ -922,9 +996,12 @@ class NativePlayerManager(
             exoPlayer.playWhenReady = false
             exoPlayer.stop()
             exoPlayer.clearVideoSurface()
+            blankVideoSurface()
             exoPlayer.clearMediaItems()
             exoPlayer.release()
         }
+        videoFrameRevealed = false
+        playerView.alpha = 0f
         playerView.videoSurfaceView?.visibility = View.GONE
         playerView.visibility = View.GONE
         overlayCues = emptyList()
