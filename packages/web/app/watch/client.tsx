@@ -70,6 +70,7 @@ import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import { PlaybackQualityNotice } from "@/components/playback-quality-notice";
 import {
   formatLowFpsQualitySwitchNotice,
+  markPlaybackFpsPaused,
   measurePlaybackFps,
   playbackFpsSampleSpanMs,
   recordPlaybackFpsSample,
@@ -1094,6 +1095,9 @@ function WatchDesktopClient() {
         if (videoRef.current?.getAttribute("data-buffer-gate") === "1") {
           return;
         }
+        playbackFpsStateRef.current = markPlaybackFpsPaused(
+          playbackFpsStateRef.current,
+        );
         setIsPlaying(false);
         revealControls(false);
       },

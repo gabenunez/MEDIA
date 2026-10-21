@@ -17,6 +17,19 @@ export const LOW_PLAYBACK_FPS_MIN_ELAPSED_MS = 5_000;
 
 export interface PlaybackFpsSampleState {
   samples: Array<{ atMs: number; positionSeconds: number }>;
+  /** User pause (not a rebuffer). The next sample must not span that gap. */
+  paused?: boolean;
+}
+
+/**
+ * Drop the stutter window when the viewer pauses. Wall time spent paused is
+ * not slow playback; rapid pause/play otherwise looks like the playhead stalled.
+ */
+export function markPlaybackFpsPaused(
+  state: PlaybackFpsSampleState,
+): PlaybackFpsSampleState {
+  if (state.paused && state.samples.length === 0) return state;
+  return { samples: [], paused: true };
 }
 
 export function recordPlaybackFpsSample(
@@ -25,10 +38,13 @@ export function recordPlaybackFpsSample(
   positionSeconds: number,
   windowMs = LOW_PLAYBACK_FPS_SAMPLE_WINDOW_MS,
 ): PlaybackFpsSampleState {
+  if (state.paused) {
+    return { samples: [{ atMs: nowMs, positionSeconds }], paused: false };
+  }
   const samples = state.samples
     .filter((sample) => nowMs - sample.atMs <= windowMs)
     .concat({ atMs: nowMs, positionSeconds });
-  return { samples };
+  return { samples, paused: false };
 }
 
 export function playbackFpsSampleSpanMs(

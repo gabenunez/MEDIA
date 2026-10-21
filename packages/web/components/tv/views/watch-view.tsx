@@ -38,6 +38,7 @@ import {
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
 import {
+  markPlaybackFpsPaused,
   measurePlaybackFps,
   playbackFpsSampleSpanMs,
   recordPlaybackFpsSample,
@@ -1206,6 +1207,11 @@ export function TvWatchView() {
           if (showControlsRef.current || panelOpenRef.current) {
             raiseNativeWebOverlay();
           }
+        }
+        if (!state.isPlaying && !state.isBuffering) {
+          playbackFpsStateRef.current = markPlaybackFpsPaused(
+            playbackFpsStateRef.current,
+          );
         }
         if (state.isPlaying && !state.isBuffering && playbackHasBegunRef.current) {
           const nowMs = Date.now();

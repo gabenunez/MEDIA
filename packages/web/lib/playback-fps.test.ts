@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   LOW_PLAYBACK_FPS_MIN_ELAPSED_MS,
+  markPlaybackFpsPaused,
   measurePlaybackFps,
   playbackFpsSampleSpanMs,
   recordPlaybackFpsSample,
@@ -57,6 +58,27 @@ describe("playback fps escalation", () => {
 
     expect(measurePlaybackFps(state, 6000)).toBeCloseTo(0.5, 2);
     expect(playbackFpsSampleSpanMs(state, 6000)).toBe(6000);
+  });
+
+  it("does not treat rapid pauses as stutter", () => {
+    let state = { samples: [] as Array<{ atMs: number; positionSeconds: number }> };
+    state = recordPlaybackFpsSample(state, 0, 10);
+    state = recordPlaybackFpsSample(state, 1000, 11);
+    state = recordPlaybackFpsSample(state, 2000, 12);
+    state = markPlaybackFpsPaused(state);
+    expect(state.samples).toEqual([]);
+    // Resume after the pause. Only time spent playing counts.
+    state = recordPlaybackFpsSample(state, 4500, 12.05);
+    state = recordPlaybackFpsSample(state, 5500, 13.05);
+    expect(measurePlaybackFps(state, 5500)).toBeCloseTo(1, 2);
+    expect(
+      shouldEscalateLowPlaybackFps({
+        ...escalateArgs,
+        measuredFps: measurePlaybackFps(state, 5500),
+        sampleCount: state.samples.length,
+        elapsedMs: playbackFpsSampleSpanMs(state, 5500),
+      }),
+    ).toBe(false);
   });
 
   it("does not escalate healthy realtime playback (~1.0)", () => {
@@ -160,6 +182,7 @@ describe("playback fps escalation", () => {
     expect(watchView).toContain("playbackFpsSampleSpanMs");
     expect(watchView).toContain("elapsedMs");
     expect(watchView).toContain("shouldEscalateLowPlaybackFps");
+    expect(watchView).toContain("markPlaybackFpsPaused");
     expect(watchView).toContain("resolveWatchSessionQuality");
     expect(watchView).toContain("fpsQualityLockedRef");
     expect(watchView).toContain("Session-only");
@@ -172,6 +195,7 @@ describe("playback fps escalation", () => {
     );
     expect(desktopWatch).toContain("resolveWatchSessionQuality");
     expect(desktopWatch).toContain("shouldEscalateLowPlaybackFps");
+    expect(desktopWatch).toContain("markPlaybackFpsPaused");
     expect(desktopWatch).toContain("fpsQualityLockedRef");
     expect(desktopWatch).toContain("Session-only");
   });
