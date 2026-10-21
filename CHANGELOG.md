@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.278 — 2026-10-21
+
+### Playback
+- **Next episode** — the player no longer flashes the episode that just finished while the next one starts, on desktop and TV
+
 ## 0.1.277 — 2026-10-21
 
 ### Playback
