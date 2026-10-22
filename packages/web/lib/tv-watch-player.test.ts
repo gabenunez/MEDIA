@@ -609,6 +609,11 @@ describe("TV native player unbind on exit", () => {
     const routeLoading = readFileSync(path.join(webRoot, "lib/route-loading.tsx"), "utf8");
     expect(routeLoading).toContain("export function MediaLoadingSkeleton");
     expect(routeLoading).toContain('className="min-h-[80vh] bg-background"');
+    const mediaSkeleton = routeLoading.slice(routeLoading.indexOf("export function MediaLoadingSkeleton"));
+    expect(mediaSkeleton).toContain("Loader2");
+    expect(mediaSkeleton).toContain("data-tv-only");
+    expect(mediaSkeleton).toContain("data-web-only");
+    expect(mediaSkeleton).toContain("markTvBootContentReady()");
     // TV soft-nav (watch → media/home) must not flash a bordered Loading chip.
     expect(routeLoading).not.toMatch(/>\s*Loading\.\.\.\s*</);
     expect(routeLoading).not.toContain("rounded-2xl border border-white/10 bg-card");
