@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.282 — 2026-10-21
+
+### TV
+- **Media** — movie and series pages no longer leave a blank strip above the poster. The title sits beside the artwork
+
 ## 0.1.281 — 2026-10-21
 
 ### TV
