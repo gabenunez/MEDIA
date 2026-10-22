@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.284 — 2026-10-22
+
+### Playback
+- **Options** — the three-dot menu uses filled dots and the app focus ring, and it opens clear of the episode card on desktop and TV
+
 ## 0.1.283 — 2026-10-22
 
 ### Playback
