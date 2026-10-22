@@ -216,8 +216,7 @@ function TvMediaViewContent({
         </div>
 
         <div className="relative z-10 tv-media-gutter">
-          <TvHistoryBackButton fallbackHref={routes.home()} />
-          <div className="mt-3 flex gap-4">
+          <div className="flex items-start gap-4">
             <div className="tv-media-poster shrink-0">
               {posterUrl ? (
                 <MediaImage
@@ -235,8 +234,9 @@ function TvMediaViewContent({
               )}
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col justify-end pb-1">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-primary">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <TvHistoryBackButton fallbackHref={routes.home()} />
+              <p className="mb-1 mt-2 text-[11px] font-medium uppercase tracking-wider text-primary">
                 {metaLabel}
               </p>
               <h1 className="tv-media-title mb-2 line-clamp-2">

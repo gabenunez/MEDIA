@@ -113,6 +113,8 @@ describe("TV living-room series title page", () => {
     expect(hero).toMatch(/position:\s*absolute/);
     expect(hero).not.toMatch(/min-height\s*:/);
     expect(mediaView).not.toMatch(/-mt-20/);
+    expect(mediaView).not.toMatch(/justify-end/);
+    expect(mediaView).not.toMatch(/mt-3 flex gap-4/);
 
     const title = extractCssBlock(css, ".tv-ui .tv-media-title {");
     expect(parseClampMaxRem(title.match(/font-size\s*:\s*([^;]+);/)?.[1])).toBe(
