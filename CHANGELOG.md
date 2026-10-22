@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.281 — 2026-10-21
+
+### TV
+- **Playback** — resuming a movie no longer fails while the player clears the previous picture. The decoder can attach, and a black shutter covers the screen until the new frame is ready
+
 ## 0.1.280 — 2026-10-21
 
 ### Web
