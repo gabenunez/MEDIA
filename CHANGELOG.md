@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.283 — 2026-10-22
+
+### Playback
+- **Quality** — cropped 1080p frames such as 1916×1076 and 1888×800 are labeled 1080p, and portrait 720×1280 stays 720p, on desktop and TV
+
 ## 0.1.282 — 2026-10-21
 
 ### TV
