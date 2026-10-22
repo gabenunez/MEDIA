@@ -567,7 +567,13 @@
   /* Episode alternatives stay quiet until Right moves focus to them. */
   .tv-ui .tv-media-episode-options {
     opacity: 0;
+    outline: none;
     transition: opacity 90ms ease-out;
+  }
+
+  .tv-ui .tv-media-episode-options svg {
+    display: block;
+    overflow: visible;
   }
 
   .tv-ui .tv-media-episode-options[data-tv-focused],
