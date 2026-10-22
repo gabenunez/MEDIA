@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.280 — 2026-10-21
+
+### Web
+- **Media pages** — builds no longer pre-render every title. The first open shows a loader, on desktop and TV, then the page stays cached for 5 minutes
+
 ## 0.1.279 — 2026-10-21
 
 ### TV
