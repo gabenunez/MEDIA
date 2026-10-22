@@ -54,26 +54,55 @@ export const TRANSCODE_PRESETS: Record<TranscodeQuality, TranscodePreset> = {
   },
 };
 
+/**
+ * Nominal tiers, with slack for mod-16 crops and scope frames.
+ * Long side catches 1920×800 and 3840×1600; short side catches 1916×1076
+ * and keeps portrait 720×1280 at 720p instead of treating 1280 as vertical resolution.
+ */
+const RESOLUTION_TIERS = [
+  { tier: 2160, longSide: 3800, shortSide: 2000 },
+  { tier: 1080, longSide: 1800, shortSide: 1000 },
+  { tier: 720, longSide: 1200, shortSide: 700 },
+] as const;
+
 export function is4KSource(
   sourceHeight?: number | null,
   sourceWidth?: number | null,
 ): boolean {
-  return (
-    (sourceHeight != null && sourceHeight >= 2160) ||
-    (sourceWidth != null && sourceWidth >= 3840)
-  );
+  return getSourceResolutionTier(sourceHeight, sourceWidth) === 2160;
 }
 
-/** Standard tier thresholds — width matters for letterboxed/widescreen 1080p (e.g. 1920×800). */
 export function getSourceResolutionTier(
   sourceHeight?: number | null,
   sourceWidth?: number | null,
 ): 480 | 720 | 1080 | 2160 | null {
-  if (is4KSource(sourceHeight, sourceWidth)) return 2160;
-  if ((sourceHeight ?? 0) >= 1080 || (sourceWidth ?? 0) >= 1920) return 1080;
-  if ((sourceHeight ?? 0) >= 720 || (sourceWidth ?? 0) >= 1280) return 720;
-  if ((sourceHeight ?? 0) > 0 || (sourceWidth ?? 0) > 0) return 480;
-  return null;
+  const height = sourceHeight ?? 0;
+  const width = sourceWidth ?? 0;
+  if (height <= 0 && width <= 0) return null;
+
+  if (height > 0 && width > 0) {
+    const longSide = Math.max(height, width);
+    const shortSide = Math.min(height, width);
+    for (const tier of RESOLUTION_TIERS) {
+      if (longSide >= tier.longSide || shortSide >= tier.shortSide) {
+        return tier.tier;
+      }
+    }
+    return 480;
+  }
+
+  // One axis only. A lone 1280 is 720p when it is width, 1080p when it is height.
+  const side = height > 0 ? height : width;
+  if (height > 0) {
+    if (side >= 2160) return 2160;
+    if (side >= 1080) return 1080;
+    if (side >= 720) return 720;
+    return 480;
+  }
+  if (side >= 3840) return 2160;
+  if (side >= 1920) return 1080;
+  if (side >= 1280) return 720;
+  return 480;
 }
 
 export function tierToTranscodeQuality(tier: 480 | 720 | 1080 | 2160): TranscodeQuality {
