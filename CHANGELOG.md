@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.279 — 2026-10-21
+
+### TV
+- **Navigation** — pressing a title opens its page again
+- **Playback** — the picture shows as soon as it is ready instead of staying blank
+
 ## 0.1.278 — 2026-10-21
 
 ### Playback
