@@ -56,9 +56,9 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
           return (
             <div
               key={ep.id}
-              className="group relative flex items-center gap-4 overflow-hidden rounded-md border border-border/80 bg-card/70 p-3 transition-all hover:border-primary/50 hover:bg-card sm:p-4"
+              className="group relative flex items-center gap-4 overflow-visible rounded-md border border-border/80 bg-card/70 p-3 transition-all hover:border-primary/50 hover:bg-card sm:p-4"
             >
-              <div className="absolute inset-y-0 left-0 w-1 bg-primary/0 transition-colors group-hover:bg-primary" />
+              <div className="absolute inset-y-0 left-0 w-1 rounded-l-md bg-primary/0 transition-colors group-hover:bg-primary" />
               <Link
                 href={routes.watch("episode", ep.id, media.id)}
                 className="relative flex min-w-0 flex-1 items-center gap-4"
