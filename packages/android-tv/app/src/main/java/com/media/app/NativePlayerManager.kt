@@ -3,12 +3,9 @@ package com.media.app
 import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Color
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -93,26 +90,6 @@ class NativePlayerManager(
     /** When true, JS chrome is hidden — emit progress less often to cut WebView work. */
     private var uiOverlayVisible = true
 
-    private val clearStaleSurfaceOnCreate =
-        object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
-                if (!videoFrameRevealed) blankSurface(holder)
-            }
-
-            override fun surfaceChanged(
-                holder: SurfaceHolder,
-                format: Int,
-                width: Int,
-                height: Int,
-            ) = Unit
-
-            override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
-        }
-
-    init {
-        (playerView.videoSurfaceView as? SurfaceView)?.holder?.addCallback(clearStaleSurfaceOnCreate)
-    }
-
     private val progressRunnable = object : Runnable {
         override fun run() {
             emitState()
@@ -180,12 +157,15 @@ class NativePlayerManager(
         releasePlayer()
         videoFrameRevealed = false
         // Keep the view on-screen so ExoPlayer can render. Alpha 0 never got a
-        // first frame on this TV, so the picture stayed blank and the surface
-        // sat over the page. Black shutter + a cleared buffer covers the
-        // previous episode until this one draws.
+        // first frame on this TV. Do not lockCanvas the surface: on this
+        // Hisense that leaves a CPU connection, and the decoder then fails
+        // to attach (ERROR_CODE_DECODER_INIT_FAILED). releasePlayer hides the
+        // surface, so the next one is empty. The black shutter covers it
+        // until the first frame.
         playerView.alpha = 1f
         playerView.setShutterBackgroundColor(Color.BLACK)
         playerView.visibility = View.VISIBLE
+        playerView.videoSurfaceView?.visibility = View.VISIBLE
 
         val diagTransfers = DiagTransferListener()
         transferListener = diagTransfers
@@ -209,7 +189,7 @@ class NativePlayerManager(
         activeTransferStallAheadMs = setup.transferStallAheadMs
         val loadControl = setup.loadControl
         val exoPlayer =
-            ExoPlayer.Builder(playerView.context)
+            newExoPlayer()
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
                 .build()
@@ -219,8 +199,6 @@ class NativePlayerManager(
         playerView.player = exoPlayer
         playbackEpoch += 1
         playerView.useController = false
-        playerView.videoSurfaceView?.visibility = View.VISIBLE
-        blankVideoSurface()
         playerView.subtitleView?.visibility = View.GONE
         ensureOverlaySubtitleView()
         applyStoredSubtitleStyles()
@@ -387,7 +365,7 @@ class NativePlayerManager(
             )
         val loadControl = setup.loadControl
         val exoPlayer =
-            ExoPlayer.Builder(playerView.context)
+            newExoPlayer()
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
                 .build()
@@ -957,29 +935,11 @@ class NativePlayerManager(
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
     }
 
-    private fun blankVideoSurface() {
-        val surfaceView = playerView.videoSurfaceView as? SurfaceView ?: return
-        blankSurface(surfaceView.holder)
-    }
-
-    private fun blankSurface(holder: SurfaceHolder) {
-        val surface = holder.surface
-        if (!surface.isValid) return
-        try {
-            val canvas =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    surface.lockHardwareCanvas()
-                } else {
-                    surface.lockCanvas(null) ?: return
-                }
-            try {
-                canvas.drawColor(Color.BLACK)
-            } finally {
-                surface.unlockCanvasAndPost(canvas)
-            }
-        } catch (error: RuntimeException) {
-            Log.w(TAG, "blank video surface failed", error)
-        }
+    private fun newExoPlayer(): ExoPlayer.Builder {
+        val context = playerView.context
+        val renderersFactory =
+            TvRenderersFactory(context).setEnableDecoderFallback(true)
+        return ExoPlayer.Builder(context).setRenderersFactory(renderersFactory)
     }
 
     private fun releasePlayer() {
@@ -997,7 +957,6 @@ class NativePlayerManager(
             exoPlayer.playWhenReady = false
             exoPlayer.stop()
             exoPlayer.clearVideoSurface()
-            blankVideoSurface()
             exoPlayer.clearMediaItems()
             exoPlayer.release()
         }

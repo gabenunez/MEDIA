@@ -539,11 +539,10 @@ describe("TV native player unbind on exit", () => {
       play.indexOf("playerView.visibility = View.VISIBLE"),
     );
     expect(play).toContain("onRenderedFirstFrame");
-    expect(play).toContain("blankVideoSurface()");
-    expect(release).toContain("blankVideoSurface()");
-    expect(release.indexOf("clearVideoSurface()")).toBeLessThan(
-      release.indexOf("blankVideoSurface()"),
-    );
+    expect(play).not.toContain("blankVideoSurface()");
+    expect(play).not.toContain("lockCanvas()");
+    expect(release).not.toContain("lockCanvas()");
+    expect(release).toContain("videoSurfaceView?.visibility = View.GONE");
     expect(watchView).toContain("streamInfo.id !== fileId");
     expect(watchView).toContain("posterPathForWatchItem");
     expect(watchView).toContain("stopNativePlayback()");
