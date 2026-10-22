@@ -179,10 +179,11 @@ class NativePlayerManager(
 
         releasePlayer()
         videoFrameRevealed = false
-        // SurfaceView keeps the previous episode's buffer and punches it through
-        // the WebView as soon as the view is shown. Stay invisible until this
-        // item's first frame, and paint black if a new surface is created first.
-        playerView.alpha = 0f
+        // Keep the view on-screen so ExoPlayer can render. Alpha 0 never got a
+        // first frame on this TV, so the picture stayed blank and the surface
+        // sat over the page. Black shutter + a cleared buffer covers the
+        // previous episode until this one draws.
+        playerView.alpha = 1f
         playerView.setShutterBackgroundColor(Color.BLACK)
         playerView.visibility = View.VISIBLE
 
@@ -1001,7 +1002,7 @@ class NativePlayerManager(
             exoPlayer.release()
         }
         videoFrameRevealed = false
-        playerView.alpha = 0f
+        playerView.alpha = 1f
         playerView.videoSurfaceView?.visibility = View.GONE
         playerView.visibility = View.GONE
         overlayCues = emptyList()

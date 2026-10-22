@@ -1217,7 +1217,10 @@ export function TvWatchView() {
             }, 700);
           }
         }
-        if (shouldExposeNativeVideoSurface(state)) {
+        if (
+          shouldExposeNativeVideoSurface(state) &&
+          document.documentElement.hasAttribute("data-tv-watch-active")
+        ) {
           playbackHasBegunRef.current = true;
           setPlaybackHasBegun((begun) => begun || true);
           // Reveal the native surface only once frames are flowing — keeps enter
@@ -2902,8 +2905,7 @@ export function TvWatchView() {
               videoDisplayModeClass(videoDisplayMode),
               needsTvSdUpscaleSoftening(sourceHeight, sourceWidth) &&
                 "tv-sd-upscale-soften",
-              (!playbackHasBegun || activeVideoSlot !== "a") &&
-                "pointer-events-none opacity-0",
+              activeVideoSlot !== "a" && "pointer-events-none opacity-0",
             )}
             controls={false}
             playsInline
@@ -2926,8 +2928,7 @@ export function TvWatchView() {
               videoDisplayModeClass(videoDisplayMode),
               needsTvSdUpscaleSoftening(sourceHeight, sourceWidth) &&
                 "tv-sd-upscale-soften",
-              (!playbackHasBegun || activeVideoSlot !== "b") &&
-                "pointer-events-none opacity-0",
+              activeVideoSlot !== "b" && "pointer-events-none opacity-0",
             )}
             controls={false}
             playsInline

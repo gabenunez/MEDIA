@@ -1630,8 +1630,7 @@ function WatchDesktopClient() {
           className={cn(
             "media-subtitles absolute inset-0 z-[2] h-full w-full",
             videoDisplayModeClass(videoDisplayMode),
-            (!playbackHasBegun || activeVideoSlot !== "a") &&
-              "pointer-events-none opacity-0",
+            activeVideoSlot !== "a" && "pointer-events-none opacity-0",
           )}
           controls={false}
           playsInline
@@ -1644,8 +1643,7 @@ function WatchDesktopClient() {
           className={cn(
             "media-subtitles absolute inset-0 z-[2] h-full w-full",
             videoDisplayModeClass(videoDisplayMode),
-            (!playbackHasBegun || activeVideoSlot !== "b") &&
-              "pointer-events-none opacity-0",
+            activeVideoSlot !== "b" && "pointer-events-none opacity-0",
           )}
           controls={false}
           playsInline
