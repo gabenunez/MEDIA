@@ -479,9 +479,8 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
 }
 
 function isWatchPlayerActive() {
-  // Set by watch-view while native/web playback chrome is mounted — cheap attribute read.
-  return document.documentElement.hasAttribute("data-native-video")
-    || document.documentElement.hasAttribute("data-tv-watch-active");
+  // Route flag only. A leftover native-video attribute swallows Enter on posters.
+  return document.documentElement.hasAttribute("data-tv-watch-active");
 }
 
 export function TvSpatialNav({ children }: { children: ReactNode }) {

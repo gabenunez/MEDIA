@@ -534,8 +534,8 @@ describe("TV native player unbind on exit", () => {
       nativePlayer.indexOf("private fun beginQualityHandoff"),
     );
     const release = nativePlayer.slice(nativePlayer.indexOf("private fun releasePlayer()"));
-    expect(play.indexOf("playerView.alpha = 0f")).toBeGreaterThan(-1);
-    expect(play.indexOf("playerView.alpha = 0f")).toBeLessThan(
+    expect(play).not.toContain("playerView.alpha = 0f");
+    expect(play.indexOf("playerView.alpha = 1f")).toBeLessThan(
       play.indexOf("playerView.visibility = View.VISIBLE"),
     );
     expect(play).toContain("onRenderedFirstFrame");
@@ -547,7 +547,17 @@ describe("TV native player unbind on exit", () => {
     expect(watchView).toContain("streamInfo.id !== fileId");
     expect(watchView).toContain("posterPathForWatchItem");
     expect(watchView).toContain("stopNativePlayback()");
-    expect(watchView).toContain("!playbackHasBegun || activeVideoSlot !== \"a\"");
+    expect(watchView).not.toContain("!playbackHasBegun || activeVideoSlot");
+    const spatialNav = readFileSync(
+      path.join(webRoot, "components/tv/tv-spatial-nav.tsx"),
+      "utf8",
+    );
+    const watchActive = spatialNav.slice(
+      spatialNav.indexOf("function isWatchPlayerActive"),
+      spatialNav.indexOf("export function TvSpatialNav"),
+    );
+    expect(watchActive).not.toContain("data-native-video");
+    expect(watchActive).toContain("data-tv-watch-active");
   });
 
   it("clears the current title from ExoPlayer instead of leaving it on PlayerView", () => {
