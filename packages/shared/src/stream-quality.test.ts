@@ -16,18 +16,30 @@ describe("getSourceResolutionTier", () => {
     expect(getSourceResolutionTier(804, 1920)).toBe(1080);
   });
 
+  it("classifies cropped 1080p that sits just under 1920×1080", () => {
+    expect(getSourceResolutionTier(1076, 1916)).toBe(1080);
+    expect(getSourceResolutionTier(800, 1888)).toBe(1080);
+  });
+
   it("classifies true 720p sources", () => {
     expect(getSourceResolutionTier(720, 1280)).toBe(720);
     expect(getSourceResolutionTier(536, 1280)).toBe(720);
   });
 
+  it("classifies portrait 720p by the short side", () => {
+    expect(getSourceResolutionTier(1280, 720)).toBe(720);
+  });
+
   it("classifies 4K by height or width", () => {
     expect(getSourceResolutionTier(2160, 3840)).toBe(2160);
     expect(getSourceResolutionTier(1600, 3840)).toBe(2160);
+    expect(getSourceResolutionTier(2076, 3824)).toBe(2160);
   });
 
   it("classifies SD content", () => {
     expect(getSourceResolutionTier(480, 640)).toBe(480);
+    expect(getSourceResolutionTier(480, 720)).toBe(480);
+    expect(getSourceResolutionTier(576, 720)).toBe(480);
   });
 });
 
@@ -39,6 +51,11 @@ describe("getAvailableQualities", () => {
       "720p",
       "1080p",
     ]);
+  });
+
+  it("includes 1080p for cropped 1080p and omits it for portrait 720p", () => {
+    expect(getAvailableQualities(1076, 1916)).toContain("1080p");
+    expect(getAvailableQualities(1280, 720)).not.toContain("1080p");
   });
 
   it("includes 2160p only for 4K sources", () => {
@@ -93,6 +110,8 @@ describe("tierToTranscodeQuality", () => {
 describe("is4KSource", () => {
   it("detects ultrawide 4K widths", () => {
     expect(is4KSource(1600, 3840)).toBe(true);
+    expect(is4KSource(2076, 3824)).toBe(true);
     expect(is4KSource(1080, 1920)).toBe(false);
+    expect(is4KSource(1440, 2560)).toBe(false);
   });
 });
