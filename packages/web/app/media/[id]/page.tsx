@@ -8,17 +8,14 @@ import { MediaDocumentTitle, MediaThemeShell } from "../media-chrome";
 import { MediaAuthRequired } from "../media-auth-required";
 import { asMediaDetail } from "../types";
 import { pageMetadataTitle } from "@/lib/document-title";
-import { fetchMediaDetail, fetchMediaIds } from "@/lib/server-api";
+import { fetchMediaDetail } from "@/lib/server-api";
 
 export const revalidate = 300;
 export const dynamicParams = true;
 
-export async function generateStaticParams() {
-  const ids = await fetchMediaIds();
-  if (ids.length > 0) {
-    console.log(`[media] Pre-rendering ${ids.length} page(s) at build time`);
-  }
-  return ids.map((id) => ({ id: String(id) }));
+/** No paths at build time. The first visit renders on demand (ISR) behind loading.tsx. */
+export function generateStaticParams() {
+  return [];
 }
 
 export async function generateMetadata({

@@ -29,8 +29,7 @@ async function waitForApi(maxMs = 30_000) {
   while (Date.now() < deadline) {
     try {
       const status = await fetch(`http://127.0.0.1:${apiPort}/api/health`);
-      const ids = await fetch(`http://127.0.0.1:${apiPort}/api/media/ids`);
-      if (status.ok && ids.ok) return true;
+      if (status.ok) return true;
     } catch {
       // API still starting
     }
@@ -55,42 +54,10 @@ function stopProcess(child) {
 
 let apiProcess = null;
 
-function assertNoMediaLoadingShell(html, sampleName) {
-  const issues = [];
-  if (html.includes("animate-pulse")) issues.push("animate-pulse skeleton");
-  if (html.includes("h-80 w-full")) issues.push("media page skeleton (h-80)");
-  if (html.includes("h-96 w-full")) issues.push("home loading skeleton (h-96)");
-
-  const mainStart = html.indexOf("<main>");
-  const mainEnd = html.indexOf("</main>");
-  const hasMain = mainStart !== -1 && mainEnd !== -1;
-  // AuthProvider omits app chrome until the client auth check finishes, so
-  // prerendered HTML is an opaque splash without <main>.
-  const authSplashOnly = !hasMain && html.includes('aria-label="Loading"');
-
-  if (!hasMain && !authSplashOnly) {
-    throw new Error(`[media] ${sampleName} is missing <main> — build output looks broken`);
-  }
-
-  if (hasMain) {
-    const main = html.slice(mainStart, mainEnd);
-    if (!main.includes("font-black") && !main.includes("<h1")) {
-      issues.push("missing hero heading");
-    }
-  }
-
-  if (issues.length > 0) {
-    throw new Error(
-      `[media] ${sampleName} still ships a loading shell (${issues.join(", ")}). ` +
-        "Remove route loading.tsx from static ISR pages and rebuild clean.",
-    );
-  }
-}
-
 try {
   if (fs.existsSync(nextDir)) {
     fs.rmSync(nextDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-    console.log("[media] Cleared previous .next output for a clean prerender");
+    console.log("[media] Cleared previous .next output");
   }
 
   let apiReady = false;
@@ -111,15 +78,15 @@ try {
 
     apiReady = await waitForApi();
     if (apiReady) {
-      console.log(`MEDIA! API ready for build-time prerender (port ${apiPort})`);
+      console.log(`MEDIA! API ready for build (port ${apiPort})`);
     } else {
       console.warn(
-        "MEDIA! API did not start in time — media pages will use on-demand ISR only.",
+        "MEDIA! API did not start in time — catalog pages will render on demand.",
       );
     }
   } else {
     console.warn(
-      "Server build missing — media pages will use on-demand ISR only.",
+      "Server build missing — catalog pages will render on demand.",
     );
   }
 
@@ -133,24 +100,7 @@ try {
 
   await run("pnpm", ["exec", "next", "build"], { cwd: webRoot, env: buildEnv });
   await run("node", ["scripts/copy-standalone-assets.mjs"], { cwd: webRoot });
-
-  const mediaHtmlDir = path.join(webRoot, ".next/server/app/media");
-  const prerendered =
-    fs.existsSync(mediaHtmlDir) &&
-    fs.readdirSync(mediaHtmlDir).filter((name) => /^\d+\.html$/.test(name));
-
-  if (apiReady && prerendered.length === 0) {
-    console.warn(
-      "[media] Build API was ready but no media pages were pre-rendered. Check data_dir and /api/media/ids.",
-    );
-  } else if (prerendered.length > 0) {
-    console.log(`[media] Pre-rendered HTML for ${prerendered.length} media page(s)`);
-    for (const name of prerendered.slice(0, 3)) {
-      const html = fs.readFileSync(path.join(mediaHtmlDir, name), "utf8");
-      assertNoMediaLoadingShell(html, name);
-    }
-    console.log("[media] Verified prerendered media HTML has hero markup and no loading shells");
-  }
+  console.log("[media] Media pages are not pre-rendered; the first visit shows a loader");
 } finally {
   stopProcess(apiProcess);
 }

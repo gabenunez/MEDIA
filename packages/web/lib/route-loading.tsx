@@ -1,9 +1,10 @@
 "use client";
 
+import { useLayoutEffect, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { markTvBootContentReady } from "@/lib/tv-boot-ready";
 import { useTvMode } from "@/lib/tv-mode";
-import type { ReactNode } from "react";
 
 function RouteLoading({ children }: { children: ReactNode }) {
   const isTvMode = useTvMode();
@@ -113,15 +114,31 @@ export function SearchLoadingSkeleton() {
 }
 
 export function MediaLoadingSkeleton() {
+  // Desktop skeleton and TV spinner are both in the HTML. The TV class on
+  // <html> picks the spinner before paint.
+  // Reveal the TV shell as soon as this loader paints.
+  useLayoutEffect(() => {
+    markTvBootContentReady();
+  }, []);
+
   return (
-    <RouteLoading>
-      <div>
+    <>
+      <div
+        data-tv-only
+        data-tv-route-loading=""
+        className="flex h-screen w-full items-center justify-center bg-background"
+        role="status"
+        aria-label="Loading"
+      >
+        <Loader2 className="h-9 w-9 animate-spin text-primary" />
+      </div>
+      <div data-web-only className="min-h-[60vh] bg-background" role="status" aria-label="Loading">
         <Skeleton className="h-80 w-full" />
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
           <Skeleton className="mb-4 h-10 w-64" />
           <Skeleton className="h-24 w-full max-w-2xl" />
         </div>
       </div>
-    </RouteLoading>
+    </>
   );
 }

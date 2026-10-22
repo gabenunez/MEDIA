@@ -59,14 +59,6 @@ async function fetchInternalJson<T>(
   }
 }
 
-export async function fetchMediaIds(): Promise<number[]> {
-  const { data } = await fetchInternalJson<{ ids?: unknown }>("/api/media/ids", 300);
-  if (!data || !Array.isArray(data.ids)) return [];
-  return data.ids
-    .map((id) => (typeof id === "number" ? id : parseInt(String(id), 10)))
-    .filter((id) => Number.isFinite(id) && id > 0);
-}
-
 export async function fetchMediaDetail(
   mediaId: number,
   revalidateSeconds = 300,
