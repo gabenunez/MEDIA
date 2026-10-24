@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.289 — 2026-10-23
+
+### Web
+- **Loading** — opening a home, library, or title page that is not cached yet paints immediately. The data loads in the browser, and focusing or hovering the link starts that fetch before you open the page
+- **Home** — continue watching loads its history in one pass instead of one lookup per row
+
+### TV
+- **Loading** — a slow page shows its spinner instead of staying blank until the 15 second startup cap
+
 ## 0.1.288 — 2026-10-23
 
 ### Web
