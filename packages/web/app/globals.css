@@ -499,12 +499,11 @@
     font-weight: 600;
   }
 
-  /* Backdrop only. An in-flow hero left a blank band above the title. */
+  /* Backdrop fills the header, including the poster inset, and stays
+     behind the title. An in-flow hero left a blank band above it. */
   .tv-ui .tv-media-hero {
     position: absolute;
-    inset-inline: 0;
-    top: 0;
-    height: min(12rem, 100%);
+    inset: 0;
     pointer-events: none;
   }
 
@@ -517,6 +516,12 @@
 
   .tv-ui .tv-media-gutter {
     padding-inline: var(--tv-page-gutter);
+  }
+
+  /* Poster and title sit below the screen edge. The backdrop is absolute
+     in the same section, so it grows with this inset and still meets the top. */
+  .tv-ui .tv-media-page > section:first-child > .tv-media-gutter {
+    padding-top: 1.5rem;
   }
 
   .tv-ui .tv-media-poster {
