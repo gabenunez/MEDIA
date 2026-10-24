@@ -23,7 +23,7 @@ export function TvBrowseView() {
   const [recentCount, setRecentCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useMarkTvBootReadyWhen(!loading);
+  useMarkTvBootReadyWhen(true);
 
   useDocumentTitle("Browse");
 

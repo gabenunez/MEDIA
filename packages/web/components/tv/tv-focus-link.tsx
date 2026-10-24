@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { forwardRef, type ComponentProps, type FocusEvent } from "react";
 import { useRouter } from "next/navigation";
+import { prefetchCatalogHref } from "@/lib/prefetch-artwork";
 import { isTvClient } from "@/lib/tv-mode-detect";
 
 /** Side rail nav icons — active via data-tv-nav-active */
@@ -69,7 +70,10 @@ export function TvFocusLink({
   const onTv = isTvClient();
 
   const handleFocus = (event: FocusEvent<HTMLAnchorElement>) => {
-    if (typeof href === "string") router.prefetch(href);
+    if (typeof href === "string") {
+      prefetchCatalogHref(href);
+      router.prefetch(href);
+    }
     onFocus?.(event);
   };
 

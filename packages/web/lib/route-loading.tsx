@@ -9,6 +9,12 @@ import { useTvMode } from "@/lib/tv-mode";
 function RouteLoading({ children }: { children: ReactNode }) {
   const isTvMode = useTvMode();
 
+  // A slow catalog fetch must not leave the TV body hidden until the 15s
+  // boot cap. The skeleton itself is the ready state.
+  useLayoutEffect(() => {
+    markTvBootContentReady();
+  }, []);
+
   if (isTvMode) {
     // Opaque page fill only — never a bordered loading chip. Back from watch
     // (and other soft nav) can flash loading.tsx briefly; button-like chrome
@@ -71,6 +77,10 @@ export function BrowseLoadingSkeleton() {
 
 export function WatchLoadingSkeleton() {
   const isTvMode = useTvMode();
+
+  useLayoutEffect(() => {
+    markTvBootContentReady();
+  }, []);
 
   // Full-bleed black cover — must sit above the TV rail so media→watch does not
   // flash a padded centered card while the sidebar width changes.

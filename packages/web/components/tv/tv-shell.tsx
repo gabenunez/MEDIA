@@ -15,6 +15,7 @@ import {
   raiseNativeWebOverlay,
   stopNativePlayback,
 } from "@/lib/android-bridge";
+import { prefetchCatalogHref } from "@/lib/prefetch-artwork";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { closeTvSideNav } from "@/lib/tv-side-nav";
@@ -44,7 +45,10 @@ function TvNavButton({
       aria-label={label}
       title={label}
       prefetch={false}
-      onFocus={() => router.prefetch(href)}
+      onFocus={() => {
+        prefetchCatalogHref(href);
+        router.prefetch(href);
+      }}
       {...(active ? { "data-tv-nav-active": "" as const } : {})}
       className={cn(
         "flex h-11 w-11 items-center justify-center",
@@ -97,6 +101,7 @@ export function TvShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (homeActive) return;
+    prefetchCatalogHref(routes.home());
     router.prefetch(routes.home());
   }, [router, homeActive]);
 

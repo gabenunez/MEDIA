@@ -27,8 +27,9 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
   const libraries = data?.libraries ?? [];
   const decks = data?.decks ?? [];
 
-  // Dismiss splash as soon as primary rows can paint — don't wait on browse cards.
-  useMarkTvBootReadyWhen(loaded);
+  // Show the spinner as soon as the shell mounts. Waiting for catalog data
+  // left the TV body hidden until the 15s boot cap.
+  useMarkTvBootReadyWhen(unlocked);
 
   useEffect(() => {
     if (!loaded) return;
