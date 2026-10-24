@@ -72,7 +72,7 @@ import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { WatchSkipFeedbackBadge } from "@/components/watch-skip-feedback";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
-import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
+import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import {
   TvSubtitleTrackRow,
   TvWatchMenuList,
@@ -2857,13 +2857,7 @@ export function TvWatchView() {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black">
         <div className="text-center">
-          <p className="mb-4 text-muted-foreground">Invalid playback URL</p>
-          <TvFocusLink
-            href={routes.home()}
-            className="inline-flex rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground"
-          >
-            Go home
-          </TvFocusLink>
+          <p className="text-muted-foreground">Invalid playback URL</p>
         </div>
       </div>
     );
@@ -3051,15 +3045,15 @@ export function TvWatchView() {
           >
             <div className="max-w-lg text-center">
               <p className="mb-6 text-lg text-red-400">{error}</p>
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                {transcodingEnabled &&
-                  resolveFallbackQuality(
-                    quality,
-                    availableQualities,
-                    playbackStream.hlsQuality,
-                    sourceHeight,
-                    sourceWidth,
-                  ) && (
+              {transcodingEnabled &&
+                resolveFallbackQuality(
+                  quality,
+                  availableQualities,
+                  playbackStream.hlsQuality,
+                  sourceHeight,
+                  sourceWidth,
+                ) && (
+                  <div className="flex flex-wrap items-center justify-center gap-3">
                     <TvFocusButton
                       onClick={() => {
                         const next = resolveFallbackQuality(
@@ -3086,18 +3080,8 @@ export function TvWatchView() {
                         sourceWidth,
                       )}
                     </TvFocusButton>
-                  )}
-                <TvFocusLink
-                  href={backHref}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    exitWatch();
-                  }}
-                  className="inline-flex rounded-xl border border-white/20 px-6 py-3 font-semibold text-white"
-                >
-                  Go back
-                </TvFocusLink>
-              </div>
+                  </div>
+                )}
             </div>
           </div>
         )}

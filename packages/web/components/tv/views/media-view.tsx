@@ -10,7 +10,7 @@ import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
 import { TvWatchedButton } from "@/components/tv/tv-watched-button";
 import { TvPlaybackOptions } from "@/components/tv/tv-playback-options";
-import { TvHistoryBackButton, TvSectionLabel } from "@/components/tv/tv-page-header";
+import { TvSectionLabel } from "@/components/tv/tv-page-header";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
@@ -71,15 +71,7 @@ function TvMediaViewLegacy() {
 
     return (
       <div className="tv-ui tv-media-gutter py-16 text-center">
-        <p className="mb-6 text-xl text-muted-foreground">Invalid media</p>
-        <div data-tv-row="" data-tv-content-row="" className="flex justify-center">
-          <TvFocusLink
-            href={routes.home()}
-            className="inline-flex h-11 items-center rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground"
-          >
-            Back to home
-          </TvFocusLink>
-        </div>
+        <p className="text-xl text-muted-foreground">Invalid media</p>
       </div>
     );
   }
@@ -235,8 +227,7 @@ function TvMediaViewContent({
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col">
-              <TvHistoryBackButton fallbackHref={routes.home()} />
-              <p className="mb-1 mt-2 text-[11px] font-medium uppercase tracking-wider text-primary">
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-primary">
                 {metaLabel}
               </p>
               <h1 className="tv-media-title mb-2 line-clamp-2">

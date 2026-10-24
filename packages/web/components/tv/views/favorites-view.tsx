@@ -76,7 +76,6 @@ export function TvFavoritesView({
   return (
     <TvPageShell>
       <TvPageHeader
-        backHref={routes.home()}
         title="Favorites"
         subtitle={tvPageMeta([totalItems > 0 && `${totalItems} saved`])}
       />
@@ -107,19 +106,7 @@ export function TvFavoritesView({
       </div>
 
       {items.length === 0 ? (
-        <TvEmptyState
-          action={
-            <TvFocusLink
-              href={routes.home()}
-              variant="card"
-              className="inline-flex h-11 items-center rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground"
-            >
-              Back to home
-            </TvFocusLink>
-          }
-        >
-          No favorites yet.
-        </TvEmptyState>
+        <TvEmptyState>No favorites yet.</TvEmptyState>
       ) : (
         <>
           <TvGrid>

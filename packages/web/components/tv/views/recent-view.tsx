@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { api, type MediaItem } from "@/lib/api";
 import type { PaginatedPageData } from "@/lib/server-api";
-import { routes } from "@/lib/routes";
 import {
   TvEmptyState,
   TvPageHeader,
@@ -75,7 +74,6 @@ export function TvRecentView({
   return (
     <TvPageShell>
       <TvPageHeader
-        backHref={routes.home()}
         title="Recently Added"
         subtitle={tvPageMeta([totalItems > 0 && `${totalItems} titles`])}
       />

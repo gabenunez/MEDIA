@@ -68,7 +68,6 @@ export function TvContinueView({
   return (
     <TvPageShell>
       <TvPageHeader
-        backHref={routes.home()}
         title="Continue Watching"
         subtitle={tvPageMeta([totalItems > 0 && `${totalItems} in progress`])}
       />

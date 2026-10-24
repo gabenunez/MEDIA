@@ -509,6 +509,9 @@
   }
 
   .tv-ui .tv-media-page {
+    /* Main's top padding is catalog breathing room. Cancel it so the backdrop
+       sits on the screen edge instead of leaving a band above the image. */
+    margin-top: -0.55rem;
     padding-bottom: 1.5rem;
   }
 
