@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.288 — 2026-10-23
+
+### Web
+- **Loading** — desktop and TV reuse cached home, library, and title data. Lists refresh after a minute, titles after five minutes, and a finished scan still clears them immediately
+
 ## 0.1.287 — 2026-10-23
 
 ### TV
