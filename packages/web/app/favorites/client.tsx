@@ -21,6 +21,10 @@ export function FavoritesClient({
 }: {
   initialPage?: PaginatedPageData<MediaItem> | null;
 }) {
+  const filter = useFavoritesRouteFilter();
+  useDocumentTitle(
+    filter === "movie" ? "Favorite Films" : filter === "tv" ? "Favorite Series" : "Favorites",
+  );
   const isTvMode = useTvMode();
   if (isTvMode) return <TvFavoritesView initialPage={initialPage} />;
   return <FavoritesDesktopClient initialPage={initialPage} />;
@@ -38,8 +42,6 @@ function FavoritesDesktopClient({
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(initialPage?.totalPages ?? 1);
   const [loading, setLoading] = useState(!initialPage);
-
-  useDocumentTitle("Favorites");
 
   useEffect(() => {
     setPage(1);

@@ -5,12 +5,12 @@ import type {
   LibraryDeck,
   MediaItem,
 } from "@/lib/api";
-import { mediaPageCacheTag } from "@media-app/shared";
-import { catalogDataCache } from "@/lib/catalog-cache";
+import { cacheLife, cacheTag } from "next/cache";
+import { HOME_CATALOG_CACHE_TAG, mediaPageCacheTag } from "@media-app/shared";
+import { catalogCacheLife, mediaCacheLife } from "@/lib/catalog-cache";
 
 const INTERNAL_API_HEADER = "x-media-internal";
 const INTERNAL_API_TOKEN = "next-isr";
-const DEFAULT_REVALIDATE = 60;
 
 export type PaginatedPageData<T> = {
   items: T[];
@@ -29,6 +29,25 @@ export type HomeData = {
   recentPlay: HomePlayTarget | null;
 };
 
+class UpstreamStatus extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`upstream ${status}`);
+    this.name = "UpstreamStatus";
+    this.status = status;
+  }
+}
+
+function upstreamStatus(error: unknown): number | null {
+  if (error instanceof UpstreamStatus) return error.status;
+  if (error instanceof Error) {
+    const match = /^upstream (\d+)$/.exec(error.message);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
 function internalApiBase(): string {
   if (process.env.MEDIA_INTERNAL_API_URL) {
     return process.env.MEDIA_INTERNAL_API_URL.replace(/\/$/, "");
@@ -43,26 +62,38 @@ async function internalApiFetch(path: string, init?: RequestInit): Promise<Respo
   return fetch(`${internalApiBase()}${path}`, { ...init, headers });
 }
 
-async function fetchInternalJson<T>(
-  path: string,
-  revalidateSeconds = DEFAULT_REVALIDATE,
+async function readJson<T>(path: string): Promise<T> {
+  const res = await internalApiFetch(path);
+  if (!res.ok) throw new UpstreamStatus(res.status);
+  return (await res.json()) as T;
+}
+
+/** Failures throw so a down API is not stored for the cache lifetime. */
+async function cachedCatalog<T>(path: string): Promise<T> {
+  "use cache";
+  cacheLife(catalogCacheLife);
+  cacheTag(HOME_CATALOG_CACHE_TAG);
+  return readJson<T>(path);
+}
+
+async function cachedMedia<T>(mediaId: number, path: string): Promise<T> {
+  "use cache";
+  cacheLife(mediaCacheLife);
+  cacheTag(mediaPageCacheTag(mediaId));
+  return readJson<T>(path);
+}
+
+async function settled<T>(
+  work: Promise<T>,
 ): Promise<{ data: T | null; unauthorized: boolean }> {
   try {
-    const res = await internalApiFetch(path, {
-      next: catalogDataCache(revalidateSeconds),
-    });
-    if (res.status === 401) return { data: null, unauthorized: true };
-    if (!res.ok) return { data: null, unauthorized: false };
-    return { data: (await res.json()) as T, unauthorized: false };
-  } catch {
-    return { data: null, unauthorized: false };
+    return { data: await work, unauthorized: false };
+  } catch (error) {
+    return { data: null, unauthorized: upstreamStatus(error) === 401 };
   }
 }
 
-export async function fetchMediaDetail(
-  mediaId: number,
-  revalidateSeconds = 300,
-): Promise<{
+export async function fetchMediaDetail(mediaId: number): Promise<{
   media: Record<string, unknown> | null;
   unauthorized: boolean;
 }> {
@@ -70,103 +101,88 @@ export async function fetchMediaDetail(
     return { media: null, unauthorized: false };
   }
 
-  const res = await internalApiFetch(`/api/media/${mediaId}`, {
-    next: { revalidate: revalidateSeconds, tags: [mediaPageCacheTag(mediaId)] },
-  });
-
-  if (res.status === 401) return { media: null, unauthorized: true };
-  if (res.status === 404) return { media: null, unauthorized: false };
-  if (!res.ok) {
-    throw new Error(`Failed to fetch media ${mediaId}: ${res.status}`);
+  try {
+    const media = await cachedMedia<Record<string, unknown>>(
+      mediaId,
+      `/api/media/${mediaId}`,
+    );
+    return { media, unauthorized: false };
+  } catch (error) {
+    const status = upstreamStatus(error);
+    if (status === 401) return { media: null, unauthorized: true };
+    if (status === 404) return { media: null, unauthorized: false };
+    if (status != null) {
+      throw new Error(`Failed to fetch media ${mediaId}: ${status}`);
+    }
+    throw error;
   }
-
-  return {
-    media: (await res.json()) as Record<string, unknown>,
-    unauthorized: false,
-  };
 }
 
 export async function fetchRelatedMedia(
   mediaId: number,
-  revalidateSeconds = 300,
 ): Promise<Array<Record<string, unknown>>> {
   if (!Number.isFinite(mediaId) || mediaId <= 0) return [];
 
-  const { data } = await fetchInternalJson<{ items?: unknown }>(
-    `/api/media/${mediaId}/related`,
-    revalidateSeconds,
-  );
-  return Array.isArray(data?.items)
+  const data = await cachedRelated(mediaId);
+  return Array.isArray(data.items)
     ? (data.items as Array<Record<string, unknown>>)
     : [];
 }
 
-export async function fetchHome(revalidateSeconds = DEFAULT_REVALIDATE) {
-  return fetchInternalJson<HomeData>("/api/home", revalidateSeconds);
+async function cachedRelated(mediaId: number): Promise<{ items?: unknown }> {
+  "use cache";
+  cacheLife(mediaCacheLife);
+  cacheTag(mediaPageCacheTag(mediaId));
+  cacheTag(HOME_CATALOG_CACHE_TAG);
+  return readJson<{ items?: unknown }>(`/api/media/${mediaId}/related`);
 }
 
-export async function fetchLibraries(revalidateSeconds = DEFAULT_REVALIDATE) {
-  return fetchInternalJson<unknown[]>("/api/libraries", revalidateSeconds);
+export function fetchHome() {
+  return settled(cachedCatalog<HomeData>("/api/home"));
 }
 
-export async function fetchLibraryItems(
-  libraryId: number,
-  page = 1,
-  revalidateSeconds = DEFAULT_REVALIDATE,
-) {
-  return fetchInternalJson<PaginatedPageData<MediaItem>>(
-    `/api/libraries/${libraryId}/items?page=${page}`,
-    revalidateSeconds,
+export function fetchLibraries() {
+  return settled(cachedCatalog<unknown[]>("/api/libraries"));
+}
+
+export function fetchLibraryItems(libraryId: number, page = 1) {
+  return settled(
+    cachedCatalog<PaginatedPageData<MediaItem>>(
+      `/api/libraries/${libraryId}/items?page=${page}`,
+    ),
   );
 }
 
-export async function fetchDeck(deckId: number, revalidateSeconds = DEFAULT_REVALIDATE) {
-  return fetchInternalJson<Record<string, unknown>>(
-    `/api/decks/${deckId}`,
-    revalidateSeconds,
+export function fetchDeck(deckId: number) {
+  return settled(cachedCatalog<Record<string, unknown>>(`/api/decks/${deckId}`));
+}
+
+export function fetchDeckItems(deckId: number, page = 1) {
+  return settled(
+    cachedCatalog<PaginatedPageData<MediaItem>>(
+      `/api/decks/${deckId}/items?page=${page}`,
+    ),
   );
 }
 
-export async function fetchDeckItems(
-  deckId: number,
-  page = 1,
-  revalidateSeconds = DEFAULT_REVALIDATE,
-) {
-  return fetchInternalJson<PaginatedPageData<MediaItem>>(
-    `/api/decks/${deckId}/items?page=${page}`,
-    revalidateSeconds,
-  );
-}
-
-export async function fetchFavorites(
-  page = 1,
-  type?: "movie" | "tv",
-  revalidateSeconds = DEFAULT_REVALIDATE,
-) {
+export function fetchFavorites(page = 1, type?: "movie" | "tv") {
   const query = new URLSearchParams({ page: String(page) });
   if (type) query.set("type", type);
-  return fetchInternalJson<PaginatedPageData<MediaItem>>(
-    `/api/favorites?${query}`,
-    revalidateSeconds,
+  return settled(
+    cachedCatalog<PaginatedPageData<MediaItem>>(`/api/favorites?${query}`),
   );
 }
 
-export async function fetchContinueWatching(
-  page = 1,
-  revalidateSeconds = DEFAULT_REVALIDATE,
-) {
-  return fetchInternalJson<PaginatedPageData<ContinueWatchingItem>>(
-    `/api/continue-watching?page=${page}`,
-    revalidateSeconds,
+export function fetchContinueWatching(page = 1) {
+  return settled(
+    cachedCatalog<PaginatedPageData<ContinueWatchingItem>>(
+      `/api/continue-watching?page=${page}`,
+    ),
   );
 }
 
-export async function fetchRecentlyAdded(
-  page = 1,
-  revalidateSeconds = DEFAULT_REVALIDATE,
-) {
-  return fetchInternalJson<PaginatedPageData<MediaItem>>(
-    `/api/recent?page=${page}`,
-    revalidateSeconds,
+export function fetchRecentlyAdded(page = 1) {
+  return settled(
+    cachedCatalog<PaginatedPageData<MediaItem>>(`/api/recent?page=${page}`),
   );
 }

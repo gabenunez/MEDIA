@@ -8,9 +8,10 @@ const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 describe("media page build", () => {
   it("does not pre-render every title", () => {
     const page = readFileSync(path.join(webRoot, "app/media/[id]/page.tsx"), "utf8");
-    expect(page).toContain("return [];");
+    expect(page).not.toContain("generateStaticParams");
     expect(page).not.toContain("fetchMediaIds");
-    expect(page).toContain("export const revalidate = 300");
+    expect(page).toContain("cacheLife(mediaCacheLife)");
+    expect(page).toContain("mediaPageCacheTag");
     const build = readFileSync(path.join(webRoot, "scripts/with-api-for-build.mjs"), "utf8");
     expect(build).not.toContain("/api/media/ids");
     expect(build).toContain("Media pages are not pre-rendered");

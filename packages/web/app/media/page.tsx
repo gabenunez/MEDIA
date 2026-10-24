@@ -1,8 +1,24 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { DynamicMarker } from "@/lib/dynamic-marker";
 import { MediaClient, MediaPageSkeleton } from "./client";
 
-export default async function MediaPage({
+export default function MediaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>;
+}) {
+  return (
+    <>
+      <DynamicMarker />
+      <Suspense fallback={<MediaPageSkeleton />}>
+        <LegacyMediaRedirect searchParams={searchParams} />
+      </Suspense>
+    </>
+  );
+}
+
+async function LegacyMediaRedirect({
   searchParams,
 }: {
   searchParams: Promise<{ id?: string }>;
@@ -12,9 +28,5 @@ export default async function MediaPage({
     redirect(`/media/${id}/`);
   }
 
-  return (
-    <Suspense fallback={<MediaPageSkeleton />}>
-      <MediaClient />
-    </Suspense>
-  );
+  return <MediaClient />;
 }

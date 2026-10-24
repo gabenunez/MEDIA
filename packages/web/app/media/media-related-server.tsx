@@ -1,3 +1,6 @@
+import { cacheLife, cacheTag } from "next/cache";
+import { HOME_CATALOG_CACHE_TAG, mediaPageCacheTag } from "@media-app/shared";
+import { mediaCacheLife } from "@/lib/catalog-cache";
 import { MediaRow } from "@/components/media-row";
 import { TvRow } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
@@ -11,6 +14,24 @@ export async function MediaRelatedServer({
   mediaId: number;
   mediaType: "movie" | "tv";
 }) {
+  try {
+    return await CachedRelated({ mediaId, mediaType });
+  } catch {
+    return null;
+  }
+}
+
+async function CachedRelated({
+  mediaId,
+  mediaType,
+}: {
+  mediaId: number;
+  mediaType: "movie" | "tv";
+}) {
+  "use cache";
+  cacheLife(mediaCacheLife);
+  cacheTag(mediaPageCacheTag(mediaId));
+  cacheTag(HOME_CATALOG_CACHE_TAG);
   const items = (await fetchRelatedMedia(mediaId)) as unknown as MediaItem[];
   if (!items.length) return null;
 
