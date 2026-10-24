@@ -919,6 +919,26 @@ describe("resolveNativeHlsSeekAction", () => {
       }),
     ).toEqual({ kind: "restart", absoluteSeconds: 1100 });
   });
+
+  it("keeps a short skip in session when it is near the buffer", () => {
+    expect(
+      resolveNativeHlsSeekAction({
+        targetAbsoluteSeconds: 1240,
+        hlsStartOffset: 1200,
+        bufferedEndRelative: 30,
+      }),
+    ).toEqual({ kind: "relative", relativeSeconds: 40 });
+  });
+
+  it("restarts a scrub that is far past the encoded buffer", () => {
+    expect(
+      resolveNativeHlsSeekAction({
+        targetAbsoluteSeconds: 5532,
+        hlsStartOffset: 0,
+        bufferedEndRelative: 114,
+      }),
+    ).toEqual({ kind: "restart", absoluteSeconds: 5532 });
+  });
 });
 
 describe("shouldClearOptimisticSeek", () => {

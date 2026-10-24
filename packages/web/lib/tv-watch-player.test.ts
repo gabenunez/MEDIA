@@ -380,6 +380,19 @@ describe("resolveTvSeekPlan", () => {
     });
   });
 
+  it("restarts native HLS when the scrub is far past the buffer", () => {
+    expect(
+      resolveTvSeekPlan({
+        targetAbsoluteSeconds: 5532,
+        totalDurationSeconds: 5777,
+        usesNativePlayer: true,
+        usingHls: true,
+        hlsStartOffset: 0,
+        bufferedEndRelative: 114,
+      }),
+    ).toEqual({ kind: "native-hls-restart", absoluteSeconds: 5532 });
+  });
+
   it("restarts native HLS when rewinding before the session offset", () => {
     expect(
       resolveTvSeekPlan({

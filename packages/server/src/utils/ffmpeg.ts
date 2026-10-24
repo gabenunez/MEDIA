@@ -268,6 +268,14 @@ export function extractEmbeddedSubtitle(
   });
 }
 
+/** Where to continue a killed HLS encode without discarding segments already served. */
+export interface HlsResumePoint {
+  /** Seconds produced after the session's original start. Added to `-ss`. */
+  offsetSeconds: number;
+  /** Next `segment_%03d.ts` index append_list will write. Not passed as `-start_number` — ffmpeg adds that on top of the existing count and skips ahead. */
+  startNumber: number;
+}
+
 export interface HlsSession {
   id: string;
   process: ChildProcess | null;
@@ -365,6 +373,71 @@ export function isTranscodeComplete(
   const remaining = Math.max(0, sourceDurationSeconds - startOffset);
   // Allow a one-segment tolerance for rounding / final short segment.
   return produced >= remaining - 8;
+}
+
+/**
+ * Keep a partial HLS directory so a dead ffmpeg can continue from the next
+ * segment. Clearing it restarts MEDIA-SEQUENCE at 0; ExoPlayer is already
+ * mid-playlist, the next segment never appears, and the 30s proxy timeout
+ * turns the wait into HTTP 500 until the buffer runs out.
+ *
+ * Returns null when there is nothing usable to append to (caller starts fresh).
+ */
+export function prepareHlsResume(outputDir: string): HlsResumePoint | null {
+  const playlistPath = path.join(outputDir, "master.m3u8");
+  let raw: string;
+  try {
+    raw = fs.readFileSync(playlistPath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  const parsed = parseFfmpegPlaylist(raw);
+  if (!parsed || parsed.segments.length === 0) return null;
+
+  const kept: ParsedHlsSegment[] = [];
+  for (const seg of parsed.segments) {
+    const file = path.basename(seg.uri.split("?")[0] ?? seg.uri);
+    if (!/^segment_\d+\.ts$/.test(file)) break;
+    try {
+      if (fs.statSync(path.join(outputDir, file)).size <= 0) break;
+    } catch {
+      break;
+    }
+    kept.push({ ...seg, uri: file });
+  }
+  if (kept.length === 0) return null;
+
+  const offsetSeconds = sumPlaylistDurationSeconds(kept);
+  if (!(offsetSeconds > 0)) return null;
+
+  const startNumber = kept[kept.length - 1]!.index + 1;
+  const keepIndexes = new Set(kept.map((seg) => seg.index));
+  for (const name of listHlsSegments(outputDir)) {
+    if (keepIndexes.has(parseHlsSegmentIndex(name))) continue;
+    try {
+      fs.unlinkSync(path.join(outputDir, name));
+    } catch {
+      // already removed
+    }
+  }
+
+  const lines = [...parsed.header];
+  for (const seg of kept) {
+    lines.push(...seg.tags, seg.uri);
+  }
+  fs.writeFileSync(playlistPath, `${lines.join("\n")}\n`);
+
+  try {
+    fs.unlinkSync(path.join(outputDir, ".exit-code"));
+  } catch {
+    // no stale exit code
+  }
+
+  return {
+    offsetSeconds: Math.round(offsetSeconds * 1000) / 1000,
+    startNumber,
+  };
 }
 
 export function clearTranscodeOutput(outputDir: string): void {
@@ -495,6 +568,34 @@ export function removeTranscodeDir(outputDir: string): boolean {
   return !fs.existsSync(outputDir);
 }
 
+/** HLS muxer flags. Resume appends after the last complete segment instead of replacing the playlist. */
+function hlsMuxArgs(
+  outputDir: string,
+  playlistPath: string,
+  segmentDuration: number,
+  resume: HlsResumePoint | null,
+): string[] {
+  const flags = ["independent_segments", "append_list"];
+  if (resume) {
+    // PTS restarts after the resume `-ss`. Mark the join so the player continues.
+    flags.push("discont_start");
+  }
+  const args = [
+    "-f",
+    "hls",
+    "-hls_time",
+    String(segmentDuration),
+    "-hls_list_size",
+    "0",
+    "-hls_playlist_type",
+    "event",
+    "-hls_flags",
+    flags.join("+"),
+  ];
+  args.push("-hls_segment_filename", `${outputDir}/segment_%03d.ts`, playlistPath);
+  return args;
+}
+
 export function startHlsTranscode(
   sessionId: string,
   filePath: string,
@@ -505,6 +606,7 @@ export function startHlsTranscode(
   startSeconds = 0,
   audioStreamIndex?: number | null,
   dynamicRange?: VideoDynamicRange | null,
+  resume: HlsResumePoint | null = null,
 ): HlsSession {
   enforceTranscodeCapacity(sessionId);
   stopHlsSession(sessionId);
@@ -513,7 +615,11 @@ export function startHlsTranscode(
   const preset = TRANSCODE_PRESETS[quality];
   const height = effectiveTranscodeHeight(quality, sourceHeight);
 
-  clearTranscodeOutput(outputDir);
+  // Resume keeps segment_000..N on disk. Clearing them resets the playlist
+  // the client is already playing and the next segment request 500s.
+  if (!resume) {
+    clearTranscodeOutput(outputDir);
+  }
   writeStartOffset(outputDir, startSeconds);
 
   const logPath = `${outputDir}/ffmpeg.log`;
@@ -526,9 +632,10 @@ export function startHlsTranscode(
     }
   };
 
+  const seekSeconds = startSeconds + (resume?.offsetSeconds ?? 0);
   const args = ["-y"];
-  if (startSeconds > 0) {
-    args.push("-ss", String(startSeconds));
+  if (seekSeconds > 0) {
+    args.push("-ss", String(seekSeconds));
   }
   // 4K re-encodes must stay ahead of realtime or the client buffer never grows.
   // Prefer speed over compression efficiency at 2160p; lower tiers keep veryfast.
@@ -578,19 +685,7 @@ export function startHlsTranscode(
     "2",
     "-ar",
     "48000",
-    "-f",
-    "hls",
-    "-hls_time",
-    String(segmentDuration),
-    "-hls_list_size",
-    "0",
-    "-hls_playlist_type",
-    "event",
-    "-hls_flags",
-    "independent_segments+append_list",
-    "-hls_segment_filename",
-    `${outputDir}/segment_%03d.ts`,
-    playlistPath,
+    ...hlsMuxArgs(outputDir, playlistPath, segmentDuration, resume),
   );
 
   const process = spawn("ffmpeg", args, {
@@ -662,13 +757,16 @@ export function startHlsRemux(
   startSeconds = 0,
   videoCodec?: string | null,
   audioStreamIndex?: number | null,
+  resume: HlsResumePoint | null = null,
 ): HlsSession {
   enforceTranscodeCapacity(sessionId);
   stopHlsSession(sessionId);
   fs.mkdirSync(outputDir, { recursive: true });
   const playlistPath = `${outputDir}/master.m3u8`;
 
-  clearTranscodeOutput(outputDir);
+  if (!resume) {
+    clearTranscodeOutput(outputDir);
+  }
   writeStartOffset(outputDir, startSeconds);
 
   const logPath = `${outputDir}/ffmpeg.log`;
@@ -681,9 +779,10 @@ export function startHlsRemux(
     }
   };
 
+  const seekSeconds = startSeconds + (resume?.offsetSeconds ?? 0);
   const args = ["-y"];
-  if (startSeconds > 0) {
-    args.push("-ss", String(startSeconds));
+  if (seekSeconds > 0) {
+    args.push("-ss", String(seekSeconds));
   }
   args.push("-i", filePath, "-map", "0:v:0", ...audioMapArgs(audioStreamIndex));
   args.push("-fflags", "+genpts", "-avoid_negative_ts", "make_zero");
@@ -699,19 +798,7 @@ export function startHlsRemux(
     "48000",
     "-threads",
     "0",
-    "-f",
-    "hls",
-    "-hls_time",
-    String(segmentDuration),
-    "-hls_list_size",
-    "0",
-    "-hls_playlist_type",
-    "event",
-    "-hls_flags",
-    "independent_segments+append_list",
-    "-hls_segment_filename",
-    `${outputDir}/segment_%03d.ts`,
-    playlistPath,
+    ...hlsMuxArgs(outputDir, playlistPath, segmentDuration, resume),
   );
 
   const process = spawn("ffmpeg", args, {

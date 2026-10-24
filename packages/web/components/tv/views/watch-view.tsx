@@ -317,6 +317,8 @@ export function TvWatchView() {
   const webMidBufferingRef = useRef(false);
   const nativeMidBufferStartedAtRef = useRef<number | null>(null);
   const lastNativeUserSeekAtRef = useRef<number | null>(null);
+  /** Player-timeline buffered end. A scrub far past this restarts the transcode. */
+  const nativeBufferedEndRef = useRef(0);
   const skipCoalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSkipDeltaRef = useRef(0);
   const optimisticAbsoluteSecondsRef = useRef<number | null>(null);
@@ -1278,6 +1280,7 @@ export function TvWatchView() {
         }
         // Keep the scrubber buffer bar fresh even while chrome is hidden so
         // revealing controls does not show a stale range that then "jumps".
+        nativeBufferedEndRef.current = state.buffered;
         const offset = hlsStartOffsetRef.current;
         const relativeRanges =
           state.bufferedRanges && state.bufferedRanges.length > 0
@@ -1357,6 +1360,7 @@ export function TvWatchView() {
     pendingStreamStartRef.current = null;
     streamRestartTargetsRef.current.clear();
     playbackBufferedRangesRef.current = [];
+    nativeBufferedEndRef.current = 0;
     setForceRemux(false);
     nativeRemuxFallbackRef.current = false;
     nativeTranscodeFallbackRef.current = false;
@@ -2035,6 +2039,9 @@ export function TvWatchView() {
         usesNativePlayer,
         usingHls: usingHlsPlayback,
         hlsStartOffset: hlsStartOffsetRef.current,
+        bufferedEndRelative: usesNativePlayer
+          ? nativeBufferedEndRef.current
+          : undefined,
         seekableEndRelative: video ? getVideoSeekableEnd(video) : undefined,
         videoReadyState: video?.readyState,
         hasWebVideo: Boolean(video),
