@@ -61,6 +61,12 @@ function buildImageRemotePatterns() {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  // Catalog and media reads opt into `use cache`. Uncached work stays request-time.
+  cacheComponents: true,
+  // Desktop link prefetch loads the static shell. TV links already prefetch off.
+  partialPrefetching: true,
+  // Don't write a generated AGENTS.md into the repo on dev/build.
+  agentRules: false,
   ...(publicPrefix ? { basePath: publicPrefix } : {}),
   trailingSlash: true,
   skipTrailingSlashRedirect: true,

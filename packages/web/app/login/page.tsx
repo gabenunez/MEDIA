@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { pageMetadataTitle } from "@/lib/document-title";
 
-export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
   title: pageMetadataTitle("Sign in"),
 };

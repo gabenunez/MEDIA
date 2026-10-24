@@ -1,37 +1,33 @@
-import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { Suspense } from "react";
+import { mediaCacheLife } from "@/lib/catalog-cache";
 import { notFound } from "next/navigation";
+import { mediaPageCacheTag } from "@media-app/shared";
 import { MediaHeroServer } from "../media-hero-server";
 import { MediaPageBody } from "../media-page-body";
 import { MediaRelatedServer } from "../media-related-server";
 import { MediaDocumentTitle, MediaThemeShell } from "../media-chrome";
 import { MediaAuthRequired } from "../media-auth-required";
 import { asMediaDetail } from "../types";
-import { pageMetadataTitle } from "@/lib/document-title";
+import { DynamicMarker } from "@/lib/dynamic-marker";
 import { fetchMediaDetail } from "@/lib/server-api";
 
-export const revalidate = 300;
-export const dynamicParams = true;
-
-/** No paths at build time. The first visit renders on demand (ISR) behind loading.tsx. */
-export function generateStaticParams() {
-  return [];
-}
-
-export async function generateMetadata({
+export default function MediaDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const { id } = await params;
-  const mediaId = parseInt(id, 10);
-  if (!Number.isFinite(mediaId)) return {};
-  const { media } = await fetchMediaDetail(mediaId);
-  const title = typeof media?.title === "string" ? media.title : undefined;
-  return title ? { title: pageMetadataTitle(title) } : {};
+}) {
+  return (
+    <>
+      <DynamicMarker />
+      <Suspense fallback={null}>
+        <MediaDetailContent params={params} />
+      </Suspense>
+    </>
+  );
 }
 
-export default async function MediaDetailPage({
+async function MediaDetailContent({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -47,6 +43,25 @@ export default async function MediaDetailPage({
 
   const media = asMediaDetail(raw);
 
+  return (
+    <>
+      <CachedMediaFrame mediaId={mediaId} />
+      <Suspense fallback={null}>
+        <MediaRelatedServer mediaId={mediaId} mediaType={media.type} />
+      </Suspense>
+    </>
+  );
+}
+
+async function CachedMediaFrame({ mediaId }: { mediaId: number }) {
+  "use cache";
+  cacheLife(mediaCacheLife);
+  cacheTag(mediaPageCacheTag(mediaId));
+  const { media: raw, unauthorized } = await fetchMediaDetail(mediaId);
+  if (unauthorized) return <MediaAuthRequired />;
+  if (!raw) return null;
+
+  const media = asMediaDetail(raw);
   const page = (
     <>
       <MediaDocumentTitle title={media.title} />
@@ -54,9 +69,6 @@ export default async function MediaDetailPage({
         <MediaHeroServer media={media} />
       </div>
       <MediaPageBody media={media} />
-      <Suspense fallback={null}>
-        <MediaRelatedServer mediaId={mediaId} mediaType={media.type} />
-      </Suspense>
     </>
   );
 

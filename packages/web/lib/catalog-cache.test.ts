@@ -1,19 +1,29 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { HOME_CATALOG_CACHE_TAG } from "@media-app/shared";
 import {
-  catalogDataCache,
+  catalogCacheLife,
   homeRefreshOptions,
   invalidateClientCatalogCache,
   libraryCountsSignature,
+  mediaCacheLife,
 } from "./catalog-cache";
 import { cachedFetch, invalidateApiCache, peekApiCache } from "./api-cache";
 
-describe("catalogDataCache", () => {
-  it("tags home ISR fetches so catalog revalidate can bust them", () => {
-    expect(catalogDataCache(60)).toEqual({
-      revalidate: 60,
-      tags: [HOME_CATALOG_CACHE_TAG],
-    });
+describe("catalog cache", () => {
+  it("tags cached catalog reads so a library scan can bust them", () => {
+    const source = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "server-api.ts"),
+      "utf8",
+    );
+    expect(catalogCacheLife).toEqual({ stale: 60, revalidate: 60, expire: 300 });
+    expect(mediaCacheLife).toEqual({ stale: 300, revalidate: 300, expire: 3600 });
+    expect(source).toContain('"use cache"');
+    expect(source).toContain("cacheTag(HOME_CATALOG_CACHE_TAG)");
+    expect(source).toContain("cacheLife(catalogCacheLife)");
+    expect(source).toContain("cacheLife(mediaCacheLife)");
+    expect(source).toContain("HOME_CATALOG_CACHE_TAG");
   });
 });
 
