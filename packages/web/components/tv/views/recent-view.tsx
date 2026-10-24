@@ -30,7 +30,7 @@ export function TvRecentView({
   );
   const [loading, setLoading] = useState(!initialPage);
 
-  useMarkTvBootReadyWhen(!loading);
+  useMarkTvBootReadyWhen(true);
 
   useDocumentTitle("Recently Added");
 

@@ -152,61 +152,114 @@ async function resolveEpisodeContinueWatchingEntry(
   }
 }
 
-async function resolveContinueWatchingEntry(
+type ContinueLookups = {
+  files: Map<number, typeof movieFiles.$inferSelect>;
+  episodes: Map<number, typeof tvEpisodes.$inferSelect>;
+  seasons: Map<number, typeof tvSeasons.$inferSelect>;
+  media: Map<number, typeof mediaItems.$inferSelect>;
+};
+
+async function loadContinueLookups(
   db: DatabaseInstance,
-  progress: typeof watchProgress.$inferSelect,
-): Promise<ContinueWatchingEntry | null> {
-  if (progress.itemType === "movie") {
-    const file = await db.query.movieFiles.findFirst({
-      where: eq(movieFiles.id, progress.itemId),
-    });
-    if (!file) return null;
+  progress: Array<typeof watchProgress.$inferSelect>,
+): Promise<ContinueLookups> {
+  const movieIds = [
+    ...new Set(
+      progress.filter((entry) => entry.itemType === "movie").map((entry) => entry.itemId),
+    ),
+  ];
+  const episodeIds = [
+    ...new Set(
+      progress.filter((entry) => entry.itemType === "episode").map((entry) => entry.itemId),
+    ),
+  ];
 
-    const media = await db.query.mediaItems.findFirst({
-      where: eq(mediaItems.id, file.mediaItemId),
-    });
-    if (!media) return null;
-    if (media.watchedAt) return null;
+  const [files, episodes] = await Promise.all([
+    movieIds.length
+      ? db.query.movieFiles.findMany({ where: inArray(movieFiles.id, movieIds) })
+      : Promise.resolve([]),
+    episodeIds.length
+      ? db.query.tvEpisodes.findMany({ where: inArray(tvEpisodes.id, episodeIds) })
+      : Promise.resolve([]),
+  ]);
 
-    const duration = progress.durationMs ?? file.durationMs ?? 1;
-    if (isWatchCompleted(progress.positionMs, duration)) return null;
+  const seasonIds = [...new Set(episodes.map((episode) => episode.seasonId))];
+  const seasons = seasonIds.length
+    ? await db.query.tvSeasons.findMany({ where: inArray(tvSeasons.id, seasonIds) })
+    : [];
+  const mediaIds = [
+    ...new Set([
+      ...files.map((file) => file.mediaItemId),
+      ...seasons.map((season) => season.mediaItemId),
+    ]),
+  ];
+  const mediaRows = mediaIds.length
+    ? await db.query.mediaItems.findMany({ where: inArray(mediaItems.id, mediaIds) })
+    : [];
 
-    return {
-      id: progress.id,
-      itemType: "movie",
-      itemId: file.id,
-      mediaId: media.id,
-      title: media.title,
-      posterPath: media.posterPath,
-      positionMs: progress.positionMs,
-      durationMs: duration,
-      percent: Math.min(100, (progress.positionMs / duration) * 100),
-    };
-  }
-
-  const episode = await db.query.tvEpisodes.findFirst({
-    where: eq(tvEpisodes.id, progress.itemId),
-  });
-  if (!episode) return null;
-
-  return resolveEpisodeContinueWatchingEntry(db, progress);
+  return {
+    files: new Map(files.map((file) => [file.id, file])),
+    episodes: new Map(episodes.map((episode) => [episode.id, episode])),
+    seasons: new Map(seasons.map((season) => [season.id, season])),
+    media: new Map(mediaRows.map((item) => [item.id, item])),
+  };
 }
 
-async function isOrphanedWatchProgress(
+function resolveMovieFromLookup(
+  progress: typeof watchProgress.$inferSelect,
+  lookups: ContinueLookups,
+): ContinueWatchingEntry | null {
+  const file = lookups.files.get(progress.itemId);
+  if (!file) return null;
+  const media = lookups.media.get(file.mediaItemId);
+  if (!media || media.watchedAt) return null;
+
+  const duration = progress.durationMs ?? file.durationMs ?? 1;
+  if (isWatchCompleted(progress.positionMs, duration)) return null;
+
+  return {
+    id: progress.id,
+    itemType: "movie",
+    itemId: file.id,
+    mediaId: media.id,
+    title: media.title,
+    posterPath: media.posterPath,
+    positionMs: progress.positionMs,
+    durationMs: duration,
+    percent: Math.min(100, (progress.positionMs / duration) * 100),
+  };
+}
+
+async function resolveFromLookups(
   db: DatabaseInstance,
   progress: typeof watchProgress.$inferSelect,
-): Promise<boolean> {
+  lookups: ContinueLookups,
+): Promise<ContinueWatchingEntry | null> {
   if (progress.itemType === "movie") {
-    const file = await db.query.movieFiles.findFirst({
-      where: eq(movieFiles.id, progress.itemId),
-    });
-    return !file;
+    return resolveMovieFromLookup(progress, lookups);
   }
 
-  const episode = await db.query.tvEpisodes.findFirst({
-    where: eq(tvEpisodes.id, progress.itemId),
-  });
-  return !episode;
+  const episode = lookups.episodes.get(progress.itemId);
+  const season = episode ? lookups.seasons.get(episode.seasonId) : undefined;
+  const media = season ? lookups.media.get(season.mediaItemId) : undefined;
+  if (!episode || !season || !media) {
+    return resolveEpisodeContinueWatchingEntry(db, progress);
+  }
+  if (media.watchedAt) return null;
+
+  const durationMs = progress.durationMs ?? episode.durationMs ?? 1;
+  if (isWatchCompleted(progress.positionMs, durationMs)) {
+    return resolveEpisodeContinueWatchingEntry(db, progress);
+  }
+
+  return buildEpisodeContinueEntry(
+    progress.id,
+    episode,
+    season,
+    media,
+    progress.positionMs,
+    durationMs,
+  );
 }
 
 export async function listContinueWatching(
@@ -226,13 +279,15 @@ export async function listContinueWatching(
   const allProgress = await db.query.watchProgress.findMany({
     orderBy: [desc(watchProgress.updatedAt)],
   });
+  const lookups = await loadContinueLookups(db, allProgress);
 
-  const orphanIds: number[] = [];
-  for (const entry of allProgress) {
-    if (await isOrphanedWatchProgress(db, entry)) {
-      orphanIds.push(entry.id);
-    }
-  }
+  const orphanIds = allProgress
+    .filter((entry) =>
+      entry.itemType === "movie"
+        ? !lookups.files.has(entry.itemId)
+        : !lookups.episodes.has(entry.itemId),
+    )
+    .map((entry) => entry.id);
   if (orphanIds.length > 0) {
     await db.delete(watchProgress).where(inArray(watchProgress.id, orphanIds));
   }
@@ -241,7 +296,7 @@ export async function listContinueWatching(
 
   const items = (
     await Promise.all(
-      activeProgress.map((entry) => resolveContinueWatchingEntry(db, entry)),
+      activeProgress.map((entry) => resolveFromLookups(db, entry, lookups)),
     )
   ).filter((item): item is ContinueWatchingEntry => item != null);
 

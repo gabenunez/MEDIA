@@ -86,10 +86,18 @@ function TvMediaViewResolved({
   mediaId: number;
   initialMedia?: Record<string, unknown>;
 }) {
-  const { media: mediaRecord, related } = useMediaPageData(mediaId, initialMedia);
+  const { media: mediaRecord, related, missing } = useMediaPageData(mediaId, initialMedia);
   const media = (mediaRecord ?? initialMedia) as unknown as MediaDetail | null;
 
-  useMarkTvBootReadyWhen(Boolean(media));
+  useMarkTvBootReadyWhen(true);
+
+  if (missing) {
+    return (
+      <div className="tv-ui tv-media-gutter py-16 text-center">
+        <p className="text-xl text-muted-foreground">Title not found</p>
+      </div>
+    );
+  }
 
   if (!media) {
     return (

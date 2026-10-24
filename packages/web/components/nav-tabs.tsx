@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import { prefetchCatalogHref } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
 
 export const mainNavGroupClassName =
@@ -37,6 +38,8 @@ export function NavTab({
       href={href}
       aria-current={active ? "page" : undefined}
       title={label}
+      onMouseEnter={() => prefetchCatalogHref(href)}
+      onFocus={() => prefetchCatalogHref(href)}
       {...(tvItem
         ? {
             "data-tv-item": "" as const,

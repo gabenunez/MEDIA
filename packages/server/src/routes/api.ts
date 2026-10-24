@@ -397,14 +397,19 @@ export async function apiRoutes(
   );
 
   app.get("/api/home", async () => {
-    const [{ items: continueItems }, { items: recent }] = await Promise.all([
+    const [
+      { items: continueItems },
+      { items: recent },
+      librariesWithCounts,
+      decks,
+      favoritesList,
+    ] = await Promise.all([
       listContinueWatching(db, { page: 1, limit: 12 }),
       listRecentlyAdded(db, { page: 1, limit: 12 }),
+      listLibrariesWithCounts(db),
+      listDecksWithCounts(db),
+      listRecentFavorites(db, 12),
     ]);
-
-    const librariesWithCounts = await listLibrariesWithCounts(db);
-    const decks = await listDecksWithCounts(db);
-    const favoritesList = await listRecentFavorites(db, 12);
     const latestContinue = continueItems[0] ?? null;
     const recentPlay = latestContinue
       ? {

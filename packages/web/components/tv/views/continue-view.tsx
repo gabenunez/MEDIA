@@ -31,7 +31,7 @@ export function TvContinueView({
   );
   const [loading, setLoading] = useState(!initialPage);
 
-  useMarkTvBootReadyWhen(!loading);
+  useMarkTvBootReadyWhen(true);
 
   useDocumentTitle("Continue Watching");
 

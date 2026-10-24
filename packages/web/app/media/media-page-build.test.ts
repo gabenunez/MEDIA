@@ -10,8 +10,8 @@ describe("media page build", () => {
     const page = readFileSync(path.join(webRoot, "app/media/[id]/page.tsx"), "utf8");
     expect(page).not.toContain("generateStaticParams");
     expect(page).not.toContain("fetchMediaIds");
-    expect(page).toContain("cacheLife(mediaCacheLife)");
-    expect(page).toContain("mediaPageCacheTag");
+    expect(page).not.toContain("fetchMediaDetail");
+    expect(page).toContain("MediaDetailClient");
     const build = readFileSync(path.join(webRoot, "scripts/with-api-for-build.mjs"), "utf8");
     expect(build).not.toContain("/api/media/ids");
     expect(build).toContain("Media pages are not pre-rendered");

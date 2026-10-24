@@ -51,7 +51,7 @@ export function TvLibraryView({
   const isDeck = !Number.isNaN(deckId) && deckId > 0;
   const isLibrary = !Number.isNaN(libraryId) && libraryId > 0;
 
-  useMarkTvBootReadyWhen(!loading || (isClient && !isDeck && !isLibrary));
+  useMarkTvBootReadyWhen(true);
 
   useDocumentTitle(isDeck || isLibrary ? title : null);
 

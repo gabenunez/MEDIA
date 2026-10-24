@@ -58,26 +58,34 @@ function createDb(overrides: {
           const id = boundId(where);
           return id != null ? episodes.get(id) ?? null : null;
         }),
-        findMany: vi.fn(async () => []),
+        findMany: vi.fn(async (args?: { limit?: number }) => {
+          if (args?.limit != null) return [];
+          return [...episodes.values()];
+        }),
       },
       tvSeasons: {
         findFirst: vi.fn(async ({ where }: { where: unknown }) => {
           const id = boundId(where);
           return id != null ? seasons.get(id) ?? null : null;
         }),
-        findMany: vi.fn(async () => []),
+        findMany: vi.fn(async (args?: { limit?: number }) => {
+          if (args?.limit != null) return [];
+          return [...seasons.values()];
+        }),
       },
       mediaItems: {
         findFirst: vi.fn(async ({ where }: { where: unknown }) => {
           const id = boundId(where);
           return id != null ? media.get(id) ?? null : null;
         }),
+        findMany: vi.fn(async () => [...media.values()]),
       },
       movieFiles: {
         findFirst: vi.fn(async ({ where }: { where: unknown }) => {
           const id = boundId(where);
           return id != null ? movieFiles.get(id) ?? null : null;
         }),
+        findMany: vi.fn(async () => [...movieFiles.values()]),
       },
     },
     delete: vi.fn(() => ({

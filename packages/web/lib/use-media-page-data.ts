@@ -35,6 +35,7 @@ export function useMediaPageData(
     mediaId: validId,
     media: seed,
     related: [] as MediaItem[],
+    missing: false,
   }));
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export function useMediaPageData(
         mediaId: validId,
         media: nextSeed,
         related: [],
+        missing: false,
       };
     });
   }, [validId, initialMedia]);
@@ -62,14 +64,15 @@ export function useMediaPageData(
       .then((data) => {
         if (cancelled) return;
         setSnapshot((prev) =>
-          prev.mediaId === validId ? { ...prev, media: data } : prev,
+          prev.mediaId === validId ? { ...prev, media: data, missing: false } : prev,
         );
       })
       .catch((err) => {
         console.error(err);
         if (!cancelled && !hadSeed) {
+          const missing = err instanceof Error && (err.message === "Not found" || /\b404\b/.test(err.message));
           setSnapshot((prev) =>
-            prev.mediaId === validId ? { ...prev, media: null } : prev,
+            prev.mediaId === validId ? { ...prev, media: null, missing } : prev,
           );
         }
       });
@@ -102,6 +105,7 @@ export function useMediaPageData(
   return {
     media,
     related,
-    loading: false,
+    loading: validId != null && snapshot.mediaId === validId && snapshot.media == null && !snapshot.missing,
+    missing: snapshot.mediaId === validId && snapshot.missing,
   };
 }

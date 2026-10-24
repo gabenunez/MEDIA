@@ -89,11 +89,44 @@ export function prefetchPosterNavigation(item: PosterLike): void {
   );
 }
 
+/** Warm the JSON a catalog route paints, so the click is not the first fetch. */
+export function prefetchCatalogHref(href: string | undefined): void {
+  if (!href) return;
+  const path = href.split("?")[0] ?? href;
+  try {
+    let pending: Promise<unknown> | undefined;
+    if (path === "/" || path === "") pending = api.getHome();
+    else if (path.startsWith("/recent")) pending = api.getRecentlyAdded(1);
+    else if (path.startsWith("/continue")) pending = api.getContinueWatching(1);
+    else if (path.startsWith("/favorites")) {
+      const type = path.includes("/movie/")
+        ? "movie"
+        : path.includes("/tv/")
+          ? "tv"
+          : undefined;
+      pending = api.getFavorites(1, type);
+    } else if (path.startsWith("/library/")) {
+      const id = Number(path.split("/")[2]);
+      if (Number.isFinite(id) && id > 0) pending = api.getLibraryItems(id, 1);
+    } else if (path.startsWith("/deck/")) {
+      const id = Number(path.split("/")[2]);
+      if (Number.isFinite(id) && id > 0) {
+        pending = Promise.all([api.getDeck(id), api.getDeckItems(id, 1)]);
+      }
+    }
+    void pending?.catch(() => {});
+  } catch {
+    // Prefetch is best-effort.
+  }
+}
+
 export function prefetchTvRoute(
   router: { prefetch: (href: string) => void } | undefined,
   href: string | undefined,
 ): void {
-  if (!router || !href || prefetchedRoutes.has(href)) return;
+  if (!href) return;
+  prefetchCatalogHref(href);
+  if (!router || prefetchedRoutes.has(href)) return;
   prefetchedRoutes.add(href);
   router.prefetch(href);
 }
