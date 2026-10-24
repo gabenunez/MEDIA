@@ -27,6 +27,7 @@ import {
   isTranscodeComplete,
   waitForFirstSegment,
   waitForHlsSegment,
+  prepareHlsResume,
   getHlsSession,
   stopTranscodeSessionsForFile,
   waitForPlaylist,
@@ -605,7 +606,7 @@ export async function streamRoutes(
       const sourceDurationSeconds =
         probe?.durationMs && probe.durationMs > 0 ? probe.durationMs / 1000 : 0;
 
-      const startTranscode = () =>
+      const startTranscode = (resume: ReturnType<typeof prepareHlsResume>) =>
         hlsQuality === "remux"
           ? startHlsRemux(
               sessionId,
@@ -615,6 +616,7 @@ export async function streamRoutes(
               startSeconds,
               metadata.videoCodec,
               probe?.audioStreamIndex,
+              resume,
             )
           : startHlsTranscode(
               sessionId,
@@ -626,6 +628,7 @@ export async function streamRoutes(
               startSeconds,
               probe?.audioStreamIndex,
               probe?.dynamicRange,
+              resume,
             );
 
       let session = resolveHlsSession(sessionId, outputDir, startSeconds);
@@ -644,7 +647,10 @@ export async function streamRoutes(
       if (!session || deadButIncomplete) {
         const lastServed = session?.lastServedSegmentIndex ?? -1;
         const isResume = deadButIncomplete;
-        session = startTranscode();
+        // Continue the same segment sequence. A fresh clear resets the
+        // playlist under a client that is still requesting the old index.
+        const resume = isResume ? prepareHlsResume(outputDir) : null;
+        session = startTranscode(resume);
         session.lastServedSegmentIndex = lastServed;
 
         // New sessions: 2 segments (~12s) so the client can start sooner and
@@ -781,8 +787,16 @@ export async function streamRoutes(
 
       if (!segmentStats || segmentStats.size === 0) {
         if (isTranscodeInProgress(sessionId)) {
-          const ready = await waitForHlsSegment(session.outputDir, segmentName);
+          // Stay under the reverse-proxy cutoff. A 30s hang is turned into
+          // HTTP 500, and ExoPlayer treats the third media 500 as fatal.
+          const ready = await waitForHlsSegment(session.outputDir, segmentName, 20_000);
           if (!ready) {
+            if (isTranscodeInProgress(sessionId)) {
+              return reply
+                .status(503)
+                .header("Retry-After", "1")
+                .send({ error: "Segment not ready" });
+            }
             return reply.status(404).send({ error: "Segment not found" });
           }
           try {

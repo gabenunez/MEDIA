@@ -120,6 +120,10 @@ const nextConfig = {
     ];
   },
   experimental: {
+    // Playlist startup waits up to 90s for the first segments. The default 30s
+    // rewrite proxy answers HTTP 500 first, and ExoPlayer gives up on a media
+    // segment after three of those.
+    proxyTimeout: 120_000,
     optimizePackageImports: [
       "@radix-ui/react-dialog",
       "@radix-ui/react-scroll-area",

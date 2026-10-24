@@ -216,6 +216,8 @@ export function resolveTvSeekPlan(options: {
   usesNativePlayer: boolean;
   usingHls: boolean;
   hlsStartOffset: number;
+  /** Native player timeline. A seek far past this restarts the transcode. */
+  bufferedEndRelative?: number;
   seekableEndRelative?: number;
   videoReadyState?: number;
   hasWebVideo?: boolean;
@@ -236,6 +238,7 @@ export function resolveTvSeekPlan(options: {
     const action = resolveNativeHlsSeekAction({
       targetAbsoluteSeconds: absoluteSeconds,
       hlsStartOffset: options.hlsStartOffset,
+      bufferedEndRelative: options.bufferedEndRelative,
     });
     if (action.kind === "restart") {
       return { kind: "native-hls-restart", absoluteSeconds: action.absoluteSeconds };

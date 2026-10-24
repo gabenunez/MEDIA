@@ -6,6 +6,7 @@ import {
   generateHlsPlaylist,
   isTranscodeComplete,
   parseFfmpegPlaylist,
+  prepareHlsResume,
   pruneOldHlsSegments,
   waitForFirstSegment,
 } from "./ffmpeg.js";
@@ -75,6 +76,48 @@ function writeFfmpegPlaylist(
     fs.writeFileSync(path.join(dir, ".exit-code"), String(options.exitCode ?? -1));
   }
 }
+
+describe("prepareHlsResume", () => {
+  it("keeps finished segments and continues at the next index", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 3);
+    writeFfmpegPlaylist(dir, 3, { segmentDuration: 6, complete: true, exitCode: 1 });
+    fs.writeFileSync(path.join(dir, "segment_003.ts"), "");
+
+    const resume = prepareHlsResume(dir);
+
+    expect(resume).toEqual({ offsetSeconds: 18, startNumber: 3 });
+    expect(fs.existsSync(path.join(dir, "segment_000.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "segment_002.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "segment_003.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, ".exit-code"))).toBe(false);
+    const playlist = fs.readFileSync(path.join(dir, "master.m3u8"), "utf-8");
+    expect(playlist).toContain("segment_002.ts");
+    expect(playlist).not.toContain("#EXT-X-ENDLIST");
+    expect(playlist).not.toContain("segment_003.ts");
+  });
+
+  it("stops at the first missing segment so the sequence does not skip", () => {
+    const dir = createTempHlsDir();
+    writeSegments(dir, 2);
+    writeFfmpegPlaylist(dir, 4, { segmentDuration: 4 });
+    fs.writeFileSync(path.join(dir, "segment_003.ts"), "later");
+
+    const resume = prepareHlsResume(dir);
+
+    expect(resume).toEqual({ offsetSeconds: 8, startNumber: 2 });
+    expect(fs.existsSync(path.join(dir, "segment_003.ts"))).toBe(false);
+    const playlist = fs.readFileSync(path.join(dir, "master.m3u8"), "utf-8");
+    expect(playlist).toContain("segment_001.ts");
+    expect(playlist).not.toContain("segment_002.ts");
+  });
+
+  it("returns null when the directory has no playable segments", () => {
+    const dir = createTempHlsDir();
+    writeFfmpegPlaylist(dir, 1, { segmentDuration: 6 });
+    expect(prepareHlsResume(dir)).toBeNull();
+  });
+});
 
 describe("pruneOldHlsSegments", () => {
   it("keeps everything the client hasn't consumed yet, even far past the window size", () => {

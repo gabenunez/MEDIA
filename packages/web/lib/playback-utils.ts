@@ -118,20 +118,39 @@ export function resolveHlsSeekAction(options: {
 }
 
 /**
- * Native ExoPlayer can seek within the current HLS session for any target at
- * or after the session offset. Only rewind before the session start needs a
- * new `start=` transcode.
+ * How far past the buffered edge a native HLS seek may stay in-session.
+ * Small skips wait for segments the encoder has already produced. A scrub
+ * minutes ahead does not: the stall watchdog gives up after ~16s and playback
+ * snaps back to the start of the current transcode.
+ */
+const NATIVE_HLS_FORWARD_RESTART_GAP_SECONDS = 90;
+
+/**
+ * Native ExoPlayer can seek within the current HLS session at or after the
+ * session offset when the target is near the buffer. Rewind before the
+ * session start, or a jump far past the encoded edge, needs a new `start=`.
  */
 export function resolveNativeHlsSeekAction(options: {
   targetAbsoluteSeconds: number;
   hlsStartOffset: number;
+  /** Highest buffered position on the player timeline, when known. */
+  bufferedEndRelative?: number;
 }): HlsSeekAction {
   const target = Math.max(0, options.targetAbsoluteSeconds);
   const offset = Math.max(0, options.hlsStartOffset);
   if (target < offset) {
     return { kind: "restart", absoluteSeconds: target };
   }
-  return { kind: "relative", relativeSeconds: target - offset };
+  const relativeTarget = target - offset;
+  const bufferedEnd = options.bufferedEndRelative;
+  if (
+    bufferedEnd != null &&
+    bufferedEnd >= 0 &&
+    relativeTarget > bufferedEnd + NATIVE_HLS_FORWARD_RESTART_GAP_SECONDS
+  ) {
+    return { kind: "restart", absoluteSeconds: target };
+  }
+  return { kind: "relative", relativeSeconds: relativeTarget };
 }
 
 /** Pin an absolute start for a specific stream-generation restart. */
