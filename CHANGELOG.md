@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.287 — 2026-10-23
+
+### TV
+- **Media** — the poster sits below the top of the screen, and the backdrop still fills that space up to the edge
+
 ## 0.1.286 — 2026-10-23
 
 ### TV
