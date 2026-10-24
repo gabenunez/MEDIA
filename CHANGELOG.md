@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.285 — 2026-10-23
+
+### Playback
+- **HLS** — if the encoder stops mid-title, playback continues from the next segment instead of restarting the playlist. A long TV scrub starts a new transcode at that position instead of stalling and jumping to the beginning
+
 ## 0.1.284 — 2026-10-22
 
 ### Playback
