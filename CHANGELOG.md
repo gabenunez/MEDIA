@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.286 — 2026-10-23
+
+### TV
+- **Navigation** — on-screen Back buttons are gone. The remote Back key still leaves a page, closes a panel, or exits playback
+- **Media** — the title backdrop sits on the top edge of the screen
+
 ## 0.1.285 — 2026-10-23
 
 ### Playback
