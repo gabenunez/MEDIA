@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
-import { isTvWatchPath } from "@/lib/tv-back";
+import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
 
 /** Shared page frame — gutters match home rows. */
@@ -54,37 +52,19 @@ export function tvPageMeta(
 }
 
 interface TvPageHeaderProps {
-  backHref: string;
-  backLabel?: string;
   title: string;
   subtitle?: ReactNode;
   className?: string;
 }
 
-/** Catalog chrome: Back, then title. */
+/** Catalog chrome: page title. Remote Back leaves the page. */
 export function TvPageHeader({
-  backHref,
-  backLabel = "Back",
   title,
   subtitle,
   className,
 }: TvPageHeaderProps) {
-  const router = useRouter();
-  useEffect(() => {
-    router.prefetch(backHref);
-  }, [router, backHref]);
-
   return (
     <header className={cn("mb-6", className)}>
-      <div data-tv-row="" data-tv-content-row="" className="mb-4">
-        <TvFocusLink
-          href={backHref}
-          className="inline-flex h-11 items-center gap-2 rounded-lg px-4 text-base font-semibold"
-        >
-          <ChevronLeft className="h-5 w-5" />
-          {backLabel}
-        </TvFocusLink>
-      </div>
       <h1 className="max-w-[22ch] truncate text-2xl font-bold leading-tight tracking-tight">
         {title}
       </h1>
@@ -92,51 +72,6 @@ export function TvPageHeader({
         <p className="mt-2 text-base text-muted-foreground">{subtitle}</p>
       ) : null}
     </header>
-  );
-}
-
-/** History-aware back for detail pages that may be opened from a library. */
-export function TvHistoryBackButton({
-  fallbackHref,
-  label = "Back",
-}: {
-  fallbackHref: string;
-  label?: string;
-}) {
-  const router = useRouter();
-  useEffect(() => {
-    router.prefetch(fallbackHref);
-  }, [router, fallbackHref]);
-
-  return (
-    <div data-tv-row="" data-tv-content-row="">
-      <TvFocusButton
-        onClick={() => {
-          try {
-            const referrer = document.referrer;
-            if (referrer) {
-              const url = new URL(referrer);
-              if (url.origin === window.location.origin) {
-                // Never history.back() into the player you already left.
-                if (isTvWatchPath(url.pathname)) {
-                  router.replace(fallbackHref);
-                  return;
-                }
-                window.history.back();
-                return;
-              }
-            }
-          } catch {
-            // fall through
-          }
-          router.push(fallbackHref);
-        }}
-        className="inline-flex h-11 items-center gap-2 rounded-lg px-4 text-base font-semibold"
-      >
-        <ChevronLeft className="h-5 w-5" />
-        {label}
-      </TvFocusButton>
-    </div>
   );
 }
 

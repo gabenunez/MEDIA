@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Search } from "lucide-react";
-import { routes } from "@/lib/routes";
 import { tvFocusRingClassName } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
 import {
@@ -48,7 +47,6 @@ export function TvSearchView() {
   return (
     <TvPageShell>
       <TvPageHeader
-        backHref={routes.home()}
         title="Search"
         subtitle={tvPageMeta([searched && results.length > 0 && `${results.length} results`])}
       />

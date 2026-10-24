@@ -5,8 +5,6 @@ import { useLibraryRouteContext } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import { api, type MediaItem } from "@/lib/api";
 import type { PaginatedPageData } from "@/lib/server-api";
-import { routes } from "@/lib/routes";
-import { TvFocusLink } from "@/components/tv/tv-focus-link";
 import {
   TvEmptyState,
   TvPageHeader,
@@ -115,28 +113,14 @@ export function TvLibraryView({
 
     return (
       <TvPageShell>
-        <TvEmptyState
-          action={
-            <TvFocusLink
-              href={routes.home()}
-              className="inline-flex h-11 items-center rounded-lg bg-primary px-6 text-base font-semibold text-primary-foreground"
-            >
-              Back to home
-            </TvFocusLink>
-          }
-        >
-          Invalid library or deck
-        </TvEmptyState>
+        <TvEmptyState>Invalid library or deck</TvEmptyState>
       </TvPageShell>
     );
   }
 
-  const backHref = routes.home();
-
   return (
     <TvPageShell>
       <TvPageHeader
-        backHref={backHref}
         title={title}
         subtitle={tvPageMeta([
           isDeck ? "Deck" : "Library",

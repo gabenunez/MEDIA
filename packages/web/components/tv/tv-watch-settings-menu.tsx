@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronLeft } from "lucide-react";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
 
@@ -32,13 +31,11 @@ export function TvWatchSideSheet({
 export function TvWatchMenuPanel({
   title,
   description,
-  onBack,
   children,
   className,
 }: {
   title: string;
   description?: string;
-  onBack: () => void;
   children: ReactNode;
   className?: string;
 }) {
@@ -49,24 +46,13 @@ export function TvWatchMenuPanel({
         className={cn("flex h-full min-h-0 flex-col", className)}
       >
         <div
-          data-tv-row=""
           data-tv-watch-menu-header=""
-          className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3"
+          className="shrink-0 border-b border-white/10 px-4 py-3"
         >
-          <TvFocusButton
-            variant="nav"
-            onClick={onBack}
-            aria-label="Back"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </TvFocusButton>
-          <div className="min-w-0 flex-1">
-            <h2 className="watch-title truncate text-lg">{title}</h2>
-            {description ? (
-              <p className="mt-0.5 truncate text-sm text-white/55">{description}</p>
-            ) : null}
-          </div>
+          <h2 className="watch-title truncate text-lg">{title}</h2>
+          {description ? (
+            <p className="mt-0.5 truncate text-sm text-white/55">{description}</p>
+          ) : null}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
           {children}

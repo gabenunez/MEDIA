@@ -60,7 +60,6 @@ export function TvBrowseView() {
   return (
     <TvPageShell>
       <TvPageHeader
-        backHref={routes.home()}
         title="Browse"
         subtitle={tvPageMeta([`${totalEntries} collections`])}
       />
