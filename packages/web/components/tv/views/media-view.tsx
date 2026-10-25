@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
-import { CheckCircle2, Loader2, Play } from "lucide-react";
+import { CheckCircle2, Play } from "lucide-react";
 import { TV_HERO_IMAGE_QUALITY, TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
@@ -26,6 +26,7 @@ import type { MediaItem } from "@/lib/api";
 import type { MediaDetail } from "@/app/media/types";
 import { useMediaPageData } from "@/lib/use-media-page-data";
 import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
+import { TvMediaPageSkeleton } from "@/lib/route-loading";
 
 export function TvMediaView({
   media: mediaProp,
@@ -61,13 +62,7 @@ function TvMediaViewLegacy() {
   useMarkTvBootReadyWhen(isClient);
 
   if (!mediaId || Number.isNaN(mediaId)) {
-    if (!isClient) {
-      return (
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <Loader2 className="h-9 w-9 animate-spin text-primary" />
-        </div>
-      );
-    }
+    if (!isClient) return <TvMediaPageSkeleton />;
 
     return (
       <div className="tv-ui tv-media-gutter py-16 text-center">
@@ -99,13 +94,7 @@ function TvMediaViewResolved({
     );
   }
 
-  if (!media) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-9 w-9 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (!media) return <TvMediaPageSkeleton />;
 
   return (
     <TvMediaViewContent

@@ -622,8 +622,17 @@ describe("TV native player unbind on exit", () => {
     expect(routeLoading).toContain("export function MediaLoadingSkeleton");
     expect(routeLoading).toContain('className="min-h-[80vh] bg-background"');
     const mediaSkeleton = routeLoading.slice(routeLoading.indexOf("export function MediaLoadingSkeleton"));
-    expect(mediaSkeleton).toContain("Loader2");
+    expect(routeLoading).toContain("export function TvMediaPageSkeleton");
+    expect(routeLoading).toContain("tv-media-poster");
+    expect(mediaSkeleton).toContain("TvMediaPageSkeleton");
+    expect(mediaSkeleton).not.toContain("Loader2");
     expect(mediaSkeleton).toContain("data-tv-only");
+    const mediaView = readFileSync(
+      path.join(webRoot, "components/tv/views/media-view.tsx"),
+      "utf8",
+    );
+    expect(mediaView).toContain("<TvMediaPageSkeleton");
+    expect(mediaView).not.toContain("animate-spin");
     expect(mediaSkeleton).toContain("data-web-only");
     expect(mediaSkeleton).toContain("markTvBootContentReady()");
     // TV soft-nav (watch → media/home) must not flash a bordered Loading chip.
