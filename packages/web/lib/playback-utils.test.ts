@@ -28,6 +28,7 @@ import {
   resolveWatchSessionQuality,
   resolvePlaybackStartSeconds,
   resolvePlaybackStream,
+  resolveSavedProgressPositionMs,
   nextEpisodeArtworkPaths,
   nextEpisodePreviewPath,
   posterPathForWatchItem,
@@ -49,6 +50,30 @@ vi.mock("./android-bridge.js", () => ({
 vi.mock("./tv-mode-detect.js", () => ({
   isTvClient: () => false,
 }));
+
+describe("saved playback progress", () => {
+  it("writes the exact duration as soon as playback finishes", () => {
+    expect(
+      resolveSavedProgressPositionMs({
+        completed: true,
+        durationMs: 7_200_000,
+        liveSeconds: 7_191,
+        stableSeconds: 7_190,
+      }),
+    ).toBe(7_200_000);
+  });
+
+  it("keeps the furthest trustworthy position before completion", () => {
+    expect(
+      resolveSavedProgressPositionMs({
+        completed: false,
+        durationMs: 7_200_000,
+        liveSeconds: 120,
+        stableSeconds: 125.25,
+      }),
+    ).toBe(125_250);
+  });
+});
 
 function makeStreamInfo(overrides: Partial<StreamInfo> = {}): StreamInfo {
   return {

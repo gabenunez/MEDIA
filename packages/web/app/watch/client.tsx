@@ -42,6 +42,7 @@ import {
   registerStreamRestartTarget,
   consumeStreamRestartTarget,
   resolvePlaybackStream,
+  resolveSavedProgressPositionMs,
   buildPlaybackTitle,
   findEpisode,
   posterPathForWatchItem,
@@ -152,7 +153,10 @@ function WatchDesktopClient() {
   const playbackBufferingRef = useRef(false);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveProgressRef = useRef<() => void>(() => {});
+  const saveProgressRef = useRef<(completed?: boolean) => Promise<void>>(
+    async () => {},
+  );
+  const playbackCompletedRef = useRef(false);
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const playbackStreamRef = useRef<ReturnType<typeof resolvePlaybackStream> | null>(null);
@@ -269,6 +273,7 @@ function WatchDesktopClient() {
     setStreamInfo(null);
     setInitialResumeSeconds(null);
     setPlaybackHasBegun(false);
+    playbackCompletedRef.current = false;
     setPosterPath(posterPathForWatchItem(mediaDetail, type, fileId));
     setIsPlaying(false);
     setActiveVideoSlot("a");
@@ -449,7 +454,7 @@ function WatchDesktopClient() {
   const updateBufferedPositionRef = useRef(updateBufferedPosition);
   updateBufferedPositionRef.current = updateBufferedPosition;
 
-  const saveProgress = useCallback(() => {
+  const saveProgress = useCallback(async (completed = false) => {
     const video = videoRef.current;
     if (!video || !fileId) return;
 
@@ -457,6 +462,7 @@ function WatchDesktopClient() {
       sourceDurationMs || (video.duration ? video.duration * 1000 : 0),
     );
     if (!durationMs) return;
+    if (completed) playbackCompletedRef.current = true;
 
     const liveSeconds = usingHlsRef.current
       ? hlsStartOffsetRef.current + video.currentTime
@@ -471,25 +477,40 @@ function WatchDesktopClient() {
     // floor for what to persist — this guarantees a user never loses their
     // spot to a transient reset.
     const stableSeconds = lastStableAbsoluteSecondsRef.current;
-    const positionSeconds = Math.max(liveSeconds, stableSeconds);
+    const positionMs = resolveSavedProgressPositionMs({
+      completed: playbackCompletedRef.current,
+      durationMs,
+      liveSeconds,
+      stableSeconds,
+    });
 
     // Guard against a bogus tiny position when we know we were further along.
-    if (positionSeconds <= 0) return;
+    if (positionMs <= 0) return;
 
-    api.saveProgress({
-      itemType: type === "movie" ? "movie" : "episode",
-      itemId: fileId,
-      positionMs: Math.floor(positionSeconds * 1000),
-      durationMs,
-    }).catch(() => {});
+    await api
+      .saveProgress(
+        {
+          itemType: type === "movie" ? "movie" : "episode",
+          itemId: fileId,
+          positionMs,
+          durationMs,
+        },
+        {
+          mediaId:
+            mediaId && Number.isFinite(parseInt(mediaId, 10))
+              ? parseInt(mediaId, 10)
+              : undefined,
+        },
+      )
+      .catch(() => {});
     if (offlineObjectUrl) {
       void updateOfflinePosition(
         type === "movie" ? "movie" : "episode",
         fileId,
-        Math.floor(positionSeconds * 1000),
+        positionMs,
       );
     }
-  }, [fileId, type, usingHlsPlayback, sourceDurationMs, offlineObjectUrl]);
+  }, [fileId, type, usingHlsPlayback, sourceDurationMs, offlineObjectUrl, mediaId]);
 
   saveProgressRef.current = saveProgress;
 
@@ -1191,7 +1212,9 @@ function WatchDesktopClient() {
           anchorSeconds: 0,
         };
         setIsPlaying(false);
-        notifyPlaybackEnded();
+        void saveProgressRef.current(true).then(() => {
+          notifyPlaybackEnded();
+        });
       },
       onCurrentTime: (seconds) => {
         setCurrentTime(seconds);

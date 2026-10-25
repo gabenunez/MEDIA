@@ -5,6 +5,7 @@ import {
   peekApiCache,
   seedApiCache,
 } from "./api-cache";
+import { api } from "./api";
 
 describe("peekApiCache", () => {
   afterEach(() => {
@@ -68,5 +69,37 @@ describe("seedApiCache", () => {
     });
     expect(fetcher).toHaveBeenCalledOnce();
     expect(seedApiCache("home", { recentlyAdded: ["ssr"] }, 60_000)).toBe(false);
+  });
+});
+
+describe("saveProgress", () => {
+  afterEach(() => {
+    invalidateApiCache();
+    vi.unstubAllGlobals();
+  });
+
+  it("invalidates the title cache before returning from a completed save", async () => {
+    seedApiCache("media:7", { id: 7, watchProgress: { positionMs: 10 } });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await api.saveProgress(
+      {
+        itemType: "movie",
+        itemId: 11,
+        positionMs: 7_200_000,
+        durationMs: 7_200_000,
+      },
+      { mediaId: 7 },
+    );
+
+    expect(peekApiCache("media:7", { allowStale: true })).toBeUndefined();
   });
 });

@@ -474,6 +474,10 @@ describe("TV watch remote — wiring (do not revert)", () => {
     path.join(webRoot, "components/tv/views/media-view.tsx"),
     "utf8",
   );
+  const playbackOptions = readFileSync(
+    path.join(webRoot, "components/tv/tv-playback-options.tsx"),
+    "utf8",
+  );
   const tvShell = readFileSync(
     path.join(webRoot, "components/tv/tv-shell.tsx"),
     "utf8",
@@ -642,6 +646,10 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(mediaView).toContain("TvPlaybackOptions");
     expect(mediaView).toContain("movieCanResume");
     expect(mediaView).toContain("episodeCanResume");
+    expect(playbackOptions).toContain("routes.watchFromStart");
+    expect(playbackOptions).toContain("START_FROM_BEGINNING_LABEL");
+    expect(playbackOptions).not.toContain("MoreOptionsIcon");
+    expect(playbackOptions).not.toContain('role="menu"');
     expect(watchView).toContain("resolveWatchInitialResumeSeconds");
     expect(watchView).toContain("restartFromBeginning");
     expect(watchView).toContain("fromStart");
