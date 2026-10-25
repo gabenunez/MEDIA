@@ -123,24 +123,58 @@ export function SearchLoadingSkeleton() {
   </RouteLoading>;
 }
 
+/** Poster, title, and episode rows while a TV title page is still loading. */
+export function TvMediaPageSkeleton() {
+  useLayoutEffect(() => {
+    markTvBootContentReady();
+  }, []);
+
+  return (
+    <div
+      className="tv-media-page"
+      data-tv-route-loading=""
+      role="status"
+      aria-label="Loading"
+    >
+      <section className="relative mb-4 overflow-hidden">
+        <div className="tv-media-hero bg-muted/40" aria-hidden />
+        <div className="relative z-10 tv-media-gutter">
+          <div className="flex items-start gap-4">
+            <Skeleton className="tv-media-poster aspect-[2/3] shrink-0 shadow-none" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
+              <Skeleton className="h-3 w-24 shadow-none" />
+              <Skeleton className="h-8 w-2/3 max-w-md shadow-none" />
+              <Skeleton className="h-4 w-full max-w-xl shadow-none" />
+              <Skeleton className="h-4 w-4/5 max-w-lg shadow-none" />
+              <div className="mt-2 flex gap-2">
+                <Skeleton className="h-10 w-28 shadow-none" />
+                <Skeleton className="h-10 w-28 shadow-none" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div className="tv-media-gutter flex flex-col gap-2">
+        <Skeleton className="h-4 w-24 shadow-none" />
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-16 w-full shadow-none" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MediaLoadingSkeleton() {
-  // Desktop skeleton and TV spinner are both in the HTML. The TV class on
-  // <html> picks the spinner before paint.
-  // Reveal the TV shell as soon as this loader paints.
+  // Desktop skeleton and TV page skeleton are both in the HTML. The TV class
+  // on <html> picks the TV layout before paint.
   useLayoutEffect(() => {
     markTvBootContentReady();
   }, []);
 
   return (
     <>
-      <div
-        data-tv-only
-        data-tv-route-loading=""
-        className="flex h-screen w-full items-center justify-center bg-background"
-        role="status"
-        aria-label="Loading"
-      >
-        <Loader2 className="h-9 w-9 animate-spin text-primary" />
+      <div data-tv-only>
+        <TvMediaPageSkeleton />
       </div>
       <div data-web-only className="min-h-[60vh] bg-background" role="status" aria-label="Loading">
         <Skeleton className="h-80 w-full" />
