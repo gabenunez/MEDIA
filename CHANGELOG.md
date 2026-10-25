@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.291 — 2026-10-24
+
+### Playback
+- **Completion** — finishing a movie immediately saves its final position before leaving the player, so the title page no longer shows a stale resume point
+
+### TV
+- **Media** — resumable movies and episodes use a direct Start from beginning button instead of a three-dot menu
+
 ## 0.1.290 — 2026-10-24
 
 ### TV
