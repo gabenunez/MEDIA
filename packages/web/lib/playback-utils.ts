@@ -21,6 +21,22 @@ import {
 
 export const PROGRESS_SAVE_MS = 10_000;
 
+/** Completion always wins over a lagging final timeupdate/native state event. */
+export function resolveSavedProgressPositionMs({
+  completed,
+  durationMs,
+  liveSeconds,
+  stableSeconds,
+}: {
+  completed: boolean;
+  durationMs: number;
+  liveSeconds: number;
+  stableSeconds: number;
+}): number {
+  if (completed) return Math.max(0, Math.floor(durationMs));
+  return Math.max(0, Math.floor(Math.max(liveSeconds, stableSeconds) * 1000));
+}
+
 /**
  * Max forward jump accepted into the "stable" playback position per sample.
  * A bigger jump is more likely a transient position spike — an HLS

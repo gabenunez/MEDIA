@@ -751,7 +751,7 @@ export const api = {
       positionMs: number;
       durationMs?: number;
     },
-    options?: { keepalive?: boolean },
+    options?: { keepalive?: boolean; mediaId?: number },
   ) => {
     const request = options?.keepalive
       ? fetch(apiUrl("/api/watch-progress"), {
@@ -774,6 +774,9 @@ export const api = {
     return request.then((result) => {
       invalidateApiCache("home");
       invalidateApiCache("continue");
+      if (options?.mediaId && Number.isFinite(options.mediaId)) {
+        invalidateApiCache(`media:${options.mediaId}`);
+      }
       return result;
     });
   },

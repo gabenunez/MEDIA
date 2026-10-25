@@ -22,6 +22,7 @@ import {
   PROGRESS_SAVE_MS,
   getPlaybackRestartSeconds,
   nextStableAbsoluteSeconds,
+  resolveSavedProgressPositionMs,
   recordMidPlaybackRebuffer,
   resolvePlaybackStartSeconds,
   registerStreamRestartTarget,
@@ -259,7 +260,10 @@ export function TvWatchView() {
   const hlsRef = useRef<Hls | null>(null);
   const hlsStartOffsetRef = useRef(0);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const saveProgressRef = useRef<() => void>(() => {});
+  const saveProgressRef = useRef<(completed?: boolean) => Promise<void>>(
+    async () => {},
+  );
+  const playbackCompletedRef = useRef(false);
   const seekToAbsoluteRef = useRef<
     (seconds: number, options?: { revealControls?: boolean }) => void
   >(() => {});
@@ -455,6 +459,7 @@ export function TvWatchView() {
     setStreamInfo(null);
     setInitialResumeSeconds(null);
     setPlaybackHasBegun(false);
+    playbackCompletedRef.current = false;
     setPosterPath(posterPathForWatchItem(mediaDetail, type, fileId));
     setIsPlaying(false);
     setActiveVideoSlot("a");
@@ -871,31 +876,45 @@ export function TvWatchView() {
   const updateBufferedPositionRef = useRef(updateBufferedPosition);
   updateBufferedPositionRef.current = updateBufferedPosition;
 
-  const saveProgress = useCallback(() => {
+  const saveProgress = useCallback(async (completed = false) => {
     if (!fileId) return;
 
     const durationMs = Math.floor(
       sourceDurationMs || (duration ? duration * 1000 : 0),
     );
     if (!durationMs) return;
+    if (completed) playbackCompletedRef.current = true;
 
     const liveSeconds = usingHlsRef.current
       ? hlsStartOffsetRef.current + currentTimeRef.current
       : currentTimeRef.current;
     // Never persist a spot behind the last known-good position (guards
     // against a transient reset during restart/recovery).
-    const positionSeconds = Math.max(liveSeconds, lastStableAbsoluteSecondsRef.current);
-    if (positionSeconds <= 0) return;
+    const positionMs = resolveSavedProgressPositionMs({
+      completed: playbackCompletedRef.current,
+      durationMs,
+      liveSeconds,
+      stableSeconds: lastStableAbsoluteSecondsRef.current,
+    });
+    if (positionMs <= 0) return;
 
-    api
-      .saveProgress({
-        itemType: type === "movie" ? "movie" : "episode",
-        itemId: fileId,
-        positionMs: Math.floor(positionSeconds * 1000),
-        durationMs,
-      })
+    await api
+      .saveProgress(
+        {
+          itemType: type === "movie" ? "movie" : "episode",
+          itemId: fileId,
+          positionMs,
+          durationMs,
+        },
+        {
+          mediaId:
+            mediaId && Number.isFinite(parseInt(mediaId, 10))
+              ? parseInt(mediaId, 10)
+              : undefined,
+        },
+      )
       .catch(() => {});
-  }, [fileId, type, usingHlsPlayback, currentTime, sourceDurationMs, duration]);
+  }, [fileId, type, usingHlsPlayback, currentTime, sourceDurationMs, duration, mediaId]);
 
   saveProgressRef.current = saveProgress;
 
@@ -1336,8 +1355,9 @@ export function TvWatchView() {
           return;
         }
         setIsPlaying(false);
-        saveProgressRef.current();
-        notifyPlaybackEndedRef.current();
+        void saveProgressRef.current(true).then(() => {
+          notifyPlaybackEndedRef.current();
+        });
       },
     });
   }, [usesNativePlayer, captureStreamRestartPosition, restartNativeHlsAtCurrentPosition, syncNativeSubtitles]);
@@ -2343,7 +2363,9 @@ export function TvWatchView() {
           anchorSeconds: 0,
         };
         setIsPlaying(false);
-        notifyPlaybackEnded();
+        void saveProgressRef.current(true).then(() => {
+          notifyPlaybackEnded();
+        });
       },
       onCurrentTime: (seconds) => {
         setCurrentTime(seconds);
