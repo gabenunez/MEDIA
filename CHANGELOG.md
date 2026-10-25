@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.290 — 2026-10-24
+
+### TV
+- **Media** — opening a title shows a poster, title, and episode skeleton while the page loads
+
 ## 0.1.289 — 2026-10-23
 
 ### Web
