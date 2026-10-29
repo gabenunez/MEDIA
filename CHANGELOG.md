@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.294 — 2026-10-29
+
+### Fix
+- **Navigation** — a one-off failure while opening a real page reloads that page instead of leaving the error screen up. The error screen stays only if the same page fails again
+
+### Performance
+- **Home** — homepage data and posters load in the background on other pages, and coming back paints from that cache instead of waiting on skeletons
+
+### Playback
+- **Subtitles** — the timing offset reads as earlier or later, and the controls stay available for the active subtitle
+- **Subtitles** — on TV, left and right on the timing row step the offset and stay focused. Holding a direction repeats the step
+
+### TV
+- **Home** — returning home skips the spinner when the homepage was already loaded
+
 ## 0.1.293 — 2026-10-29
 
 ### Playback
