@@ -7,7 +7,7 @@ import { getAvailableQualities, isBrowserDirectPlayAudioSupported, isBrowserDire
 import type { DatabaseInstance } from "../db/index.js";
 import type { SubtitleService } from "../services/subtitles.js";
 import { subtitleHasContent } from "../utils/subtitle-content.js";
-import { shiftVttByOffset } from "@media-app/shared";
+import { shiftVttByOffset, shiftVttTimestamps } from "@media-app/shared";
 import {
   mediaItems,
   movieFiles,
@@ -838,7 +838,7 @@ export async function subtitleRoutes(
   db: DatabaseInstance,
   subtitleService: SubtitleService,
 ) {
-  app.get<{ Params: { id: string }; Querystring: { offset?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { offset?: string; sync?: string } }>(
     "/api/subtitles/:id",
     async (request, reply) => {
       const id = parseInt(request.params.id, 10);
@@ -846,6 +846,8 @@ export async function subtitleRoutes(
       const rawOffset = Number.parseFloat(request.query.offset ?? "0");
       const offsetSeconds =
         Number.isFinite(rawOffset) && rawOffset > 0 ? Math.round(rawOffset * 1000) / 1000 : 0;
+      const rawSync = Number.parseFloat(request.query.sync ?? "0");
+      const syncSeconds = Number.isFinite(rawSync) ? Math.round(rawSync * 10) / 10 : 0;
       const subtitle = await db.query.subtitles.findFirst({
         where: eq(subtitles.id, id),
       });
@@ -860,7 +862,8 @@ export async function subtitleRoutes(
           await subtitleService.deleteSubtitle(id);
           return reply.status(404).send({ error: "Subtitle has no content" });
         }
-        const body = offsetSeconds > 0 ? shiftVttByOffset(content, offsetSeconds) : content;
+        let body = offsetSeconds > 0 ? shiftVttByOffset(content, offsetSeconds) : content;
+        if (syncSeconds !== 0) body = shiftVttTimestamps(body, syncSeconds);
         if (!subtitleHasContent(body)) {
           return reply.status(404).send({ error: "Subtitle has no content" });
         }

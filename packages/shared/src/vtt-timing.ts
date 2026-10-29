@@ -50,32 +50,19 @@ export function normalizeSubtitleOffsetSeconds(offsetSeconds: number): number {
   return Math.round(offsetSeconds * 1000) / 1000;
 }
 
-function shiftTimestampToken(token: string, offsetSeconds: number): string {
-  const shifted = parseVttTimestamp(token) - offsetSeconds;
-  return formatVttTimestamp(shifted);
-}
-
-function shiftCueTimestampLine(line: string, offsetSeconds: number): string | null {
+function shiftCueTimestampLine(line: string, deltaSeconds: number): string | null {
   const match = line.match(/^(.+?)\s+-->\s+(.+?)(\s+.*)?$/);
   if (!match) return line;
 
-  const endSeconds = parseVttTimestamp(match[2]) - offsetSeconds;
+  const endSeconds = parseVttTimestamp(match[2]) + deltaSeconds;
   if (endSeconds <= 0) return null;
 
-  const startSeconds = Math.max(0, parseVttTimestamp(match[1]) - offsetSeconds);
+  const startSeconds = Math.max(0, parseVttTimestamp(match[1]) + deltaSeconds);
   const settings = match[3] ?? "";
   return `${formatVttTimestamp(startSeconds)} --> ${formatVttTimestamp(endSeconds)}${settings}`;
 }
 
-/** Shift all cue timestamps so they align with a relative HLS timeline.
- * NOTE(formatting): shifts timestamps **only**; re-uses formatVttTimestamp for
- * both start/end so hh:mm:ss.mmm precision is preserved. offset=0 fast-path
- * returns the exact input string unmodified so callers don't trigger cache
- * churn or unnecessary re-renders on the subtitle path.
- */
-export function shiftVttByOffset(vtt: string, offsetSeconds: number): string {
-  if (offsetSeconds <= 0 || !Number.isFinite(offsetSeconds)) return vtt;
-
+function shiftVttDocument(vtt: string, deltaSeconds: number): string {
   const normalized = vtt.replace(/\r\n/g, "\n").trimEnd();
   const blocks = normalized.split(/\n\s*\n/);
   const shiftedBlocks: string[] = [];
@@ -95,7 +82,7 @@ export function shiftVttByOffset(vtt: string, offsetSeconds: number): string {
 
     for (const line of lines) {
       if (line.includes("-->")) {
-        const shiftedLine = shiftCueTimestampLine(line, offsetSeconds);
+        const shiftedLine = shiftCueTimestampLine(line, deltaSeconds);
         if (shiftedLine === null) {
           dropCue = true;
           break;
@@ -112,6 +99,23 @@ export function shiftVttByOffset(vtt: string, offsetSeconds: number): string {
   }
 
   return shiftedBlocks.join("\n\n");
+}
+
+/** Add `deltaSeconds` to every cue. Positive values show subtitles later. */
+export function shiftVttTimestamps(vtt: string, deltaSeconds: number): string {
+  if (!Number.isFinite(deltaSeconds) || deltaSeconds === 0) return vtt;
+  return shiftVttDocument(vtt, deltaSeconds);
+}
+
+/** Shift all cue timestamps so they align with a relative HLS timeline.
+ * NOTE(formatting): shifts timestamps **only**; re-uses formatVttTimestamp for
+ * both start/end so hh:mm:ss.mmm precision is preserved. offset=0 fast-path
+ * returns the exact input string unmodified so callers don't trigger cache
+ * churn or unnecessary re-renders on the subtitle path.
+ */
+export function shiftVttByOffset(vtt: string, offsetSeconds: number): string {
+  if (offsetSeconds <= 0 || !Number.isFinite(offsetSeconds)) return vtt;
+  return shiftVttTimestamps(vtt, -offsetSeconds);
 }
 
 export function vttCueLineHasTimestamp(line: string): boolean {

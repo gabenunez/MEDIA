@@ -1,6 +1,7 @@
 "use client";
 
 import { findActiveCueTexts, parseWebVttCues } from "@media-app/shared";
+import { subtitleLookupSeconds } from "@/lib/subtitle-sync";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useSubtitleStyles } from "@/components/subtitle-style-settings";
 import { playbackSubtitleAppearance } from "@/lib/subtitle-styles";
@@ -11,6 +12,7 @@ export function WebSubtitleCueOverlay({
   videoRef,
   vtt,
   getPlaybackSeconds,
+  syncDelaySeconds = 0,
   streamEpoch = 0,
   hidden = false,
   className,
@@ -18,6 +20,8 @@ export function WebSubtitleCueOverlay({
   videoRef: RefObject<HTMLVideoElement | null>;
   vtt: string | null;
   getPlaybackSeconds: () => number;
+  /** Positive values show the active subtitle later, in seconds. */
+  syncDelaySeconds?: number;
   /** Increment when the playback source restarts (seek/HLS generation). */
   streamEpoch?: number;
   /** Hide while watch menus or dialogs cover the lower chrome. */
@@ -30,6 +34,8 @@ export function WebSubtitleCueOverlay({
   const cues = useMemo(() => (vtt ? parseWebVttCues(vtt) : []), [vtt]);
   const getPlaybackSecondsRef = useRef(getPlaybackSeconds);
   getPlaybackSecondsRef.current = getPlaybackSeconds;
+  const syncDelayRef = useRef(syncDelaySeconds);
+  syncDelayRef.current = syncDelaySeconds;
 
   useEffect(() => {
     setPlaybackReady(false);
@@ -67,7 +73,12 @@ export function WebSubtitleCueOverlay({
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     const update = () => {
-      setLines(findActiveCueTexts(cues, getPlaybackSecondsRef.current()));
+      setLines(
+        findActiveCueTexts(
+          cues,
+          subtitleLookupSeconds(getPlaybackSecondsRef.current(), syncDelayRef.current),
+        ),
+      );
     };
 
     const stopPolling = () => {
@@ -121,7 +132,7 @@ export function WebSubtitleCueOverlay({
       video.removeEventListener("pause", onPause);
       video.removeEventListener("ended", onPause);
     };
-  }, [videoRef, cues, playbackReady, getPlaybackSeconds]);
+  }, [videoRef, cues, playbackReady, getPlaybackSeconds, syncDelaySeconds]);
 
   if (hidden || !playbackReady || lines.length === 0) return null;
 

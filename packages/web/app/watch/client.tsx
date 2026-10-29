@@ -68,6 +68,7 @@ import { TvCastButton, type TvCastPayload } from "@/components/tv-cast-button";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { DesktopSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
+import { SubtitleSyncControls, useSubtitleSync } from "@/components/subtitle-sync-controls";
 import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import { PlaybackQualityNotice } from "@/components/playback-quality-notice";
 import {
@@ -318,6 +319,7 @@ function WatchDesktopClient() {
     0,
     { displayMode: "dom-overlay" },
   );
+  const subtitleSync = useSubtitleSync(activeSubtitle);
 
   useEffect(() => {
     if (!subtitleMenuOpen) return;
@@ -1480,7 +1482,6 @@ function WatchDesktopClient() {
   const showBufferingBar =
     bufferingMidPlayback && playbackHasBegun && !error && !showInitialLoading;
   const hidePlaybackSubtitles =
-    (subtitleMenuOpen && !subtitleAppearanceOpen) ||
     qualityMenuOpen ||
     volumeMenuOpen ||
     subtitleSearchOpen ||
@@ -1679,6 +1680,7 @@ function WatchDesktopClient() {
           videoRef={videoRef}
           vtt={activeVtt}
           getPlaybackSeconds={getSubtitlePlaybackSeconds}
+          syncDelaySeconds={subtitleSync.offsetSeconds}
           streamEpoch={streamGeneration}
           hidden={hidePlaybackSubtitles}
         />
@@ -2110,6 +2112,16 @@ function WatchDesktopClient() {
                               )}
                             </div>
                           ))}
+                          {subtitles.length > 0 ? (
+                            <div className="py-1">
+                              <SubtitleSyncControls
+                                enabled={subtitleSync.enabled}
+                                offsetSeconds={subtitleSync.offsetSeconds}
+                                onAdjust={subtitleSync.adjust}
+                                onReset={subtitleSync.reset}
+                              />
+                            </div>
+                          ) : null}
                           <div className="watch-menu-divider" />
                           <button
                             className="watch-menu-item"

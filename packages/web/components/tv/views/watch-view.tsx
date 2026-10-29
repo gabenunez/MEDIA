@@ -55,6 +55,7 @@ import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { resolveWebSubtitlePlaybackSeconds } from "@/lib/subtitle-timeline";
 import { WebSubtitleCueOverlay } from "@/components/web-subtitle-cue-overlay";
+import { SubtitleSyncControls, useSubtitleSync } from "@/components/subtitle-sync-controls";
 import { SubtitleLoadNotice } from "@/components/subtitle-load-notice";
 import { PlaybackQualityNotice } from "@/components/playback-quality-notice";
 import {
@@ -511,6 +512,8 @@ export function TvWatchView() {
       displayMode: "dom-overlay",
     },
   );
+
+  const subtitleSync = useSubtitleSync(activeSubtitle);
 
   const selectSubtitle = useCallback(
     (subtitleId: number | null) => {
@@ -983,10 +986,11 @@ export function TvWatchView() {
       const subtitleId = activeSubtitleRef.current;
       const stream = resolvePlaybackStream(quality, info, { forceRemux });
       const usingHls = stream.usingHls;
+      const syncDelay = subtitleSync.offsetSeconds;
       const subtitleOffset = usingHls ? hlsStartOffsetRef.current : 0;
       const subtitleUrl =
         subtitleId != null
-          ? toAbsoluteMediaUrl(api.subtitleUrl(subtitleId, subtitleOffset))
+          ? toAbsoluteMediaUrl(api.subtitleUrl(subtitleId, subtitleOffset, syncDelay))
           : undefined;
 
       if (subtitleId == null) {
@@ -995,7 +999,7 @@ export function TvWatchView() {
         return true;
       }
 
-      const cachedVtt = peekPreparedSubtitleVtt(subtitleId, subtitleOffset);
+      const cachedVtt = peekPreparedSubtitleVtt(subtitleId, subtitleOffset, syncDelay);
       if (
         applyNativeSubtitleTrack({
           subtitleUrl,
@@ -1004,7 +1008,7 @@ export function TvWatchView() {
       ) {
         nativeSubtitlesSyncedSessionRef.current = nativePlaySessionRef.current;
         if (!cachedVtt) {
-          void prepareWebSubtitleVtt(subtitleId, subtitleOffset).then((prepared) => {
+          void prepareWebSubtitleVtt(subtitleId, subtitleOffset, undefined, syncDelay).then((prepared) => {
             if (activeSubtitleRef.current !== subtitleId || !prepared.ok) return;
             applyNativeSubtitleTrack({ subtitleUrl, vtt: prepared.vtt });
           });
@@ -1070,6 +1074,7 @@ export function TvWatchView() {
       streamGeneration,
       sourceDurationMs,
       initialResumeSeconds,
+      subtitleSync.offsetSeconds,
       applyNativePlaybackOverlayAlpha,
     ],
   );
@@ -2972,6 +2977,7 @@ export function TvWatchView() {
             videoRef={videoRef}
             vtt={activeVtt}
             getPlaybackSeconds={getSubtitlePlaybackSeconds}
+            syncDelaySeconds={subtitleSync.offsetSeconds}
             streamEpoch={streamGeneration}
             hidden={hidePlaybackSubtitles}
           />
@@ -3339,6 +3345,17 @@ export function TvWatchView() {
                                 }}
                               />
                             ))}
+                            {subtitles.length > 0 ? (
+                              <div className="px-1 py-1">
+                                <SubtitleSyncControls
+                                  tv
+                                  enabled={subtitleSync.enabled}
+                                  offsetSeconds={subtitleSync.offsetSeconds}
+                                  onAdjust={subtitleSync.adjust}
+                                  onReset={subtitleSync.reset}
+                                />
+                              </div>
+                            ) : null}
                             <div className="my-1 border-t border-border" />
                             <TvFocusButton
                               variant="default"
