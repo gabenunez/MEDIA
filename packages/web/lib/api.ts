@@ -840,14 +840,18 @@ export const api = {
     }
     return apiUrl(`/api/stream/${fileId}/hls/master.m3u8?${params.toString()}`);
   },
-  subtitleUrl: (id: number, offsetSeconds = 0) => {
+  subtitleUrl: (id: number, offsetSeconds = 0, syncDelaySeconds = 0) => {
     const base = apiUrl(`/api/subtitles/${id}`);
+    const params = new URLSearchParams();
     if (Number.isFinite(offsetSeconds) && offsetSeconds > 0) {
       // Keep millisecond precision so native TV HLS resume stays in sync.
-      const offset = Math.round(offsetSeconds * 1000) / 1000;
-      return `${base}?offset=${offset}`;
+      params.set("offset", String(Math.round(offsetSeconds * 1000) / 1000));
     }
-    return base;
+    if (Number.isFinite(syncDelaySeconds) && Math.abs(syncDelaySeconds) >= 0.05) {
+      params.set("sync", (Math.round(syncDelaySeconds * 10) / 10).toFixed(1));
+    }
+    const query = params.toString();
+    return query ? `${base}?${query}` : base;
   },
   themeMusicUrl: (mediaId: number) => apiUrl(`/api/media/${mediaId}/theme`),
   imageUrl: (path?: string | null, options?: { hd?: boolean }) => {

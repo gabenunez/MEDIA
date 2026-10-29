@@ -1,4 +1,4 @@
-import { shiftVttByOffset } from "@media-app/shared";
+import { shiftVttByOffset, shiftVttTimestamps } from "@media-app/shared";
 import { api } from "@/lib/api";
 
 const vttCache = new Map<number, string>();
@@ -100,18 +100,26 @@ export function prefetchSubtitleTracks(
   }
 }
 
-function resolveShiftedVtt(subtitleId: number, timelineOffsetSeconds: number): string | null {
+function resolveShiftedVtt(
+  subtitleId: number,
+  timelineOffsetSeconds: number,
+  syncDelaySeconds = 0,
+): string | null {
   const raw = vttCache.get(subtitleId);
   if (!raw) return null;
-  return timelineOffsetSeconds > 0 ? shiftVttByOffset(raw, timelineOffsetSeconds) : raw;
+  const aligned =
+    timelineOffsetSeconds > 0 ? shiftVttByOffset(raw, timelineOffsetSeconds) : raw;
+  if (!Number.isFinite(syncDelaySeconds) || syncDelaySeconds === 0) return aligned;
+  return shiftVttTimestamps(aligned, syncDelaySeconds);
 }
 
 /** Cached VTT for an instant native overlay swap — null until prefetch finishes. */
 export function peekPreparedSubtitleVtt(
   subtitleId: number,
   timelineOffsetSeconds = 0,
+  syncDelaySeconds = 0,
 ): string | null {
-  return resolveShiftedVtt(subtitleId, timelineOffsetSeconds);
+  return resolveShiftedVtt(subtitleId, timelineOffsetSeconds, syncDelaySeconds);
 }
 
 function trackDisplayMode(displayMode: SubtitleDisplayMode): TextTrackMode {
@@ -188,19 +196,24 @@ export async function prepareWebSubtitleVtt(
   subtitleId: number,
   timelineOffsetSeconds = 0,
   signal?: AbortSignal,
+  syncDelaySeconds = 0,
 ): Promise<SubtitleLoadResult> {
   if (signal?.aborted) {
     return { ok: false, error: "Subtitle load was cancelled." };
   }
 
-  let shifted = resolveShiftedVtt(subtitleId, timelineOffsetSeconds);
+  let shifted = resolveShiftedVtt(subtitleId, timelineOffsetSeconds, syncDelaySeconds);
   if (!shifted) {
     const loaded = await loadSubtitleVtt(subtitleId, signal);
     if (!loaded.ok || signal?.aborted) {
       return loaded.ok ? { ok: false, error: "Subtitle load was cancelled." } : loaded;
     }
-    shifted =
+    const aligned =
       timelineOffsetSeconds > 0 ? shiftVttByOffset(loaded.vtt, timelineOffsetSeconds) : loaded.vtt;
+    shifted =
+      Number.isFinite(syncDelaySeconds) && syncDelaySeconds !== 0
+        ? shiftVttTimestamps(aligned, syncDelaySeconds)
+        : aligned;
   }
 
   if (!shifted?.trim() || signal?.aborted) {

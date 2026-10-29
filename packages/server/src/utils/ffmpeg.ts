@@ -12,6 +12,7 @@ import {
   type VideoDynamicRange,
 } from "@media-app/shared";
 import { createStreamFilePrefix } from "./stream-session.js";
+import { saveSubtitleOneAtATime } from "../services/subtitle-save-queue.js";
 
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_TRANSCODES = 4;
@@ -238,34 +239,37 @@ export function extractEmbeddedSubtitle(
   outputPath: string,
   timeoutMs = 120_000,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const args = [
-      "-y",
-      "-i",
-      filePath,
-      "-map",
-      `0:${streamIndex}`,
-      "-f",
-      "webvtt",
-      outputPath,
-    ];
+  return saveSubtitleOneAtATime(
+    () =>
+      new Promise((resolve, reject) => {
+        const args = [
+          "-y",
+          "-i",
+          filePath,
+          "-map",
+          `0:${streamIndex}`,
+          "-f",
+          "webvtt",
+          outputPath,
+        ];
 
-    const proc = spawn("ffmpeg", args, { stdio: "ignore" });
-    const timer = setTimeout(() => {
-      proc.kill("SIGKILL");
-      reject(new Error(`Subtitle extraction timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
+        const proc = spawn("ffmpeg", args, { stdio: "ignore" });
+        const timer = setTimeout(() => {
+          proc.kill("SIGKILL");
+          reject(new Error(`Subtitle extraction timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
 
-    proc.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0 && fs.existsSync(outputPath)) resolve();
-      else reject(new Error(`Failed to extract subtitle stream ${streamIndex}`));
-    });
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
+        proc.on("close", (code) => {
+          clearTimeout(timer);
+          if (code === 0 && fs.existsSync(outputPath)) resolve();
+          else reject(new Error(`Failed to extract subtitle stream ${streamIndex}`));
+        });
+        proc.on("error", (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      }),
+  );
 }
 
 /** Where to continue a killed HLS encode without discarding segments already served. */

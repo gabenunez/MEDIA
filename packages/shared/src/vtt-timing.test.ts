@@ -3,6 +3,7 @@ import {
   formatVttTimestamp,
   parseVttTimestamp,
   shiftVttByOffset,
+  shiftVttTimestamps,
 } from "./vtt-timing.js";
 
 describe("vtt-timing", () => {
@@ -36,6 +37,17 @@ World`;
     expect(shifted).toContain("0:00.000 --> 0:02.000");
     expect(shifted).toContain("0:05.000 --> 0:07.000");
     expect(shifted).not.toContain("00:10:00.000");
+  });
+
+  it("moves cues later or earlier by a tenth of a second", () => {
+    const source = `WEBVTT
+
+1
+00:00:01.000 --> 00:00:02.000
+Hello`;
+
+    expect(shiftVttTimestamps(source, 0.1)).toContain("0:01.100 --> 0:02.100");
+    expect(shiftVttTimestamps(source, -0.1)).toContain("0:00.900 --> 0:01.900");
   });
 
   it("drops cues that end before the offset", () => {

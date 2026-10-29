@@ -14,6 +14,7 @@ import {
   type ProbeResult,
 } from "../utils/ffmpeg.js";
 import { subtitleHasContent } from "../utils/subtitle-content.js";
+import { saveSubtitleOneAtATime } from "./subtitle-save-queue.js";
 
 /** Avoid loading a multi-megabyte sidecar into memory for every episode at once. */
 const MAX_SUBTITLE_TEXT_BYTES = 8 * 1024 * 1024;
@@ -226,6 +227,18 @@ export class SubtitleService {
     rawContent: string;
     source: "opensubtitles" | "wyzie";
   }) {
+    return saveSubtitleOneAtATime(() => this.writeOnlineSubtitle(params));
+  }
+
+  private async writeOnlineSubtitle(params: {
+    movieFileId?: number;
+    episodeId?: number;
+    cacheKey: string;
+    language: string;
+    release: string;
+    rawContent: string;
+    source: "opensubtitles" | "wyzie";
+  }) {
     const cachePath = path.join(this.cacheDir, `${params.cacheKey}.vtt`);
 
     const existing = await this.db.query.subtitles.findFirst({
@@ -239,7 +252,7 @@ export class SubtitleService {
     });
 
     if (existing && fs.existsSync(existing.pathOrIndex)) {
-      return subtitleToTrack(existing);
+      return this.finishOnlineSubtitle(existing, params.movieFileId, params.episodeId);
     }
 
     const vtt = params.rawContent.trimStart().startsWith("WEBVTT")
@@ -266,7 +279,7 @@ export class SubtitleService {
     }
 
     if (existing) {
-      return subtitleToTrack(existing);
+      return this.finishOnlineSubtitle(existing, params.movieFileId, params.episodeId);
     }
 
     try {
@@ -282,10 +295,41 @@ export class SubtitleService {
         })
         .returning();
 
-      return subtitleToTrack(row);
+      return this.finishOnlineSubtitle(row, params.movieFileId, params.episodeId);
     } catch (err) {
       this.removeCacheFile(cachePath);
       throw err;
+    }
+  }
+
+  /** A newly saved download replaces any other online subtitle for that file. */
+  private async finishOnlineSubtitle(
+    kept: typeof subtitles.$inferSelect,
+    movieFileId?: number,
+    episodeId?: number,
+  ) {
+    await this.retainOnlyOnlineSubtitle(kept.id, movieFileId, episodeId);
+    return subtitleToTrack(kept);
+  }
+
+  private async retainOnlyOnlineSubtitle(
+    keptId: number,
+    movieFileId?: number,
+    episodeId?: number,
+  ): Promise<void> {
+    const owner = movieFileId
+      ? eq(subtitles.movieFileId, movieFileId)
+      : eq(subtitles.episodeId, episodeId!);
+    const rows = await this.db.query.subtitles.findMany({
+      where: and(
+        owner,
+        or(eq(subtitles.source, "opensubtitles"), eq(subtitles.source, "wyzie")),
+      ),
+    });
+
+    for (const row of rows) {
+      if (row.id === keptId) continue;
+      await this.deleteSubtitle(row.id);
     }
   }
 
