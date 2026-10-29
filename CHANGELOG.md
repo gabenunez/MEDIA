@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.292 — 2026-10-29
+
+### Fix
+- **Libraries** — adding a full TV series no longer takes the server down. Episodes import a few at a time, a bad file is skipped, and the app stays up if one import fails
+- **Libraries** — a series folder that links back to itself is scanned once instead of walking until the process crashes
+
 ## 0.1.291 — 2026-10-24
 
 ### Playback
