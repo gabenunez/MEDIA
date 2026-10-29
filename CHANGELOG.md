@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.293 — 2026-10-29
+
+### Playback
+- **Subtitles** — saving a subtitle happens one file at a time, and a new download replaces the previous online subtitle for that movie or episode
+- **Subtitles** — web and TV can nudge the active subtitle earlier or later in 0.1 second steps, up to 30 seconds
+
 ## 0.1.292 — 2026-10-29
 
 ### Fix
