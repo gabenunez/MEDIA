@@ -34,6 +34,13 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
+  process.on("unhandledRejection", (reason) => {
+    console.error(
+      "Unhandled rejection — keeping MEDIA! running:",
+      reason instanceof Error ? (reason.stack ?? reason.message) : reason,
+    );
+  });
+
   const configManager = new ConfigManager();
   const config = configManager.get();
   const dbPath = getDbPath(config);

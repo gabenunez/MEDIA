@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq, and, or, isNull } from "drizzle-orm";
 import chokidar, { type FSWatcher } from "chokidar";
+import PQueue from "p-queue";
 import {
   parseMovieFilename,
   parseEpisodeFromPath,
@@ -25,13 +26,23 @@ import { dedupeDuplicateSeasons } from "./dedupe-seasons.js";
 import { MetadataService } from "./metadata.js";
 import { SubtitleService } from "./subtitles.js";
 import { ThemeService } from "./themes.js";
+import { walkMediaTree } from "./library-walk.js";
 import { revalidateCatalog, revalidateMediaPage } from "./page-revalidate.js";
 import { probeFile } from "../utils/ffmpeg.js";
+
+/** One or two files at a time. A full series must not spawn an ffprobe per episode. */
+const LIBRARY_INGEST_CONCURRENCY = 2;
+const CATALOG_REVALIDATE_DELAY_MS = 1500;
 
 export class ScannerService {
   private watchers = new Map<number, FSWatcher>();
   private activeScan: { libraryId: number; jobId: number } | null = null;
   private seasonCreateChain = new Map<string, Promise<void>>();
+  private ingestQueue = new PQueue({ concurrency: LIBRARY_INGEST_CONCURRENCY });
+  private ingestingPaths = new Map<string, Promise<void>>();
+  private pendingMediaIds = new Set<number>();
+  private revalidateTimer: ReturnType<typeof setTimeout> | null = null;
+  private loggedIngestBacklog = false;
 
   constructor(
     private db: DatabaseInstance,
@@ -91,6 +102,102 @@ export class ScannerService {
         err instanceof Error ? err.message : err,
       );
     });
+  }
+
+  /**
+   * Import files through a small queue. Watcher events for a full series
+   * arrive together; running them all at once exhausts memory and can exit
+   * the process on the first failed insert.
+   */
+  private enqueueIngest(filePath: string, work: () => Promise<void>): Promise<void> {
+    const existing = this.ingestingPaths.get(filePath);
+    if (existing) return existing;
+
+    const backlog = this.ingestQueue.size + this.ingestQueue.pending;
+    if (backlog >= 20 && !this.loggedIngestBacklog) {
+      this.loggedIngestBacklog = true;
+      console.warn(
+        `Library ingest backlog is ${backlog} files; importing a few at a time so the server stays up`,
+      );
+    }
+
+    const task = this.ingestQueue
+      .add(async () => {
+        try {
+          await work();
+        } catch (err) {
+          console.error(
+            `Failed to import ${filePath}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      })
+      .then(() => undefined)
+      .finally(() => {
+        if (this.ingestingPaths.get(filePath) === task) {
+          this.ingestingPaths.delete(filePath);
+        }
+        if (this.ingestQueue.size + this.ingestQueue.pending === 0) {
+          this.loggedIngestBacklog = false;
+        }
+      });
+
+    this.ingestingPaths.set(filePath, task);
+    return task;
+  }
+
+  private async onLibraryFileAdded(libraryId: number, filePath: string): Promise<void> {
+    try {
+      await this.enqueueIngest(filePath, async () => {
+        if (!(await this.isMediaVideoFile(filePath))) return;
+        const lib = await this.db.query.libraries.findFirst({
+          where: eq(libraries.id, libraryId),
+        });
+        if (lib) await this.processFile(lib, filePath);
+      });
+    } catch (err) {
+      console.error(
+        `Failed to import ${filePath}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  private async onLibraryFileRemoved(filePath: string): Promise<void> {
+    try {
+      const pending = this.ingestingPaths.get(filePath);
+      if (pending) await pending;
+      await this.removeFile(filePath);
+    } catch (err) {
+      console.error(
+        `Failed to remove ${filePath}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  /** Coalesce per-episode page rebuilds into one catalog refresh. */
+  private scheduleCatalogRevalidate(mediaItemId: number): void {
+    if (mediaItemId > 0) this.pendingMediaIds.add(mediaItemId);
+    if (this.revalidateTimer) return;
+    this.revalidateTimer = setTimeout(() => {
+      this.revalidateTimer = null;
+      this.flushCatalogRevalidate();
+    }, CATALOG_REVALIDATE_DELAY_MS);
+    this.revalidateTimer.unref?.();
+  }
+
+  private flushCatalogRevalidate(): void {
+    if (this.revalidateTimer) {
+      clearTimeout(this.revalidateTimer);
+      this.revalidateTimer = null;
+    }
+    const ids = [...this.pendingMediaIds];
+    this.pendingMediaIds.clear();
+    for (const id of ids) {
+      void revalidateMediaPage(id, { alsoHome: false });
+    }
+    if (ids.length > 0) void revalidateCatalog();
   }
 
   private shouldSkipScanEntry(name: string, isDirectory: boolean): boolean {
@@ -155,17 +262,12 @@ export class ScannerService {
       );
     });
 
-    watcher.on("add", async (filePath) => {
-      if (await this.isMediaVideoFile(filePath)) {
-        const lib = await this.db.query.libraries.findFirst({
-          where: eq(libraries.id, libraryId),
-        });
-        if (lib) await this.processFile(lib, filePath);
-      }
+    watcher.on("add", (filePath) => {
+      void this.onLibraryFileAdded(libraryId, filePath);
     });
 
-    watcher.on("unlink", async (filePath) => {
-      await this.removeFile(filePath);
+    watcher.on("unlink", (filePath) => {
+      void this.onLibraryFileRemoved(filePath);
     });
 
     this.watchers.set(libraryId, watcher);
@@ -200,7 +302,7 @@ export class ScannerService {
       let processed = 0;
 
       for (const filePath of files) {
-        await this.processFile(lib, filePath);
+        await this.enqueueIngest(filePath, () => this.processFile(lib, filePath));
         processed++;
         const progress = Math.round((processed / files.length) * 100);
         await this.db
@@ -240,6 +342,7 @@ export class ScannerService {
       }
 
       await this.themes.syncThemesForLibrary(libraryId);
+      this.flushCatalogRevalidate();
       void revalidateCatalog();
     } catch (err) {
       await this.db
@@ -654,57 +757,25 @@ export class ScannerService {
     const results: string[] = [];
     const probeCandidates: Array<{ path: string; size: number }> = [];
 
-    const walk = (current: string) => {
-      let entries: fs.Dirent[];
-      try {
-        entries = fs.readdirSync(current, { withFileTypes: true });
-      } catch {
-        return;
-      }
-
-      for (const entry of entries) {
-        if (this.shouldSkipScanEntry(entry.name, entry.isDirectory())) {
-          continue;
-        }
-
-        const fullPath = path.join(current, entry.name);
-
-        if (entry.isDirectory()) {
-          walk(fullPath);
-          continue;
-        }
-
-        if (entry.isSymbolicLink()) {
-          try {
-            const stat = fs.statSync(fullPath);
-            if (stat.isDirectory()) {
-              walk(fullPath);
-              continue;
-            }
-            if (!stat.isFile()) continue;
-          } catch {
-            continue;
-          }
-        } else if (!entry.isFile()) {
-          continue;
-        }
-
-        if (isVideoFile(entry.name)) {
+    walkMediaTree(
+      dir,
+      (fullPath, entryName) => {
+        if (isVideoFile(entryName)) {
           results.push(fullPath);
-        } else if (!isExcludedFromVideoProbe(entry.name)) {
-          try {
-            const size = fs.statSync(fullPath).size;
-            if (isUnknownVideoCandidate(entry.name, size)) {
-              probeCandidates.push({ path: fullPath, size });
-            }
-          } catch {
-            // skip unreadable files
-          }
+          return;
         }
-      }
-    };
-
-    walk(dir);
+        if (isExcludedFromVideoProbe(entryName)) return;
+        try {
+          const size = fs.statSync(fullPath).size;
+          if (isUnknownVideoCandidate(entryName, size)) {
+            probeCandidates.push({ path: fullPath, size });
+          }
+        } catch {
+          // skip unreadable files
+        }
+      },
+      (name, isDirectory) => this.shouldSkipScanEntry(name, isDirectory),
+    );
 
     for (const candidate of probeCandidates) {
       const probe = await probeFile(candidate.path);
@@ -827,7 +898,7 @@ export class ScannerService {
       .returning();
 
     await this.subtitles.discoverForMovieFile(file.id, filePath, probe);
-    void revalidateMediaPage(mediaItemId);
+    this.scheduleCatalogRevalidate(mediaItemId);
   }
 
   /** Find a TV show by folder name or TMDB id (stored title may differ after metadata match). */
@@ -1111,7 +1182,7 @@ export class ScannerService {
       .returning();
 
     await this.subtitles.discoverForEpisode(episode.id, filePath, probe);
-    void revalidateMediaPage(mediaItem.id);
+    this.scheduleCatalogRevalidate(mediaItem.id);
   }
 
   private async removeFile(filePath: string): Promise<void> {
