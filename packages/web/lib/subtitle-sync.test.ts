@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatSubtitleSync,
+  describeSubtitleSync,
   stepSubtitleSync,
   subtitleLookupSeconds,
 } from "./subtitle-sync";
@@ -12,10 +12,12 @@ describe("subtitle sync", () => {
     expect(stepSubtitleSync(0, -1)).toBeCloseTo(-0.1, 5);
   });
 
-  it("formats a signed tenth-second delay", () => {
-    expect(formatSubtitleSync(0)).toBe("0.0s");
-    expect(formatSubtitleSync(0.3)).toBe("+0.3s");
-    expect(formatSubtitleSync(-1.2)).toBe("−1.2s");
+  it("describes the offset in plain language", () => {
+    expect(describeSubtitleSync(0)).toBe("On time");
+    expect(describeSubtitleSync(0.3)).toBe("0.3 seconds later");
+    expect(describeSubtitleSync(1)).toBe("1 second later");
+    expect(describeSubtitleSync(-1.2)).toBe("1.2 seconds earlier");
+    expect(describeSubtitleSync(-2)).toBe("2 seconds earlier");
   });
 
   it("looks up earlier cues when the delay is positive", () => {

@@ -210,6 +210,36 @@ describe("prefetchPosterFocus", () => {
     vi.resetModules();
   });
 
+  it("warms homepage artwork when the home route is prefetched", async () => {
+    vi.resetModules();
+    const { api: freshApi } = await import("./api");
+    const getHome = vi.spyOn(freshApi, "getHome").mockResolvedValue({
+      continueWatching: [],
+      recentlyAdded: [
+        {
+          id: 9,
+          libraryId: 1,
+          title: "Hero",
+          type: "movie",
+          posterPath: "/api/images/home-poster-9.jpg",
+          backdropPath: "/api/images/home-hero-9.jpg",
+        },
+      ],
+      favorites: [],
+      libraries: [],
+      decks: [],
+      tmdbConfigured: true,
+      recentPlay: null,
+    });
+    const { prefetchCatalogHref } = await import("./prefetch-artwork.js");
+    prefetchCatalogHref("/");
+    await vi.waitFor(() => {
+      expect(imageSrcs.some((src) => src.includes("home-hero-9"))).toBe(true);
+      expect(imageSrcs.some((src) => src.includes("home-poster-9"))).toBe(true);
+    });
+    getHome.mockRestore();
+  });
+
   it("TV posters pass the router so focus can prefetch the media page", () => {
     const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
     const poster = readFileSync(path.join(webRoot, "components/tv/tv-poster.tsx"), "utf8");

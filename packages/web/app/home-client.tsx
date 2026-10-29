@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -44,6 +44,7 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
   useDocumentTitle("Home");
   const { data, loaded, status, activeScan, isScanning } = useLiveHomeData(initialData);
   const [featuredImageReady, setFeaturedImageReady] = useState(false);
+  const featuredImageRef = useRef<HTMLImageElement | null>(null);
 
   const libraries = (data?.libraries ?? []).map((lib) => {
     const live = status?.libraries.find((entry) => entry.id === lib.id);
@@ -89,7 +90,8 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
   }, [loaded, recentlyAdded, continueWatching]);
 
   useEffect(() => {
-    setFeaturedImageReady(false);
+    const node = featuredImageRef.current;
+    setFeaturedImageReady(Boolean(node?.complete && node.naturalWidth > 0));
   }, [featuredImage]);
 
   const handleFeaturedImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
@@ -177,12 +179,13 @@ function HomeDesktopClient({ initialData = null }: { initialData?: HomeData | nu
                     sizes="100vw"
                     onLoad={handleFeaturedImageLoad}
                     ref={(node: HTMLImageElement | null) => {
+                      featuredImageRef.current = node;
                       if (node?.complete && node.naturalWidth > 0) {
                         setFeaturedImageReady(true);
                       }
                     }}
                     className={cn(
-                      "object-cover transition-opacity duration-500",
+                      "object-cover transition-opacity duration-200",
                       featuredImageReady ? "opacity-100" : "opacity-0",
                     )}
                   />

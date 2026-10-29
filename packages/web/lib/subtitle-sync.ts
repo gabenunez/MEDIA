@@ -35,11 +35,14 @@ export function subtitleLookupSeconds(
   return playbackSeconds - delay;
 }
 
-export function formatSubtitleSync(seconds: number): string {
+/** Plain-language offset. Positive delay shows cues later. */
+export function describeSubtitleSync(seconds: number): string {
   const rounded = normalizeSubtitleSyncSeconds(seconds);
-  if (rounded === 0) return "0.0s";
-  const sign = rounded > 0 ? "+" : "−";
-  return `${sign}${Math.abs(rounded).toFixed(1)}s`;
+  if (rounded === 0) return "On time";
+  const abs = Math.abs(rounded);
+  const amount = abs.toFixed(1).replace(/\.0$/, "");
+  const unit = abs === 1 ? "second" : "seconds";
+  return `${amount} ${unit} ${rounded > 0 ? "later" : "earlier"}`;
 }
 
 export function readSubtitleSync(subtitleId: number | null): number {

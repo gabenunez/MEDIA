@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { Minus, Plus } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import { cn } from "@/lib/utils";
 import {
-  formatSubtitleSync,
+  describeSubtitleSync,
   readSubtitleSync,
   stepSubtitleSync,
+  SUBTITLE_SYNC_LIMIT_SECONDS,
   writeSubtitleSync,
 } from "@/lib/subtitle-sync";
+import { TV_SUBTITLE_SYNC_STEP_EVENT } from "@/lib/tv-subtitle-sync-nav";
 
 export function useSubtitleSync(subtitleId: number | null) {
   const [offsetSeconds, setOffsetSeconds] = useState(0);
@@ -36,44 +38,8 @@ export function useSubtitleSync(subtitleId: number | null) {
   return { offsetSeconds, adjust, reset, enabled: subtitleId != null };
 }
 
-function SyncButton({
-  tv,
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  tv: boolean;
-  label: string;
-  onClick: () => void;
-  disabled: boolean;
-  children: ReactNode;
-}) {
-  if (tv) {
-    return (
-      <TvFocusButton
-        variant="default"
-        aria-label={label}
-        disabled={disabled}
-        onClick={onClick}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white"
-      >
-        {children}
-      </TvFocusButton>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/15 text-white transition-colors hover:bg-white/10 disabled:pointer-events-none disabled:opacity-40"
-    >
-      {children}
-    </button>
-  );
+function stopMenuClick(event: { stopPropagation: () => void }) {
+  event.stopPropagation();
 }
 
 export function SubtitleSyncControls({
@@ -89,76 +55,134 @@ export function SubtitleSyncControls({
   onAdjust: (direction: -1 | 1) => void;
   onReset: () => void;
 }) {
-  const label = formatSubtitleSync(offsetSeconds);
+  const phrase = describeSubtitleSync(offsetSeconds);
   const shifted = offsetSeconds !== 0;
+  const atEarlierLimit = offsetSeconds <= -SUBTITLE_SYNC_LIMIT_SECONDS;
+  const atLaterLimit = offsetSeconds >= SUBTITLE_SYNC_LIMIT_SECONDS;
+  const onAdjustRef = useRef(onAdjust);
+  onAdjustRef.current = onAdjust;
+  const rowRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!tv || !row) return;
+    const onStep = (event: Event) => {
+      const direction = (event as CustomEvent<number>).detail;
+      if (direction === -1 || direction === 1) onAdjustRef.current(direction);
+    };
+    row.addEventListener(TV_SUBTITLE_SYNC_STEP_EVENT, onStep);
+    return () => row.removeEventListener(TV_SUBTITLE_SYNC_STEP_EVENT, onStep);
+  }, [tv, enabled]);
+
+  if (!enabled) return null;
+
+  if (tv) {
+    return (
+      <TvFocusButton
+        ref={rowRef}
+        variant="default"
+        data-tv-subtitle-sync=""
+        aria-label={
+          shifted
+            ? `Subtitles ${phrase}. Press left to show them earlier, right to show them later, and OK to reset.`
+            : `Subtitles on time. Press left to show them earlier and right to show them later.`
+        }
+        onClick={(event) => {
+          stopMenuClick(event);
+          if (shifted) onReset();
+        }}
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left"
+      >
+        <DirectionLabel direction="earlier" muted={atEarlierLimit} />
+        <span className="flex min-w-0 flex-1 flex-col items-center text-center">
+          <span className="text-base font-medium leading-tight text-white">{phrase}</span>
+          <span className="mt-0.5 text-xs text-white/55">
+            {shifted ? "OK resets" : "Left earlier, right later"}
+          </span>
+        </span>
+        <DirectionLabel direction="later" muted={atLaterLimit} />
+      </TvFocusButton>
+    );
+  }
 
   return (
-    <div
-      data-tv-row=""
-      className={cn(
-        "flex items-center justify-between gap-3 rounded-lg px-2 py-1.5",
-        tv ? "border-2 border-white/10 bg-white/[0.04]" : "mx-1 border border-white/10 bg-white/[0.03]",
-        !enabled && "opacity-45",
+    <div className="px-2 py-1.5" onClick={stopMenuClick}>
+      <p className="text-center text-sm font-medium leading-tight text-white">{phrase}</p>
+      {shifted ? (
+        <button
+          type="button"
+          onClick={onReset}
+          className="mx-auto mt-0.5 block text-[11px] leading-4 text-white/55 hover:text-white"
+        >
+          Reset
+        </button>
+      ) : (
+        <p className="mt-0.5 text-center text-[11px] leading-4 text-white/40">0.1 seconds at a time</p>
       )}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <div className="min-w-0">
-        <p className={cn("font-medium text-white", tv ? "text-sm" : "text-xs")}>Timing</p>
-        <p className={cn("text-white/45", tv ? "text-xs" : "text-[10px] leading-4")}>
-          {shifted ? (offsetSeconds > 0 ? "Later" : "Earlier") : "In sync"}
-        </p>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <SyncButton
-          tv={tv}
+      <div className="mt-1.5 flex gap-1.5">
+        <StepButton
           label="Show subtitles 0.1 seconds earlier"
-          disabled={!enabled}
+          disabled={atEarlierLimit}
           onClick={() => onAdjust(-1)}
         >
-          <Minus className={tv ? "h-5 w-5" : "h-3.5 w-3.5"} />
-        </SyncButton>
-        {shifted ? (
-          tv ? (
-            <TvFocusButton
-              variant="default"
-              disabled={!enabled}
-              onClick={onReset}
-              aria-label="Reset subtitle timing"
-              className="flex h-11 min-w-[4.75rem] items-center justify-center rounded-lg px-2 text-base font-medium tabular-nums text-white"
-            >
-              {label}
-            </TvFocusButton>
-          ) : (
-            <button
-              type="button"
-              disabled={!enabled}
-              onClick={onReset}
-              aria-label="Reset subtitle timing"
-              className="h-8 min-w-[4.25rem] rounded-md px-1 text-center text-sm font-medium tabular-nums text-white hover:bg-white/10 disabled:opacity-40"
-            >
-              {label}
-            </button>
-          )
-        ) : (
-          <span
-            className={cn(
-              "min-w-[4.25rem] text-center font-medium tabular-nums text-white",
-              tv ? "text-base" : "text-sm",
-            )}
-            aria-label="Subtitle timing"
-          >
-            {label}
-          </span>
-        )}
-        <SyncButton
-          tv={tv}
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+          Earlier
+        </StepButton>
+        <StepButton
           label="Show subtitles 0.1 seconds later"
-          disabled={!enabled}
+          disabled={atLaterLimit}
           onClick={() => onAdjust(1)}
         >
-          <Plus className={tv ? "h-5 w-5" : "h-3.5 w-3.5"} />
-        </SyncButton>
+          Later
+          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        </StepButton>
       </div>
     </div>
+  );
+}
+
+function DirectionLabel({
+  direction,
+  muted,
+}: {
+  direction: "earlier" | "later";
+  muted: boolean;
+}) {
+  const Icon = direction === "earlier" ? ChevronLeft : ChevronRight;
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-0.5 text-sm text-white/80",
+        muted && "opacity-35",
+      )}
+    >
+      {direction === "earlier" ? <Icon className="h-4 w-4" aria-hidden /> : null}
+      {direction === "earlier" ? "Earlier" : "Later"}
+      {direction === "later" ? <Icon className="h-4 w-4" aria-hidden /> : null}
+    </span>
+  );
+}
+
+function StepButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-8 flex-1 items-center justify-center gap-0.5 rounded-md border border-white/15 text-xs font-medium text-white transition-colors hover:bg-white/10 disabled:pointer-events-none disabled:opacity-35"
+    >
+      {children}
+    </button>
   );
 }

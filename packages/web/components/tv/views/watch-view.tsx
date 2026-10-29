@@ -3345,16 +3345,14 @@ export function TvWatchView() {
                                 }}
                               />
                             ))}
-                            {subtitles.length > 0 ? (
-                              <div className="px-1 py-1">
-                                <SubtitleSyncControls
-                                  tv
-                                  enabled={subtitleSync.enabled}
-                                  offsetSeconds={subtitleSync.offsetSeconds}
-                                  onAdjust={subtitleSync.adjust}
-                                  onReset={subtitleSync.reset}
-                                />
-                              </div>
+                            {subtitleSync.enabled ? (
+                              <SubtitleSyncControls
+                                tv
+                                enabled
+                                offsetSeconds={subtitleSync.offsetSeconds}
+                                onAdjust={subtitleSync.adjust}
+                                onReset={subtitleSync.reset}
+                              />
                             ) : null}
                             <div className="my-1 border-t border-border" />
                             <TvFocusButton

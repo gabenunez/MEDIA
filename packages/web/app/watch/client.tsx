@@ -2112,15 +2112,13 @@ function WatchDesktopClient() {
                               )}
                             </div>
                           ))}
-                          {subtitles.length > 0 ? (
-                            <div className="py-1">
-                              <SubtitleSyncControls
-                                enabled={subtitleSync.enabled}
-                                offsetSeconds={subtitleSync.offsetSeconds}
-                                onAdjust={subtitleSync.adjust}
-                                onReset={subtitleSync.reset}
-                              />
-                            </div>
+                          {subtitleSync.enabled ? (
+                            <SubtitleSyncControls
+                              enabled
+                              offsetSeconds={subtitleSync.offsetSeconds}
+                              onAdjust={subtitleSync.adjust}
+                              onReset={subtitleSync.reset}
+                            />
                           ) : null}
                           <div className="watch-menu-divider" />
                           <button

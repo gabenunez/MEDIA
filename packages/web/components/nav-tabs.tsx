@@ -40,6 +40,7 @@ export function NavTab({
       title={label}
       onMouseEnter={() => prefetchCatalogHref(href)}
       onFocus={() => prefetchCatalogHref(href)}
+      onPointerDown={() => prefetchCatalogHref(href)}
       {...(tvItem
         ? {
             "data-tv-item": "" as const,
