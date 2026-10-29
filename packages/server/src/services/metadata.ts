@@ -97,6 +97,7 @@ interface TmdbSeasonDetails {
 
 export class MetadataService {
   private queue = new PQueue({ concurrency: 4, interval: 250, intervalCap: 4 });
+  private tvSeasonCache = new Map<string, Promise<TmdbSeasonDetails | null>>();
   private imageCacheDir: string;
 
   constructor(private configManager: ConfigManager) {
@@ -393,15 +394,33 @@ export class MetadataService {
   async getTvSeason(tmdbId: number, seasonNumber: number): Promise<TmdbSeasonDetails | null> {
     if (!this.apiKey || this.apiKey === "YOUR_KEY_HERE") return null;
 
-    return this.queue.add(async () => {
-      try {
-        return await this.fetchTmdb<TmdbSeasonDetails>(
-          `/tv/${tmdbId}/season/${seasonNumber}`,
-        );
-      } catch {
-        return null;
-      }
-    }) as Promise<TmdbSeasonDetails | null>;
+    const key = `${this.language}:${tmdbId}:${seasonNumber}`;
+    const cached = this.tvSeasonCache.get(key);
+    if (cached) return cached;
+
+    const pending = (
+      this.queue.add(async () => {
+        try {
+          return await this.fetchTmdb<TmdbSeasonDetails>(
+            `/tv/${tmdbId}/season/${seasonNumber}`,
+          );
+        } catch {
+          return null;
+        }
+      }) as Promise<TmdbSeasonDetails | null>
+    ).then(
+      (season) => {
+        if (!season) this.tvSeasonCache.delete(key);
+        return season;
+      },
+      (err: unknown) => {
+        this.tvSeasonCache.delete(key);
+        throw err;
+      },
+    );
+
+    this.tvSeasonCache.set(key, pending);
+    return pending;
   }
 
   async cacheImage(

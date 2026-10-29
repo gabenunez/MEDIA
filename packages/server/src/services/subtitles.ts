@@ -15,6 +15,22 @@ import {
 } from "../utils/ffmpeg.js";
 import { subtitleHasContent } from "../utils/subtitle-content.js";
 
+/** Avoid loading a multi-megabyte sidecar into memory for every episode at once. */
+const MAX_SUBTITLE_TEXT_BYTES = 8 * 1024 * 1024;
+
+function readSubtitleText(filePath: string): string | null {
+  try {
+    const size = fs.statSync(filePath).size;
+    if (size > MAX_SUBTITLE_TEXT_BYTES) {
+      console.warn(`Skipping oversized subtitle (${size} bytes): ${filePath}`);
+      return null;
+    }
+    return fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
 const LANGUAGE_MAP: Record<string, string> = {
   en: "English",
   eng: "English",
@@ -326,15 +342,12 @@ export class SubtitleService {
         entryBase.startsWith(`${base}_`)
       ) {
         const fullPath = path.join(dir, entry);
-        try {
-          const raw = fs.readFileSync(fullPath, "utf-8");
-          const content = entry.toLowerCase().endsWith(".srt")
-            ? this.convertSrtToVtt(raw)
-            : raw;
-          if (!subtitleHasContent(content)) continue;
-        } catch {
-          continue;
-        }
+        const raw = readSubtitleText(fullPath);
+        if (raw == null) continue;
+        const content = entry.toLowerCase().endsWith(".srt")
+          ? this.convertSrtToVtt(raw)
+          : raw;
+        if (!subtitleHasContent(content)) continue;
 
         await this.db.insert(subtitles).values({
           movieFileId: ids.movieFileId ?? null,
@@ -365,8 +378,8 @@ export class SubtitleService {
           await extractEmbeddedSubtitle(filePath, stream.index, cachePath);
         }
 
-        const content = fs.readFileSync(cachePath, "utf-8");
-        if (!subtitleHasContent(content)) {
+        const content = readSubtitleText(cachePath);
+        if (content == null || !subtitleHasContent(content)) {
           if (fs.existsSync(cachePath)) {
             try {
               fs.unlinkSync(cachePath);

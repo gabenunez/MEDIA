@@ -15,7 +15,9 @@ describe("scanner catalog revalidation", () => {
       scannerSrc.indexOf("findTvMediaItem"),
     );
     expect(movieFn).toContain("insert(movieFiles)");
-    expect(movieFn).toContain("revalidateMediaPage(mediaItemId)");
+    expect(movieFn).toContain("scheduleCatalogRevalidate(mediaItemId)");
+    expect(scannerSrc).toContain("revalidateMediaPage(id, { alsoHome: false })");
+    expect(scannerSrc).toContain("LIBRARY_INGEST_CONCURRENCY");
   });
 
   it("revalidates the catalog after a library scan finishes", () => {
