@@ -1,25 +1,45 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Download, Film, Heart, Home, Settings, Tv } from "lucide-react";
 import { MediaIcon } from "@/components/media-icon";
 import { mainNavGroupClassName, NavTab } from "@/components/nav-tabs";
 import { SearchPopover } from "@/components/search-popover";
 import { UpdateAvailableButton } from "@/components/update-available-button";
 import { isNavActive } from "@/lib/nav-utils";
+import { prefetchCatalogHref, prefetchTvRoute } from "@/lib/prefetch-artwork";
 import { routes } from "@/lib/routes";
 import { useMobileClient } from "@/lib/use-mobile-client";
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const isMobile = useMobileClient();
+  const homeActive = isNavActive(pathname, "/");
+
+  // Home JSON and artwork, warmed while the user is anywhere else — including
+  // watch, where this bar is hidden but still mounted.
+  useEffect(() => {
+    if (homeActive) return;
+    const run = () => prefetchTvRoute(router, routes.home());
+    const idle =
+      typeof window.requestIdleCallback === "function"
+        ? window.requestIdleCallback
+        : (cb: IdleRequestCallback) => window.setTimeout(() => cb({} as IdleDeadline), 1);
+    const cancel =
+      typeof window.cancelIdleCallback === "function"
+        ? window.cancelIdleCallback
+        : window.clearTimeout;
+    const handle = idle(run, { timeout: 1000 });
+    return () => cancel(handle as number);
+  }, [homeActive, router]);
 
   if (pathname.startsWith("/watch")) {
     return null;
   }
 
-  const homeActive = isNavActive(pathname, "/");
   const downloadsActive = isNavActive(pathname, "/downloads");
   const favoritesActive = isNavActive(pathname, "/favorites");
   const settingsActive = isNavActive(pathname, "/settings");
@@ -35,6 +55,8 @@ export function Navbar() {
         <Link
           href={routes.home()}
           aria-label="MEDIA! home"
+          onMouseEnter={() => prefetchCatalogHref(routes.home())}
+          onPointerDown={() => prefetchCatalogHref(routes.home())}
           className="group flex h-10 shrink-0 items-center justify-center rounded-lg outline-none ring-primary/40 focus-visible:ring-2"
         >
           <MediaIcon background={false} className="h-[2.75rem] w-auto" />

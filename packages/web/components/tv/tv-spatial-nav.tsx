@@ -11,6 +11,7 @@ import {
   collapseSubtitleTrackActions,
   tryMoveSubtitleTrackActions,
 } from "@/lib/tv-subtitle-track-row";
+import { tryAdjustSubtitleSync } from "@/lib/tv-subtitle-sync-nav";
 import {
   dispatchWatchRemoteKey,
   getWatchPlayerFocusedItem,
@@ -634,6 +635,16 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
       e.preventDefault();
       e.stopPropagation();
       if (inWatchMenu) e.stopImmediatePropagation();
+
+      // Timing stays focused: Left shows cues earlier, Right shows them later.
+      if (
+        (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+        tryAdjustSubtitleSync(active, e.key === "ArrowLeft" ? "left" : "right", {
+          repeat: e.repeat,
+        })
+      ) {
+        return;
+      }
 
       const now = performance.now();
       const horizontalScrollRow =

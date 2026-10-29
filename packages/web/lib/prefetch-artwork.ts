@@ -89,14 +89,43 @@ export function prefetchPosterNavigation(item: PosterLike): void {
   );
 }
 
+function warmHomeArtwork(data: {
+  recentlyAdded: PosterLike[];
+  favorites: PosterLike[];
+  continueWatching: Array<{ mediaId: number; posterPath?: string | null }>;
+}): void {
+  if (!isTvClient()) {
+    const featured = data.recentlyAdded[0];
+    preloadImageUrl(
+      api.imageUrl(featured?.backdropPath ?? featured?.posterPath),
+      1920,
+      80,
+    );
+  }
+  preloadPosterList(data.recentlyAdded, 8);
+  preloadPosterList(data.favorites, 6);
+  preloadPosterList(
+    data.continueWatching.map((item) => ({
+      id: item.mediaId,
+      posterPath: item.posterPath,
+      backdropPath: item.posterPath,
+    })),
+    6,
+  );
+}
+
 /** Warm the JSON a catalog route paints, so the click is not the first fetch. */
 export function prefetchCatalogHref(href: string | undefined): void {
   if (!href) return;
   const path = href.split("?")[0] ?? href;
   try {
     let pending: Promise<unknown> | undefined;
-    if (path === "/" || path === "") pending = api.getHome();
-    else if (path.startsWith("/recent")) pending = api.getRecentlyAdded(1);
+    if (path === "/" || path === "") {
+      pending = api.getHome().then((data) => {
+        warmHomeArtwork(data);
+        return data;
+      });
+    } else if (path.startsWith("/recent")) pending = api.getRecentlyAdded(1);
     else if (path.startsWith("/continue")) pending = api.getContinueWatching(1);
     else if (path.startsWith("/favorites")) {
       const type = path.includes("/movie/")

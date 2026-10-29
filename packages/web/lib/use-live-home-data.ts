@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { seedApiCache } from "@/lib/api-cache";
+import { peekApiCache, seedApiCache } from "@/lib/api-cache";
 import { useScanStatus } from "@/components/scan-status-provider";
 import {
   homeRefreshOptions,
@@ -15,11 +15,16 @@ import type { HomeData } from "@/lib/server-api";
 
 const HOME_CLIENT_TTL_MS = 30_000;
 
+/** First paint uses the client cache so returning home does not flash skeletons. */
+export function initialHomeData(seed: HomeData | null): HomeData | null {
+  return seed ?? peekApiCache<HomeData>("home", { allowStale: true }) ?? null;
+}
+
 export function useLiveHomeData(initialData: HomeData | null) {
   const router = useRouter();
   const { status, activeScan, isScanning } = useScanStatus();
-  const [data, setData] = useState<HomeData | null>(initialData);
-  const [loaded, setLoaded] = useState(Boolean(initialData));
+  const [data, setData] = useState<HomeData | null>(() => initialHomeData(initialData));
+  const [loaded, setLoaded] = useState(() => initialHomeData(initialData) != null);
   const wasScanningRef = useRef(false);
   const countsKeyRef = useRef("");
 
