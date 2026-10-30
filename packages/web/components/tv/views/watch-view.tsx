@@ -67,7 +67,7 @@ import {
   WATCH_CONTROLS_IDLE_MS,
 } from "@/lib/watch-helpers";
 import { persistPlaybackQuality } from "@/lib/quality-selection-storage";
-import { is4KSource, isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
+import { isHlsVideoCopySupported, needsHdrToneMap } from "@media-app/shared";
 import { SubtitleSearchDialog } from "@/components/subtitle-search-dialog";
 import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
@@ -268,7 +268,6 @@ export function TvWatchView() {
   const seekToAbsoluteRef = useRef<
     (seconds: number, options?: { revealControls?: boolean }) => void
   >(() => {});
-  const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const usingHlsRef = useRef(false);
   const wasUsingHlsRef = useRef(false);
   const lastStableAbsoluteSecondsRef = useRef(0);
@@ -341,7 +340,6 @@ export function TvWatchView() {
   const [streamGeneration, setStreamGeneration] = useState(0);
   const [forceRemux, setForceRemux] = useState(false);
   const nativeRemuxFallbackRef = useRef(false);
-  const nativeTranscodeFallbackRef = useRef(false);
   const nativeLowFpsEscalatedRef = useRef(false);
   const fpsQualityLockedRef = useRef(false);
   const playbackFpsStateRef = useRef({ samples: [] as Array<{ atMs: number; positionSeconds: number }> });
@@ -667,7 +665,6 @@ export function TvWatchView() {
     );
     captureStreamRestartPosition();
     nativeRemuxFallbackRef.current = false;
-    nativeTranscodeFallbackRef.current = true;
     qualityHandoffRef.current = playbackHasBegunRef.current;
     qualityHandoffInFlightRef.current = qualityHandoffRef.current;
     setForceRemux(false);
@@ -700,20 +697,6 @@ export function TvWatchView() {
     ) {
       nativeRemuxFallbackRef.current = true;
       setForceRemux(true);
-      requestStreamRestartAt(restartAt);
-      return;
-    }
-    if (
-      nativeRemuxFallbackRef.current &&
-      usingHlsRef.current &&
-      !nativeTranscodeFallbackRef.current &&
-      info &&
-      is4KSource(info.height, info.width) &&
-      info.availableQualities.includes("1080p")
-    ) {
-      nativeTranscodeFallbackRef.current = true;
-      setForceRemux(false);
-      setQuality("1080p");
       requestStreamRestartAt(restartAt);
       return;
     }
@@ -945,7 +928,6 @@ export function TvWatchView() {
         });
       }
       nativeRemuxFallbackRef.current = false;
-      nativeTranscodeFallbackRef.current = false;
       nativeLowFpsEscalatedRef.current = true;
       fpsQualityLockedRef.current = true;
       playbackFpsStateRef.current = { samples: [] };
@@ -961,21 +943,6 @@ export function TvWatchView() {
     },
     [closeMenus, fileId, revealControls, type, usesNativePlayer, currentTime, requestStreamRestartAt],
   );
-
-  const tryFallbackQuality = useCallback(() => {
-    const next = resolveFallbackQuality(
-      quality,
-      availableQualities,
-      playbackStreamRef.current?.hlsQuality,
-      sourceHeight,
-      sourceWidth,
-    );
-    if (!next || next === quality) return false;
-    changeQuality(next);
-    return true;
-  }, [quality, availableQualities, changeQuality, sourceHeight, sourceWidth]);
-
-  tryFallbackQualityRef.current = tryFallbackQuality;
 
   const syncNativeSubtitles = useCallback(
     (options?: { restartOnFailure?: boolean }) => {
@@ -1388,7 +1355,6 @@ export function TvWatchView() {
     nativeBufferedEndRef.current = 0;
     setForceRemux(false);
     nativeRemuxFallbackRef.current = false;
-    nativeTranscodeFallbackRef.current = false;
     nativeLowFpsEscalatedRef.current = false;
     fpsQualityLockedRef.current = false;
     playbackFpsStateRef.current = { samples: [] };
@@ -1440,21 +1406,6 @@ export function TvWatchView() {
     if (usesNativePlayer) {
       raiseNativeWebOverlay();
     }
-    return () => {
-      if (
-        !fileId ||
-        Number.isNaN(fileId) ||
-        fpsQualityLockedRef.current ||
-        !playbackHasBegunRef.current
-      ) {
-        return;
-      }
-      persistPlaybackQuality(qualityRef.current, {
-        itemType: type === "movie" ? "movie" : "episode",
-        itemId: fileId,
-      });
-      fpsQualityLockedRef.current = true;
-    };
   }, [fileId, type, usesNativePlayer, clearHideControlsTimer]);
 
   useEffect(() => {
@@ -1744,7 +1695,6 @@ export function TvWatchView() {
       qualityHandoffInFlightRef.current = false;
       setOptimisticAbsoluteSeconds(null);
       setBuffering(false);
-      if (tryFallbackQualityRef.current()) return;
       setError("Playback failed. Try a lower quality from the settings menu.");
     };
 
@@ -3073,15 +3023,23 @@ export function TvWatchView() {
           >
             <div className="max-w-lg text-center">
               <p className="mb-6 text-lg text-red-400">{error}</p>
-              {transcodingEnabled &&
-                resolveFallbackQuality(
-                  quality,
-                  availableQualities,
-                  playbackStream.hlsQuality,
-                  sourceHeight,
-                  sourceWidth,
-                ) && (
-                  <div className="flex flex-wrap items-center justify-center gap-3">
+              <div data-tv-row="" className="flex flex-wrap items-center justify-center gap-3">
+                {quality !== "original" && (
+                  <TvFocusButton
+                    onClick={() => changeQuality("original")}
+                    className="rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground"
+                  >
+                    Try Original
+                  </TvFocusButton>
+                )}
+                {transcodingEnabled &&
+                  resolveFallbackQuality(
+                    quality,
+                    availableQualities,
+                    playbackStream.hlsQuality,
+                    sourceHeight,
+                    sourceWidth,
+                  ) && (
                     <TvFocusButton
                       onClick={() => {
                         const next = resolveFallbackQuality(
@@ -3108,8 +3066,8 @@ export function TvWatchView() {
                         sourceWidth,
                       )}
                     </TvFocusButton>
-                  </div>
-                )}
+                  )}
+              </div>
             </div>
           </div>
         )}

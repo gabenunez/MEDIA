@@ -14,10 +14,7 @@ import {
   resolveOriginalPlaybackMode,
 } from "@media-app/shared";
 import { resolveFirstPlayFpsQuality } from "@/lib/playback-fps";
-import {
-  readStoredItemPlaybackQuality,
-  readStoredPlaybackQuality,
-} from "@/lib/quality-selection-storage";
+import { readStoredItemPlaybackQuality } from "@/lib/quality-selection-storage";
 
 export const PROGRESS_SAVE_MS = 10_000;
 
@@ -586,7 +583,7 @@ export function resolveInitialStreamQuality(
   return { quality: candidate, error: null, fpsAutoApplied };
 }
 
-/** Load stored quality for this title, or apply first-play FPS auto once. */
+/** This file's saved quality, or original. Another file's choice is not reused. */
 export function resolveWatchSessionQuality(
   streamInfo: StreamInfo,
   item: { itemType: string; itemId: number },
@@ -599,7 +596,7 @@ export function resolveWatchSessionQuality(
   const itemQuality = readStoredItemPlaybackQuality(item.itemType, item.itemId);
   const alreadyLocked = itemQuality != null;
   const initial = resolveInitialStreamQuality(streamInfo, {
-    preferredQuality: itemQuality ?? readStoredPlaybackQuality(),
+    preferredQuality: itemQuality,
     allowFpsQualityAuto: !alreadyLocked,
     nativeTv: options?.nativeTv,
   });

@@ -159,7 +159,6 @@ function WatchDesktopClient() {
   );
   const playbackCompletedRef = useRef(false);
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
-  const tryFallbackQualityRef = useRef<() => boolean>(() => false);
   const playbackStreamRef = useRef<ReturnType<typeof resolvePlaybackStream> | null>(null);
   const playbackFatalHandledRef = useRef(-1);
   const spuriousRecoveryStateRef = useRef<SpuriousRecoveryState>({
@@ -619,21 +618,6 @@ function WatchDesktopClient() {
   }, [requestStreamRestartAt, showFpsQualityNotice]);
   escalateToEqualResolutionTranscodeRef.current = escalateToEqualResolutionTranscode;
 
-  const tryFallbackQuality = useCallback(() => {
-    const next = resolveFallbackQuality(
-      quality,
-      availableQualities,
-      playbackStreamRef.current?.hlsQuality,
-      sourceHeight,
-      sourceWidth,
-    );
-    if (!next || next === quality) return false;
-    changeQuality(next);
-    return true;
-  }, [quality, availableQualities, changeQuality, sourceHeight, sourceWidth]);
-
-  tryFallbackQualityRef.current = tryFallbackQuality;
-
   useEffect(() => {
     setStreamGeneration(0);
     pendingStreamStartRef.current = null;
@@ -654,21 +638,6 @@ function WatchDesktopClient() {
       clearTimeout(fpsQualityNoticeTimerRef.current);
       fpsQualityNoticeTimerRef.current = null;
     }
-    return () => {
-      if (
-        !fileId ||
-        Number.isNaN(fileId) ||
-        fpsQualityLockedRef.current ||
-        !playbackHasBegunRef.current
-      ) {
-        return;
-      }
-      persistPlaybackQuality(qualityRef.current, {
-        itemType: type === "movie" ? "movie" : "episode",
-        itemId: fileId,
-      });
-      fpsQualityLockedRef.current = true;
-    };
   }, [fileId, type]);
 
   useEffect(() => {
@@ -912,7 +881,6 @@ function WatchDesktopClient() {
       qualityHandoffInFlightRef.current = false;
       setOptimisticAbsoluteSeconds(null);
       setBuffering(false);
-      if (tryFallbackQualityRef.current()) return;
       setError("Playback failed. Try a lower quality or Original.");
     };
 
@@ -1727,9 +1695,45 @@ function WatchDesktopClient() {
 
       {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80">
-          <div className="text-center">
-            <p className="mb-4 text-red-400">{error}</p>
-            <Button onClick={() => changeQuality("original")}>Try Original</Button>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <p className="mb-1 text-red-400">{error}</p>
+            {quality !== "original" && (
+              <Button onClick={() => changeQuality("original")}>Try Original</Button>
+            )}
+            {transcodingEnabled &&
+              resolveFallbackQuality(
+                quality,
+                availableQualities,
+                playbackStream.hlsQuality,
+                sourceHeight,
+                sourceWidth,
+              ) && (
+                <Button
+                  onClick={() => {
+                    const next = resolveFallbackQuality(
+                      quality,
+                      availableQualities,
+                      playbackStream.hlsQuality,
+                      sourceHeight,
+                      sourceWidth,
+                    );
+                    if (next) changeQuality(next);
+                  }}
+                >
+                  Try{" "}
+                  {qualityLabel(
+                    resolveFallbackQuality(
+                      quality,
+                      availableQualities,
+                      playbackStream.hlsQuality,
+                      sourceHeight,
+                      sourceWidth,
+                    )!,
+                    sourceHeight,
+                    sourceWidth,
+                  )}
+                </Button>
+              )}
           </div>
         </div>
       )}
