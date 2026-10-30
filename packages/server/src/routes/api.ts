@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import { eq, like, or, desc, sql, and, ne } from "drizzle-orm";
+import { eq, like, desc, sql, and, ne, notInArray } from "drizzle-orm";
 import type { AppConfig } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import type { ScannerService } from "../services/scanner.js";
@@ -190,8 +190,10 @@ export async function apiRoutes(
   });
 
   app.get("/api/libraries", async () => {
-    const allLibraries = await db.query.libraries.findMany();
-    const counts = await getLibraryItemCounts(db);
+    const [allLibraries, counts] = await Promise.all([
+      db.query.libraries.findMany(),
+      getLibraryItemCounts(db),
+    ]);
     return allLibraries.map((lib) => ({
       ...lib,
       itemCount: counts.get(lib.id) ?? 0,
@@ -206,17 +208,19 @@ export async function apiRoutes(
       const { page, limit } = parsePagination(request.query);
       const offset = (page - 1) * limit;
 
-      const items = await db.query.mediaItems.findMany({
-        where: eq(mediaItems.libraryId, libraryId),
-        orderBy: [desc(mediaItems.updatedAt)],
-        limit,
-        offset,
-      });
-
-      const total = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(mediaItems)
-        .where(eq(mediaItems.libraryId, libraryId));
+      const libraryFilter = eq(mediaItems.libraryId, libraryId);
+      const [items, total] = await Promise.all([
+        db.query.mediaItems.findMany({
+          where: libraryFilter,
+          orderBy: [desc(mediaItems.updatedAt)],
+          limit,
+          offset,
+        }),
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(mediaItems)
+          .where(eq(mediaItems.libraryId, libraryId)),
+      ]);
 
       return {
         items,
@@ -296,24 +300,29 @@ export async function apiRoutes(
       void themes.syncForMediaItem(item);
     }
     const hasThemeMusic = Boolean(themePath && fs.existsSync(themePath));
-    const favorite = await isFavorite(db, id);
+    const favoritePromise = isFavorite(db, id);
 
     if (item.type === "movie") {
       const files = await db.query.movieFiles.findMany({
         where: eq(movieFiles.mediaItemId, id),
       });
-      const subs = files.length
-        ? await db.query.subtitles.findMany({
-            where: eq(subtitles.movieFileId, files[0].id),
-          })
-        : [];
-
-      const progress = await db.query.watchProgress.findFirst({
-        where: and(
-          eq(watchProgress.itemType, "movie"),
-          eq(watchProgress.itemId, files[0]?.id ?? 0),
-        ),
-      });
+      const fileId = files[0]?.id;
+      const [subs, progress, favorite] = await Promise.all([
+        fileId
+          ? db.query.subtitles.findMany({
+              where: eq(subtitles.movieFileId, fileId),
+            })
+          : Promise.resolve([]),
+        fileId
+          ? db.query.watchProgress.findFirst({
+              where: and(
+                eq(watchProgress.itemType, "movie"),
+                eq(watchProgress.itemId, fileId),
+              ),
+            })
+          : Promise.resolve(undefined),
+        favoritePromise,
+      ]);
 
       return {
         ...item,
@@ -325,7 +334,10 @@ export async function apiRoutes(
       };
     }
 
-    const seasonsWithEpisodes = await loadTvSeasonsWithEpisodes(db, id);
+    const [seasonsWithEpisodes, favorite] = await Promise.all([
+      loadTvSeasonsWithEpisodes(db, id),
+      favoritePromise,
+    ]);
 
     return { ...item, seasons: seasonsWithEpisodes, isFavorite: favorite, hasThemeMusic };
   });
@@ -341,6 +353,17 @@ export async function apiRoutes(
     }
 
     const candidates = await db.query.mediaItems.findMany({
+      columns: {
+        id: true,
+        libraryId: true,
+        title: true,
+        year: true,
+        posterPath: true,
+        backdropPath: true,
+        type: true,
+        genres: true,
+        rating: true,
+      },
       where: and(
         eq(mediaItems.libraryId, item.libraryId),
         eq(mediaItems.type, item.type),
@@ -369,15 +392,22 @@ export async function apiRoutes(
     const q = request.query.q?.trim();
     if (!q) return { results: [] };
 
-    const results = await db.query.mediaItems.findMany({
-      where: or(
-        like(mediaItems.title, `%${q}%`),
-        like(mediaItems.overview, `%${q}%`),
-      ),
+    const pattern = `%${q}%`;
+    const titleResults = await db.query.mediaItems.findMany({
+      where: like(mediaItems.title, pattern),
       limit: 24,
     });
+    if (titleResults.length >= 24) return { results: titleResults };
 
-    return { results };
+    const titleIds = titleResults.map((item) => item.id);
+    const overviewResults = await db.query.mediaItems.findMany({
+      where: titleIds.length
+        ? and(like(mediaItems.overview, pattern), notInArray(mediaItems.id, titleIds))
+        : like(mediaItems.overview, pattern),
+      limit: 24 - titleResults.length,
+    });
+
+    return { results: [...titleResults, ...overviewResults] };
   });
 
   app.get<{ Querystring: { page?: string; limit?: string } }>(
@@ -404,8 +434,8 @@ export async function apiRoutes(
       decks,
       favoritesList,
     ] = await Promise.all([
-      listContinueWatching(db, { page: 1, limit: 12 }),
-      listRecentlyAdded(db, { page: 1, limit: 12 }),
+      listContinueWatching(db, { page: 1, limit: 12, exactTotal: false }),
+      listRecentlyAdded(db, { page: 1, limit: 12, includeTotal: false }),
       listLibrariesWithCounts(db),
       listDecksWithCounts(db),
       listRecentFavorites(db, 12),

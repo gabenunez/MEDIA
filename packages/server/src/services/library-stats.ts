@@ -17,8 +17,10 @@ export async function getLibraryItemCounts(
 }
 
 export async function listLibrariesWithCounts(db: DatabaseInstance) {
-  const librariesList = await db.query.libraries.findMany();
-  const counts = await getLibraryItemCounts(db);
+  const [librariesList, counts] = await Promise.all([
+    db.query.libraries.findMany(),
+    getLibraryItemCounts(db),
+  ]);
 
   return librariesList.map((lib) => ({
     id: lib.id,

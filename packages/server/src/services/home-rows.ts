@@ -1,5 +1,5 @@
 import { isWatchCompleted } from "@media-app/shared";
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { DatabaseInstance } from "../db/index.js";
 import {
   mediaItems,
@@ -8,6 +8,11 @@ import {
   tvSeasons,
   watchProgress,
 } from "../db/schema.js";
+
+/** Stay under SQLite's bound-variable cap when a library has a long watch history. */
+const ID_CHUNK = 400;
+/** Recent progress rows read at a time when the caller only needs one page. */
+const PROGRESS_BATCH = 48;
 
 export interface ContinueWatchingEntry {
   id: number;
@@ -22,57 +27,65 @@ export interface ContinueWatchingEntry {
   percent: number;
 }
 
-async function findNextEpisodeInDb(
-  db: DatabaseInstance,
-  episodeId: number,
-): Promise<{
+async function findByIds<T>(
+  ids: number[],
+  load: (chunk: number[]) => Promise<T[]>,
+): Promise<T[]> {
+  if (!ids.length) return [];
+  const rows: T[] = [];
+  for (let index = 0; index < ids.length; index += ID_CHUNK) {
+    rows.push(...(await load(ids.slice(index, index + ID_CHUNK))));
+  }
+  return rows;
+}
+
+type OrderedEpisode = {
   episode: typeof tvEpisodes.$inferSelect;
   season: typeof tvSeasons.$inferSelect;
-  media: typeof mediaItems.$inferSelect;
-} | null> {
-  const episode = await db.query.tvEpisodes.findFirst({
-    where: eq(tvEpisodes.id, episodeId),
-  });
-  if (!episode) return null;
+};
 
-  const season = await db.query.tvSeasons.findFirst({
-    where: eq(tvSeasons.id, episode.seasonId),
-  });
-  if (!season) return null;
+/** One series load per show, shared across every finished episode in this request. */
+class SeriesEpisodeIndex {
+  private readonly pending = new Map<number, Promise<OrderedEpisode[]>>();
 
-  const media = await db.query.mediaItems.findFirst({
-    where: eq(mediaItems.id, season.mediaItemId),
-  });
-  if (!media) return null;
+  constructor(private readonly db: DatabaseInstance) {}
 
-  const nextInSeason = await db.query.tvEpisodes.findMany({
-    where: and(eq(tvEpisodes.seasonId, season.id), gt(tvEpisodes.episodeNumber, episode.episodeNumber)),
-    orderBy: [asc(tvEpisodes.episodeNumber)],
-    limit: 1,
-  });
-  if (nextInSeason[0]) {
-    return { episode: nextInSeason[0], season, media };
+  episodes(mediaId: number): Promise<OrderedEpisode[]> {
+    let load = this.pending.get(mediaId);
+    if (!load) {
+      load = this.load(mediaId);
+      this.pending.set(mediaId, load);
+    }
+    return load;
   }
 
-  const nextSeasons = await db.query.tvSeasons.findMany({
-    where: and(
-      eq(tvSeasons.mediaItemId, season.mediaItemId),
-      gt(tvSeasons.seasonNumber, season.seasonNumber),
-    ),
-    orderBy: [asc(tvSeasons.seasonNumber)],
-    limit: 1,
-  });
-  const nextSeason = nextSeasons[0];
-  if (!nextSeason) return null;
+  private async load(mediaId: number): Promise<OrderedEpisode[]> {
+    const seasons = await this.db.query.tvSeasons.findMany({
+      where: eq(tvSeasons.mediaItemId, mediaId),
+    });
+    if (!seasons.length) return [];
 
-  const firstInNextSeason = await db.query.tvEpisodes.findMany({
-    where: eq(tvEpisodes.seasonId, nextSeason.id),
-    orderBy: [asc(tvEpisodes.episodeNumber)],
-    limit: 1,
-  });
-  if (!firstInNextSeason[0]) return null;
+    const seasonById = new Map(seasons.map((season) => [season.id, season]));
+    const episodes = await findByIds(
+      seasons.map((season) => season.id),
+      (chunk) =>
+        this.db.query.tvEpisodes.findMany({
+          where: inArray(tvEpisodes.seasonId, chunk),
+        }),
+    );
 
-  return { episode: firstInNextSeason[0], season: nextSeason, media };
+    return episodes
+      .flatMap((episode) => {
+        const season = seasonById.get(episode.seasonId);
+        return season ? [{ episode, season }] : [];
+      })
+      .sort(
+        (left, right) =>
+          left.season.seasonNumber - right.season.seasonNumber ||
+          left.episode.episodeNumber - right.episode.episodeNumber ||
+          left.episode.id - right.episode.id,
+      );
+  }
 }
 
 function buildEpisodeContinueEntry(
@@ -100,56 +113,53 @@ function buildEpisodeContinueEntry(
 async function resolveEpisodeContinueWatchingEntry(
   db: DatabaseInstance,
   progress: typeof watchProgress.$inferSelect,
+  episode: typeof tvEpisodes.$inferSelect,
+  season: typeof tvSeasons.$inferSelect,
+  media: typeof mediaItems.$inferSelect,
+  series: SeriesEpisodeIndex,
 ): Promise<ContinueWatchingEntry | null> {
-  let episodeId = progress.itemId;
+  if (media.watchedAt) return null;
 
-  while (true) {
-    const episode = await db.query.tvEpisodes.findFirst({
-      where: eq(tvEpisodes.id, episodeId),
-    });
-    if (!episode) return null;
+  const ordered = await series.episodes(media.id);
+  const start = ordered.findIndex((row) => row.episode.id === episode.id);
+  const rows = start >= 0 ? ordered.slice(start) : [{ episode, season }];
 
-    const season = await db.query.tvSeasons.findFirst({
-      where: eq(tvSeasons.id, episode.seasonId),
-    });
-    if (!season) return null;
+  const progressRows = await findByIds(
+    rows.map((row) => row.episode.id),
+    (chunk) =>
+      db.query.watchProgress.findMany({
+        where: and(
+          eq(watchProgress.itemType, "episode"),
+          inArray(watchProgress.itemId, chunk),
+        ),
+      }),
+  );
+  const progressByEpisodeId = new Map(
+    progressRows.map((row) => [row.itemId, row]),
+  );
+  progressByEpisodeId.set(progress.itemId, progress);
 
-    const media = await db.query.mediaItems.findFirst({
-      where: eq(mediaItems.id, season.mediaItemId),
-    });
-    if (!media) return null;
-    if (media.watchedAt) return null;
-
-    const episodeProgress =
-      episodeId === progress.itemId
-        ? progress
-        : await db.query.watchProgress.findFirst({
-            where: and(
-              eq(watchProgress.itemType, "episode"),
-              eq(watchProgress.itemId, episodeId),
-            ),
-          });
-
+  for (const row of rows) {
+    const episodeProgress = progressByEpisodeId.get(row.episode.id);
     const durationMs =
-      episodeProgress?.durationMs ?? episode.durationMs ?? progress.durationMs ?? 1;
+      episodeProgress?.durationMs ??
+      row.episode.durationMs ??
+      progress.durationMs ??
+      1;
     const positionMs = episodeProgress?.positionMs ?? 0;
-
-    if (isWatchCompleted(positionMs, durationMs)) {
-      const next = await findNextEpisodeInDb(db, episodeId);
-      if (!next) return null;
-      episodeId = next.episode.id;
-      continue;
-    }
+    if (isWatchCompleted(positionMs, durationMs)) continue;
 
     return buildEpisodeContinueEntry(
       progress.id,
-      episode,
-      season,
+      row.episode,
+      row.season,
       media,
       positionMs,
       durationMs,
     );
   }
+
+  return null;
 }
 
 type ContinueLookups = {
@@ -175,27 +185,27 @@ async function loadContinueLookups(
   ];
 
   const [files, episodes] = await Promise.all([
-    movieIds.length
-      ? db.query.movieFiles.findMany({ where: inArray(movieFiles.id, movieIds) })
-      : Promise.resolve([]),
-    episodeIds.length
-      ? db.query.tvEpisodes.findMany({ where: inArray(tvEpisodes.id, episodeIds) })
-      : Promise.resolve([]),
+    findByIds(movieIds, (chunk) =>
+      db.query.movieFiles.findMany({ where: inArray(movieFiles.id, chunk) }),
+    ),
+    findByIds(episodeIds, (chunk) =>
+      db.query.tvEpisodes.findMany({ where: inArray(tvEpisodes.id, chunk) }),
+    ),
   ]);
 
   const seasonIds = [...new Set(episodes.map((episode) => episode.seasonId))];
-  const seasons = seasonIds.length
-    ? await db.query.tvSeasons.findMany({ where: inArray(tvSeasons.id, seasonIds) })
-    : [];
+  const seasons = await findByIds(seasonIds, (chunk) =>
+    db.query.tvSeasons.findMany({ where: inArray(tvSeasons.id, chunk) }),
+  );
   const mediaIds = [
     ...new Set([
       ...files.map((file) => file.mediaItemId),
       ...seasons.map((season) => season.mediaItemId),
     ]),
   ];
-  const mediaRows = mediaIds.length
-    ? await db.query.mediaItems.findMany({ where: inArray(mediaItems.id, mediaIds) })
-    : [];
+  const mediaRows = await findByIds(mediaIds, (chunk) =>
+    db.query.mediaItems.findMany({ where: inArray(mediaItems.id, chunk) }),
+  );
 
   return {
     files: new Map(files.map((file) => [file.id, file])),
@@ -234,6 +244,7 @@ async function resolveFromLookups(
   db: DatabaseInstance,
   progress: typeof watchProgress.$inferSelect,
   lookups: ContinueLookups,
+  series: SeriesEpisodeIndex,
 ): Promise<ContinueWatchingEntry | null> {
   if (progress.itemType === "movie") {
     return resolveMovieFromLookup(progress, lookups);
@@ -242,14 +253,18 @@ async function resolveFromLookups(
   const episode = lookups.episodes.get(progress.itemId);
   const season = episode ? lookups.seasons.get(episode.seasonId) : undefined;
   const media = season ? lookups.media.get(season.mediaItemId) : undefined;
-  if (!episode || !season || !media) {
-    return resolveEpisodeContinueWatchingEntry(db, progress);
-  }
-  if (media.watchedAt) return null;
+  if (!episode || !season || !media || media.watchedAt) return null;
 
   const durationMs = progress.durationMs ?? episode.durationMs ?? 1;
   if (isWatchCompleted(progress.positionMs, durationMs)) {
-    return resolveEpisodeContinueWatchingEntry(db, progress);
+    return resolveEpisodeContinueWatchingEntry(
+      db,
+      progress,
+      episode,
+      season,
+      media,
+      series,
+    );
   }
 
   return buildEpisodeContinueEntry(
@@ -264,7 +279,7 @@ async function resolveFromLookups(
 
 export async function listContinueWatching(
   db: DatabaseInstance,
-  options: { page?: number; limit?: number } = {},
+  options: { page?: number; limit?: number; exactTotal?: boolean } = {},
 ): Promise<{
   items: ContinueWatchingEntry[];
   page: number;
@@ -275,43 +290,63 @@ export async function listContinueWatching(
   const page = Math.max(1, options.page ?? 1);
   const limit = Math.min(100, Math.max(1, options.limit ?? 48));
   const offset = (page - 1) * limit;
+  const exactTotal = options.exactTotal !== false;
+  const needed = exactTotal ? Number.POSITIVE_INFINITY : offset + limit;
+  const series = new SeriesEpisodeIndex(db);
+  const seenTvMediaIds = new Set<number>();
+  const seenProgressIds = new Set<number>();
+  const orphanIds: number[] = [];
+  const items: ContinueWatchingEntry[] = [];
 
-  const allProgress = await db.query.watchProgress.findMany({
-    orderBy: [desc(watchProgress.updatedAt)],
-  });
-  const lookups = await loadContinueLookups(db, allProgress);
+  let progressOffset = 0;
+  while (items.length < needed) {
+    const batch = await db.query.watchProgress.findMany({
+      orderBy: [desc(watchProgress.updatedAt), desc(watchProgress.id)],
+      ...(exactTotal
+        ? {}
+        : { limit: PROGRESS_BATCH, offset: progressOffset }),
+    });
+    const fresh = batch.filter((entry) => {
+      if (seenProgressIds.has(entry.id)) return false;
+      seenProgressIds.add(entry.id);
+      return true;
+    });
+    if (!fresh.length) break;
 
-  const orphanIds = allProgress
-    .filter((entry) =>
-      entry.itemType === "movie"
-        ? !lookups.files.has(entry.itemId)
-        : !lookups.episodes.has(entry.itemId),
-    )
-    .map((entry) => entry.id);
+    const lookups = await loadContinueLookups(db, fresh);
+    const active: Array<typeof watchProgress.$inferSelect> = [];
+    for (const entry of fresh) {
+      const missing =
+        entry.itemType === "movie"
+          ? !lookups.files.has(entry.itemId)
+          : !lookups.episodes.has(entry.itemId);
+      if (missing) orphanIds.push(entry.id);
+      else active.push(entry);
+    }
+
+    for (const entry of active) {
+      const resolved = await resolveFromLookups(db, entry, lookups, series);
+      if (!resolved) continue;
+      if (resolved.itemType !== "movie") {
+        if (seenTvMediaIds.has(resolved.mediaId)) continue;
+        seenTvMediaIds.add(resolved.mediaId);
+      }
+      items.push(resolved);
+      if (items.length >= needed) break;
+    }
+
+    if (exactTotal || batch.length < PROGRESS_BATCH) break;
+    progressOffset += PROGRESS_BATCH;
+  }
+
   if (orphanIds.length > 0) {
     await db.delete(watchProgress).where(inArray(watchProgress.id, orphanIds));
   }
 
-  const activeProgress = allProgress.filter((entry) => !orphanIds.includes(entry.id));
-
-  const items = (
-    await Promise.all(
-      activeProgress.map((entry) => resolveFromLookups(db, entry, lookups)),
-    )
-  ).filter((item): item is ContinueWatchingEntry => item != null);
-
-  const seenTvMediaIds = new Set<number>();
-  const dedupedItems = items.filter((item) => {
-    if (item.itemType === "movie") return true;
-    if (seenTvMediaIds.has(item.mediaId)) return false;
-    seenTvMediaIds.add(item.mediaId);
-    return true;
-  });
-
-  const total = dedupedItems.length;
+  const total = items.length;
 
   return {
-    items: dedupedItems.slice(offset, offset + limit),
+    items: items.slice(offset, offset + limit),
     page,
     limit,
     total,
@@ -321,7 +356,7 @@ export async function listContinueWatching(
 
 export async function listRecentlyAdded(
   db: DatabaseInstance,
-  options: { page?: number; limit?: number } = {},
+  options: { page?: number; limit?: number; includeTotal?: boolean } = {},
 ): Promise<{
   items: Array<typeof mediaItems.$inferSelect>;
   page: number;
@@ -333,15 +368,27 @@ export async function listRecentlyAdded(
   const limit = Math.min(100, Math.max(1, options.limit ?? 48));
   const offset = (page - 1) * limit;
 
-  const items = await db.query.mediaItems.findMany({
+  const itemsQuery = db.query.mediaItems.findMany({
     orderBy: [desc(mediaItems.createdAt)],
     limit,
     offset,
   });
 
-  const totalResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(mediaItems);
+  if (options.includeTotal === false) {
+    const items = await itemsQuery;
+    return {
+      items,
+      page,
+      limit,
+      total: items.length,
+      totalPages: 1,
+    };
+  }
+
+  const [items, totalResult] = await Promise.all([
+    itemsQuery,
+    db.select({ count: sql<number>`count(*)` }).from(mediaItems),
+  ]);
   const total = totalResult[0]?.count ?? 0;
 
   return {

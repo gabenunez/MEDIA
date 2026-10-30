@@ -1,5 +1,5 @@
 import path from "node:path";
-import { eq, or, desc, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, or, desc, sql, type SQL } from "drizzle-orm";
 import type { DatabaseInstance } from "../db/index.js";
 import {
   libraryDecks,
@@ -102,12 +102,56 @@ export async function getDeckMediaItemIds(
   return [...ids];
 }
 
+function pathPrefixSql(columnName: string, prefixes: string[]): SQL | null {
+  const column = sql.raw(columnName);
+  const conditions = prefixes.flatMap((prefix) => {
+    const normalized = path.resolve(prefix);
+    return [
+      sql`${column} = ${normalized}`,
+      sql`${column} LIKE ${normalized + path.sep + "%"}`,
+    ];
+  });
+  if (!conditions.length) return null;
+  return sql.join(conditions, sql` OR `);
+}
+
+/**
+ * Identifiers are raw so Drizzle does not rewrite them onto the outer
+ * media_items query. Path values stay bound parameters.
+ */
+function deckMediaIdSql(deckPaths: string[]): SQL | null {
+  const movieCondition = pathPrefixSql("movie_files.file_path", deckPaths);
+  const episodeCondition = pathPrefixSql("tv_episodes.file_path", deckPaths);
+  const parts: SQL[] = [];
+
+  if (movieCondition) {
+    parts.push(
+      sql`SELECT media_item_id AS id FROM movie_files WHERE ${movieCondition}`,
+    );
+  }
+  if (episodeCondition) {
+    parts.push(
+      sql`SELECT tv_seasons.media_item_id AS id FROM tv_episodes INNER JOIN tv_seasons ON tv_episodes.season_id = tv_seasons.id WHERE ${episodeCondition}`,
+    );
+  }
+
+  if (!parts.length) return null;
+  return sql.join(parts, sql` UNION `);
+}
+
 export async function countDeckItems(
   db: DatabaseInstance,
   deckPaths: string[],
 ): Promise<number> {
-  const ids = await getDeckMediaItemIds(db, deckPaths);
-  return ids.length;
+  const ids = deckMediaIdSql(deckPaths);
+  if (!ids) return 0;
+
+  const total = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(mediaItems)
+    .where(sql`${mediaItems.id} IN (${ids})`);
+
+  return Number(total[0]?.count ?? 0);
 }
 
 export async function getDeckItems(
@@ -116,20 +160,27 @@ export async function getDeckItems(
   page: number,
   limit: number,
 ) {
-  const ids = await getDeckMediaItemIds(db, deckPaths);
+  const ids = deckMediaIdSql(deckPaths);
   const offset = (page - 1) * limit;
-  const total = ids.length;
 
-  if (!ids.length) {
+  if (!ids) {
     return { items: [], page, limit, total: 0, totalPages: 0 };
   }
 
-  const items = await db.query.mediaItems.findMany({
-    where: inArray(mediaItems.id, ids),
-    orderBy: [desc(mediaItems.updatedAt)],
-    limit,
-    offset,
-  });
+  const where = sql`${mediaItems.id} IN (${ids})`;
+  const [items, totalRows] = await Promise.all([
+    db.query.mediaItems.findMany({
+      where,
+      orderBy: [desc(mediaItems.updatedAt)],
+      limit,
+      offset,
+    }),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(mediaItems)
+      .where(sql`${mediaItems.id} IN (${deckMediaIdSql(deckPaths)})`),
+  ]);
+  const total = Number(totalRows[0]?.count ?? 0);
 
   return {
     items,
@@ -141,15 +192,17 @@ export async function getDeckItems(
 }
 
 export async function listDecksWithCounts(db: DatabaseInstance) {
-  const decks = await db.query.libraryDecks.findMany({
-    orderBy: [libraryDecks.sortOrder, libraryDecks.name],
-  });
+  const [decks, allLibraries] = await Promise.all([
+    db.query.libraryDecks.findMany({
+      orderBy: [libraryDecks.sortOrder, libraryDecks.name],
+    }),
+    db.query.libraries.findMany(),
+  ]);
 
   return Promise.all(
     decks.map(async (deck) => {
       const paths = parseDeckPaths(deck.paths);
       const itemCount = await countDeckItems(db, paths);
-      const libraryNames = await resolveLibraryNamesForPaths(db, paths);
 
       return {
         id: deck.id,
@@ -157,18 +210,17 @@ export async function listDecksWithCounts(db: DatabaseInstance) {
         paths,
         sortOrder: deck.sortOrder,
         itemCount,
-        libraryNames,
+        libraryNames: libraryNamesForPaths(allLibraries, paths),
         createdAt: deck.createdAt.toISOString(),
       };
     }),
   );
 }
 
-async function resolveLibraryNamesForPaths(
-  db: DatabaseInstance,
+function libraryNamesForPaths(
+  allLibraries: Array<typeof libraries.$inferSelect>,
   deckPaths: string[],
-): Promise<string[]> {
-  const allLibraries = await db.query.libraries.findMany();
+): string[] {
   const names = new Set<string>();
 
   for (const deckPath of deckPaths) {
