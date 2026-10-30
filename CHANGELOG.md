@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.298 — 2026-10-30
+
+### Playback
+- **Quality** — each video starts on the original file. A quality you pick is remembered only for that video, on TV and the web
+
 ## 0.1.297 — 2026-10-30
 
 ### TV
