@@ -132,8 +132,8 @@
     --tv-scroll-pad-top: 0.25rem;
     --tv-scroll-pad-bottom: 0.3rem;
     --tv-media-poster-width: 7rem;
-    --tv-episode-still-width: 6.75rem;
-    --tv-episode-still-height: 3.75rem;
+    --tv-episode-still-width: 8.5rem;
+    --tv-episode-still-height: 4.75rem;
     /* Shared TV interactive states — solid borders only (no glow/inset rings).
        Selected = fill-forward tint; focused = solid primary border; both = hot fill. */
     --tv-focus-border-width: 2px;
@@ -563,30 +563,47 @@
   }
 
   .tv-ui .tv-media-episode-title {
-    font-size: 0.95rem;
+    font-size: 1.15rem;
     font-weight: 600;
+    line-height: 1.2;
   }
 
-  .tv-ui .tv-media-episode-overview {
-    font-size: 0.75rem;
-    line-height: 1.35;
+  .tv-ui .tv-media-episode-meta {
+    margin-top: 0.2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
   }
 
-  /* Episode alternatives stay quiet until Right moves focus to them. */
   .tv-ui .tv-media-episode-options {
-    opacity: 0;
+    width: 2.75rem;
+    overflow: hidden;
     outline: none;
-    transition: opacity 90ms ease-out;
   }
 
   .tv-ui .tv-media-episode-options svg {
     display: block;
+    flex-shrink: 0;
     overflow: visible;
+  }
+
+  .tv-ui .tv-media-episode-options-label {
+    display: none;
   }
 
   .tv-ui .tv-media-episode-options[data-tv-focused],
   .tv-ui .tv-media-episode-options:focus-visible {
-    opacity: 1;
+    width: auto;
+    gap: 0.45rem;
+    padding-inline: 0.7rem;
+  }
+
+  .tv-ui .tv-media-episode-options[data-tv-focused] .tv-media-episode-options-label,
+  .tv-ui .tv-media-episode-options:focus-visible .tv-media-episode-options-label {
+    display: inline;
+    font-size: 0.95rem;
+    white-space: nowrap;
   }
 
   .tv-ui .tv-search-field {

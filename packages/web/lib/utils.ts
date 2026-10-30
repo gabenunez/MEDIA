@@ -31,6 +31,27 @@ export function canResumePlayback(
   return positionMs / durationMs > RESUME_MIN_PERCENT;
 }
 
+export function formatWatchLength(ms: number): string {
+  const totalMinutes = Math.max(1, Math.round(ms / 60_000));
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `${hours} hr ${minutes} min` : `${hours} hr`;
+}
+
+/** Time left when an episode can resume, otherwise the runtime. */
+export function episodeStatusLabel(
+  positionMs: number | null | undefined,
+  durationMs: number | null | undefined,
+  canResume: boolean,
+): string {
+  if (canResume && positionMs && durationMs && durationMs > positionMs) {
+    return `${formatWatchLength(durationMs - positionMs)} left`;
+  }
+  if (durationMs && durationMs > 0) return formatWatchLength(durationMs);
+  return "Play";
+}
+
 export function getPlaybackButtonLabel(
   positionMs?: number | null,
   durationMs?: number | null,

@@ -129,7 +129,10 @@ describe("TV living-room series title page", () => {
     expect(mediaView).not.toMatch(/line-clamp-3 max-w-4xl/);
     expect(mediaView).toMatch(/px-4 py-2 text-sm/);
     expect(mediaView).toMatch(/tv-media-episode-title/);
-    expect(mediaView).toMatch(/line-clamp-1/);
+    expect(mediaView).toMatch(/tv-media-episode-meta/);
+    expect(mediaView).toMatch(/episodeStatusLabel/);
+    expect(mediaView).not.toMatch(/ep\.overview/);
+    expect(mediaView).not.toMatch(/line-clamp-1/);
   });
 
   it("does not let tv-4k inflate the series hero", () => {

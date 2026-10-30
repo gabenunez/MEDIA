@@ -15,7 +15,7 @@ import { TvPoster } from "@/components/tv/tv-poster";
 import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
 import { FixMatchDialog } from "@/components/fix-match-dialog";
-import { formatDuration, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
+import { episodeStatusLabel, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
 import { resolveNextEpisodeTarget } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusEpisodeItem, focusFirstContentItem, focusMediaPlayItem } from "@/lib/tv-focus";
@@ -348,21 +348,22 @@ function TvMediaViewContent({
             >
             {episodes.map((ep, episodeIndex) => {
               const episodeDurationMs = ep.watchProgress?.durationMs ?? ep.durationMs;
-              const episodeActionLabel = getPlaybackButtonLabel(
-                ep.watchProgress?.positionMs,
-                episodeDurationMs,
-              );
               const episodeCanResume = canResumePlayback(
                 ep.watchProgress?.positionMs,
                 episodeDurationMs,
               );
               const progressPct =
-                ep.watchProgress && ep.watchProgress.positionMs > 0
+                episodeCanResume && episodeDurationMs
                   ? Math.min(
                       100,
-                      (ep.watchProgress.positionMs / (ep.durationMs ?? 1)) * 100,
+                      ((ep.watchProgress?.positionMs ?? 0) / episodeDurationMs) * 100,
                     )
                   : 0;
+              const statusLabel = episodeStatusLabel(
+                ep.watchProgress?.positionMs,
+                episodeDurationMs,
+                episodeCanResume,
+              );
 
               return (
                 <div key={ep.id} className="flex items-center gap-1">
@@ -370,7 +371,7 @@ function TvMediaViewContent({
                     href={routes.watch("episode", ep.id, media.id)}
                     variant="card"
                     data-tv-episode-id={ep.id}
-                    className="tv-media-episode flex min-w-0 flex-1 items-center gap-3 px-3 py-2"
+                    className="tv-media-episode flex min-w-0 flex-1 items-center gap-4 px-3 py-2"
                   >
                   <div className="tv-episode-still relative shrink-0 overflow-hidden rounded-md bg-muted">
                     {ep.stillPath ? (
@@ -381,7 +382,7 @@ function TvMediaViewContent({
                         priority={episodeIndex < 8}
                         loading="eager"
                         quality={TV_LIST_IMAGE_QUALITY}
-                        sizes="6.75rem"
+                        sizes="8.5rem"
                         className="object-cover"
                       />
                     ) : (
@@ -390,7 +391,7 @@ function TvMediaViewContent({
                       </div>
                     )}
                     {progressPct > 0 && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/25">
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/55">
                         <div className="h-full bg-accent" style={{ width: `${progressPct}%` }} />
                       </div>
                     )}
@@ -398,26 +399,23 @@ function TvMediaViewContent({
 
                   <div className="min-w-0 flex-1">
                     <p className="tv-media-episode-title truncate">
-                      <span className="mr-1.5 font-mono text-xs text-primary">
-                        {String(ep.episodeNumber).padStart(2, "0")}
+                      <span className="mr-2 font-mono text-primary">
+                        E{String(ep.episodeNumber).padStart(2, "0")}
                       </span>
                       {ep.title ?? `Episode ${ep.episodeNumber}`}
                     </p>
-                    {ep.overview && (
-                      <p className="tv-media-episode-overview mt-0.5 line-clamp-1 text-muted-foreground">
-                        {ep.overview}
-                      </p>
-                    )}
+                    <p
+                      className={cn(
+                        "tv-media-episode-meta",
+                        episodeCanResume ? "text-accent" : "text-muted-foreground",
+                      )}
+                    >
+                      {statusLabel}
+                    </p>
                   </div>
-
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {episodeActionLabel === "Play" && ep.durationMs
-                      ? formatDuration(ep.durationMs)
-                      : episodeActionLabel}
-                  </span>
                 </TvFocusLink>
                 {episodeCanResume && (
-                  <TvPlaybackOptions fileId={ep.id} mediaId={media.id} />
+                  <TvPlaybackOptions compact fileId={ep.id} mediaId={media.id} />
                 )}
               </div>
               );
