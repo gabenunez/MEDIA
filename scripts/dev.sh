@@ -12,6 +12,10 @@ fi
 pnpm install
 
 API_PORT="${MEDIA_INTERNAL_API_PORT:-8096}"
+if [[ -z "${MEDIA_INTERNAL_TOKEN:-}" ]]; then
+  MEDIA_INTERNAL_TOKEN="$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')"
+fi
+export MEDIA_INTERNAL_TOKEN
 
 pnpm --filter @media-app/shared dev &
 SHARED_PID=$!

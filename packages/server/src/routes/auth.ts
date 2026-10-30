@@ -1,11 +1,24 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { AuthService } from "../services/auth.js";
 import type { ConfigManager } from "../config.js";
+import {
+  LoginRateLimiter,
+  loginClientKey,
+  loginLockoutMessage,
+} from "../services/login-rate-limit.js";
+
+const MAX_PASSWORD_LENGTH = 1024;
+
+function rejectLocked(reply: FastifyReply, retryAfterSeconds: number) {
+  reply.header("Retry-After", String(retryAfterSeconds));
+  return reply.status(429).send({ error: loginLockoutMessage(retryAfterSeconds) });
+}
 
 export async function authRoutes(
   app: FastifyInstance,
   auth: AuthService,
   configManager: ConfigManager,
+  loginAttempts = new LoginRateLimiter(),
 ) {
   app.get("/api/auth/status", async (request) => {
     const required = auth.isPasswordRequired();
@@ -25,10 +38,26 @@ export async function authRoutes(
         return { success: true };
       }
 
+      const client = loginClientKey(request.ip);
+      const gate = loginAttempts.check(client);
+      if (gate.blocked) {
+        return rejectLocked(reply, gate.retryAfterSeconds);
+      }
+
       const password = (request.body?.password ?? "").trim();
-      if (!password || !auth.verifyPassword(password)) {
+      const passwordOk =
+        password.length > 0 &&
+        password.length <= MAX_PASSWORD_LENGTH &&
+        auth.verifyPassword(password);
+      if (!passwordOk) {
+        const failure = loginAttempts.recordFailure(client);
+        if (failure.blocked) {
+          return rejectLocked(reply, failure.retryAfterSeconds);
+        }
         return reply.status(401).send({ error: "Invalid password" });
       }
+
+      loginAttempts.recordSuccess(client);
 
       const token = auth.createSessionToken();
       reply.header("Set-Cookie", auth.allSessionCookies(token));
@@ -53,7 +82,11 @@ export async function authRoutes(
       if (!auth.isAuthenticated(request)) {
         return reply.status(401).send({ error: "Authentication required" });
       }
-      if (!currentPassword || !auth.verifyPassword(currentPassword)) {
+      if (
+        !currentPassword ||
+        currentPassword.length > MAX_PASSWORD_LENGTH ||
+        !auth.verifyPassword(currentPassword)
+      ) {
         return reply.status(401).send({ error: "Current password is incorrect" });
       }
     }
@@ -69,6 +102,9 @@ export async function authRoutes(
     }
     if (password.length < 4) {
       return reply.status(400).send({ error: "Password must be at least 4 characters" });
+    }
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      return reply.status(400).send({ error: "Password is too long" });
     }
 
     auth.setPassword(password);

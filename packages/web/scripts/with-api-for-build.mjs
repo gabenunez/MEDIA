@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -8,6 +9,9 @@ const webRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(webRoot, "../..");
 const nextDir = path.join(webRoot, ".next");
 const apiPort = process.env.MEDIA_PRERENDER_API_PORT ?? "18197";
+const internalToken =
+  process.env.MEDIA_INTERNAL_TOKEN?.trim() ||
+  crypto.randomBytes(32).toString("hex");
 const serverEntry = path.join(repoRoot, "packages/server/dist/index.js");
 
 function run(command, args, options = {}) {
@@ -70,6 +74,7 @@ try {
         ...process.env,
         MEDIA_API_ONLY: "1",
         MEDIA_INTERNAL_API_PORT: apiPort,
+        MEDIA_INTERNAL_TOKEN: internalToken,
         MEDIA_PRERENDER_BUILD: "1",
       },
       stdio: "pipe",
@@ -93,6 +98,7 @@ try {
   const buildEnv = {
     ...process.env,
     MEDIA_INTERNAL_API_URL: `http://127.0.0.1:${apiPort}`,
+    MEDIA_INTERNAL_TOKEN: internalToken,
     ...(apiReady ? { MEDIA_PRERENDER_BUILD: "1" } : {}),
   };
   delete buildEnv.MEDIA_INTERNAL_API_PORT;

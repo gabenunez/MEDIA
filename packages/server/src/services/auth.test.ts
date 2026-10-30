@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { isInternalMediaApiRequest, isPublicPath } from "./auth.js";
 
 describe("public authentication paths", () => {
@@ -12,12 +12,22 @@ describe("public authentication paths", () => {
 });
 
 describe("internal Next.js API requests", () => {
-  it("allows SSR/ISR media fetches only with the internal token header", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("allows SSR/ISR media fetches only with the configured internal token", () => {
+    vi.stubEnv("MEDIA_INTERNAL_TOKEN", "test-internal-token");
+    expect(
+      isInternalMediaApiRequest("/api/media/265", {
+        "x-media-internal": "test-internal-token",
+      }),
+    ).toBe(true);
     expect(
       isInternalMediaApiRequest("/api/media/265", {
         "x-media-internal": "next-isr",
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isInternalMediaApiRequest("/api/media/265", {
         "x-media-internal": "wrong",
@@ -26,6 +36,15 @@ describe("internal Next.js API requests", () => {
     expect(isInternalMediaApiRequest("/api/media/265", {})).toBe(false);
     expect(
       isInternalMediaApiRequest("/api/status", {
+        "x-media-internal": "test-internal-token",
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects the internal header when no token is configured", () => {
+    vi.stubEnv("MEDIA_INTERNAL_TOKEN", "");
+    expect(
+      isInternalMediaApiRequest("/api/media/265", {
         "x-media-internal": "next-isr",
       }),
     ).toBe(false);

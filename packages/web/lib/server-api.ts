@@ -6,11 +6,13 @@ import type {
   MediaItem,
 } from "@/lib/api";
 import { cacheLife, cacheTag } from "next/cache";
-import { HOME_CATALOG_CACHE_TAG, mediaPageCacheTag } from "@media-app/shared";
+import {
+  HOME_CATALOG_CACHE_TAG,
+  MEDIA_INTERNAL_HEADER,
+  mediaInternalToken,
+  mediaPageCacheTag,
+} from "@media-app/shared";
 import { catalogCacheLife, mediaCacheLife } from "@/lib/catalog-cache";
-
-const INTERNAL_API_HEADER = "x-media-internal";
-const INTERNAL_API_TOKEN = "next-isr";
 
 export type PaginatedPageData<T> = {
   items: T[];
@@ -58,7 +60,8 @@ function internalApiBase(): string {
 
 async function internalApiFetch(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
-  headers.set(INTERNAL_API_HEADER, INTERNAL_API_TOKEN);
+  const token = mediaInternalToken();
+  if (token) headers.set(MEDIA_INTERNAL_HEADER, token);
   return fetch(`${internalApiBase()}${path}`, { ...init, headers });
 }
 

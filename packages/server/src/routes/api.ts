@@ -549,8 +549,14 @@ export async function apiRoutes(
     "/api/images/:filename",
     async (request, reply) => {
       let { filename } = request.params;
+      if (!isSafeImageFilename(filename)) {
+        return reply.status(400).send({ error: "Invalid image" });
+      }
       if (request.query.hd === "1") {
         filename = await metadata.resolveHdImageFilename(filename);
+        if (!isSafeImageFilename(filename)) {
+          return reply.status(400).send({ error: "Invalid image" });
+        }
       }
       const imagePath = path.join(config.data_dir, "cache", "images", filename);
 
@@ -563,6 +569,16 @@ export async function apiRoutes(
       reply.header("Cache-Control", "public, max-age=86400");
       return reply.send(fs.createReadStream(imagePath));
     },
+  );
+}
+
+function isSafeImageFilename(filename: string): boolean {
+  return (
+    filename.length > 0 &&
+    filename === path.basename(filename) &&
+    filename !== "." &&
+    filename !== ".." &&
+    !filename.includes("\0")
   );
 }
 

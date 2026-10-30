@@ -11,6 +11,7 @@ describe("page revalidate", () => {
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("MEDIA_WEB_INTERNAL_URL", "http://127.0.0.1:8096");
     vi.stubEnv("MEDIA_PUBLIC_PREFIX", "/reel");
+    vi.stubEnv("MEDIA_INTERNAL_TOKEN", "test-internal-token");
   });
 
   afterEach(() => {
@@ -24,6 +25,9 @@ describe("page revalidate", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://127.0.0.1:8096/reel/internal/revalidate/");
     expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["x-media-internal"]).toBe(
+      "test-internal-token",
+    );
     const body = JSON.parse(String(init.body)) as {
       tag: string;
       tags: string[];
