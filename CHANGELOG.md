@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.295 — 2026-10-29
+
+### Security
+- **Login** — ten failed password attempts lock that client for 15 minutes. A successful sign-in clears the count. Browser and TV logins through the site share that lock
+- **Server** — catalog reads between the site and the API use a secret created when the stack starts
+
+### Performance
+- **Home** — the homepage cache includes the catalog, so the first paint already has the rows
+
 ## 0.1.294 — 2026-10-29
 
 ### Fix
