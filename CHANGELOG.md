@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.297 — 2026-10-30
+
+### TV
+- **Episodes** — a series episode shows the title and how much is left, with a progress bar on the still. The plot no longer fills the row
+
 ## 0.1.296 — 2026-10-30
 
 ### Performance
