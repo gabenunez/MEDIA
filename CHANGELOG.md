@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.296 — 2026-10-30
+
+### Performance
+- **Home** — opening home reads recent watch history and deck counts instead of the whole library
+- **Libraries** — library pages, related titles, and search skip extra full-library reads
+
 ## 0.1.295 — 2026-10-29
 
 ### Security
