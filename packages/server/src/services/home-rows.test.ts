@@ -47,7 +47,11 @@ function createDb(overrides: {
   return {
     query: {
       watchProgress: {
-        findMany: vi.fn(async () => progress),
+        findMany: vi.fn(async (args?: { limit?: number; offset?: number }) => {
+          if (args?.limit == null) return progress;
+          const offset = args.offset ?? 0;
+          return progress.slice(offset, offset + args.limit);
+        }),
         findFirst: vi.fn(async ({ where }: { where: unknown }) => {
           void where;
           return null;
@@ -221,5 +225,101 @@ describe("listContinueWatching", () => {
     const result = await listContinueWatching(db as DatabaseInstance);
 
     expect(result.items).toEqual([]);
+  });
+
+  it("advances a finished episode to the next one in the season", async () => {
+    const durationMs = 42 * 60_000;
+    const inCredits = durationMs - creditTailMs(durationMs) + 1_000;
+    const db = createDb({
+      progress: [
+        {
+          id: 8,
+          itemType: "episode",
+          itemId: 50,
+          positionMs: inCredits,
+          durationMs,
+          updatedAt: new Date(),
+        },
+      ],
+      episodes: new Map([
+        [
+          50,
+          {
+            id: 50,
+            seasonId: 6,
+            episodeNumber: 1,
+            title: "Pilot",
+            durationMs,
+            stillPath: null,
+          },
+        ],
+        [
+          51,
+          {
+            id: 51,
+            seasonId: 6,
+            episodeNumber: 2,
+            title: "Next",
+            durationMs,
+            stillPath: "/still.jpg",
+          },
+        ],
+      ]),
+      seasons: new Map([[6, { id: 6, mediaItemId: 11, seasonNumber: 1 }]]),
+      media: new Map([
+        [11, { id: 11, title: "The Show", posterPath: "/poster.jpg" }],
+      ]),
+    });
+
+    const result = await listContinueWatching(db as DatabaseInstance);
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      itemType: "episode",
+      itemId: 51,
+      mediaId: 11,
+      title: "The Show",
+      subtitle: "S1E2 · Next",
+      posterPath: "/still.jpg",
+      positionMs: 0,
+    });
+  });
+
+  it("reads one page of progress when an exact total is not required", async () => {
+    const durationMs = 120 * 60_000;
+    const progress = Array.from({ length: 5 }, (_, index) => ({
+      id: index + 1,
+      itemType: "movie" as const,
+      itemId: 100 + index,
+      positionMs: 10_000,
+      durationMs,
+      updatedAt: new Date(Date.UTC(2026, 0, 5 - index)),
+    }));
+    const db = createDb({
+      progress,
+      movieFiles: new Map(
+        progress.map((row) => [
+          row.itemId,
+          { id: row.itemId, mediaItemId: row.itemId, durationMs },
+        ]),
+      ),
+      media: new Map(
+        progress.map((row) => [
+          row.itemId,
+          { id: row.itemId, title: `Movie ${row.itemId}`, posterPath: null },
+        ]),
+      ),
+    });
+
+    const result = await listContinueWatching(db as DatabaseInstance, {
+      limit: 1,
+      exactTotal: false,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.title).toBe("Movie 100");
+    expect(db.query.watchProgress.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: expect.any(Number) }),
+    );
   });
 });

@@ -52,6 +52,21 @@ export const mediaItems = sqliteTable(
     libraryIdIdx: index("media_items_library_id_idx").on(table.libraryId),
     createdAtIdx: index("media_items_created_at_idx").on(table.createdAt),
     updatedAtIdx: index("media_items_updated_at_idx").on(table.updatedAt),
+    libraryUpdatedIdx: index("media_items_library_updated_idx").on(
+      table.libraryId,
+      table.updatedAt,
+    ),
+    libraryTypeTitleIdx: index("media_items_library_type_title_idx").on(
+      table.libraryId,
+      table.type,
+      table.title,
+    ),
+    libraryTypeRatingIdx: index("media_items_library_type_rating_idx").on(
+      table.libraryId,
+      table.type,
+      table.rating,
+    ),
+    tmdbIdIdx: index("media_items_tmdb_id_idx").on(table.tmdbId),
   }),
 );
 
@@ -102,6 +117,10 @@ export const tvEpisodes = sqliteTable(
   },
   (table) => ({
     seasonIdIdx: index("tv_episodes_season_id_idx").on(table.seasonId),
+    seasonEpisodeIdx: index("tv_episodes_season_episode_idx").on(
+      table.seasonId,
+      table.episodeNumber,
+    ),
   }),
 );
 
@@ -173,16 +192,22 @@ export const watchProgress = sqliteTable(
   }),
 );
 
-export const favorites = sqliteTable("favorites", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  mediaItemId: integer("media_item_id")
-    .notNull()
-    .references(() => mediaItems.id, { onDelete: "cascade" })
-    .unique(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const favorites = sqliteTable(
+  "favorites",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    mediaItemId: integer("media_item_id")
+      .notNull()
+      .references(() => mediaItems.id, { onDelete: "cascade" })
+      .unique(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => ({
+    createdAtIdx: index("favorites_created_at_idx").on(table.createdAt),
+  }),
+);
 
 export const libraryDecks = sqliteTable("library_decks", {
   id: integer("id").primaryKey({ autoIncrement: true }),

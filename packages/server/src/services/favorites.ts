@@ -60,20 +60,21 @@ export async function listFavorites(
 
   const whereClause = conditions.length ? and(...conditions) : undefined;
 
-  const rows = await db
-    .select({ item: mediaItems })
-    .from(favorites)
-    .innerJoin(mediaItems, eq(favorites.mediaItemId, mediaItems.id))
-    .where(whereClause)
-    .orderBy(desc(favorites.createdAt))
-    .limit(limit)
-    .offset(offset);
-
-  const totalResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(favorites)
-    .innerJoin(mediaItems, eq(favorites.mediaItemId, mediaItems.id))
-    .where(whereClause);
+  const [rows, totalResult] = await Promise.all([
+    db
+      .select({ item: mediaItems })
+      .from(favorites)
+      .innerJoin(mediaItems, eq(favorites.mediaItemId, mediaItems.id))
+      .where(whereClause)
+      .orderBy(desc(favorites.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(favorites)
+      .innerJoin(mediaItems, eq(favorites.mediaItemId, mediaItems.id))
+      .where(whereClause),
+  ]);
 
   const total = totalResult[0]?.count ?? 0;
 

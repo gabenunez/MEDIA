@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { THEME_FILENAMES, resolveShowDirectory } from "@media-app/shared";
 import type { ConfigManager } from "../config.js";
 import type { DatabaseInstance } from "../db/index.js";
@@ -110,6 +110,13 @@ export class ThemeService {
 
   async syncThemesForLibrary(libraryId: number): Promise<void> {
     const items = await this.db.query.mediaItems.findMany({
+      columns: {
+        id: true,
+        libraryId: true,
+        type: true,
+        tmdbId: true,
+        themePath: true,
+      },
       where: eq(mediaItems.libraryId, libraryId),
     });
 
@@ -151,21 +158,19 @@ export class ThemeService {
     const seasons = await this.db.query.tvSeasons.findMany({
       where: eq(tvSeasons.mediaItemId, item.id),
     });
+    if (!seasons.length) return null;
 
-    for (const season of seasons) {
-      const episode = await this.db.query.tvEpisodes.findFirst({
-        where: eq(tvEpisodes.seasonId, season.id),
-      });
-      if (!episode) continue;
+    const episode = await this.db.query.tvEpisodes.findFirst({
+      where: inArray(
+        tvEpisodes.seasonId,
+        seasons.map((season) => season.id),
+      ),
+    });
+    if (!episode) return null;
 
-      const showDir = resolveShowDirectory(episode.filePath, library.path);
-      if (!showDir) continue;
-
-      const themePath = findThemeInDirectory(showDir);
-      if (themePath) return themePath;
-    }
-
-    return null;
+    const showDir = resolveShowDirectory(episode.filePath, library.path);
+    if (!showDir) return null;
+    return findThemeInDirectory(showDir);
   }
 
   private async fetchThemerrTheme(

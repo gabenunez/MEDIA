@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq, and, or, isNull } from "drizzle-orm";
+import { eq, and, or, isNull, inArray } from "drizzle-orm";
 import chokidar, { type FSWatcher } from "chokidar";
 import PQueue from "p-queue";
 import {
@@ -534,19 +534,20 @@ export class ScannerService {
     });
 
     if (lib) {
-      const episodes = await this.db.query.tvSeasons.findMany({
+      const seasons = await this.db.query.tvSeasons.findMany({
         where: eq(tvSeasons.mediaItemId, item.id),
       });
-      for (const season of episodes) {
-        const eps = await this.db.query.tvEpisodes.findMany({
-          where: eq(tvEpisodes.seasonId, season.id),
-        });
-        if (eps[0]) {
-          const parsed = parseEpisodeFromPath(eps[0].filePath, lib.path);
-          if (parsed?.showName) {
-            showName = parsed.showName;
-            break;
-          }
+      const seasonIds = seasons.map((season) => season.id);
+      const episodes = seasonIds.length
+        ? await this.db.query.tvEpisodes.findMany({
+            where: inArray(tvEpisodes.seasonId, seasonIds),
+          })
+        : [];
+      for (const episode of episodes) {
+        const parsed = parseEpisodeFromPath(episode.filePath, lib.path);
+        if (parsed?.showName) {
+          showName = parsed.showName;
+          break;
         }
       }
     }
@@ -588,6 +589,18 @@ export class ScannerService {
     const seasons = await this.db.query.tvSeasons.findMany({
       where: eq(tvSeasons.mediaItemId, mediaItemId),
     });
+    const seasonIds = seasons.map((season) => season.id);
+    const allEpisodes = seasonIds.length
+      ? await this.db.query.tvEpisodes.findMany({
+          where: inArray(tvEpisodes.seasonId, seasonIds),
+        })
+      : [];
+    const episodesBySeasonId = new Map<number, typeof allEpisodes>();
+    for (const episode of allEpisodes) {
+      const list = episodesBySeasonId.get(episode.seasonId) ?? [];
+      list.push(episode);
+      episodesBySeasonId.set(episode.seasonId, list);
+    }
 
     for (const season of seasons) {
       const seasonMeta = await this.metadata.getTvSeason(
@@ -610,9 +623,7 @@ export class ScannerService {
           .where(eq(tvSeasons.id, season.id));
       }
 
-      const episodes = await this.db.query.tvEpisodes.findMany({
-        where: eq(tvEpisodes.seasonId, season.id),
-      });
+      const episodes = episodesBySeasonId.get(season.id) ?? [];
 
       for (const ep of episodes) {
         const epMeta = seasonMeta?.episodes?.find(

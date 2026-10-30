@@ -73,6 +73,8 @@ interface ReelMediaIndex {
   byPath: Map<string, ReelMediaTarget>;
   byBasename: Map<string, ReelMediaTarget[]>;
   movieByTmdb: Map<number, ReelMediaTarget>;
+  movieFileCount: number;
+  episodeCount: number;
 }
 
 export function getPlexDatabaseCandidates(): string[] {
@@ -414,7 +416,13 @@ async function buildReelMediaIndex(db: DatabaseInstance): Promise<ReelMediaIndex
   const byBasename = new Map<string, ReelMediaTarget[]>();
   const movieByTmdb = new Map<number, ReelMediaTarget>();
 
-  const movies = await db.select().from(movieFiles);
+  const movies = await db
+    .select({
+      id: movieFiles.id,
+      filePath: movieFiles.filePath,
+      durationMs: movieFiles.durationMs,
+    })
+    .from(movieFiles);
   for (const file of movies) {
     const target: ReelMediaTarget = {
       itemType: "movie",
@@ -429,7 +437,13 @@ async function buildReelMediaIndex(db: DatabaseInstance): Promise<ReelMediaIndex
     byBasename.set(base, bucket);
   }
 
-  const episodes = await db.select().from(tvEpisodes);
+  const episodes = await db
+    .select({
+      id: tvEpisodes.id,
+      filePath: tvEpisodes.filePath,
+      durationMs: tvEpisodes.durationMs,
+    })
+    .from(tvEpisodes);
   for (const episode of episodes) {
     const target: ReelMediaTarget = {
       itemType: "episode",
@@ -463,7 +477,13 @@ async function buildReelMediaIndex(db: DatabaseInstance): Promise<ReelMediaIndex
     });
   }
 
-  return { byPath, byBasename, movieByTmdb };
+  return {
+    byPath,
+    byBasename,
+    movieByTmdb,
+    movieFileCount: movies.length,
+    episodeCount: episodes.length,
+  };
 }
 
 function matchPlexEntry(
@@ -519,8 +539,6 @@ export async function previewPlexImport(
 
   const entries = readPlexWatchEntries(detection.dbPath);
   const index = await buildReelMediaIndex(db);
-  const movies = await db.select().from(movieFiles);
-  const episodes = await db.select().from(tvEpisodes);
 
   return {
     detected: true,
@@ -532,8 +550,8 @@ export async function previewPlexImport(
       (entry) => entry.viewCount > 0 && entry.viewOffsetMs <= 0,
     ).length,
     matchableEntries: countMatchable(entries, index),
-    reelMovieFiles: movies.length,
-    reelEpisodes: episodes.length,
+    reelMovieFiles: index.movieFileCount,
+    reelEpisodes: index.episodeCount,
     warning:
       "Stop Plex Media Server before importing for the most consistent read. MEDIA! only updates progress for files already in your libraries.",
   };
@@ -556,6 +574,19 @@ export async function importPlexWatchProgress(
   let skipped = 0;
   let unmatched = 0;
   const unmatchedTitles: string[] = [];
+  const existingRows = await db
+    .select({
+      id: watchProgress.id,
+      itemType: watchProgress.itemType,
+      itemId: watchProgress.itemId,
+      positionMs: watchProgress.positionMs,
+      durationMs: watchProgress.durationMs,
+      updatedAt: watchProgress.updatedAt,
+    })
+    .from(watchProgress);
+  const progressByItem = new Map(
+    existingRows.map((row) => [`${row.itemType}:${row.itemId}`, row]),
+  );
 
   for (const entry of entries) {
     const positionMs = resolvePositionMs(entry);
@@ -580,13 +611,8 @@ export async function importPlexWatchProgress(
       }
     }
 
-    const existing = await db.query.watchProgress.findFirst({
-      where: and(
-        eq(watchProgress.itemType, target.itemType),
-        eq(watchProgress.itemId, target.itemId),
-      ),
-    });
-
+    const key = `${target.itemType}:${target.itemId}`;
+    const existing = progressByItem.get(key);
     const plexUpdatedAt = entry.lastViewedAt ?? new Date();
 
     if (existing) {
@@ -607,17 +633,24 @@ export async function importPlexWatchProgress(
           updatedAt: plexUpdatedAt,
         })
         .where(eq(watchProgress.id, existing.id));
+      existing.positionMs = positionMs;
+      existing.durationMs = durationMs;
+      existing.updatedAt = plexUpdatedAt;
       updated += 1;
       continue;
     }
 
-    await db.insert(watchProgress).values({
-      itemType: target.itemType,
-      itemId: target.itemId,
-      positionMs,
-      durationMs,
-      updatedAt: plexUpdatedAt,
-    });
+    const [created] = await db
+      .insert(watchProgress)
+      .values({
+        itemType: target.itemType,
+        itemId: target.itemId,
+        positionMs,
+        durationMs,
+        updatedAt: plexUpdatedAt,
+      })
+      .returning();
+    if (created) progressByItem.set(key, created);
     imported += 1;
   }
 
