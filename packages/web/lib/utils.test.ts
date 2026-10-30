@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canResumePlayback,
+  episodeStatusLabel,
   getPlaybackButtonLabel,
   resolveWatchInitialResumeSeconds,
 } from "./utils";
@@ -19,6 +20,19 @@ describe("canResumePlayback", () => {
     const durationMs = 120 * 60_000;
     expect(canResumePlayback(durationMs - 8 * 60_000, durationMs)).toBe(false);
     expect(canResumePlayback(60 * 60_000, durationMs)).toBe(true);
+  });
+});
+
+describe("episodeStatusLabel", () => {
+  it("shows time left for an in-progress episode", () => {
+    const durationMs = 42 * 60_000;
+    const positionMs = (32 * 60 + 34) * 1000;
+    expect(episodeStatusLabel(positionMs, durationMs, true)).toBe("9 min left");
+  });
+
+  it("shows the runtime when playback has not started", () => {
+    expect(episodeStatusLabel(0, 42 * 60_000, false)).toBe("42 min");
+    expect(episodeStatusLabel(null, null, false)).toBe("Play");
   });
 });
 

@@ -26,8 +26,8 @@ export const TV_LIVING_ROOM_LAYOUT = {
 /** Pre-v0.1.206 series title page — 10-foot chips/stills hid the episode list. */
 export const TV_LIVING_ROOM_MEDIA = {
   posterWidthRem: 7,
-  episodeStillWidthRem: 6.75,
-  episodeStillHeightRem: 3.75,
+  episodeStillWidthRem: 8.5,
+  episodeStillHeightRem: 4.75,
   titleMaxRem: 1.75,
 } as const;
 
