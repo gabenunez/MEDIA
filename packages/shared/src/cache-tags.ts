@@ -1,5 +1,30 @@
 export const MEDIA_INTERNAL_HEADER = "x-media-internal";
-export const MEDIA_INTERNAL_TOKEN = "next-isr";
+
+/**
+ * Secret shared by the API and Next at process start.
+ * Read dynamically so a production build does not bake the value in.
+ */
+export function mediaInternalToken(): string | null {
+  const value = process.env["MEDIA_INTERNAL_TOKEN"];
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/** Constant-time check against the runtime internal token. */
+export function mediaInternalTokenMatches(
+  provided: string | null | undefined,
+): boolean {
+  const expected = mediaInternalToken();
+  if (!expected || !provided) return false;
+  if (expected.length !== provided.length) return false;
+
+  let diff = 0;
+  for (let i = 0; i < expected.length; i += 1) {
+    diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
+  }
+  return diff === 0;
+}
 
 export const HOME_CATALOG_CACHE_TAG = "home-catalog";
 

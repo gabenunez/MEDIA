@@ -1,11 +1,33 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CATALOG_REVALIDATE_PATHS,
   HOME_CATALOG_CACHE_TAG,
   collectRevalidateTags,
   mediaInternalRevalidateUrl,
+  mediaInternalToken,
+  mediaInternalTokenMatches,
   mediaPageCacheTag,
 } from "./cache-tags.js";
+
+describe("media internal token", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("matches only the runtime token", () => {
+    vi.stubEnv("MEDIA_INTERNAL_TOKEN", "abc");
+    expect(mediaInternalToken()).toBe("abc");
+    expect(mediaInternalTokenMatches("abc")).toBe(true);
+    expect(mediaInternalTokenMatches("next-isr")).toBe(false);
+    expect(mediaInternalTokenMatches("ab")).toBe(false);
+  });
+
+  it("matches nothing when the token is unset", () => {
+    vi.stubEnv("MEDIA_INTERNAL_TOKEN", "");
+    expect(mediaInternalToken()).toBeNull();
+    expect(mediaInternalTokenMatches("next-isr")).toBe(false);
+  });
+});
 
 describe("mediaPageCacheTag", () => {
   it("formats media page cache tags", () => {

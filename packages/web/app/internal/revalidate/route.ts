@@ -2,13 +2,13 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import {
   MEDIA_INTERNAL_HEADER,
-  MEDIA_INTERNAL_TOKEN,
   collectRevalidateTags,
+  mediaInternalTokenMatches,
 } from "@media-app/shared";
 
 export async function POST(request: Request) {
   const token = request.headers.get(MEDIA_INTERNAL_HEADER);
-  if (token !== MEDIA_INTERNAL_TOKEN) {
+  if (!mediaInternalTokenMatches(token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

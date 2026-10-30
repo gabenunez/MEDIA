@@ -3,8 +3,8 @@ import {
   DEFAULT_PORT,
   HOME_CATALOG_CACHE_TAG,
   MEDIA_INTERNAL_HEADER,
-  MEDIA_INTERNAL_TOKEN,
   mediaInternalRevalidateUrl,
+  mediaInternalToken,
   mediaPageCacheTag,
 } from "@media-app/shared";
 
@@ -27,12 +27,18 @@ async function postRevalidate(
   body: Record<string, unknown>,
   label: string,
 ): Promise<void> {
+  const token = mediaInternalToken();
+  if (!token) {
+    console.warn(`Failed to revalidate ${label}: internal token is not configured`);
+    return;
+  }
+
   try {
     const res = await fetch(resolveMediaRevalidateUrl(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        [MEDIA_INTERNAL_HEADER]: MEDIA_INTERNAL_TOKEN,
+        [MEDIA_INTERNAL_HEADER]: token,
       },
       body: JSON.stringify(body),
     });

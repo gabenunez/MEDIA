@@ -44,6 +44,10 @@ if [[ -n "$PUBLIC_PREFIX" && "$PUBLIC_PREFIX" != /* ]]; then
   PUBLIC_PREFIX="/$PUBLIC_PREFIX"
 fi
 export MEDIA_PUBLIC_PREFIX="${PUBLIC_PREFIX}"
+if [[ -z "${MEDIA_INTERNAL_TOKEN:-}" ]]; then
+  MEDIA_INTERNAL_TOKEN="$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')"
+fi
+export MEDIA_INTERNAL_TOKEN
 
 if [[ ! -f "$ROOT/packages/web/.next/standalone/packages/web/server.js" ]]; then
   echo "Missing Next standalone build. Run: pnpm build" >&2
