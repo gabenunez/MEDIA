@@ -22,7 +22,7 @@ describe("web watch player stacking", () => {
     "utf8",
   );
   const css = readFileSync(path.join(webRoot, "app/globals.css"), "utf8");
-  const shell = sliceAfter(client, 'data-watch-player=""');
+  const shell = sliceAfter(client, 'data-watch-player=""', 6000);
 
   it("owns a stacking context above page chrome", () => {
     expect(shell).toContain('className="fixed inset-0 z-50 isolate bg-black"');
