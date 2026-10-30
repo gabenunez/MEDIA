@@ -29,9 +29,10 @@ describe("quality selection storage", () => {
     expect(readStoredItemPlaybackQuality("movie", 2)).toBe("original");
   });
 
-  it("persistPlaybackQuality writes both the title and the global fallback", () => {
+  it("persistPlaybackQuality remembers only the file that was chosen", () => {
     persistPlaybackQuality("720p", { itemType: "episode", itemId: 9 });
     expect(readStoredItemPlaybackQuality("episode", 9)).toBe("720p");
-    expect(readStoredPlaybackQuality()).toBe("720p");
+    expect(readStoredItemPlaybackQuality("episode", 10)).toBeNull();
+    expect(readStoredPlaybackQuality()).toBeNull();
   });
 });

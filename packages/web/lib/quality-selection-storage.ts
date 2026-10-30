@@ -1,7 +1,12 @@
 import type { StreamQuality } from "@/lib/api";
 
 const STORAGE_KEY = "media:playback-quality";
-const ITEM_STORAGE_KEY_PREFIX = "media:playback-quality:item:";
+/**
+ * Explicit menu choice for one file. A new prefix so older keys — including
+ * the global fallback and qualities stamped onto every video that played —
+ * are ignored and playback starts on the original file.
+ */
+const ITEM_STORAGE_KEY_PREFIX = "media:playback-quality:choice:";
 
 const VALID_QUALITIES = new Set<StreamQuality>([
   "original",
@@ -61,13 +66,11 @@ export function writeStoredItemPlaybackQuality(
   writeQualityKey(itemStorageKey(itemType, itemId), quality);
 }
 
-/** Persist a quality for this title and as the next-video fallback. */
+/** Remember a quality the viewer picked for this file. Other files stay on original. */
 export function persistPlaybackQuality(
   quality: StreamQuality,
   item?: { itemType: string; itemId: number },
 ): void {
-  writeStoredPlaybackQuality(quality);
-  if (item) {
-    writeStoredItemPlaybackQuality(item.itemType, item.itemId, quality);
-  }
+  if (!item) return;
+  writeStoredItemPlaybackQuality(item.itemType, item.itemId, quality);
 }

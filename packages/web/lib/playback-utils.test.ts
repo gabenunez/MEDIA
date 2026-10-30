@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamInfo } from "./api.js";
 import {
+  writeStoredItemPlaybackQuality,
+  writeStoredPlaybackQuality,
+} from "./quality-selection-storage.js";
+import {
   getPlaybackRestartSeconds,
   getContiguousBufferedAhead,
   getScrubberBufferedRanges,
@@ -191,6 +195,29 @@ describe("resolveInitialStreamQuality", () => {
       quality: "original",
       error: null,
       locked: false,
+    });
+  });
+
+  it("starts each file on original unless that file has its own quality", () => {
+    localStorage.clear();
+    writeStoredPlaybackQuality("1080p");
+    localStorage.setItem("media:playback-quality:item:movie:7", "720p");
+    writeStoredItemPlaybackQuality("movie", 8, "720p");
+    const info = makeStreamInfo();
+
+    expect(
+      resolveWatchSessionQuality(info, { itemType: "movie", itemId: 7 }),
+    ).toEqual({
+      quality: "original",
+      error: null,
+      locked: false,
+    });
+    expect(
+      resolveWatchSessionQuality(info, { itemType: "movie", itemId: 8 }),
+    ).toEqual({
+      quality: "720p",
+      error: null,
+      locked: true,
     });
   });
 });
