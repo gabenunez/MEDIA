@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.302 — 2026-11-08
+
+### Changes
+
+- **Release** — Never paint the body grid on TV, even if tv-mode is briefly absent
+- ## Problem
+- Never paint the body grid on TV, even if tv-mode is briefly absent (#36)
+
 ## 0.1.301 — 2026-11-08
 
 ### Changes
