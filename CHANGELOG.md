@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.300 — 2026-11-08
+
+### Changes
+
+- **Release** — Make TV media hero fill the top half of the screen
+- ## Problem
+- Make TV media hero fill the top half of the screen (#34)
+
 ## 0.1.299 — 2026-11-08
 
 ### Changes
