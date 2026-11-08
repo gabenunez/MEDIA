@@ -137,6 +137,15 @@ const nextConfig = {
       "@radix-ui/react-slot",
       "@radix-ui/react-tabs",
     ],
+    // Keep visited pages in the client router cache so Back is served from
+    // cache instead of refetching the RSC payload. Refetching re-shows
+    // loading.tsx, which flashes the empty background pattern on TV. Live data
+    // still refreshes via useLiveHomeData / useMediaPageData after the cached
+    // view paints, so Back is instant and never blank.
+    staleTimes: {
+      dynamic: 300,
+      static: 300,
+    },
   },
 };
 
