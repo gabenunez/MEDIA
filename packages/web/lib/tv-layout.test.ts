@@ -8,6 +8,7 @@ import {
   extractCssBlock,
   parseClampMaxRem,
   parseRem,
+  parseVh,
   readCssCustomProps,
   readTvGlobalsCss,
   tvRowPosterCount,
@@ -115,6 +116,17 @@ describe("TV living-room series title page", () => {
     expect(mediaView).not.toMatch(/-mt-20/);
     expect(mediaView).not.toMatch(/justify-end/);
     expect(mediaView).not.toMatch(/mt-3 flex gap-4/);
+
+    // The hero section (not the absolute hero) grows to half the viewport so
+    // the backdrop fills the top of the screen instead of hugging the title.
+    const heroSection = extractCssBlock(
+      css,
+      ".tv-ui .tv-media-page > section:first-child {",
+    );
+    expect(parseVh(heroSection.match(/min-height\s*:\s*([^;]+);/)?.[1])).toBe(
+      TV_LIVING_ROOM_MEDIA.heroSectionMinHeightVh,
+    );
+    expect(heroSection).toMatch(/justify-content:\s*flex-end/);
 
     const title = extractCssBlock(css, ".tv-ui .tv-media-title {");
     expect(parseClampMaxRem(title.match(/font-size\s*:\s*([^;]+);/)?.[1])).toBe(

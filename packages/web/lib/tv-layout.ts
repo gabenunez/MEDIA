@@ -29,11 +29,20 @@ export const TV_LIVING_ROOM_MEDIA = {
   episodeStillWidthRem: 8.5,
   episodeStillHeightRem: 4.75,
   titleMaxRem: 1.75,
+  /** Hero header fills the top half of the screen regardless of content. */
+  heroSectionMinHeightVh: 50,
 } as const;
 
 export function parseRem(value: string | undefined): number | null {
   if (!value) return null;
   const match = value.trim().match(/^(-?[\d.]+)rem$/i);
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+export function parseVh(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/^(-?[\d.]+)vh$/i);
   if (!match) return null;
   return Number(match[1]);
 }
