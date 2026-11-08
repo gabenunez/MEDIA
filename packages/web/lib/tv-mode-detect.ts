@@ -4,6 +4,12 @@ export const TV_MODE_HTML_CLASS = "tv-mode";
 export const TV_READY_HTML_CLASS = "tv-ready";
 export const TV_BOOT_READY_HTML_CLASS = "tv-boot-ready";
 export const TV_4K_HTML_CLASS = "tv-4k";
+/**
+ * Positive marker added only for confirmed non-TV browsers. The body grid is
+ * opt-in via this class so a TV never paints the grid — even if `tv-mode` is
+ * momentarily absent during a native WebView back/document render.
+ */
+export const WEB_CLIENT_HTML_CLASS = "web-client";
 export const TV_UA_TOKEN = "MediaAndroidTV";
 export const LEGACY_TV_UA_TOKEN = "ReelAndroidTV";
 
@@ -19,11 +25,16 @@ function readStoredTvMode(): boolean {
   return isTvUserAgent(navigator.userAgent);
 }
 
-/** Inline in head before globals.css so TV clients never flash desktop while hydrating. */
-export const TV_CRITICAL_CSS = `html.${TV_MODE_HTML_CLASS}:not(.${TV_BOOT_READY_HTML_CLASS}) body{visibility:hidden!important}html.${TV_MODE_HTML_CLASS} [data-web-only]{display:none!important}`;
+/**
+ * Inline in head before globals.css so TV clients never flash desktop/grid while
+ * hydrating. The body grid is suppressed by default and only re-enabled for a
+ * confirmed `web-client` (see globals.css), so an uncertain or TV document can
+ * never paint the grid pattern regardless of stylesheet/class timing.
+ */
+export const TV_CRITICAL_CSS = `body{background-image:none!important}html.${WEB_CLIENT_HTML_CLASS} body{background-image:var(--web-body-grid)!important}html.${TV_MODE_HTML_CLASS}:not(.${TV_BOOT_READY_HTML_CLASS}) body{visibility:hidden!important}html.${TV_MODE_HTML_CLASS} [data-web-only]{display:none!important}`;
 
 /** Runs in a blocking head script before first paint. */
-export const TV_MODE_BOOTSTRAP_SCRIPT = `(function(){try{var k=${JSON.stringify(TV_MODE_KEY)},v=${JSON.stringify(TV_MODE_VALUE)},t=${JSON.stringify(TV_UA_TOKEN)},lt=${JSON.stringify(LEGACY_TV_UA_TOKEN)},c=${JSON.stringify(TV_MODE_HTML_CLASS)},r=${JSON.stringify(TV_READY_HTML_CLASS)},b=${JSON.stringify(TV_BOOT_READY_HTML_CLASS)},k4=${JSON.stringify(TV_4K_HTML_CLASS)};var p=new URLSearchParams(location.search);if(p.get("tv")==="1")sessionStorage.setItem(k,v);var ua=navigator.userAgent;var isTv=sessionStorage.getItem(k)===v||ua.indexOf(t)!==-1||ua.indexOf(lt)!==-1;if(isTv){document.documentElement.classList.add(c);var sm=Math.max(screen.width,screen.height),vm=Math.max(innerWidth,innerHeight),dpr=devicePixelRatio||1;if(sm>=3840||(sm>=2160&&dpr>=1.25)||(vm>=1920&&dpr>=1.5))document.documentElement.classList.add(k4)}setTimeout(function(){var h=document.documentElement;if(!h.classList.contains(r))h.classList.add(r);if(!h.classList.contains(b))h.classList.add(b)},15000)}catch(e){}})();`;
+export const TV_MODE_BOOTSTRAP_SCRIPT = `(function(){try{var k=${JSON.stringify(TV_MODE_KEY)},v=${JSON.stringify(TV_MODE_VALUE)},t=${JSON.stringify(TV_UA_TOKEN)},lt=${JSON.stringify(LEGACY_TV_UA_TOKEN)},c=${JSON.stringify(TV_MODE_HTML_CLASS)},w=${JSON.stringify(WEB_CLIENT_HTML_CLASS)},r=${JSON.stringify(TV_READY_HTML_CLASS)},b=${JSON.stringify(TV_BOOT_READY_HTML_CLASS)},k4=${JSON.stringify(TV_4K_HTML_CLASS)};var p=new URLSearchParams(location.search);if(p.get("tv")==="1")sessionStorage.setItem(k,v);var ua=navigator.userAgent;var isTv=sessionStorage.getItem(k)===v||ua.indexOf(t)!==-1||ua.indexOf(lt)!==-1;var h=document.documentElement;if(isTv){h.classList.add(c);h.classList.remove(w);var sm=Math.max(screen.width,screen.height),vm=Math.max(innerWidth,innerHeight),dpr=devicePixelRatio||1;if(sm>=3840||(sm>=2160&&dpr>=1.25)||(vm>=1920&&dpr>=1.5))h.classList.add(k4)}else{h.classList.add(w)}setTimeout(function(){var h=document.documentElement;if(!h.classList.contains(r))h.classList.add(r);if(!h.classList.contains(b))h.classList.add(b)},15000)}catch(e){}})();`;
 
 export function initTvMode(): boolean {
   if (typeof window === "undefined") return false;
