@@ -33,15 +33,23 @@
   body {
     @apply bg-background text-foreground antialiased;
     background-color: hsl(var(--background));
-    background-image:
+    /* The grid is opt-in for confirmed web clients only (html.web-client). A TV
+       or not-yet-classified document stays solid so the grid can never flash on
+       Back. See TV_CRITICAL_CSS and the bootstrap in tv-mode-detect.ts. */
+    --web-body-grid:
       linear-gradient(180deg, rgba(15, 43, 42, 0.82) 0%, rgba(7, 14, 15, 0) 36rem),
       linear-gradient(90deg, rgba(47, 255, 229, 0.07) 1px, transparent 1px),
       linear-gradient(0deg, rgba(220, 255, 96, 0.035) 1px, transparent 1px);
+    background-image: none;
     background-size:
       100% 100%,
       72px 72px,
       72px 72px;
     min-height: 100vh;
+  }
+
+  html.web-client body {
+    background-image: var(--web-body-grid);
   }
 
   ::selection {

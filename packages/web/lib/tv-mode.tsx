@@ -10,6 +10,7 @@ import {
 import {
   TV_MODE_HTML_CLASS,
   TV_READY_HTML_CLASS,
+  WEB_CLIENT_HTML_CLASS,
   initTvMode,
   initTv4KMode,
 } from "@/lib/tv-mode-detect";
@@ -31,13 +32,17 @@ export function TvModeProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     const tv = initTvMode();
+    const root = document.documentElement;
     if (tv) {
-      document.documentElement.classList.add(TV_MODE_HTML_CLASS);
-      document.documentElement.classList.add(TV_READY_HTML_CLASS);
+      root.classList.add(TV_MODE_HTML_CLASS);
+      root.classList.add(TV_READY_HTML_CLASS);
+      // Never both: TV must not carry the web-grid marker.
+      root.classList.remove(WEB_CLIENT_HTML_CLASS);
       initTv4KMode();
     } else {
-      document.documentElement.classList.remove(TV_MODE_HTML_CLASS);
-      document.documentElement.classList.remove(TV_READY_HTML_CLASS);
+      root.classList.remove(TV_MODE_HTML_CLASS);
+      root.classList.remove(TV_READY_HTML_CLASS);
+      root.classList.add(WEB_CLIENT_HTML_CLASS);
     }
     setIsTvMode(tv);
   }, []);
