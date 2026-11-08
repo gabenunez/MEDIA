@@ -514,6 +514,17 @@
     padding-bottom: 1.5rem;
   }
 
+  /* Hero header fills the top half of the screen regardless of content height,
+     so the backdrop reads as a cinematic header instead of hugging the title.
+     The hero is absolute inset:0 inside this section, so the section's height
+     (not the hero's) is what must grow — set it here and bottom-align content. */
+  .tv-ui .tv-media-page > section:first-child {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 50vh;
+  }
+
   .tv-ui .tv-media-gutter {
     padding-inline: var(--tv-page-gutter);
   }
