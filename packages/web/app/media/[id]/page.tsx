@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { MediaLoadingSkeleton } from "@/lib/route-loading";
+import { fetchMediaDetail } from "@/lib/server-api";
 import { MediaDetailClient } from "../client";
 
 export default function MediaDetailPage({
@@ -23,5 +24,9 @@ async function MediaDetailRoute({
   const { id } = await params;
   const mediaId = parseInt(id, 10);
   if (!Number.isFinite(mediaId) || mediaId <= 0) notFound();
-  return <MediaDetailClient mediaId={mediaId} />;
+
+  // Stream the cached media payload from RSC so the hero paints from the server
+  // instead of a client round-trip. The client hook re-validates after paint.
+  const { media } = await fetchMediaDetail(mediaId);
+  return <MediaDetailClient mediaId={mediaId} initialMedia={media} />;
 }
