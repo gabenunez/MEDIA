@@ -16,13 +16,15 @@ function RouteLoading({ children }: { children: ReactNode }) {
   }, []);
 
   if (isTvMode) {
-    // Opaque page fill only — never a bordered loading chip. Back from watch
-    // (and other soft nav) can flash loading.tsx briefly; button-like chrome
-    // is worse than a quiet background until the destination paints.
+    // Opaque full-bleed fill — never a bordered loading chip. Back (and other
+    // soft nav) can flash loading.tsx briefly before the destination paints;
+    // cover the whole viewport with solid paint so the body/signal-grid pattern
+    // can never bleed through. min-h-screen alone leaves a gap if the previous
+    // view was taller, so pin to the scroll host height.
     return (
       <div
         data-tv-route-loading=""
-        className="min-h-[80vh] bg-background"
+        className="absolute inset-0 min-h-full bg-background"
         role="status"
         aria-label="Loading"
       />
