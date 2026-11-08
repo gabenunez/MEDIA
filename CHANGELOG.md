@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.301 — 2026-11-08
+
+### Changes
+
+- **Release** — Speed up navigation, revalidation, and catalog queries
+- ## Summary
+- Speed up navigation, revalidation, and catalog queries (#35)
+
 ## 0.1.300 — 2026-11-08
 
 ### Changes
