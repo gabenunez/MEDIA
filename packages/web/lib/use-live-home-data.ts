@@ -78,7 +78,11 @@ export function useLiveHomeData(initialData: HomeData | null) {
 
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh("visible");
+      // Only refetch on tab focus if the home entry is actually stale; a fresh
+      // cache entry means we painted it moments ago and a network hit is wasted.
+      if (document.visibilityState !== "visible") return;
+      if (peekApiCache<HomeData>("home")) return;
+      void refresh("visible");
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);

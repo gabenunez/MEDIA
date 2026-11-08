@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type MediaItem } from "@/lib/api";
-import { peekApiCache } from "@/lib/api-cache";
+import { peekApiCache, seedApiCache } from "@/lib/api-cache";
 
 export function prefetchMediaPage(mediaId: number): void {
   if (!Number.isFinite(mediaId)) return;
@@ -55,6 +55,11 @@ export function useMediaPageData(
 
   useEffect(() => {
     if (validId == null) return;
+
+    // Seed the client cache from the SSR payload so the mount getMedia call is
+    // a synchronous hit instead of a second /api/media round-trip.
+    const seed = readSeed(validId, initialMedia);
+    if (seed) seedApiCache(`media:${validId}`, seed, 60_000);
 
     let cancelled = false;
     const hadSeed = Boolean(readSeed(validId, initialMedia));

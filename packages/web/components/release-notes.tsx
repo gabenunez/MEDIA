@@ -1,8 +1,12 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
 import { previewReleaseNotes } from "@/lib/update-utils";
 import { cn } from "@/lib/utils";
+
+// react-markdown + micromark is a large dependency graph only needed inside the
+// rarely-opened update modal. Split it into a lazily-loaded chunk.
+const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
 interface ReleaseNotesProps {
   notes: string | null;

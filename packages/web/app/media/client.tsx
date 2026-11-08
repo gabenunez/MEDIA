@@ -61,14 +61,31 @@ function LegacyDesktopMediaResolved({ mediaId }: { mediaId: number }) {
   return <DesktopMediaDetail mediaId={mediaId} />;
 }
 
-export function MediaDetailClient({ mediaId }: { mediaId: number }) {
+export function MediaDetailClient({
+  mediaId,
+  initialMedia,
+}: {
+  mediaId: number;
+  initialMedia?: Record<string, unknown> | null;
+}) {
   const isTvMode = useTvMode();
-  if (isTvMode) return <TvMediaView mediaId={mediaId} />;
-  return <DesktopMediaDetail mediaId={mediaId} />;
+  if (isTvMode) {
+    return <TvMediaView mediaId={mediaId} initialMedia={initialMedia ?? undefined} />;
+  }
+  return <DesktopMediaDetail mediaId={mediaId} initialMedia={initialMedia} />;
 }
 
-function DesktopMediaDetail({ mediaId }: { mediaId: number }) {
-  const { media: mediaRecord, related, missing } = useMediaPageData(mediaId);
+function DesktopMediaDetail({
+  mediaId,
+  initialMedia,
+}: {
+  mediaId: number;
+  initialMedia?: Record<string, unknown> | null;
+}) {
+  const { media: mediaRecord, related, missing } = useMediaPageData(
+    mediaId,
+    initialMedia,
+  );
   if (missing) {
     return (
       <div className="py-20 text-center">

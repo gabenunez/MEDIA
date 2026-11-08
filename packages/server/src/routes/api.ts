@@ -27,6 +27,10 @@ import {
 } from "../services/home-rows.js";
 import { listLibrariesWithCounts, getLibraryItemCounts } from "../services/library-stats.js";
 import { loadTvSeasonsWithEpisodes } from "../services/media-detail.js";
+import {
+  revalidateCatalog,
+  revalidateMediaPage,
+} from "../services/page-revalidate.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
 import { errorMessage, parsePagination } from "./util.js";
 import {
@@ -38,6 +42,18 @@ import {
   subtitles,
   libraryDecks,
 } from "../db/schema.js";
+
+/** Watch-progress heartbeats arrive every few seconds during playback; coalesce
+ *  them into a single catalog revalidation instead of hammering the web layer. */
+let catalogRevalidateTimer: NodeJS.Timeout | null = null;
+function scheduleCatalogRevalidateDebounced(): void {
+  if (catalogRevalidateTimer) return;
+  catalogRevalidateTimer = setTimeout(() => {
+    catalogRevalidateTimer = null;
+    void revalidateCatalog();
+  }, 2000);
+  catalogRevalidateTimer.unref?.();
+}
 
 function parseGenreSet(genres: string | null | undefined): Set<string> {
   if (!genres?.trim()) return new Set();
@@ -128,6 +144,7 @@ export async function apiRoutes(
 
     try {
       await addFavorite(db, mediaItemId);
+      void revalidateCatalog();
       return { success: true };
     } catch (err) {
       const message = errorMessage(err, "Failed to add favorite");
@@ -143,6 +160,7 @@ export async function apiRoutes(
     async (request) => {
       const mediaItemId = parseInt(request.params.mediaItemId, 10);
       await removeFavorite(db, mediaItemId);
+      void revalidateCatalog();
       return { success: true };
     },
   );
@@ -284,6 +302,10 @@ export async function apiRoutes(
       .set({ watchedAt: watched ? new Date() : null, updatedAt: new Date() })
       .where(eq(mediaItems.id, mediaId));
 
+    // Refresh this title's RSC page and the catalog (continue-watching/watched
+    // state feeds the home rows).
+    void revalidateMediaPage(mediaId);
+
     return { success: true, watched };
   });
 
@@ -414,7 +436,9 @@ export async function apiRoutes(
     "/api/continue-watching",
     async (request) => {
       const { page, limit } = parsePagination(request.query);
-      return listContinueWatching(db, { page, limit });
+      // Only walk enough progress rows to fill the requested page, instead of
+      // materializing every watch-progress row to compute an exact total.
+      return listContinueWatching(db, { page, limit, exactTotal: false });
     },
   );
 
@@ -564,6 +588,7 @@ export async function apiRoutes(
         .update(watchProgress)
         .set({ positionMs, durationMs, updatedAt: new Date() })
         .where(eq(watchProgress.id, existing.id));
+      scheduleCatalogRevalidateDebounced();
       return { success: true, id: existing.id };
     }
 
@@ -572,6 +597,7 @@ export async function apiRoutes(
       .values({ itemType, itemId, positionMs, durationMs })
       .returning();
 
+    scheduleCatalogRevalidateDebounced();
     return { success: true, id: row.id };
   });
 

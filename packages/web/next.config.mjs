@@ -136,6 +136,8 @@ const nextConfig = {
       "@radix-ui/react-scroll-area",
       "@radix-ui/react-slot",
       "@radix-ui/react-tabs",
+      "lucide-react",
+      "class-variance-authority",
     ],
     // Keep visited pages in the client router cache so Back is served from
     // cache instead of refetching the RSC payload. Refetching re-shows
