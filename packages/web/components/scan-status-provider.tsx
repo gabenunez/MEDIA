@@ -55,9 +55,6 @@ export function ScanStatusProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
 
       const scanning = next?.activeScan?.status === "running";
-      if (wasScanningRef.current && !scanning) {
-        await refresh();
-      }
       wasScanningRef.current = scanning;
 
       const hidden =
