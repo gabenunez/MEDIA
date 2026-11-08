@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.299 — 2026-11-08
+
+### Changes
+
+- **Release** — Stop TV Back from flashing the background grid
+- ## Problem
+- Stop TV Back from flashing the background grid (#33)
+
 ## 0.1.298 — 2026-10-30
 
 ### Playback
