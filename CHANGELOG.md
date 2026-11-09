@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.303 — 2026-11-09
+
+### Changes
+
+- **Release** — Stop duplicate episodes from aliasing in-progress downloads
+- Skip incomplete downloads during alias scans and dedupe duplicate episode rows left behind when a download was renamed after completing.
+
 ## 0.1.302 — 2026-11-08
 
 ### Changes
