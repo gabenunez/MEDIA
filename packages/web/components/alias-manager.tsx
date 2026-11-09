@@ -165,6 +165,7 @@ export function AliasManager({
           <p className="text-xs text-muted-foreground">
             {scan.scanned} media file{scan.scanned === 1 ? "" : "s"} scanned
             {scan.alreadyAliased > 0 ? ` · ${scan.alreadyAliased} already aliased` : ""}
+            {scan.incomplete > 0 ? ` · ${scan.incomplete} still downloading` : ""}
             {scan.skipped > 0 ? ` · ${scan.skipped} skipped` : ""}
             {scan.candidates.length > 0
               ? ` · ${scan.candidates.length} without an alias`

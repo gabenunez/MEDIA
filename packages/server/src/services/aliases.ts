@@ -36,6 +36,8 @@ export interface AliasScanResult {
   scanned: number;
   alreadyAliased: number;
   skipped: number;
+  /** Files ignored because they are still downloading (incomplete/unsettled). */
+  incomplete: number;
   candidates: AliasCandidate[];
 }
 
@@ -48,10 +50,75 @@ export interface AliasCreateResult {
 const SAMPLE_NAME = /(^|[._\-\s])sample([._\-\s]|$)/i;
 const INCOMPLETE_EXT = new Set([".part", ".!qb", ".tmp", ".aria2", ".crdownload"]);
 
+/**
+ * Folder names download clients use for in-progress transfers. Anything under
+ * one of these is still downloading and must not be aliased yet — aliasing an
+ * incomplete download produces a stale symlink (and a duplicate library entry)
+ * once the client renames/moves the finished file.
+ */
+const INCOMPLETE_DIR_NAMES = new Set([
+  "incomplete",
+  ".incomplete",
+  "_unpack_",
+  "_unpack",
+  ".unpack",
+  "_failed_",
+  ".failed",
+  "temp",
+  ".temp",
+  "tmp",
+  ".tmp",
+]);
+
+/**
+ * A finished download must sit untouched for at least this long before we trust
+ * it. This is the guard against "scanned before the download completed": a file
+ * still being written will have a recent mtime and is skipped until it settles.
+ */
+export const DOWNLOAD_STABLE_MS = 10_000;
+
 export function isJunkDownloadName(filename: string): boolean {
   const ext = path.extname(filename).toLowerCase();
   if (INCOMPLETE_EXT.has(ext)) return true;
   return SAMPLE_NAME.test(filename.replace(/\.[^.]+$/, ""));
+}
+
+/** True when any path segment is a known in-progress download folder. */
+export function isUnderIncompleteDir(sourcePath: string, downloadRoot: string): boolean {
+  const relative = sourcePath.startsWith(downloadRoot)
+    ? sourcePath.slice(downloadRoot.length)
+    : sourcePath;
+  for (const segment of relative.split(/[/\\]/)) {
+    if (!segment) continue;
+    if (INCOMPLETE_DIR_NAMES.has(segment.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/**
+ * A download is only ready to alias once it is a real, complete file:
+ *  - a regular file (not a dangling/symlinked placeholder),
+ *  - with no sibling incomplete marker (e.g. `name.mkv` + `name.mkv.part`),
+ *  - that has not been written to within DOWNLOAD_STABLE_MS.
+ *
+ * `now` is injectable for tests.
+ */
+export function isCompletedDownload(
+  sourcePath: string,
+  stat: fs.Stats,
+  now: number = Date.now(),
+): boolean {
+  if (!stat.isFile()) return false;
+  if (stat.size === 0) return false;
+
+  for (const marker of INCOMPLETE_EXT) {
+    if (fs.existsSync(`${sourcePath}${marker}`)) return false;
+  }
+
+  const lastTouched = Math.max(stat.mtimeMs, stat.ctimeMs);
+  if (now - lastTouched < DOWNLOAD_STABLE_MS) return false;
+
+  return true;
 }
 
 export function sanitizeFolderName(name: string): string {
@@ -216,10 +283,16 @@ export class AliasService {
     const candidates: AliasCandidate[] = [];
     let alreadyAliased = 0;
     let skipped = 0;
+    let incomplete = 0;
 
     for (const sourcePath of downloads) {
       if (libraries.some((lib) => isPathUnderRoot(lib.path, sourcePath))) {
         skipped += 1;
+        continue;
+      }
+
+      if (isUnderIncompleteDir(sourcePath, resolved)) {
+        incomplete += 1;
         continue;
       }
 
@@ -228,6 +301,13 @@ export class AliasService {
         stat = fs.statSync(sourcePath);
       } catch {
         skipped += 1;
+        continue;
+      }
+
+      // Skip anything still downloading so we never alias a file the client is
+      // about to rename or move — that is what creates duplicate episodes.
+      if (!isCompletedDownload(sourcePath, stat)) {
+        incomplete += 1;
         continue;
       }
 
@@ -258,6 +338,7 @@ export class AliasService {
       scanned: downloads.length,
       alreadyAliased,
       skipped,
+      incomplete,
       candidates,
     };
   }
@@ -282,6 +363,12 @@ export class AliasService {
         }
         if (!isVideoFile(sourcePath) || isJunkDownloadName(path.basename(sourcePath))) {
           throw new Error("Not a media file");
+        }
+        if (isUnderIncompleteDir(sourcePath, downloadPath)) {
+          throw new Error("File is still downloading");
+        }
+        if (!isCompletedDownload(sourcePath, stat)) {
+          throw new Error("Download has not finished yet");
         }
 
         const suggestion = suggestedAliasPath(sourcePath, libraries);

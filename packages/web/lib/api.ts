@@ -179,6 +179,8 @@ export interface AliasScanResult {
   scanned: number;
   alreadyAliased: number;
   skipped: number;
+  /** Files ignored because they are still downloading (incomplete/unsettled). */
+  incomplete: number;
   candidates: AliasCandidate[];
 }
 

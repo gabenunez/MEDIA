@@ -23,6 +23,7 @@ import {
   scanJobs,
 } from "../db/schema.js";
 import { dedupeDuplicateSeasons } from "./dedupe-seasons.js";
+import { dedupeDuplicateEpisodes } from "./dedupe-episodes.js";
 import { MetadataService } from "./metadata.js";
 import { SubtitleService } from "./subtitles.js";
 import { ThemeService } from "./themes.js";
@@ -60,6 +61,11 @@ export class ScannerService {
     const removedSeasons = await dedupeDuplicateSeasons(this.db);
     if (removedSeasons > 0) {
       console.log(`Merged ${removedSeasons} duplicate TV season(s)`);
+    }
+
+    const removedEpisodes = await dedupeDuplicateEpisodes(this.db);
+    if (removedEpisodes > 0) {
+      console.log(`Removed ${removedEpisodes} duplicate TV episode(s)`);
     }
 
     for (const libConfig of this.config.libraries) {
@@ -324,6 +330,12 @@ export class ScannerService {
         const removedSeasons = await dedupeDuplicateSeasons(this.db, libraryId);
         if (removedSeasons > 0) {
           console.log(`Merged ${removedSeasons} duplicate TV season(s) in ${lib.name}`);
+        }
+        const removedEpisodes = await dedupeDuplicateEpisodes(this.db, libraryId);
+        if (removedEpisodes > 0) {
+          console.log(
+            `Removed ${removedEpisodes} duplicate TV episode(s) in ${lib.name}`,
+          );
         }
       }
 
