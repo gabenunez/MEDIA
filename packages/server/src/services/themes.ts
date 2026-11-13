@@ -35,8 +35,16 @@ function findThemeInDirectory(dir: string): string | null {
   return null;
 }
 
+/** How long to wait before re-checking a title that had no theme last time.
+ * Stops theme-less titles from re-running the full remote fetch chain
+ * (fanart.tv → ThemerrDB → yt-dlp) on every page view. */
+const THEME_RECHECK_MS = 7 * 24 * 60 * 60 * 1000;
+
 export class ThemeService {
   private cacheDir: string;
+  /** Dedup concurrent syncs for the same item so a burst of requests triggers
+   * at most one remote fetch. */
+  private inFlight = new Map<number, Promise<string | null>>();
 
   constructor(
     private db: DatabaseInstance,
@@ -45,6 +53,16 @@ export class ThemeService {
   ) {
     this.cacheDir = path.join(configManager.get().data_dir, "cache", "themes");
     fs.mkdirSync(this.cacheDir, { recursive: true });
+  }
+
+  /** Whether a (non-blocking) sync is worth attempting: no cached theme, and
+   * we either never checked or the recheck window has elapsed. */
+  shouldAttemptSync(
+    item: Pick<MediaItem, "themePath" | "themeCheckedAt">,
+  ): boolean {
+    if (item.themePath && fs.existsSync(item.themePath)) return false;
+    if (!item.themeCheckedAt) return true;
+    return Date.now() - item.themeCheckedAt.getTime() > THEME_RECHECK_MS;
   }
 
   mimeTypeForPath(filePath: string): string {
@@ -56,12 +74,28 @@ export class ThemeService {
   }
 
   async syncForMediaItem(
-    item: Pick<MediaItem, "id" | "libraryId" | "type" | "tmdbId" | "themePath">,
+    item: Pick<
+      MediaItem,
+      "id" | "libraryId" | "type" | "tmdbId" | "themePath" | "themeCheckedAt"
+    >,
   ): Promise<string | null> {
     if (item.themePath && fs.existsSync(item.themePath)) {
       return item.themePath;
     }
 
+    const existing = this.inFlight.get(item.id);
+    if (existing) return existing;
+
+    const task = this.runSync(item).finally(() => {
+      this.inFlight.delete(item.id);
+    });
+    this.inFlight.set(item.id, task);
+    return task;
+  }
+
+  private async runSync(
+    item: Pick<MediaItem, "id" | "libraryId" | "type" | "tmdbId" | "themePath">,
+  ): Promise<string | null> {
     const localPath = await this.discoverLocalTheme(item);
     if (localPath) {
       await this.saveThemePath(item.id, localPath);
@@ -98,12 +132,12 @@ export class ThemeService {
       }
     }
 
-    if (item.themePath) {
-      await this.db
-        .update(mediaItems)
-        .set({ themePath: null, updatedAt: new Date() })
-        .where(eq(mediaItems.id, item.id));
-    }
+    // No theme available — record the attempt so we don't re-run this whole
+    // remote fetch chain on every subsequent request.
+    await this.db
+      .update(mediaItems)
+      .set({ themePath: null, themeCheckedAt: new Date(), updatedAt: new Date() })
+      .where(eq(mediaItems.id, item.id));
 
     return null;
   }
@@ -116,6 +150,7 @@ export class ThemeService {
         type: true,
         tmdbId: true,
         themePath: true,
+        themeCheckedAt: true,
       },
       where: eq(mediaItems.libraryId, libraryId),
     });
@@ -135,7 +170,7 @@ export class ThemeService {
   private async saveThemePath(mediaItemId: number, themePath: string): Promise<void> {
     await this.db
       .update(mediaItems)
-      .set({ themePath, updatedAt: new Date() })
+      .set({ themePath, themeCheckedAt: new Date(), updatedAt: new Date() })
       .where(eq(mediaItems.id, mediaItemId));
   }
 

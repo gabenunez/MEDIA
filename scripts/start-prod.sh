@@ -57,6 +57,37 @@ fi
 API_PID=""
 WEB_PID=""
 GATEWAY_PID=""
+LOG_PRUNE_PID=""
+
+# Resolve the file our launcher redirects stdout/stderr into, so we can keep it
+# trimmed to the last 30 days instead of letting it grow without bound.
+resolve_log_file() {
+  if [[ -n "${MEDIA_LOG_FILE:-}" ]]; then
+    printf '%s' "$MEDIA_LOG_FILE"
+  elif [[ -f "${HOME}/.config/media-app/reel.log" ]]; then
+    printf '%s' "${HOME}/.config/media-app/reel.log"
+  elif [[ -f "${HOME}/.config/reel/reel.log" ]]; then
+    printf '%s' "${HOME}/.config/reel/reel.log"
+  else
+    printf '%s' "${HOME}/.config/media-app/reel.log"
+  fi
+}
+
+LOG_FILE="$(resolve_log_file)"
+LOG_RETENTION_DAYS="${MEDIA_LOG_RETENTION_DAYS:-30}"
+
+# Prune once now, then daily. Runs in the background so it never blocks the
+# stack; failures are non-fatal (the log just stays longer).
+start_log_pruner() {
+  [[ -f "$ROOT/scripts/prune-logs.mjs" ]] || return 0
+  (
+    while true; do
+      node "$ROOT/scripts/prune-logs.mjs" "$LOG_FILE" "$LOG_RETENTION_DAYS" || true
+      sleep 86400
+    done
+  ) &
+  LOG_PRUNE_PID=$!
+}
 
 cleanup_children() {
   if [[ -n "$GATEWAY_PID" ]] && kill -0 "$GATEWAY_PID" 2>/dev/null; then
@@ -76,14 +107,23 @@ cleanup_children() {
   API_PID=""
 }
 
+stop_log_pruner() {
+  if [[ -n "$LOG_PRUNE_PID" ]] && kill -0 "$LOG_PRUNE_PID" 2>/dev/null; then
+    kill "$LOG_PRUNE_PID" 2>/dev/null || true
+    wait "$LOG_PRUNE_PID" 2>/dev/null || true
+  fi
+  LOG_PRUNE_PID=""
+}
+
 shutdown() {
   trap - EXIT INT TERM
   cleanup_children
+  stop_log_pruner
   rm -rf "$SUPERVISOR_LOCK_DIR"
   exit 0
 }
 
-trap 'cleanup_children; rm -rf "$SUPERVISOR_LOCK_DIR"' EXIT
+trap 'cleanup_children; stop_log_pruner; rm -rf "$SUPERVISOR_LOCK_DIR"' EXIT
 trap shutdown INT TERM
 
 start_api() {
@@ -182,6 +222,8 @@ monitor_stack() {
 
   return 1
 }
+
+start_log_pruner
 
 while true; do
   cleanup_children

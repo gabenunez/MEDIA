@@ -268,18 +268,20 @@ export async function apiRoutes(
       return reply.status(404).send({ error: "Not found" });
     }
 
-    let themePath =
-      item.themePath && fs.existsSync(item.themePath)
-        ? item.themePath
-        : await themes.syncForMediaItem(item);
-
-    if (!themePath || !fs.existsSync(themePath)) {
-      return reply.status(404).send({ error: "No theme music available" });
+    // Serve the cached theme immediately when we have one.
+    if (item.themePath && fs.existsSync(item.themePath)) {
+      return reply
+        .type(themes.mimeTypeForPath(item.themePath))
+        .send(fs.createReadStream(item.themePath));
     }
 
-    return reply
-      .type(themes.mimeTypeForPath(themePath))
-      .send(fs.createReadStream(themePath));
+    // Otherwise never block the request on remote fetching (fanart/ThemerrDB/
+    // yt-dlp can take seconds). Kick off a deduped, rate-guarded background
+    // sync and respond 404 fast; the next request serves it once downloaded.
+    if (themes.shouldAttemptSync(item)) {
+      void themes.syncForMediaItem(item);
+    }
+    return reply.status(404).send({ error: "No theme music available" });
   });
 
   app.patch<{
@@ -318,7 +320,7 @@ export async function apiRoutes(
     if (!item) return reply.status(404).send({ error: "Not found" });
 
     const themePath = themes.hasThemeMusic(item) ? item.themePath : null;
-    if (!themePath) {
+    if (!themePath && themes.shouldAttemptSync(item)) {
       void themes.syncForMediaItem(item);
     }
     const hasThemeMusic = Boolean(themePath && fs.existsSync(themePath));
