@@ -41,6 +41,7 @@ import {
   thumbnailCacheDir,
 } from "../utils/thumbnails.js";
 import { createStreamSessionId } from "../utils/stream-session.js";
+import { createReadaheadStream } from "../utils/readahead-stream.js";
 import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
 import {
   matchConditionalGet,
@@ -77,8 +78,14 @@ type StreamFile = {
   audioCodec?: string | null;
 };
 
-/** Larger chunks keep progressive/NAS reads warm between ExoPlayer refills. */
-const STREAM_READ_HIGH_WATER_MARK = 8 * 1024 * 1024;
+/** Per disk read for progressive/direct playback. Smaller reads refill the
+ * readahead buffer more smoothly on a contended disk than one large blocking
+ * read would. */
+const STREAM_READ_CHUNK_BYTES = 1024 * 1024;
+/** Bytes buffered ahead of the client per direct-play stream. Absorbs transient
+ * disk stalls on shared storage so the player's buffer doesn't drain to a
+ * stutter. Bounded so concurrent streams can't balloon memory. */
+const STREAM_READAHEAD_BYTES = 16 * 1024 * 1024;
 
 function parseStartSeconds(value?: string): number {
   if (!value) return 0;
@@ -537,10 +544,11 @@ export async function streamRoutes(
           .header("Content-Type", mimeType);
 
         return reply.send(
-          fs.createReadStream(file.filePath, {
+          createReadaheadStream(file.filePath, {
             start,
             end,
-            highWaterMark: STREAM_READ_HIGH_WATER_MARK,
+            chunkBytes: STREAM_READ_CHUNK_BYTES,
+            readaheadBytes: STREAM_READAHEAD_BYTES,
           }),
         );
       }
@@ -552,8 +560,9 @@ export async function streamRoutes(
         .header("Accept-Ranges", "bytes");
 
       return reply.send(
-        fs.createReadStream(file.filePath, {
-          highWaterMark: STREAM_READ_HIGH_WATER_MARK,
+        createReadaheadStream(file.filePath, {
+          chunkBytes: STREAM_READ_CHUNK_BYTES,
+          readaheadBytes: STREAM_READAHEAD_BYTES,
         }),
       );
     },
