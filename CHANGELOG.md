@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.304 — 2026-11-12
+
+### Changes
+
+- **Release** — Faster thumbnail sprites and no more duplicate shows
+- Rewrote the scrubber-preview sprite generator to seek to each frame instead of decoding the whole file, so generation cost scales with the thumbnail count (capped at 240) rather than runtime — a multi-hour title now finishes in seconds instead of minutes, at a lowered CPU/IO priority so it can't starve library scans.
+- Fixed a race where concurrent episode ingests of a brand-new show could create the show twice (it showed up duplicated in "Recently Added" until a full scan). Show find-or-create is now serialized per show, and duplicate shows are also merged on startup.
+
 ## 0.1.303 — 2026-11-09
 
 ### Changes
