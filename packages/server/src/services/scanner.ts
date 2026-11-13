@@ -39,6 +39,7 @@ export class ScannerService {
   private watchers = new Map<number, FSWatcher>();
   private activeScan: { libraryId: number; jobId: number } | null = null;
   private seasonCreateChain = new Map<string, Promise<void>>();
+  private mediaCreateChain = new Map<string, Promise<void>>();
   private ingestQueue = new PQueue({ concurrency: LIBRARY_INGEST_CONCURRENCY });
   private ingestingPaths = new Map<string, Promise<void>>();
   private pendingMediaIds = new Set<number>();
@@ -58,6 +59,13 @@ export class ScannerService {
   }
 
   async initializeLibraries(): Promise<void> {
+    // Merge duplicate show rows first so season/episode dedupe can then
+    // consolidate across what used to be separate show entries.
+    const removedShows = await this.dedupeTvShows();
+    if (removedShows > 0) {
+      console.log(`Merged ${removedShows} duplicate TV show(s)`);
+    }
+
     const removedSeasons = await dedupeDuplicateSeasons(this.db);
     if (removedSeasons > 0) {
       console.log(`Merged ${removedSeasons} duplicate TV season(s)`);
@@ -952,6 +960,66 @@ export class ScannerService {
     return undefined;
   }
 
+  /**
+   * Find-or-create the show row for an episode, serialized per show so that a
+   * batch of episodes for a brand-new show (ingested concurrently) share one
+   * row instead of racing into duplicates. Mirrors {@link ensureTvSeason}.
+   */
+  private async ensureTvMediaItem(
+    libraryId: number,
+    showName: string,
+  ): Promise<typeof mediaItems.$inferSelect> {
+    return this.withChainLock(
+      this.mediaCreateChain,
+      `${libraryId}:${showName.toLowerCase()}`,
+      async () => {
+        const byFolderName = await this.findTvMediaItem(libraryId, showName);
+        if (byFolderName) return byFolderName;
+
+        const { match, confidence } = await this.metadata.searchTv(showName);
+
+        if (match) {
+          const byTmdb = await this.findTvMediaItem(
+            libraryId,
+            showName,
+            match.id,
+          );
+          if (byTmdb) return byTmdb;
+        }
+
+        const posterPath = match
+          ? await this.metadata.cachePoster(match.poster_path)
+          : null;
+        const backdropPath = match
+          ? await this.metadata.cacheBackdrop(match.backdrop_path)
+          : null;
+
+        const [item] = await this.db
+          .insert(mediaItems)
+          .values({
+            libraryId,
+            tmdbId: match?.id ?? null,
+            title: match?.name ?? showName,
+            originalTitle: match?.original_name ?? null,
+            overview: match?.overview ?? null,
+            year: match?.first_air_date
+              ? parseInt(match.first_air_date.slice(0, 4), 10)
+              : null,
+            posterPath,
+            backdropPath,
+            type: "tv",
+            genres: match?.genres?.map((g) => g.name).join(", ") ?? null,
+            rating: match?.vote_average ?? null,
+            matchConfidence: confidence,
+            needsMatch: !match || confidence < 0.6,
+          })
+          .returning();
+
+        return item;
+      },
+    );
+  }
+
   /** Merge duplicate TV show rows created when folder name != TMDB title. */
   async dedupeTvShows(libraryId?: number): Promise<number> {
     const conditions = [eq(mediaItems.type, "tv")];
@@ -1016,24 +1084,34 @@ export class ScannerService {
     return merged;
   }
 
-  /** Serialize season creation so a batch of new episodes shares one season row. */
-  private async withSeasonLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    const previous = this.seasonCreateChain.get(key) ?? Promise.resolve();
+  /** Serialize work on a per-key promise chain so concurrent ingests of the
+   * same show/season don't race find-or-create into duplicate rows. */
+  private async withChainLock<T>(
+    chain: Map<string, Promise<void>>,
+    key: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const previous = chain.get(key) ?? Promise.resolve();
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
     const tail = previous.then(() => gate);
-    this.seasonCreateChain.set(key, tail);
+    chain.set(key, tail);
     await previous;
     try {
       return await fn();
     } finally {
       release();
-      if (this.seasonCreateChain.get(key) === tail) {
-        this.seasonCreateChain.delete(key);
+      if (chain.get(key) === tail) {
+        chain.delete(key);
       }
     }
+  }
+
+  /** Serialize season creation so a batch of new episodes shares one season row. */
+  private async withSeasonLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    return this.withChainLock(this.seasonCreateChain, key, fn);
   }
 
   private async ensureTvSeason(
@@ -1128,47 +1206,7 @@ export class ScannerService {
       return;
     }
 
-    let mediaItem = await this.findTvMediaItem(lib.id, parsed.showName);
-
-    const { match, confidence } = mediaItem
-      ? { match: null, confidence: 0 }
-      : await this.metadata.searchTv(parsed.showName);
-
-    if (!mediaItem && match) {
-      mediaItem = await this.findTvMediaItem(lib.id, parsed.showName, match.id);
-    }
-
-    if (!mediaItem) {
-      const posterPath = match
-        ? await this.metadata.cachePoster(match.poster_path)
-        : null;
-      const backdropPath = match
-        ? await this.metadata.cacheBackdrop(match.backdrop_path)
-        : null;
-
-      const [item] = await this.db
-        .insert(mediaItems)
-        .values({
-          libraryId: lib.id,
-          tmdbId: match?.id ?? null,
-          title: match?.name ?? parsed.showName,
-          originalTitle: match?.original_name ?? null,
-          overview: match?.overview ?? null,
-          year: match?.first_air_date
-            ? parseInt(match.first_air_date.slice(0, 4), 10)
-            : null,
-          posterPath,
-          backdropPath,
-          type: "tv",
-          genres: match?.genres?.map((g) => g.name).join(", ") ?? null,
-          rating: match?.vote_average ?? null,
-          matchConfidence: confidence,
-          needsMatch: !match || confidence < 0.6,
-        })
-        .returning();
-
-      mediaItem = item;
-    }
+    const mediaItem = await this.ensureTvMediaItem(lib.id, parsed.showName);
 
     const season = await this.ensureTvSeason(
       mediaItem.id,
