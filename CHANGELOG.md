@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.307 — 2026-11-12
+
+### Changes
+
+- **Release** — Smoother direct play on busy/shared storage
+- Direct-play streaming now reads ahead of the player into a bounded in-memory buffer instead of reading the file on demand. A transient disk stall on contended storage is absorbed by the buffer so the player's buffer doesn't drain into a stutter. Byte-range behavior is unchanged; readahead is capped per stream so concurrent playback can't balloon memory.
+
 ## 0.1.306 — 2026-11-12
 
 ### Changes
