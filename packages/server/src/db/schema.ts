@@ -35,6 +35,9 @@ export const mediaItems = sqliteTable(
     posterPath: text("poster_path"),
     backdropPath: text("backdrop_path"),
     themePath: text("theme_path"),
+    /** When we last attempted theme discovery (used to stop re-fetching a
+     * missing theme on every request). Null means never checked. */
+    themeCheckedAt: integer("theme_checked_at", { mode: "timestamp" }),
     type: text("type", { enum: ["movie", "tv"] }).notNull(),
     genres: text("genres"),
     rating: real("rating"),

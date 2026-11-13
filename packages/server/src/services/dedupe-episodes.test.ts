@@ -22,6 +22,7 @@ function createEpisodeTables(sqlite: Database.Database): DatabaseInstance {
       poster_path text,
       backdrop_path text,
       theme_path text,
+      theme_checked_at integer,
       type text NOT NULL,
       genres text,
       rating real,

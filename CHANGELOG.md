@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.306 — 2026-11-12
+
+### Changes
+
+- **Release** — Faster theme music, bounded logs, and dead-code cleanup
+- Theme music no longer blocks the media-detail response: `/api/media/:id/theme` serves the cached file instantly or returns 404 fast and fetches in the background. Titles with no theme are now remembered (via a new `theme_checked_at` marker) instead of re-running the full fanart.tv/ThemerrDB/yt-dlp chain on every page view, with in-flight deduplication so a burst of requests triggers at most one fetch.
+- The server log is now trimmed to the last 30 days (daily, at startup) instead of growing without bound; configurable via `MEDIA_LOG_RETENTION_DAYS`.
+- Removed unused dead code (`isPrerenderBuildPath`, `statOrNull`).
+
 ## 0.1.305 — 2026-11-12
 
 ### Changes

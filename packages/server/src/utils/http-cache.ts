@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 /** Strong ETag from file stat — safe for direct-play range responses. */
@@ -33,13 +32,4 @@ export function matchConditionalGet(
     return true;
   }
   return false;
-}
-
-/** Best-effort stat; null on missing file. */
-export function statOrNull(filePath: string): fs.Stats | null {
-  try {
-    return fs.statSync(filePath);
-  } catch {
-    return null;
-  }
 }
