@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.305 — 2026-11-12
+
+### Changes
+
+- **Release** — Clean up subtitles that are no longer tied to a video
+- Subtitles for a removed video are now fully deleted — both the database row and the cached .vtt file on disk — instead of leaving orphaned files behind. `deleteSubtitle` now also removes embedded subtitle cache files (previously only online downloads were cleaned up).
+- Added an orphaned-subtitle sweep that runs at startup and after each scan: it removes subtitle rows whose video no longer exists and stray cache files on disk, while never touching external sidecar files next to your media.
+
 ## 0.1.304 — 2026-11-12
 
 ### Changes

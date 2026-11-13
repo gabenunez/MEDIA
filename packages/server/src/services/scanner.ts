@@ -76,6 +76,11 @@ export class ScannerService {
       console.log(`Removed ${removedEpisodes} duplicate TV episode(s)`);
     }
 
+    const removedSubtitles = await this.subtitles.pruneOrphanedSubtitles();
+    if (removedSubtitles > 0) {
+      console.log(`Removed ${removedSubtitles} orphaned subtitle(s)`);
+    }
+
     for (const libConfig of this.config.libraries) {
       const existing = await this.db.query.libraries.findFirst({
         where: eq(libraries.path, libConfig.path),
@@ -345,6 +350,13 @@ export class ScannerService {
             `Removed ${removedEpisodes} duplicate TV episode(s) in ${lib.name}`,
           );
         }
+      }
+
+      const removedSubtitles = await this.subtitles.pruneOrphanedSubtitles();
+      if (removedSubtitles > 0) {
+        console.log(
+          `Removed ${removedSubtitles} orphaned subtitle(s) after scanning ${lib.name}`,
+        );
       }
 
       await this.db
@@ -1251,6 +1263,9 @@ export class ScannerService {
       where: eq(movieFiles.filePath, filePath),
     });
     if (movieFile) {
+      // Clean up subtitle rows + cached files before the FK cascade drops the
+      // rows and orphans their .vtt files on disk.
+      await this.subtitles.removeForOwner({ movieFileId: movieFile.id });
       await this.db.delete(movieFiles).where(eq(movieFiles.id, movieFile.id));
       void revalidateCatalog();
       return;
@@ -1260,6 +1275,7 @@ export class ScannerService {
       where: eq(tvEpisodes.filePath, filePath),
     });
     if (episode) {
+      await this.subtitles.removeForOwner({ episodeId: episode.id });
       await this.db.delete(tvEpisodes).where(eq(tvEpisodes.id, episode.id));
       void revalidateCatalog();
     }

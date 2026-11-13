@@ -342,21 +342,26 @@ export class SubtitleService {
     }
   }
 
+  /**
+   * True when a subtitle's file lives in our managed cache (embedded
+   * extractions and online downloads) and is therefore ours to delete.
+   * External sidecar subs point at the user's own files next to the video
+   * and must never be unlinked.
+   */
+  private isManagedCacheFile(subtitle: typeof subtitles.$inferSelect): boolean {
+    if (subtitle.source === "external") return false;
+    const resolved = path.resolve(subtitle.pathOrIndex);
+    return resolved.startsWith(path.resolve(this.cacheDir) + path.sep);
+  }
+
   async deleteSubtitle(id: number): Promise<void> {
     const subtitle = await this.db.query.subtitles.findFirst({
       where: eq(subtitles.id, id),
     });
     if (!subtitle) return;
 
-    if (
-      isOnlineSubtitleSource(subtitle.source) &&
-      fs.existsSync(subtitle.pathOrIndex)
-    ) {
-      try {
-        fs.unlinkSync(subtitle.pathOrIndex);
-      } catch {
-        // ignore cleanup errors
-      }
+    if (this.isManagedCacheFile(subtitle)) {
+      this.removeCacheFile(subtitle.pathOrIndex);
     }
 
     await this.db.delete(subtitles).where(eq(subtitles.id, id));
@@ -484,6 +489,86 @@ export class SubtitleService {
     }
 
     await extractEmbeddedSubtitle(videoPath, streamIndex, cachePath);
+  }
+
+  /**
+   * Delete every subtitle (DB row + managed cache file) belonging to a video
+   * that is being removed. Call this *before* the owning movieFile/episode row
+   * is deleted — the FK cascade would otherwise drop the rows and orphan their
+   * cached .vtt files on disk.
+   */
+  async removeForOwner(ids: {
+    movieFileId?: number;
+    episodeId?: number;
+  }): Promise<void> {
+    const owner =
+      ids.movieFileId != null
+        ? eq(subtitles.movieFileId, ids.movieFileId)
+        : ids.episodeId != null
+          ? eq(subtitles.episodeId, ids.episodeId)
+          : null;
+    if (!owner) return;
+
+    const rows = await this.db.query.subtitles.findMany({ where: owner });
+    for (const row of rows) {
+      await this.deleteSubtitle(row.id);
+    }
+  }
+
+  /**
+   * Sweep away subtitles that are no longer associated with an existing video:
+   *  - DB rows whose owning movieFile/episode is gone (with their cache files)
+   *  - cache files on disk not referenced by any remaining subtitle row
+   * Safe to run at startup and after scans; external sidecar files are never
+   * touched because their paths live outside the managed cache dir.
+   */
+  async pruneOrphanedSubtitles(): Promise<number> {
+    const all = await this.db.query.subtitles.findMany();
+
+    const movieIds = new Set(
+      (await this.db.query.movieFiles.findMany({ columns: { id: true } })).map(
+        (m) => m.id,
+      ),
+    );
+    const episodeIds = new Set(
+      (await this.db.query.tvEpisodes.findMany({ columns: { id: true } })).map(
+        (e) => e.id,
+      ),
+    );
+
+    let removed = 0;
+    const referenced = new Set<string>();
+
+    for (const row of all) {
+      const orphaned =
+        (row.movieFileId != null && !movieIds.has(row.movieFileId)) ||
+        (row.episodeId != null && !episodeIds.has(row.episodeId)) ||
+        (row.movieFileId == null && row.episodeId == null);
+
+      if (orphaned) {
+        await this.deleteSubtitle(row.id);
+        removed++;
+      } else {
+        referenced.add(path.resolve(row.pathOrIndex));
+      }
+    }
+
+    // Remove managed cache files no row points at anymore (e.g. left behind by
+    // a crash, or by an earlier version that didn't clean embedded files).
+    let entries: string[] = [];
+    try {
+      entries = fs.readdirSync(this.cacheDir);
+    } catch {
+      entries = [];
+    }
+    for (const entry of entries) {
+      const full = path.resolve(this.cacheDir, entry);
+      if (!referenced.has(full)) {
+        this.removeCacheFile(full);
+      }
+    }
+
+    return removed;
   }
 
   convertSrtToVtt(srtContent: string): string {
