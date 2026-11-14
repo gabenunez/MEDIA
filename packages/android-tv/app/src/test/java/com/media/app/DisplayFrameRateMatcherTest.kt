@@ -68,6 +68,25 @@ class DisplayFrameRateMatcherTest {
     }
 
     @Test
+    fun doesNotSwitchTo50HzForFilmContentWhenNoCleanModeExists() {
+        // The real-world case on a 50/60-only panel: 50Hz is NOT a clean
+        // multiple of 23.976 (off by ~2Hz) and would judder worse than 60Hz's
+        // 3:2 pulldown. Must leave the display alone rather than force 50Hz.
+        val panel = modes(60.000004f, 50f)
+        assertNull(pickBestMode(23.976f, w, h, 60.000004f, panel))
+        assertNull(pickBestMode(24f, w, h, 60.000004f, panel))
+    }
+
+    @Test
+    fun switchesTo50HzOnlyForTrue25fpsContentNotFilm() {
+        val panel = modes(60f, 50f)
+        // 25fps: 50Hz is a clean 2x -> switch.
+        assertEquals(50f, pickBestMode(25f, w, h, 60f, panel)!!.refreshRate)
+        // 23.976fps on the same panel: no clean mode -> no switch.
+        assertNull(pickBestMode(23.976f, w, h, 60f, panel))
+    }
+
+    @Test
     fun neverChangesResolutionForARefreshSwap() {
         // A 24Hz mode exists only at a different resolution; ignore it and stay.
         val mixed =
