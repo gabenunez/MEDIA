@@ -95,9 +95,14 @@ class DisplayFrameRateMatcher(private val activity: Activity) {
     companion object {
         private const val TAG = "MediaNativePlayer"
 
-        /** A refresh rate "cleanly divides" the content when it's an integer
-         * multiple (1x/2x/3x/...), within a small tolerance for 23.976-style
-         * fractional rates. */
+        /** Max Hz a refresh rate may deviate from an exact integer multiple of
+         * the content fps to still count as a "clean" cadence. 1.0 Hz admits
+         * 23.976↔24 (and their 2×/3×) but rejects near-misses like 50 Hz for
+         * 24 fps (off by ~2 Hz), which would judder worse than the panel default. */
+        private const val CLEAN_MULTIPLE_TOLERANCE_HZ = 1.0f
+
+        /** How far [refreshRate] sits from the nearest integer multiple of
+         * [contentFps] (0 = perfect N× cadence). */
         private fun cadenceError(contentFps: Float, refreshRate: Float): Float {
             if (contentFps <= 0f || refreshRate <= 0f) return Float.MAX_VALUE
             val ratio = refreshRate / contentFps
@@ -107,17 +112,21 @@ class DisplayFrameRateMatcher(private val activity: Activity) {
             return abs(refreshRate - contentFps * nearestMultiple)
         }
 
+        private fun isCleanMultiple(contentFps: Float, refreshRate: Float): Boolean =
+            cadenceError(contentFps, refreshRate) <= CLEAN_MULTIPLE_TOLERANCE_HZ
+
         private fun Float.roundToIntSafe(): Int = (this + 0.5f).toInt()
 
         /**
          * Choose the best mode at the current resolution for [contentFps].
          * Pure function so the selection logic is unit-testable.
          *
-         * Preference order:
-         *  1. Same resolution as current (never change resolution for a refresh swap).
-         *  2. Smallest cadence error (exact N× multiple of content fps is ideal).
-         *  3. Lowest refresh rate among ties (24 Hz beats 120 Hz for 24 fps —
-         *     less power/heat, same smoothness).
+         * We ONLY switch to a refresh rate that is a genuinely clean integer
+         * multiple of the content fps. If no such mode exists (e.g. a panel that
+         * only offers 50/60 Hz for 24 fps film), we return null and leave the
+         * display alone — forcing a near-miss like 50 Hz would judder worse than
+         * the default. Among clean matches we prefer the lowest refresh rate
+         * (24 Hz over 48/120 Hz: same smoothness, less power/heat).
          */
         fun pickBestMode(
             contentFps: Float,
@@ -133,19 +142,20 @@ class DisplayFrameRateMatcher(private val activity: Activity) {
             val candidates = if (sameRes.isNotEmpty()) sameRes else modes
             if (candidates.isEmpty()) return null
 
-            // Only switch if some mode is a meaningfully better cadence match than
-            // the one we're already on; otherwise leave the display alone.
-            val currentError = cadenceError(contentFps, currentRefresh)
+            // Already on a clean cadence? Leave it.
+            if (isCleanMultiple(contentFps, currentRefresh)) return null
+
+            // Only clean integer-multiple refresh rates are acceptable targets.
+            val clean = candidates.filter { isCleanMultiple(contentFps, it.refreshRate) }
+            if (clean.isEmpty()) return null
 
             val best =
-                candidates.minWithOrNull(
+                clean.minWithOrNull(
                     compareBy<ModeInfo> { cadenceError(contentFps, it.refreshRate) }
                         .thenBy { it.refreshRate },
                 ) ?: return null
 
-            val bestError = cadenceError(contentFps, best.refreshRate)
-            // Require at least a 0.5 Hz improvement to avoid pointless mode flips.
-            return if (bestError + 0.5f < currentError) best else null
+            return if (best.refreshRate != currentRefresh) best else null
         }
     }
 }
