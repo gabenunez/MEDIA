@@ -49,6 +49,7 @@ import {
 
 vi.mock("./android-bridge.js", () => ({
   nativeTvPlayerAvailable: () => false,
+  hasJudderyHevcDecoder: () => false,
 }));
 
 vi.mock("./tv-mode-detect.js", () => ({
@@ -293,6 +294,7 @@ describe("resolvePlaybackStream with browser HEVC", () => {
     vi.resetModules();
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => false,
+      hasJudderyHevcDecoder: () => false,
     }));
     vi.doMock("./tv-mode-detect.js", () => ({
       isTvClient: () => false,
@@ -351,6 +353,7 @@ describe("resolvePlaybackStream with native TV player", () => {
   it("prefers direct play for SD/HD MKV on native ExoPlayer", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => false,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
     // Do not default these to HLS remux — that caused mid-play underruns on TV.
@@ -376,6 +379,7 @@ describe("resolvePlaybackStream with native TV player", () => {
   it("keeps original as direct play on native TV even for high frame-rate sources", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => false,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
     expect(
@@ -446,6 +450,7 @@ describe("resolvePlaybackStream with native TV player", () => {
   it("remuxes SD/HD MKV on native ExoPlayer only when forceRemux is set", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => false,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
     expect(
@@ -472,6 +477,7 @@ describe("resolvePlaybackStream with native TV player", () => {
   it("keeps 4K MKV on direct play for native ExoPlayer", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => false,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
     expect(
@@ -497,6 +503,7 @@ describe("resolvePlaybackStream with native TV player", () => {
   it("keeps Dolby Vision MKV on direct play even when SD/HD", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => false,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
     expect(
@@ -524,13 +531,37 @@ describe("resolvePlaybackStream with native TV player", () => {
     });
   });
 
-  it("remuxes HD HEVC MKV on native ExoPlayer to fix display-flip pacing", async () => {
+  it("transcodes HEVC on a device with a juddery HEVC decoder", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => true,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
-    // The House case: 1080p HEVC + AC3. Direct play judders on the TV's HEVC
-    // decode→flip path; remux (video copy) paces cleanly at near-zero CPU.
+    // The House case on the Hisense/MStar panel: direct & remux HEVC judder
+    // (~62ms/418ms flip gaps); only H.264 transcode paces cleanly (~41ms).
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "House.S01E01.1080p.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "hevc",
+          audioCodec: "ac3",
+          height: 1080,
+          width: 1920,
+          availableQualities: ["original", "480p", "720p", "1080p"],
+          transcodingEnabled: true,
+        }),
+      ).usingHls,
+    ).toBe(true);
+  });
+
+  it("keeps HEVC on direct play when the HEVC decoder is reliable", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => false,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
     expect(
       resolveNative(
         "original",
@@ -545,17 +576,18 @@ describe("resolvePlaybackStream with native TV player", () => {
         }),
       ),
     ).toEqual({
-      usingHls: true,
-      hlsQuality: "remux",
+      usingHls: false,
       audioCompatNotice: null,
     });
   });
 
-  it("keeps HD H.264 MKV on direct play (only HEVC needs remux)", async () => {
+  it("keeps H.264 on direct play even on a juddery-HEVC device", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => true,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    // The quirk is HEVC-specific; H.264 decodes fine, so keep zero-CPU direct play.
     expect(
       resolveNative(
         "original",
@@ -575,11 +607,13 @@ describe("resolvePlaybackStream with native TV player", () => {
     });
   });
 
-  it("keeps HD HEVC on direct play when transcoding is disabled", async () => {
+  it("keeps HEVC direct on a juddery device when transcoding is disabled", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => true,
     }));
     const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    // Can't transcode without the pipeline — direct play is the only option.
     expect(
       resolveNative(
         "original",
@@ -591,6 +625,38 @@ describe("resolvePlaybackStream with native TV player", () => {
           height: 1080,
           width: 1920,
           transcodingEnabled: false,
+        }),
+      ),
+    ).toEqual({
+      usingHls: false,
+      audioCompatNotice: null,
+    });
+  });
+
+  it("keeps Dolby Vision HEVC direct even on a juddery device", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    // Transcoding would strip the DV layer — never do it.
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "movie.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "hevc",
+          audioCodec: "eac3",
+          height: 1080,
+          width: 1920,
+          dynamicRange: {
+            dolbyVision: true,
+            dolbyVisionProfile: 5,
+            hdr10: false,
+            hlg: false,
+          },
+          transcodingEnabled: true,
         }),
       ),
     ).toEqual({

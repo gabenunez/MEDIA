@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.310 — 2026-11-13
+
+### Changes
+
+- **Release** — TV: transcode HEVC to H.264 only on devices with a juddery HEVC decoder — APK 1.5.29
+- Replaces the HEVC→remux attempt from 0.1.309, which did not help: on-device measurement showed remux keeps the same HEVC decoder, which on some panels (e.g. Hisense "songshan"/MStar) delivers frames unevenly (~62ms avg / ~418ms max flip gaps on 23.976fps) regardless of delivery path. Only re-encoding to H.264 paces cleanly (~41.7ms). The TV app now reports whether its HEVC decoder is reliable; HEVC is transcoded to H.264 only on known-juddery devices, and every other device keeps zero-CPU direct play. Dolby Vision and non-HEVC codecs are never affected. Requires reinstalling the TV APK.
+
 ## 0.1.309 — 2026-11-13
 
 ### Changes

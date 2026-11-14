@@ -11,8 +11,8 @@ android {
         applicationId = "com.media.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 44
-        versionName = "1.5.28"
+        versionCode = 45
+        versionName = "1.5.29"
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
