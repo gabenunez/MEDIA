@@ -633,6 +633,34 @@ describe("resolvePlaybackStream with native TV player", () => {
     });
   });
 
+  it("keeps 4K HEVC on direct play even on a juddery device (no 2160p transcode)", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+      hasJudderyHevcDecoder: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    // A full 4K re-encode is far too costly and would downscale — 4K HEVC must
+    // keep direct play at source resolution regardless of the decoder quirk.
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "movie.2160p.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "hevc",
+          audioCodec: "ac3",
+          height: 2160,
+          width: 3840,
+          availableQualities: ["original", "480p", "720p", "1080p", "2160p"],
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: false,
+      audioCompatNotice: null,
+    });
+  });
+
   it("keeps Dolby Vision HEVC direct even on a juddery device", async () => {
     vi.doMock("./android-bridge.js", () => ({
       nativeTvPlayerAvailable: () => true,
