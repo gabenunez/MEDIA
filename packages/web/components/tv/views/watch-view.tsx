@@ -2506,7 +2506,9 @@ export function TvWatchView() {
     scrubPreview !== null &&
     totalDurationSeconds > 0;
 
-  const seekPreviewMaxWidth = isTv4KClient() ? 224 : 200;
+  // Match desktop's thumbnail size; TVs are viewed from a distance, so the
+  // larger preview reads better. 4K can afford a bit more.
+  const seekPreviewMaxWidth = isTv4KClient() ? 256 : 224;
 
   const controlIconButtonClassName = "watch-control-btn shrink-0";
   const playControlButtonClassName = "watch-control-btn watch-control-btn--play shrink-0";

@@ -10,7 +10,7 @@ interface SeekPreviewTooltipProps {
   spriteUrl: string | null;
   /** inline = centered in a dock slot; floating = above a timeline (default) */
   variant?: "inline" | "floating";
-  /** Cap thumbnail width (desktop default 224px; TV inline uses ~160px) */
+  /** Cap thumbnail width in px (default 224; TV passes a larger value). */
   maxThumbWidth?: number;
 }
 
@@ -30,7 +30,10 @@ export function SeekPreviewTooltip({
         const displayHeight = Math.round(cue.height * scale);
 
         return (
-          <div className="max-w-full overflow-hidden rounded-lg border border-white/15 bg-black/90 shadow-2xl">
+          <div
+            className="relative max-w-full overflow-hidden rounded-xl ring-1 ring-white/15 bg-black shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+            style={{ width: displayWidth, maxWidth: "100%" }}
+          >
             <div
               className="overflow-hidden"
               style={{ width: displayWidth, height: displayHeight, maxWidth: "100%" }}
@@ -47,14 +50,17 @@ export function SeekPreviewTooltip({
                 }}
               />
             </div>
-            <p className="px-2 py-1 text-center font-mono text-xs tabular-nums text-white">
-              {formatDuration(timeMs)}
-            </p>
+            {/* Gradient scrim keeps the timestamp legible over bright frames. */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-1 pt-5">
+              <span className="font-mono text-xs font-medium tabular-nums text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                {formatDuration(timeMs)}
+              </span>
+            </div>
           </div>
         );
       })()
     ) : (
-      <div className="rounded-lg border border-white/15 bg-black/90 px-2.5 py-1.5 font-mono text-xs tabular-nums text-white shadow-xl">
+      <div className="rounded-xl ring-1 ring-white/15 bg-black/90 px-2.5 py-1.5 font-mono text-xs font-medium tabular-nums text-white shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
         {formatDuration(timeMs)}
       </div>
     );
