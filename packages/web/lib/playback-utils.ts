@@ -419,11 +419,17 @@ function effectiveOriginalPlaybackMode(
     // keeps the HEVC bitstream, so the same decoder judders. Only re-encoding to
     // H.264 fixes it. Scope this to devices we know have a bad HEVC decoder so
     // every other device keeps zero-CPU direct play.
+    //
+    // Never transcode 4K: a full 2160p re-encode is far too expensive (and would
+    // downscale), the judder was only characterized on HD, and 4K HEVC must keep
+    // playing at source resolution via direct play.
     const codec = normalizeCodecName(streamInfo.videoCodec);
     const isHevc = codec === "hevc" || codec === "h265";
+    const is4K = is4KSource(streamInfo.height, streamInfo.width);
     if (
       nativeMode === "direct" &&
       isHevc &&
+      !is4K &&
       streamInfo.transcodingEnabled &&
       // Dolby Vision would lose its DV layer if transcoded — leave it direct.
       !streamInfo.dynamicRange?.dolbyVision &&

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.311 — 2026-11-13
+
+### Changes
+
+- **Release** — Fix: never transcode 4K HEVC on juddery-decoder TVs (regression from 0.1.310)
+- 0.1.310's HEVC→H.264 transcode for juddery-decoder devices incorrectly caught 4K HEVC too, forcing an expensive 2160p re-encode (and downscale) on titles that should direct-play at source resolution. The juddery-decoder transcode is now scoped to non-4K HEVC only; 4K HEVC always direct-plays. No APK change required.
+
 ## 0.1.310 — 2026-11-13
 
 ### Changes
