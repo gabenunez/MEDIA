@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.313 — 2026-11-14
+
+### Changes
+
+- **Release** — Sleeker seek previews, matched across TV and web
+- Refined the scrubber thumbnail preview: softer rounded corners and shadow, a subtle ring instead of a hard border, and the timestamp now sits in a gradient overlay on the thumbnail (modern-player style) instead of a separate bar below it. The Android TV preview uses the same component and now shows a larger thumbnail that matches the web player.
+
 ## 0.1.312 — 2026-11-14
 
 ### Changes
