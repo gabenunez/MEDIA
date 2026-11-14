@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.312 — 2026-11-14
+
+### Changes
+
+- **Release** — Fix small backward jump when resuming an HLS stream
+- The resume/restart offset for transcoded and remuxed streams was floored to a whole second, dropping up to ~1s of position every time the stream rebuilt (e.g. resuming after a long pause, a quality switch, or a stall recovery). The offset now keeps millisecond precision so playback resumes at the exact position. (This addresses the sub-second portion of the "skips too far back after pausing" behavior; larger keyframe-related jumps on the remux path are tracked separately.)
+
 ## 0.1.311 — 2026-11-13
 
 ### Changes

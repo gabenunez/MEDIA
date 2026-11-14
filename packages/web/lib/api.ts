@@ -836,7 +836,11 @@ export const api = {
     }
     const effectiveQuality = hlsQuality ?? quality;
     const params = new URLSearchParams({ type, quality: effectiveQuality });
-    params.set("start", String(Math.floor(Math.max(0, startSeconds ?? 0))));
+    // Preserve sub-second precision (ms) instead of flooring: ffmpeg seeks to
+    // the exact requested time and the client's hlsStartOffset is the same
+    // float, so a resume/restart doesn't drop up to ~1s backward each time.
+    const start = Math.max(0, startSeconds ?? 0);
+    params.set("start", String(Math.round(start * 1000) / 1000));
     if (cacheKey !== undefined) {
       params.set("_", String(cacheKey));
     }
