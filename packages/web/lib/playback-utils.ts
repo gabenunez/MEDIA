@@ -1,6 +1,6 @@
 import type { StreamQuality } from "@/lib/api";
 import type { StreamInfo } from "@/lib/api";
-import { nativeTvPlayerAvailable } from "@/lib/android-bridge";
+import { hasJudderyHevcDecoder, nativeTvPlayerAvailable } from "@/lib/android-bridge";
 import {
   containerPrefersHlsRemux,
   isBrowserDirectPlayAudioSupported,
@@ -402,37 +402,41 @@ function effectiveOriginalPlaybackMode(
       dolbyVision: streamInfo.dynamicRange?.dolbyVision ?? false,
     });
 
-    const canRemux =
+    if (
+      options?.forceRemux &&
+      nativeMode === "direct" &&
       streamInfo.transcodingEnabled &&
       isHlsVideoCopySupported(streamInfo.videoCodec) &&
       // Never remux Dolby Vision — it strips the DV layer.
-      !streamInfo.dynamicRange?.dolbyVision;
-
-    if (options?.forceRemux && nativeMode === "direct" && canRemux) {
+      !streamInfo.dynamicRange?.dolbyVision
+    ) {
       return "remux";
     }
 
-    // HEVC direct play on these TV SoCs produces uneven display-flip pacing
-    // (measured gaps up to ~400ms on 23.976fps content) — a decode→present path
-    // problem, not a delivery one (ExoPlayer holds 90s+ of buffer). HLS remux
-    // (video copy, no re-encode) routes HEVC through the segmented path with
-    // regenerated timestamps, which paces cleanly. It keeps full HEVC quality at
-    // near-zero server CPU. H.264 and other codecs stay on direct play.
-    //
-    // Scoped to non-4K HEVC: 4K HEVC stays on direct play (4K HLS has its own
-    // buffering/handoff complications, and the pacing issue was measured on HD).
-    //
-    // (v0.1.182 reverted remux-by-default for ALL mkv due to buffer underruns;
-    // that's since mitigated by server read-ahead + deeper client buffering, and
-    // we now scope remux to the codec that actually needs it.)
+    // Some TV HEVC decoders deliver frames to the display unevenly — measured on
+    // one MStar panel as ~62ms avg / ~418ms max flip gaps on 23.976fps HEVC
+    // (vs a clean 41.7ms once transcoded to H.264). Remux does NOT help: it
+    // keeps the HEVC bitstream, so the same decoder judders. Only re-encoding to
+    // H.264 fixes it. Scope this to devices we know have a bad HEVC decoder so
+    // every other device keeps zero-CPU direct play.
     const codec = normalizeCodecName(streamInfo.videoCodec);
     const isHevc = codec === "hevc" || codec === "h265";
-    const is4K = is4KSource(streamInfo.height, streamInfo.width);
-    if (nativeMode === "direct" && isHevc && !is4K && canRemux) {
-      return "remux";
+    if (
+      nativeMode === "direct" &&
+      isHevc &&
+      streamInfo.transcodingEnabled &&
+      // Dolby Vision would lose its DV layer if transcoded — leave it direct.
+      !streamInfo.dynamicRange?.dolbyVision &&
+      hasJudderyHevcDecoder()
+    ) {
+      return "transcode";
     }
 
-    // Prefer progressive direct play on native TV for everything else.
+    // Prefer progressive direct play on native TV. Defaulting SD/HD MKV to HLS
+    // remux (v0.1.182) fixed micro-stutter for some titles but caused reliable
+    // mid-play buffer underruns once ExoPlayer burned through its ~2 min
+    // forward buffer and the remux session fell behind or restarted. Remux
+    // remains the stall/error fallback via forceRemux — not the default.
     return nativeMode;
   }
 

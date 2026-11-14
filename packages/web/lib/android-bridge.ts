@@ -68,6 +68,22 @@ export function androidTvShellSupportsLogout(): boolean {
   return typeof getAndroidBridge()?.logout === "function";
 }
 
+/**
+ * True when the native device's HEVC decoder delivers frames unevenly (visible
+ * stutter on direct HEVC playback). Such devices should transcode HEVC to H.264.
+ * Defaults to false when the bridge is absent or the method is missing (older
+ * APKs) so behavior is unchanged — no device transcodes unless it opts in.
+ */
+export function hasJudderyHevcDecoder(): boolean {
+  const bridge = getAndroidBridge();
+  if (typeof bridge?.hevcDirectPlayReliable !== "function") return false;
+  try {
+    return bridge.hevcDirectPlayReliable() === false;
+  } catch {
+    return false;
+  }
+}
+
 export function toAbsoluteMediaUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
@@ -235,6 +251,7 @@ declare global {
   interface Window {
     MediaAndroid?: {
       logout: () => void;
+      hevcDirectPlayReliable?: () => boolean;
       prepareNativeVideo?: () => void;
       play: (payload: string) => void;
       pause: () => void;

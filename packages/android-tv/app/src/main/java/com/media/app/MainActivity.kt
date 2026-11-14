@@ -611,6 +611,18 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread { dismissSplash() }
         }
 
+        /** False on devices whose HEVC decoder delivers frames unevenly, so the
+         * web layer routes HEVC through an H.264 transcode instead of direct
+         * play. True (reliable) everywhere else. */
+        @JavascriptInterface
+        fun hevcDirectPlayReliable(): Boolean {
+            return !HevcDecoderQuirks.isJudderyHevcDecoder(
+                android.os.Build.DEVICE,
+                android.os.Build.BOARD,
+                android.os.Build.PRODUCT,
+            )
+        }
+
         @JavascriptInterface
         fun logout() {
             runOnUiThread {
