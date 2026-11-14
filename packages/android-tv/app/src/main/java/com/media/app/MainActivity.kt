@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var splashOverlay: View
     private lateinit var nativePlayer: NativePlayerManager
     private lateinit var watchNextManager: WatchNextManager
+    private val frameRateMatcher by lazy { DisplayFrameRateMatcher(this) }
     private var serverUrl: String = ""
     private var keepScreenOn = false
     private var tvCastPoller: TvCastPoller? = null
@@ -93,6 +94,9 @@ class MainActivity : AppCompatActivity() {
             },
             onHdrContentChanged = { active ->
                 runOnUiThread { setHdrPlaybackActive(active) }
+            },
+            onContentFrameRateChanged = { fps ->
+                runOnUiThread { frameRateMatcher.applyForContentFrameRate(fps) }
             },
             onScreenAwakeChanged = {
                 runOnUiThread { updateKeepScreenOn() }
