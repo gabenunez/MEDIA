@@ -625,6 +625,20 @@
     white-space: nowrap;
   }
 
+  /* Restart ("Start from beginning") stays hidden until the episode row is
+     revealed with Right — it must not sit in the Up/Down scroll flow. */
+  .tv-ui [data-tv-episode-row]:not([data-tv-episode-restart-visible]) .tv-media-episode-options-reveal {
+    visibility: hidden;
+    width: 0;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .tv-ui .tv-search-field {
     min-height: 3rem;
     font-size: 1.05rem;

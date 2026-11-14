@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.314 — 2026-11-14
+
+### Changes
+
+- **Release** — Clearer watched episodes and smoother TV show navigation
+- TV show media pages now clearly mark watched episodes with a check badge, a "Watched" label, and a dimmed title (previously a finished episode was indistinguishable from an unwatched one), plus a per-season "X of N watched" count.
+- Android TV: pressing Down on a TV show page now moves to the next episode instead of jumping down the list. The per-episode "Start from beginning" restart no longer sits in the Up/Down scroll order — it's revealed only when you press Right on an episode (and hidden again on Left or any vertical move), matching the subtitle track behavior.
+
 ## 0.1.313 — 2026-11-14
 
 ### Changes

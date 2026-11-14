@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { Check, Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { OfflineDownloadButton } from "@/components/offline-download-button";
-import { formatDuration, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
+import { cn, formatDuration, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
+import { isWatchCompleted } from "@media-app/shared";
 import { resolveActiveSeasonIndex } from "@/lib/playback-utils";
 import { MediaImage } from "@/components/media-image";
 import { PlaybackOptionsMenu } from "@/components/playback-options-menu";
@@ -41,6 +42,29 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
         ))}
       </div>
 
+      {(() => {
+        const episodes = media.seasons[selectedSeason]?.episodes ?? [];
+        const watchedCount = episodes.filter((ep) =>
+          isWatchCompleted(
+            ep.watchProgress?.positionMs,
+            ep.watchProgress?.durationMs ?? ep.durationMs,
+          ),
+        ).length;
+        if (episodes.length === 0) return null;
+        const allWatched = watchedCount === episodes.length;
+        return (
+          <p
+            className={cn(
+              "mb-4 flex items-center gap-1.5 text-sm",
+              allWatched ? "text-accent" : "text-muted-foreground",
+            )}
+          >
+            {allWatched && <Check className="h-4 w-4" />}
+            {watchedCount} of {episodes.length} watched
+          </p>
+        );
+      })()}
+
       <div className="space-y-3">
         {media.seasons[selectedSeason]?.episodes.map((ep) => {
           const episodeDurationMs = ep.watchProgress?.durationMs ?? ep.durationMs;
@@ -49,6 +73,10 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
             episodeDurationMs,
           );
           const episodeCanResume = canResumePlayback(
+            ep.watchProgress?.positionMs,
+            episodeDurationMs,
+          );
+          const episodeWatched = isWatchCompleted(
             ep.watchProgress?.positionMs,
             episodeDurationMs,
           );
@@ -81,19 +109,26 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
                     <Play className="h-8 w-8 fill-white text-white" />
                   </div>
-                  {ep.watchProgress && ep.watchProgress.positionMs > 0 && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
-                      <div
-                        className="h-full bg-accent"
-                        style={{
-                          width: `${Math.min(100, (ep.watchProgress.positionMs / (ep.durationMs ?? 1)) * 100)}%`,
-                        }}
-                      />
+                  {episodeWatched ? (
+                    <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
                     </div>
+                  ) : (
+                    episodeCanResume &&
+                    episodeDurationMs && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
+                        <div
+                          className="h-full bg-accent"
+                          style={{
+                            width: `${Math.min(100, ((ep.watchProgress?.positionMs ?? 0) / episodeDurationMs) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">
+                  <p className={cn("font-medium", episodeWatched && "text-muted-foreground")}>
                     <span className="mr-2 font-mono text-xs text-primary">
                       E{String(ep.episodeNumber).padStart(2, "0")}
                     </span>
@@ -105,10 +140,17 @@ export function MediaDesktopSeasons({ media }: { media: MediaDetail }) {
                     </p>
                   )}
                 </div>
-                <span className="hidden shrink-0 font-mono text-xs text-muted-foreground sm:inline">
-                  {episodeActionLabel === "Play" && ep.durationMs
-                    ? formatDuration(ep.durationMs)
-                    : episodeActionLabel}
+                <span
+                  className={cn(
+                    "hidden shrink-0 font-mono text-xs sm:inline",
+                    episodeWatched ? "text-accent" : "text-muted-foreground",
+                  )}
+                >
+                  {episodeWatched
+                    ? "Watched"
+                    : episodeActionLabel === "Play" && ep.durationMs
+                      ? formatDuration(ep.durationMs)
+                      : episodeActionLabel}
                 </span>
               </Link>
               <div className="relative z-10 flex shrink-0 flex-col items-end gap-2">

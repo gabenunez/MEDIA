@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
-import { CheckCircle2, Play } from "lucide-react";
+import { Check, CheckCircle2, Play } from "lucide-react";
 import { TV_HERO_IMAGE_QUALITY, TV_LIST_IMAGE_QUALITY, tvImageUrl } from "@/lib/tv-image";
 import { routes } from "@/lib/routes";
 import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
@@ -16,6 +16,7 @@ import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
 import { ThemeMusicProvider, ThemeMusicWaveform } from "@/components/theme-music-player";
 import { FixMatchDialog } from "@/components/fix-match-dialog";
 import { episodeStatusLabel, getPlaybackButtonLabel, canResumePlayback } from "@/lib/utils";
+import { isWatchCompleted } from "@media-app/shared";
 import { resolveNextEpisodeTarget } from "@/lib/playback-utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { focusEpisodeItem, focusFirstContentItem, focusMediaPlayItem } from "@/lib/tv-focus";
@@ -160,6 +161,12 @@ function TvMediaViewContent({
   const posterUrl = tvImageUrl(media.posterPath, { hd: true });
   const seasons = media.seasons ?? [];
   const episodes = seasons[selectedSeason]?.episodes ?? [];
+  const watchedEpisodeCount = episodes.filter((ep) =>
+    isWatchCompleted(
+      ep.watchProgress?.positionMs,
+      ep.watchProgress?.durationMs ?? ep.durationMs,
+    ),
+  ).length;
   const movieFile = media.files?.[0];
   const moviePlaybackLabel = movieFile
     ? getPlaybackButtonLabel(
@@ -339,6 +346,13 @@ function TvMediaViewContent({
             <TvSectionLabel>
               Episodes
               {episodes.length > 0 ? ` · ${episodes.length}` : ""}
+              {episodes.length > 0 && watchedEpisodeCount > 0 ? (
+                <span className="ml-2 text-accent">
+                  {watchedEpisodeCount === episodes.length
+                    ? "All watched"
+                    : `${watchedEpisodeCount} watched`}
+                </span>
+              ) : null}
             </TvSectionLabel>
             <div
               data-tv-row=""
@@ -359,18 +373,29 @@ function TvMediaViewContent({
                       ((ep.watchProgress?.positionMs ?? 0) / episodeDurationMs) * 100,
                     )
                   : 0;
-              const statusLabel = episodeStatusLabel(
+              const episodeWatched = isWatchCompleted(
                 ep.watchProgress?.positionMs,
                 episodeDurationMs,
-                episodeCanResume,
               );
+              const statusLabel = episodeWatched
+                ? "Watched"
+                : episodeStatusLabel(
+                    ep.watchProgress?.positionMs,
+                    episodeDurationMs,
+                    episodeCanResume,
+                  );
 
               return (
-                <div key={ep.id} className="flex items-center gap-1">
+                <div
+                  key={ep.id}
+                  data-tv-episode-row={episodeCanResume ? "" : undefined}
+                  className="flex items-center gap-1"
+                >
                   <TvFocusLink
                     href={routes.watch("episode", ep.id, media.id)}
                     variant="card"
                     data-tv-episode-id={ep.id}
+                    data-tv-episode-play={episodeCanResume ? "" : undefined}
                     className="tv-media-episode flex min-w-0 flex-1 items-center gap-4 px-3 py-2"
                   >
                   <div className="tv-episode-still relative shrink-0 overflow-hidden rounded-md bg-muted">
@@ -390,15 +415,26 @@ function TvMediaViewContent({
                         {String(ep.episodeNumber).padStart(2, "0")}
                       </div>
                     )}
-                    {progressPct > 0 && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/55">
-                        <div className="h-full bg-accent" style={{ width: `${progressPct}%` }} />
+                    {episodeWatched ? (
+                      <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-accent-foreground shadow">
+                        <Check className="h-4 w-4" strokeWidth={3} />
                       </div>
+                    ) : (
+                      progressPct > 0 && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/55">
+                          <div className="h-full bg-accent" style={{ width: `${progressPct}%` }} />
+                        </div>
+                      )
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="tv-media-episode-title truncate">
+                    <p
+                      className={cn(
+                        "tv-media-episode-title truncate",
+                        episodeWatched && "text-muted-foreground",
+                      )}
+                    >
                       <span className="mr-2 font-mono text-primary">
                         E{String(ep.episodeNumber).padStart(2, "0")}
                       </span>
@@ -407,7 +443,9 @@ function TvMediaViewContent({
                     <p
                       className={cn(
                         "tv-media-episode-meta",
-                        episodeCanResume ? "text-accent" : "text-muted-foreground",
+                        episodeCanResume || episodeWatched
+                          ? "text-accent"
+                          : "text-muted-foreground",
                       )}
                     >
                       {statusLabel}
@@ -415,7 +453,12 @@ function TvMediaViewContent({
                   </div>
                 </TvFocusLink>
                 {episodeCanResume && (
-                  <TvPlaybackOptions compact fileId={ep.id} mediaId={media.id} />
+                  <TvPlaybackOptions
+                    compact
+                    fileId={ep.id}
+                    mediaId={media.id}
+                    revealOnRight
+                  />
                 )}
               </div>
               );
