@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.309 — 2026-11-13
+
+### Changes
+
+- **Release** — TV: smoother HEVC playback via HLS remux (no transcode)
+- HD HEVC (h265) MKV now plays through HLS remux on the Android TV native player instead of progressive direct play. Direct play of HEVC on these TV decoders produced uneven display-flip pacing (measured frame gaps up to ~400ms on 23.976fps content) that looked like stutter, even though the stream was fully buffered. Remux copies the HEVC bitstream (no re-encode, near-zero server CPU) through the segmented path with regenerated timestamps, which paces cleanly and preserves full quality. 4K HEVC, Dolby Vision, H.264, and other codecs stay on direct play.
+
 ## 0.1.308 — 2026-11-12
 
 ### Changes

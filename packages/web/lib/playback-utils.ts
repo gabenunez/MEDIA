@@ -402,22 +402,37 @@ function effectiveOriginalPlaybackMode(
       dolbyVision: streamInfo.dynamicRange?.dolbyVision ?? false,
     });
 
-    if (
-      options?.forceRemux &&
-      nativeMode === "direct" &&
+    const canRemux =
       streamInfo.transcodingEnabled &&
       isHlsVideoCopySupported(streamInfo.videoCodec) &&
       // Never remux Dolby Vision — it strips the DV layer.
-      !streamInfo.dynamicRange?.dolbyVision
-    ) {
+      !streamInfo.dynamicRange?.dolbyVision;
+
+    if (options?.forceRemux && nativeMode === "direct" && canRemux) {
       return "remux";
     }
 
-    // Prefer progressive direct play on native TV. Defaulting SD/HD MKV to HLS
-    // remux (v0.1.182) fixed micro-stutter for some titles but caused reliable
-    // mid-play buffer underruns once ExoPlayer burned through its ~2 min
-    // forward buffer and the remux session fell behind or restarted. Remux
-    // remains the stall/error fallback via forceRemux — not the default.
+    // HEVC direct play on these TV SoCs produces uneven display-flip pacing
+    // (measured gaps up to ~400ms on 23.976fps content) — a decode→present path
+    // problem, not a delivery one (ExoPlayer holds 90s+ of buffer). HLS remux
+    // (video copy, no re-encode) routes HEVC through the segmented path with
+    // regenerated timestamps, which paces cleanly. It keeps full HEVC quality at
+    // near-zero server CPU. H.264 and other codecs stay on direct play.
+    //
+    // Scoped to non-4K HEVC: 4K HEVC stays on direct play (4K HLS has its own
+    // buffering/handoff complications, and the pacing issue was measured on HD).
+    //
+    // (v0.1.182 reverted remux-by-default for ALL mkv due to buffer underruns;
+    // that's since mitigated by server read-ahead + deeper client buffering, and
+    // we now scope remux to the codec that actually needs it.)
+    const codec = normalizeCodecName(streamInfo.videoCodec);
+    const isHevc = codec === "hevc" || codec === "h265";
+    const is4K = is4KSource(streamInfo.height, streamInfo.width);
+    if (nativeMode === "direct" && isHevc && !is4K && canRemux) {
+      return "remux";
+    }
+
+    // Prefer progressive direct play on native TV for everything else.
     return nativeMode;
   }
 

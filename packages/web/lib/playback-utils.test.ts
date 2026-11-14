@@ -523,6 +523,81 @@ describe("resolvePlaybackStream with native TV player", () => {
       audioCompatNotice: null,
     });
   });
+
+  it("remuxes HD HEVC MKV on native ExoPlayer to fix display-flip pacing", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    // The House case: 1080p HEVC + AC3. Direct play judders on the TV's HEVC
+    // decode→flip path; remux (video copy) paces cleanly at near-zero CPU.
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "House.S01E01.1080p.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "hevc",
+          audioCodec: "ac3",
+          height: 1080,
+          width: 1920,
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: true,
+      hlsQuality: "remux",
+      audioCompatNotice: null,
+    });
+  });
+
+  it("keeps HD H.264 MKV on direct play (only HEVC needs remux)", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "movie.1080p.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "h264",
+          audioCodec: "ac3",
+          height: 1080,
+          width: 1920,
+          transcodingEnabled: true,
+        }),
+      ),
+    ).toEqual({
+      usingHls: false,
+      audioCompatNotice: null,
+    });
+  });
+
+  it("keeps HD HEVC on direct play when transcoding is disabled", async () => {
+    vi.doMock("./android-bridge.js", () => ({
+      nativeTvPlayerAvailable: () => true,
+    }));
+    const { resolvePlaybackStream: resolveNative } = await import("./playback-utils.js");
+    expect(
+      resolveNative(
+        "original",
+        makeStreamInfo({
+          fileName: "House.S01E01.1080p.mkv",
+          mimeType: "video/x-matroska",
+          videoCodec: "hevc",
+          audioCodec: "ac3",
+          height: 1080,
+          width: 1920,
+          transcodingEnabled: false,
+        }),
+      ),
+    ).toEqual({
+      usingHls: false,
+      audioCompatNotice: null,
+    });
+  });
 });
 
 describe("isSpuriousHlsEnded", () => {
