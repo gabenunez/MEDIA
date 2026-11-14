@@ -32,8 +32,12 @@ class NativePlayerManager(
     private val onPlaybackStopped: () -> Unit = {},
     private val onHdrContentChanged: (Boolean) -> Unit = {},
     private val onScreenAwakeChanged: () -> Unit = {},
+    /** Content frame rate in fps (0 = reset to the display's default mode). */
+    private val onContentFrameRateChanged: (Float) -> Unit = {},
     private val watchNextManager: WatchNextManager? = null,
 ) {
+    /** Last fps we told the Activity about, so we don't re-apply every tick. */
+    private var lastReportedFrameRate: Float = 0f
     private val handler = Handler(Looper.getMainLooper())
     private var player: ExoPlayer? = null
     private var seekApplied = false
@@ -307,6 +311,7 @@ class NativePlayerManager(
 
                 override fun onVideoSizeChanged(videoSize: VideoSize) {
                     updateHdrOutput(exoPlayer)
+                    updateContentFrameRate(exoPlayer)
                     applySdUpscaleEffect(exoPlayer)
                     applyDisplayMode()
                 }
@@ -544,6 +549,7 @@ class NativePlayerManager(
                 override fun onVideoSizeChanged(videoSize: VideoSize) {
                     if (exoPlayer !== player) return
                     updateHdrOutput(exoPlayer)
+                    updateContentFrameRate(exoPlayer)
                     applySdUpscaleEffect(exoPlayer)
                     applyDisplayMode()
                 }
@@ -944,6 +950,7 @@ class NativePlayerManager(
 
     private fun releasePlayer() {
         cancelQualityHandoff()
+        resetContentFrameRate()
         mediaSessionManager?.release()
         mediaSessionManager = null
         val exoPlayer = player
@@ -1005,6 +1012,22 @@ class NativePlayerManager(
         if (hdrContentActive == active) return
         hdrContentActive = active
         onHdrContentChanged(active)
+    }
+
+    /** Report the active video's frame rate so the Activity can match the
+     * display refresh rate (prevents 23.976/24fps judder on a 60Hz panel). */
+    private fun updateContentFrameRate(exoPlayer: ExoPlayer) {
+        val fps = exoPlayer.videoFormat?.frameRate ?: return
+        if (fps <= 0f) return
+        if (kotlin.math.abs(fps - lastReportedFrameRate) < 0.01f) return
+        lastReportedFrameRate = fps
+        onContentFrameRateChanged(fps)
+    }
+
+    private fun resetContentFrameRate() {
+        if (lastReportedFrameRate == 0f) return
+        lastReportedFrameRate = 0f
+        onContentFrameRateChanged(0f)
     }
 
     private fun ensureOverlaySubtitleView(): SubtitleView {

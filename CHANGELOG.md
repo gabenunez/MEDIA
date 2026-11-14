@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.308 — 2026-11-12
+
+### Changes
+
+- **Release** — TV: match display refresh rate to the video (fixes 24fps judder) — APK 1.5.27
+- The Android TV app now switches the display to a refresh rate that matches the content frame rate (e.g. 23.976/24fps → 24Hz, 25fps → 50Hz) instead of force-fitting film-rate video onto a 60Hz panel. This removes the recurring 3:2-pulldown judder that looked like stuttering during direct play, especially on slow pans. Requires reinstalling the TV APK.
+
 ## 0.1.307 — 2026-11-12
 
 ### Changes
