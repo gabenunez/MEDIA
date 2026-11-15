@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.321 — 2026-11-14
+
+### Changes
+
+- **Release** — Reliable one-command server deploys
+- Added `scripts/deploy-server.sh` (`pnpm deploy`) that fetches the target ref on the remote host and runs the existing socket-aware `restart-prod.sh --rebuild`, then health-checks before finishing. This stops the old stack by listening socket rather than best-effort process matching, so a stale old build can no longer keep serving after an update. Handles detached-HEAD checkouts and the correct public-prefix rebuild automatically.
+
 ## 0.1.320 — 2026-11-14
 
 ### Changes
