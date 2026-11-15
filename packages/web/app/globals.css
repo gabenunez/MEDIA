@@ -625,76 +625,48 @@
     white-space: nowrap;
   }
 
-  /* Per-episode action group (restart / mark watched), revealed with Right. */
-  .tv-ui .tv-episode-actions {
-    align-self: stretch;
-  }
-
+  /* Per-episode action group (restart / mark watched), revealed with Right.
+     Small, icon-only buttons. */
   .tv-ui .tv-episode-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    height: 2.75rem;
-    width: 2.75rem;
-    border-radius: 0.6rem;
-    background: hsl(var(--card) / 0.85);
-    color: hsl(var(--foreground));
+    height: 2rem;
+    width: 2rem;
+    border-radius: 9999px;
+    background: hsl(var(--muted) / 0.6);
+    color: hsl(var(--muted-foreground));
     outline: none;
-    overflow: hidden;
-    white-space: nowrap;
     transition:
-      width 0.12s ease-out,
-      background-color 0.12s ease-out,
-      color 0.12s ease-out;
+      background-color 0.1s ease-out,
+      color 0.1s ease-out,
+      transform 0.1s ease-out;
   }
 
   .tv-ui .tv-episode-action-icon {
-    height: 1.25rem;
-    width: 1.25rem;
+    height: 1rem;
+    width: 1rem;
     flex-shrink: 0;
-    color: hsl(var(--primary));
   }
 
-  .tv-ui .tv-episode-action.is-watched .tv-episode-action-icon {
+  /* Watched toggle reads as "on" with the accent tint. */
+  .tv-ui .tv-episode-action.is-watched {
+    background: hsl(var(--accent) / 0.2);
     color: hsl(var(--accent));
   }
 
-  .tv-ui .tv-episode-action-label {
-    display: none;
-    font-size: 0.95rem;
-    font-weight: 600;
-  }
-
-  /* Expand to a labelled pill while focused. */
+  /* Focused: solid fill + slight scale, no label expansion. */
   .tv-ui .tv-episode-action[data-tv-focused],
   .tv-ui .tv-episode-action:focus-visible {
-    width: auto;
-    gap: 0.45rem;
-    padding-inline: 0.85rem;
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-  }
-
-  .tv-ui .tv-episode-action[data-tv-focused] .tv-episode-action-icon,
-  .tv-ui .tv-episode-action:focus-visible .tv-episode-action-icon {
-    color: hsl(var(--primary-foreground));
+    transform: scale(1.08);
   }
 
   .tv-ui .tv-episode-action.is-watched[data-tv-focused],
   .tv-ui .tv-episode-action.is-watched:focus-visible {
     background: hsl(var(--accent));
     color: hsl(var(--accent-foreground));
-  }
-
-  .tv-ui .tv-episode-action.is-watched[data-tv-focused] .tv-episode-action-icon,
-  .tv-ui .tv-episode-action.is-watched:focus-visible .tv-episode-action-icon {
-    color: hsl(var(--accent-foreground));
-  }
-
-  .tv-ui .tv-episode-action[data-tv-focused] .tv-episode-action-label,
-  .tv-ui .tv-episode-action:focus-visible .tv-episode-action-label {
-    display: inline;
   }
 
   /* Action buttons stay out of the Up/Down flow until the row is revealed with

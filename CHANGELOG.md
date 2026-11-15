@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.316 — 2026-11-14
+
+### Changes
+
+- **Release** — Faster TV show page navigation
+- Episode stills now lazy-load below the fold instead of all at once, so opening a show (especially a long season) no longer decodes every thumbnail up front — the main cause of slower navigation on TV. The per-episode action buttons were also made stateless/lighter to cut hydration cost.
+
 ## 0.1.315 — 2026-11-14
 
 ### Changes

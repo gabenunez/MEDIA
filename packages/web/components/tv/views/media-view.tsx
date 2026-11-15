@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMediaRouteId } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import { Check, CheckCircle2, Play } from "lucide-react";
@@ -24,6 +24,7 @@ import { focusEpisodeItem, focusFirstContentItem, focusMediaPlayItem } from "@/l
 import { cn } from "@/lib/utils";
 import { MediaImage } from "@/components/media-image";
 import { invalidateApiCache } from "@/lib/api-cache";
+import { api } from "@/lib/api";
 import type { MediaItem } from "@/lib/api";
 import type { MediaDetail } from "@/app/media/types";
 import { useMediaPageData } from "@/lib/use-media-page-data";
@@ -124,8 +125,41 @@ function TvMediaViewContent({
   const [selectedSeason, setSelectedSeason] = useState(0);
   const [fixMatchOpen, setFixMatchOpen] = useState(false);
   const [watched, setWatched] = useState(Boolean(media.watchedAt));
+  // Optimistic per-episode watched overrides so marking an episode updates its
+  // check badge / status immediately, before the server data refreshes.
+  const [episodeWatchedOverrides, setEpisodeWatchedOverrides] = useState<
+    Record<number, boolean>
+  >({});
   const nextEpisodeIdRef = useRef<number | null>(null);
   const initializedMediaIdRef = useRef<number | null>(null);
+
+  // One shared handler for every episode's mark-watched toggle, so the rows can
+  // stay cheap stateless components. Optimistic, with rollback on failure.
+  const toggleEpisodeWatched = useCallback(
+    (episodeId: number, nextWatched: boolean, durationMs?: number | null) => {
+      setEpisodeWatchedOverrides((prev) => ({ ...prev, [episodeId]: nextWatched }));
+      const duration = durationMs && durationMs > 0 ? durationMs : undefined;
+      void api
+        .saveProgress(
+          {
+            itemType: "episode",
+            itemId: episodeId,
+            // positionMs === durationMs reads as completed; 0 clears it.
+            positionMs: nextWatched ? (duration ?? 1) : 0,
+            durationMs: duration,
+          },
+          { mediaId: media.id },
+        )
+        .catch((err) => {
+          console.warn("Failed to update episode watched state", err);
+          setEpisodeWatchedOverrides((prev) => ({
+            ...prev,
+            [episodeId]: !nextWatched,
+          }));
+        });
+    },
+    [media.id],
+  );
 
   useMarkTvBootReadyWhen(true);
 
@@ -374,10 +408,9 @@ function TvMediaViewContent({
                       ((ep.watchProgress?.positionMs ?? 0) / episodeDurationMs) * 100,
                     )
                   : 0;
-              const episodeWatched = isWatchCompleted(
-                ep.watchProgress?.positionMs,
-                episodeDurationMs,
-              );
+              const episodeWatched =
+                episodeWatchedOverrides[ep.id] ??
+                isWatchCompleted(ep.watchProgress?.positionMs, episodeDurationMs);
               const statusLabel = episodeWatched
                 ? "Watched"
                 : episodeStatusLabel(
@@ -405,8 +438,11 @@ function TvMediaViewContent({
                         src={tvImageUrl(ep.stillPath)}
                         alt=""
                         fill
-                        priority={episodeIndex < 8}
-                        loading="eager"
+                        // Only eagerly load the handful above the fold; lazy-load
+                        // the rest so navigating to a long season doesn't decode
+                        // every still at once (slow on TV WebViews).
+                        priority={episodeIndex < 5}
+                        loading={episodeIndex < 5 ? "eager" : "lazy"}
                         quality={TV_LIST_IMAGE_QUALITY}
                         sizes="8.5rem"
                         className="object-cover"
@@ -456,9 +492,11 @@ function TvMediaViewContent({
                 <TvEpisodeActions
                   fileId={ep.id}
                   mediaId={media.id}
-                  durationMs={episodeDurationMs}
-                  initialWatched={episodeWatched}
-                  canRestart={episodeCanResume}
+                  watched={episodeWatched}
+                  canRestart={episodeCanResume && !episodeWatched}
+                  onToggleWatched={() =>
+                    toggleEpisodeWatched(ep.id, !episodeWatched, episodeDurationMs)
+                  }
                 />
               </div>
               );
