@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.319 — 2026-11-14
+
+### Changes
+
+- **Release** — Remove the "Seen" badge from posters
+- Dropped the "Seen" badge that appeared on watched posters in the home rows and catalog grids (both TV and web). The resume progress bar on in-progress titles is unchanged.
+
 ## 0.1.318 — 2026-11-14
 
 ### Changes
