@@ -450,8 +450,15 @@ export const api = {
         totalPages: number;
       }>(`/api/libraries/${id}/items?page=${page}`),
     ),
-  getMedia: (id: number) =>
-    cachedFetch(`media:${id}`, () => fetchApi<Record<string, unknown>>(`/api/media/${id}`), 60_000),
+  getMedia: (id: number, options?: { slim?: boolean }) =>
+    cachedFetch(
+      `media:${id}`,
+      () =>
+        fetchApi<Record<string, unknown>>(
+          `/api/media/${id}${options?.slim ? "?slim=1" : ""}`,
+        ),
+      60_000,
+    ),
   getRelatedMedia: (id: number) =>
     cachedFetch(`media:${id}:related`, () =>
       fetchApi<{ items: MediaItem[] }>(`/api/media/${id}/related`),

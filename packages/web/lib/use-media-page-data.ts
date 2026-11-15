@@ -27,7 +27,9 @@ function readSeed(
 export function useMediaPageData(
   mediaId: number,
   initialMedia?: Record<string, unknown> | null,
+  options?: { slim?: boolean },
 ) {
+  const slim = options?.slim ?? false;
   const validId = Number.isFinite(mediaId) ? mediaId : null;
   const seed = readSeed(validId, initialMedia);
 
@@ -65,7 +67,7 @@ export function useMediaPageData(
     const hadSeed = Boolean(readSeed(validId, initialMedia));
 
     void api
-      .getMedia(validId)
+      .getMedia(validId, { slim })
       .then((data) => {
         if (cancelled) return;
         setSnapshot((prev) =>
@@ -98,7 +100,7 @@ export function useMediaPageData(
     return () => {
       cancelled = true;
     };
-  }, [validId, initialMedia]);
+  }, [validId, initialMedia, slim]);
 
   const media =
     snapshot.mediaId === validId

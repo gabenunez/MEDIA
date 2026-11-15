@@ -311,8 +311,11 @@ export async function apiRoutes(
     return { success: true, watched };
   });
 
-  app.get<{ Params: { id: string } }>("/api/media/:id", async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { slim?: string } }>(
+    "/api/media/:id",
+    async (request, reply) => {
     const id = parseInt(request.params.id, 10);
+    const slim = request.query.slim === "1" || request.query.slim === "true";
     const item = await db.query.mediaItems.findFirst({
       where: eq(mediaItems.id, id),
     });
@@ -359,12 +362,13 @@ export async function apiRoutes(
     }
 
     const [seasonsWithEpisodes, favorite] = await Promise.all([
-      loadTvSeasonsWithEpisodes(db, id),
+      loadTvSeasonsWithEpisodes(db, id, { slim }),
       favoritePromise,
     ]);
 
     return { ...item, seasons: seasonsWithEpisodes, isFavorite: favorite, hasThemeMusic };
-  });
+    },
+  );
 
   app.get<{ Params: { id: string } }>("/api/media/:id/related", async (request, reply) => {
     const id = parseInt(request.params.id, 10);

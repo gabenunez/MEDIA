@@ -84,7 +84,13 @@ function TvMediaViewResolved({
   mediaId: number;
   initialMedia?: Record<string, unknown>;
 }) {
-  const { media: mediaRecord, related, missing } = useMediaPageData(mediaId, initialMedia);
+  // TV episode list never renders episode overviews — request the slim payload
+  // (omits them) so long series load fast.
+  const { media: mediaRecord, related, missing } = useMediaPageData(
+    mediaId,
+    initialMedia,
+    { slim: true },
+  );
   const media = (mediaRecord ?? initialMedia) as unknown as MediaDetail | null;
 
   useMarkTvBootReadyWhen(true);

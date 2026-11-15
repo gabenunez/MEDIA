@@ -51,6 +51,7 @@ export function consolidateSeasonsByNumber<
 export async function loadTvSeasonsWithEpisodes(
   db: DatabaseInstance,
   mediaItemId: number,
+  options: { slim?: boolean } = {},
 ) {
   const seasons = await db.query.tvSeasons.findMany({
     where: eq(tvSeasons.mediaItemId, mediaItemId),
@@ -74,7 +75,9 @@ export async function loadTvSeasonsWithEpisodes(
       seasonId: true,
       episodeNumber: true,
       title: true,
-      overview: true,
+      // Episode overviews are ~half the payload and the TV list doesn't show
+      // them — slim mode omits them for a much smaller, faster response.
+      overview: !options.slim,
       durationMs: true,
       stillPath: true,
     },

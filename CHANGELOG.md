@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.318 — 2026-11-14
+
+### Changes
+
+- **Release** — Even smaller TV show payloads (slim mode)
+- The TV episode list doesn't display episode synopses, which were about half the remaining payload. The TV now requests a "slim" media response that omits episode overviews, cutting a long series (e.g. 176 episodes) from ~160KB down to ~37KB for much faster navigation. The web/desktop page still gets full overviews.
+
 ## 0.1.317 — 2026-11-14
 
 ### Changes
