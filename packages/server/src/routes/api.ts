@@ -27,6 +27,7 @@ import {
 } from "../services/home-rows.js";
 import { listLibrariesWithCounts, getLibraryItemCounts } from "../services/library-stats.js";
 import { loadTvSeasonsWithEpisodes } from "../services/media-detail.js";
+import { TILE_COLUMNS } from "../services/media-list.js";
 import {
   revalidateCatalog,
   revalidateMediaPage,
@@ -229,6 +230,7 @@ export async function apiRoutes(
       const libraryFilter = eq(mediaItems.libraryId, libraryId);
       const [items, total] = await Promise.all([
         db.query.mediaItems.findMany({
+          columns: TILE_COLUMNS,
           where: libraryFilter,
           orderBy: [desc(mediaItems.updatedAt)],
           limit,
@@ -373,6 +375,7 @@ export async function apiRoutes(
   app.get<{ Params: { id: string } }>("/api/media/:id/related", async (request, reply) => {
     const id = parseInt(request.params.id, 10);
     const item = await db.query.mediaItems.findFirst({
+      columns: { id: true, libraryId: true, type: true, genres: true },
       where: eq(mediaItems.id, id),
     });
 
@@ -380,18 +383,9 @@ export async function apiRoutes(
       return reply.status(404).send({ error: "Not found" });
     }
 
+    // Fetch genres/rating only to score/sort; they are not sent to the client.
     const candidates = await db.query.mediaItems.findMany({
-      columns: {
-        id: true,
-        libraryId: true,
-        title: true,
-        year: true,
-        posterPath: true,
-        backdropPath: true,
-        type: true,
-        genres: true,
-        rating: true,
-      },
+      columns: { ...TILE_COLUMNS, genres: true, rating: true },
       where: and(
         eq(mediaItems.libraryId, item.libraryId),
         eq(mediaItems.type, item.type),
@@ -411,7 +405,8 @@ export async function apiRoutes(
         return (b.candidate.rating ?? 0) - (a.candidate.rating ?? 0);
       })
       .slice(0, 12)
-      .map(({ candidate }) => candidate);
+      // Drop the scoring-only fields from the response — tiles don't use them.
+      .map(({ candidate: { genres: _g, rating: _r, ...tile } }) => tile);
 
     return { items };
   });
@@ -421,7 +416,10 @@ export async function apiRoutes(
     if (!q) return { results: [] };
 
     const pattern = `%${q}%`;
+    // Filters still match on title/overview server-side; the response only
+    // carries tile fields (overview etc. are never rendered in results).
     const titleResults = await db.query.mediaItems.findMany({
+      columns: TILE_COLUMNS,
       where: like(mediaItems.title, pattern),
       limit: 24,
     });
@@ -429,6 +427,7 @@ export async function apiRoutes(
 
     const titleIds = titleResults.map((item) => item.id);
     const overviewResults = await db.query.mediaItems.findMany({
+      columns: TILE_COLUMNS,
       where: titleIds.length
         ? and(like(mediaItems.overview, pattern), notInArray(mediaItems.id, titleIds))
         : like(mediaItems.overview, pattern),

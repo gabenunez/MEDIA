@@ -2,6 +2,19 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { MediaType } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import { favorites, mediaItems } from "../db/schema.js";
+import type { TileMediaItem } from "./media-list.js";
+
+/** The mediaItems columns list tiles need — mirrors TILE_COLUMNS for the
+ * lower-level select() joins used here. */
+const tileSelect = {
+  id: mediaItems.id,
+  libraryId: mediaItems.libraryId,
+  title: mediaItems.title,
+  year: mediaItems.year,
+  posterPath: mediaItems.posterPath,
+  backdropPath: mediaItems.backdropPath,
+  type: mediaItems.type,
+} as const;
 
 export async function isFavorite(
   db: DatabaseInstance,
@@ -43,7 +56,7 @@ export async function listFavorites(
   db: DatabaseInstance,
   options: { page?: number; limit?: number; type?: MediaType } = {},
 ): Promise<{
-  items: Array<typeof mediaItems.$inferSelect>;
+  items: TileMediaItem[];
   page: number;
   limit: number;
   total: number;
@@ -60,9 +73,9 @@ export async function listFavorites(
 
   const whereClause = conditions.length ? and(...conditions) : undefined;
 
-  const [rows, totalResult] = await Promise.all([
+  const [items, totalResult] = await Promise.all([
     db
-      .select({ item: mediaItems })
+      .select(tileSelect)
       .from(favorites)
       .innerJoin(mediaItems, eq(favorites.mediaItemId, mediaItems.id))
       .where(whereClause)
@@ -79,7 +92,7 @@ export async function listFavorites(
   const total = totalResult[0]?.count ?? 0;
 
   return {
-    items: rows.map((row) => row.item),
+    items,
     page,
     limit,
     total,
@@ -90,13 +103,11 @@ export async function listFavorites(
 export async function listRecentFavorites(
   db: DatabaseInstance,
   limit = 12,
-): Promise<Array<typeof mediaItems.$inferSelect>> {
-  const rows = await db
-    .select({ item: mediaItems })
+): Promise<TileMediaItem[]> {
+  return db
+    .select(tileSelect)
     .from(favorites)
     .innerJoin(mediaItems, eq(favorites.mediaItemId, mediaItems.id))
     .orderBy(desc(favorites.createdAt))
     .limit(limit);
-
-  return rows.map((row) => row.item);
 }

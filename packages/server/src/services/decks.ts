@@ -10,6 +10,7 @@ import {
   tvEpisodes,
 } from "../db/schema.js";
 import { validateLibraryPath } from "../utils/paths.js";
+import { TILE_COLUMNS } from "./media-list.js";
 
 export function parseDeckPaths(raw: string): string[] {
   try {
@@ -170,6 +171,7 @@ export async function getDeckItems(
   const where = sql`${mediaItems.id} IN (${ids})`;
   const [items, totalRows] = await Promise.all([
     db.query.mediaItems.findMany({
+      columns: TILE_COLUMNS,
       where,
       orderBy: [desc(mediaItems.updatedAt)],
       limit,

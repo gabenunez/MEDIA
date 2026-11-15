@@ -8,6 +8,7 @@ import {
   tvSeasons,
   watchProgress,
 } from "../db/schema.js";
+import { TILE_COLUMNS, type TileMediaItem } from "./media-list.js";
 
 /** Stay under SQLite's bound-variable cap when a library has a long watch history. */
 const ID_CHUNK = 400;
@@ -358,7 +359,7 @@ export async function listRecentlyAdded(
   db: DatabaseInstance,
   options: { page?: number; limit?: number; includeTotal?: boolean } = {},
 ): Promise<{
-  items: Array<typeof mediaItems.$inferSelect>;
+  items: TileMediaItem[];
   page: number;
   limit: number;
   total: number;
@@ -369,6 +370,7 @@ export async function listRecentlyAdded(
   const offset = (page - 1) * limit;
 
   const itemsQuery = db.query.mediaItems.findMany({
+    columns: TILE_COLUMNS,
     orderBy: [desc(mediaItems.createdAt)],
     limit,
     offset,

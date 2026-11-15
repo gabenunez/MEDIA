@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.322 — 2026-11-14
+
+### Changes
+
+- **Release** — Leaner catalog payloads for faster lists everywhere
+- Home, Recently Added, library grids, favorites, decks, search, and related now return only the fields a poster tile actually renders (id, title, year, poster/backdrop, type) instead of every column (overview, codecs, genres, ratings, ids, timestamps). Dropping the episode/movie synopses alone removes the bulk of each row, so catalog lists are much smaller and load faster — on top of the response compression added in 0.1.320.
+
 ## 0.1.321 — 2026-11-14
 
 ### Changes
