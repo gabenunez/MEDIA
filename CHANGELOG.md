@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.317 — 2026-11-14
+
+### Changes
+
+- **Release** — Much smaller TV show payloads for faster page loads
+- The media detail API was sending every episode's full record (file paths, codecs, sizes) plus its entire subtitle list for all seasons at once — ~160KB and 176 episodes for a long series, which made TV show pages slow to open. It now sends only the fields the page uses (title, overview, duration, still, watch progress), cutting the payload dramatically. Playback still fetches file/subtitle details on demand.
+
 ## 0.1.316 — 2026-11-14
 
 ### Changes
