@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import compress from "@fastify/compress";
 import fastifyStatic from "@fastify/static";
 import { loadConfig, getDbPath, getWebOutPath, ConfigManager } from "./config.js";
 import { runMigrations } from "./db/index.js";
@@ -77,6 +78,16 @@ async function main() {
       "Accept-Ranges",
       "Content-Type",
     ],
+  });
+
+  // Compress catalog/API JSON over the LAN — payloads like /api/home and
+  // /api/recent shrink ~65-70%. Only text-ish content types are compressed, so
+  // video/HLS/image streams (video/mp4, video/mp2t, image/*, octet-stream) are
+  // left untouched and range requests keep working. Skip tiny bodies.
+  await app.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ["br", "gzip", "deflate"],
   });
 
   app.addHook("onRequest", async (request, reply) => {

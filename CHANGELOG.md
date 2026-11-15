@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.320 — 2026-11-14
+
+### Changes
+
+- **Release** — Compress API responses for faster loads
+- The server now gzip/brotli-compresses catalog and metadata JSON (home, recently added, library grids, media detail, related). These payloads shrink roughly 65–70% on the wire, so pages load noticeably faster — especially on the TV over the LAN. Video, HLS, and image streams are left uncompressed so playback and seeking are unaffected.
+
 ## 0.1.319 — 2026-11-14
 
 ### Changes
