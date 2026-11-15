@@ -1665,7 +1665,9 @@ export function resolveNextEpisodeTarget(
       };
     }
 
-    return { seasonIndex: bestSeasonIndex, episodeId: bestEpisode.id };
+    // Series finale watched — nothing left to resume. Don't land focus on the
+    // very last episode (pressing Down from there jumps straight past the list
+    // to the next section); start at the top of the episode list instead.
   }
 
   const orderedSeasons = seasons

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.315 — 2026-11-14
+
+### Changes
+
+- **Release** — TV show page: better episode navigation, actions, and previews
+- Fixed the TV show page opening with focus on the last episode of a fully-watched series, which made pressing Down jump straight past the episode list to "More series in your library". It now starts at the top of the list.
+- Redesigned the per-episode actions revealed with Right into polished pill buttons, and added a "Mark watched / unwatched" toggle alongside "Start from beginning" (available on every episode).
+- Fixed the stretched still image in the "Next episode" preview popup on Android TV — the 16:9 box now gets an explicit height so the WebView can't collapse it.
+
 ## 0.1.314 — 2026-11-14
 
 ### Changes

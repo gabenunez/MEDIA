@@ -625,15 +625,86 @@
     white-space: nowrap;
   }
 
-  /* Restart ("Start from beginning") stays hidden until the episode row is
-     revealed with Right — it must not sit in the Up/Down scroll flow. */
-  .tv-ui [data-tv-episode-row]:not([data-tv-episode-restart-visible]) .tv-media-episode-options-reveal {
+  /* Per-episode action group (restart / mark watched), revealed with Right. */
+  .tv-ui .tv-episode-actions {
+    align-self: stretch;
+  }
+
+  .tv-ui .tv-episode-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    height: 2.75rem;
+    width: 2.75rem;
+    border-radius: 0.6rem;
+    background: hsl(var(--card) / 0.85);
+    color: hsl(var(--foreground));
+    outline: none;
+    overflow: hidden;
+    white-space: nowrap;
+    transition:
+      width 0.12s ease-out,
+      background-color 0.12s ease-out,
+      color 0.12s ease-out;
+  }
+
+  .tv-ui .tv-episode-action-icon {
+    height: 1.25rem;
+    width: 1.25rem;
+    flex-shrink: 0;
+    color: hsl(var(--primary));
+  }
+
+  .tv-ui .tv-episode-action.is-watched .tv-episode-action-icon {
+    color: hsl(var(--accent));
+  }
+
+  .tv-ui .tv-episode-action-label {
+    display: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  /* Expand to a labelled pill while focused. */
+  .tv-ui .tv-episode-action[data-tv-focused],
+  .tv-ui .tv-episode-action:focus-visible {
+    width: auto;
+    gap: 0.45rem;
+    padding-inline: 0.85rem;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .tv-ui .tv-episode-action[data-tv-focused] .tv-episode-action-icon,
+  .tv-ui .tv-episode-action:focus-visible .tv-episode-action-icon {
+    color: hsl(var(--primary-foreground));
+  }
+
+  .tv-ui .tv-episode-action.is-watched[data-tv-focused],
+  .tv-ui .tv-episode-action.is-watched:focus-visible {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+  }
+
+  .tv-ui .tv-episode-action.is-watched[data-tv-focused] .tv-episode-action-icon,
+  .tv-ui .tv-episode-action.is-watched:focus-visible .tv-episode-action-icon {
+    color: hsl(var(--accent-foreground));
+  }
+
+  .tv-ui .tv-episode-action[data-tv-focused] .tv-episode-action-label,
+  .tv-ui .tv-episode-action:focus-visible .tv-episode-action-label {
+    display: inline;
+  }
+
+  /* Action buttons stay out of the Up/Down flow until the row is revealed with
+     Right — they must not be selectable while scrolling episodes. */
+  .tv-ui [data-tv-episode-row]:not([data-tv-episode-actions-visible]) .tv-episode-actions {
     visibility: hidden;
     width: 0;
     min-width: 0;
     margin: 0;
     padding: 0;
-    border-width: 0;
     overflow: hidden;
     opacity: 0;
     pointer-events: none;
@@ -1884,6 +1955,10 @@
   .tv-ui [data-tv-watch-next-preview] {
     width: 100%;
     aspect-ratio: 16 / 9;
+    /* Android TV WebView ignores aspect-ratio on containers of fill images, so
+       the box collapses and the still stretches. Pin an explicit 16:9 height
+       derived from the overlay width (w-[min(22rem,32vw)]) like .tv-poster-art. */
+    height: calc(min(22rem, 32vw) * 9 / 16);
   }
 
   .tv-ui [data-tv-watch-next-episode] [data-tv-next-play].tv-focus-button,

@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
-  collapseEpisodeRestarts,
-  tryMoveEpisodeRestart,
+  collapseEpisodeActions,
+  tryMoveEpisodeActions,
 } from "./tv-episode-row";
 
 function mountEpisodeList() {
@@ -9,14 +9,16 @@ function mountEpisodeList() {
     <div data-tv-row data-tv-vertical>
       <div data-tv-episode-row>
         <a data-tv-item data-tv-episode-id="1" data-tv-episode-play>Episode 1</a>
-        <a data-tv-item data-tv-episode-restart tabindex="-1" aria-hidden="true">Restart 1</a>
+        <div class="tv-episode-actions">
+          <a data-tv-item data-tv-episode-action tabindex="-1" aria-hidden="true">Restart 1</a>
+          <button data-tv-item data-tv-episode-action tabindex="-1" aria-hidden="true">Watched 1</button>
+        </div>
       </div>
       <div data-tv-episode-row>
         <a data-tv-item data-tv-episode-id="2" data-tv-episode-play>Episode 2</a>
-        <a data-tv-item data-tv-episode-restart tabindex="-1" aria-hidden="true">Restart 2</a>
-      </div>
-      <div>
-        <a data-tv-item data-tv-episode-id="3">Episode 3 (no resume)</a>
+        <div class="tv-episode-actions">
+          <button data-tv-item data-tv-episode-action tabindex="-1" aria-hidden="true">Watched 2</button>
+        </div>
       </div>
     </div>
   `;
@@ -26,93 +28,93 @@ function mountEpisodeList() {
   return { rows };
 }
 
-describe("TV episode row restart action", () => {
+describe("TV episode row actions", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
   });
 
-  it("reveals the restart button when pressing right on the episode", () => {
+  it("reveals the action group (focusing the first action) when pressing right", () => {
     const { rows } = mountEpisodeList();
     const play = rows[0].querySelector<HTMLElement>("[data-tv-episode-play]")!;
-    const restart = rows[0].querySelector<HTMLElement>("[data-tv-episode-restart]")!;
+    const actions = rows[0].querySelectorAll<HTMLElement>("[data-tv-episode-action]");
 
-    const next = tryMoveEpisodeRestart(play, "right");
+    const next = tryMoveEpisodeActions(play, "right");
 
-    expect(next).toBe(restart);
-    expect(rows[0].hasAttribute("data-tv-episode-restart-visible")).toBe(true);
-    expect(restart.tabIndex).toBe(0);
-    expect(restart.getAttribute("aria-hidden")).toBeNull();
+    expect(next).toBe(actions[0]);
+    expect(rows[0].hasAttribute("data-tv-episode-actions-visible")).toBe(true);
+    actions.forEach((a) => {
+      expect(a.tabIndex).toBe(0);
+      expect(a.getAttribute("aria-hidden")).toBeNull();
+    });
   });
 
-  it("hides the restart button when pressing left from it", () => {
+  it("hides the actions when pressing left from the first action", () => {
     const { rows } = mountEpisodeList();
     const play = rows[0].querySelector<HTMLElement>("[data-tv-episode-play]")!;
-    const restart = rows[0].querySelector<HTMLElement>("[data-tv-episode-restart]")!;
-    rows[0].setAttribute("data-tv-episode-restart-visible", "");
-    restart.tabIndex = 0;
-    restart.removeAttribute("aria-hidden");
+    const actions = Array.from(
+      rows[0].querySelectorAll<HTMLElement>("[data-tv-episode-action]"),
+    );
+    rows[0].setAttribute("data-tv-episode-actions-visible", "");
+    actions.forEach((a) => {
+      a.tabIndex = 0;
+      a.removeAttribute("aria-hidden");
+    });
 
-    const next = tryMoveEpisodeRestart(restart, "left");
+    const next = tryMoveEpisodeActions(actions[0], "left");
 
     expect(next).toBe(play);
-    expect(rows[0].hasAttribute("data-tv-episode-restart-visible")).toBe(false);
-    expect(restart.tabIndex).toBe(-1);
-    expect(restart.getAttribute("aria-hidden")).toBe("true");
+    expect(rows[0].hasAttribute("data-tv-episode-actions-visible")).toBe(false);
+    actions.forEach((a) => {
+      expect(a.tabIndex).toBe(-1);
+      expect(a.getAttribute("aria-hidden")).toBe("true");
+    });
   });
 
-  it("does nothing for right on an already-revealed row (lets horizontal nav proceed)", () => {
+  it("does not consume left from a non-first action (lets geometry nav move between actions)", () => {
     const { rows } = mountEpisodeList();
-    const restart = rows[0].querySelector<HTMLElement>("[data-tv-episode-restart]")!;
-    rows[0].setAttribute("data-tv-episode-restart-visible", "");
-    restart.tabIndex = 0;
-    restart.removeAttribute("aria-hidden");
-
-    // Right while already on the revealed restart isn't ours to handle.
-    expect(tryMoveEpisodeRestart(restart, "right")).toBeNull();
+    const actions = Array.from(
+      rows[0].querySelectorAll<HTMLElement>("[data-tv-episode-action]"),
+    );
+    rows[0].setAttribute("data-tv-episode-actions-visible", "");
+    expect(tryMoveEpisodeActions(actions[1], "left")).toBeNull();
   });
 
-  it("returns null for rows without a restart (non-resumable episode)", () => {
-    mountEpisodeList();
-    const ep3 = document.querySelector<HTMLElement>('[data-tv-episode-id="3"]')!;
-    expect(tryMoveEpisodeRestart(ep3, "right")).toBeNull();
-    expect(tryMoveEpisodeRestart(ep3, "left")).toBeNull();
-  });
-
-  it("collapses a revealed restart and refocuses its episode on vertical nav", () => {
+  it("collapses a revealed group and refocuses its episode on vertical nav", () => {
     const { rows } = mountEpisodeList();
     const play = rows[0].querySelector<HTMLElement>("[data-tv-episode-play]")!;
-    const restart = rows[0].querySelector<HTMLElement>("[data-tv-episode-restart]")!;
-    rows[0].setAttribute("data-tv-episode-restart-visible", "");
-    restart.tabIndex = 0;
-    restart.removeAttribute("aria-hidden");
-    restart.focus();
+    const actions = Array.from(
+      rows[0].querySelectorAll<HTMLElement>("[data-tv-episode-action]"),
+    );
+    rows[0].setAttribute("data-tv-episode-actions-visible", "");
+    actions.forEach((a) => {
+      a.tabIndex = 0;
+      a.removeAttribute("aria-hidden");
+    });
+    actions[1].focus();
 
-    collapseEpisodeRestarts();
+    collapseEpisodeActions();
 
-    expect(rows[0].hasAttribute("data-tv-episode-restart-visible")).toBe(false);
-    expect(restart.tabIndex).toBe(-1);
+    expect(rows[0].hasAttribute("data-tv-episode-actions-visible")).toBe(false);
+    expect(actions[1].tabIndex).toBe(-1);
     expect(document.activeElement).toBe(play);
   });
 
-  it("keeps the restart out of the focusable vertical item set until revealed", () => {
+  it("keeps action buttons out of the focusable vertical set until revealed", () => {
     const { rows } = mountEpisodeList();
-    // Simulate the spatial-nav focusability filter: aria-hidden / tabindex -1
-    // excludes an element from the Up/Down flow.
-    const focusable = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-tv-item]"),
-    ).filter((el) => el.tabIndex !== -1 && el.getAttribute("aria-hidden") !== "true");
+    const focusable = () =>
+      Array.from(document.querySelectorAll<HTMLElement>("[data-tv-item]")).filter(
+        (el) => el.tabIndex !== -1 && el.getAttribute("aria-hidden") !== "true",
+      );
 
-    // Only the three episode links are reachable vertically (no restart buttons).
-    expect(focusable.map((el) => el.textContent)).toEqual([
+    // Only the two episode links are vertically reachable.
+    expect(focusable().map((el) => el.textContent)).toEqual([
       "Episode 1",
       "Episode 2",
-      "Episode 3 (no resume)",
     ]);
 
-    // After revealing row 0's restart, it becomes reachable (for Right/Left only).
+    // Revealing row 0 exposes its actions (for Right/Left only).
     const play = rows[0].querySelector<HTMLElement>("[data-tv-episode-play]")!;
-    tryMoveEpisodeRestart(play, "right");
-    const restart = rows[0].querySelector<HTMLElement>("[data-tv-episode-restart]")!;
-    expect(restart.tabIndex).toBe(0);
+    tryMoveEpisodeActions(play, "right");
+    expect(focusable().length).toBe(4); // 2 episodes + 2 revealed actions
   });
 });

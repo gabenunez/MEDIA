@@ -12,8 +12,8 @@ import {
   tryMoveSubtitleTrackActions,
 } from "@/lib/tv-subtitle-track-row";
 import {
-  collapseEpisodeRestarts,
-  tryMoveEpisodeRestart,
+  collapseEpisodeActions,
+  tryMoveEpisodeActions,
 } from "@/lib/tv-episode-row";
 import { tryAdjustSubtitleSync } from "@/lib/tv-subtitle-sync-nav";
 import {
@@ -672,7 +672,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
           focusItem(subtitleTarget);
           return;
         }
-        const episodeTarget = tryMoveEpisodeRestart(active, "right");
+        const episodeTarget = tryMoveEpisodeActions(active, "right");
         if (episodeTarget) {
           focusItem(episodeTarget);
           return;
@@ -687,7 +687,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
           focusItem(subtitleTarget);
           return;
         }
-        const episodeTarget = tryMoveEpisodeRestart(active, "left");
+        const episodeTarget = tryMoveEpisodeActions(active, "left");
         if (episodeTarget) {
           focusItem(episodeTarget);
           return;
@@ -698,13 +698,13 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
 
       if (e.key === "ArrowDown") {
         collapseSubtitleTrackActions();
-        collapseEpisodeRestarts();
+        collapseEpisodeActions();
         moveVertical(active, "down");
         return;
       }
 
       collapseSubtitleTrackActions();
-      collapseEpisodeRestarts();
+      collapseEpisodeActions();
       moveVertical(active, "up");
     }
 

@@ -10,6 +10,7 @@ import { TvFocusButton, TvFocusLink } from "@/components/tv/tv-focus-link";
 import { TvFavoriteButton } from "@/components/tv/tv-favorite-button";
 import { TvWatchedButton } from "@/components/tv/tv-watched-button";
 import { TvPlaybackOptions } from "@/components/tv/tv-playback-options";
+import { TvEpisodeActions } from "@/components/tv/tv-episode-actions";
 import { TvSectionLabel } from "@/components/tv/tv-page-header";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { TvRow, tvScrollRowClassName } from "@/components/tv/tv-row";
@@ -388,14 +389,14 @@ function TvMediaViewContent({
               return (
                 <div
                   key={ep.id}
-                  data-tv-episode-row={episodeCanResume ? "" : undefined}
+                  data-tv-episode-row=""
                   className="flex items-center gap-1"
                 >
                   <TvFocusLink
                     href={routes.watch("episode", ep.id, media.id)}
                     variant="card"
                     data-tv-episode-id={ep.id}
-                    data-tv-episode-play={episodeCanResume ? "" : undefined}
+                    data-tv-episode-play=""
                     className="tv-media-episode flex min-w-0 flex-1 items-center gap-4 px-3 py-2"
                   >
                   <div className="tv-episode-still relative shrink-0 overflow-hidden rounded-md bg-muted">
@@ -452,14 +453,13 @@ function TvMediaViewContent({
                     </p>
                   </div>
                 </TvFocusLink>
-                {episodeCanResume && (
-                  <TvPlaybackOptions
-                    compact
-                    fileId={ep.id}
-                    mediaId={media.id}
-                    revealOnRight
-                  />
-                )}
+                <TvEpisodeActions
+                  fileId={ep.id}
+                  mediaId={media.id}
+                  durationMs={episodeDurationMs}
+                  initialWatched={episodeWatched}
+                  canRestart={episodeCanResume}
+                />
               </div>
               );
             })}
