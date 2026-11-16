@@ -135,6 +135,7 @@ start_api() {
 start_web() {
   # When a public prefix is set, Next binds loopback-only and a tiny gateway
   # owns PUBLIC_PORT so "/" can 302 to "{prefix}/" (Next alone 404s outside basePath).
+  # The gateway also sends /api straight to Fastify so streams skip Next's proxy.
   local web_host="$HOST"
   local web_port="$PUBLIC_PORT"
   if [[ -n "$PUBLIC_PREFIX" ]]; then
@@ -159,6 +160,7 @@ start_web() {
     MEDIA_HOST="$HOST" \
       MEDIA_GATEWAY_PORT="$PUBLIC_PORT" \
       MEDIA_WEB_UPSTREAM_PORT="$web_port" \
+      MEDIA_API_UPSTREAM_PORT="$API_PORT" \
       MEDIA_PUBLIC_PREFIX="$PUBLIC_PREFIX" \
       node "$ROOT/scripts/public-gateway.mjs" &
     GATEWAY_PID=$!

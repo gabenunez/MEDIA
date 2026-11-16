@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.323 — 2026-11-15
+
+### Changes
+
+- **Release** — Streams skip the web server on reverse-proxy installs
+- When `public_prefix` is set, the public gateway now sends `/api` requests (including direct play, HLS segments, subtitles, and offline downloads) straight to the API server instead of through Next.js's rewrite proxy. This removes an extra hop for every video byte. Pages, images, and assets still go through Next.js, unprefixed `/api` keeps working for Android TV pairing, and `X-Forwarded-Host`/`X-Forwarded-Proto` from Apache/nginx are passed through so Chromecast still gets HTTPS stream URLs.
+
 ## 0.1.322 — 2026-11-14
 
 ### Changes
