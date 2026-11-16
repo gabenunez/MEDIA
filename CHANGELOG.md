@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.324 — 2026-11-15
+
+### Changes
+
+- **Release** — Security dependency upgrades
+- Upgraded Fastify (5.12.8), `@fastify/static` (10), `drizzle-orm` (0.45), `sharp`, Next.js (16.4.6), `js-yaml`, and the test tooling (Vitest 5, happy-dom 21, drizzle-kit) to clear 60 of 61 known advisories, including a Fastify authentication bypass via malformed URLs, `@fastify/static` path traversal, a Drizzle SQL identifier injection, and image-library flaws in `sharp`. The one remaining moderate advisory is in drizzle-kit's dev-only esbuild loader.
+
 ## 0.1.323 — 2026-11-15
 
 ### Changes

@@ -151,17 +151,18 @@ async function main() {
       root: webOut,
       prefix: "/",
       redirect: false,
-      setHeaders: (res, filePath) => {
+      // @fastify/static 10+ passes the Fastify reply (not the raw response).
+      setHeaders: (reply, filePath) => {
         if (filePath.includes(`${path.sep}_next${path.sep}static${path.sep}`)) {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          reply.header("Cache-Control", "public, max-age=31536000, immutable");
           return;
         }
         if (filePath.endsWith(`${path.sep}sw.js`)) {
-          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          reply.header("Cache-Control", "no-cache, no-store, must-revalidate");
           return;
         }
         if (filePath.endsWith(`${path.sep}index.html`)) {
-          res.setHeader("Cache-Control", "no-cache");
+          reply.header("Cache-Control", "no-cache");
         }
       },
     });
