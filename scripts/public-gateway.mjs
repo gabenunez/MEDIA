@@ -9,6 +9,7 @@
  *
  * Must not impose request timeouts: stream/HLS traffic also flows through here.
  */
+import fs from "node:fs";
 import http from "node:http";
 import { pathToFileURL } from "node:url";
 
@@ -168,7 +169,18 @@ export function createGateway({ webPort, apiPort, publicPrefix = "" }) {
   return server;
 }
 
-const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+// Compare real paths: start-prod.sh may launch us through a symlinked install
+// dir (e.g. macOS /var → /private/var), while import.meta.url is always real.
+function isRunDirectly() {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+const isMain = isRunDirectly();
 
 if (isMain) {
   const publicPort = Number(process.env.MEDIA_GATEWAY_PORT || process.env.PORT || "8096");

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.326 — 2026-11-15
+
+### Fix
+
+- **Release** — Restore installs on Node 20.18 and symlinked install paths
+- 0.1.324's dependency upgrades pulled in ESM-only `cookie@2` (via Fastify's `light-my-request`) and `content-disposition@3` (via `@fastify/static`), so the API crashed on start on Node versions before 20.19. In-app updates to 0.1.324/0.1.325 failed mid-build and left the old web server serving files that no longer existed (500s on every script and stylesheet). `light-my-request` is now pinned to 6.6.0 and `@fastify/static` to 10.1.3, which keep the security fixes and load on Node 20.18.
+- `packages/shared` now declares `@types/node`; fresh installs failed to type-check it after the Vitest upgrade.
+- The public gateway no longer exits immediately when started through a symlinked install directory.
+
 ## 0.1.325 — 2026-11-15
 
 ### Changes

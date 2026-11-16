@@ -1,6 +1,6 @@
 {
   "name": "media-app",
-  "version": "0.1.325",
+  "version": "0.1.326",
   "private": true,
   "scripts": {
     "dev": "turbo dev",
@@ -32,6 +32,9 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3"
-    ]
+    ],
+    "overrides": {
+      "light-my-request": "6.6.0"
+    }
   }
 }

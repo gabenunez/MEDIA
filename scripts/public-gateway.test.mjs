@@ -1,5 +1,50 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { apiRequestHeaders, normalizePublicPrefix, resolveRoute } from "./public-gateway.mjs";
+
+describe("running the gateway script", () => {
+  it("starts listening when launched through a symlinked install dir", async () => {
+    const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gateway-link-"));
+    const linkedDir = path.join(tmp, "scripts");
+    fs.symlinkSync(scriptsDir, linkedDir, "dir");
+
+    const child = spawn(process.execPath, [path.join(linkedDir, "public-gateway.mjs")], {
+      env: {
+        ...process.env,
+        MEDIA_HOST: "127.0.0.1",
+        MEDIA_GATEWAY_PORT: "0",
+        MEDIA_WEB_UPSTREAM_PORT: "1",
+        MEDIA_PUBLIC_PREFIX: "/reel",
+      },
+    });
+    try {
+      const output = await new Promise((resolve, reject) => {
+        let text = "";
+        const timer = setTimeout(() => reject(new Error(`no listen line: ${text}`)), 5000);
+        child.stdout.on("data", (chunk) => {
+          text += chunk;
+          if (text.includes("gateway on")) {
+            clearTimeout(timer);
+            resolve(text);
+          }
+        });
+        child.on("exit", (code) => {
+          clearTimeout(timer);
+          reject(new Error(`gateway exited early (${code}): ${text}`));
+        });
+      });
+      expect(output).toContain("MEDIA! gateway on");
+    } finally {
+      child.kill();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
 
 const withPrefix = { publicPrefix: "/reel", apiEnabled: true };
 
