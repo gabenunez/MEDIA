@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.325 — 2026-11-15
+
+### Changes
+
+- **Release** — Per-client login lockouts behind the proxy, API port closed to the network
+- Login lockouts now count against each visitor's real IP instead of one shared bucket for everything coming through the gateway or Next.js, so someone guessing passwords locks out only themselves. Forwarded addresses are trusted only from the local gateway/Next on the same machine, so remote clients can't spoof `X-Forwarded-For` to dodge or redirect a lockout. The internal API process (port + 1, default 8097) now listens on `127.0.0.1` only, since just the gateway and Next.js on the same host ever call it.
+
 ## 0.1.324 — 2026-11-15
 
 ### Changes

@@ -16,6 +16,22 @@ function isVirtualInterface(name: string): boolean {
   );
 }
 
+/**
+ * Only the local gateway / Next proxy may vouch for a client's address via
+ * X-Forwarded-For. Requests from anywhere else keep their socket address, so
+ * a remote client cannot pick its own login rate-limit bucket.
+ */
+export const TRUSTED_PROXIES = "loopback";
+
+/**
+ * The API-only Fastify process is reached only by the gateway and Next on the
+ * same host, so it never needs to listen beyond loopback.
+ */
+export function listenHost(configHost: string | undefined, apiOnly: boolean): string {
+  if (apiOnly) return "127.0.0.1";
+  return configHost || "0.0.0.0";
+}
+
 export function getLanBaseUrl(port: number): string {
   const interfaces = os.networkInterfaces();
   const candidates: Array<{ name: string; address: string }> = [];

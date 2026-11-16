@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ConfigManager } from "../config.js";
 import type { AuthService } from "../services/auth.js";
 import { LOGIN_FAILURE_LIMIT } from "../services/login-rate-limit.js";
+import { TRUSTED_PROXIES } from "../utils/network.js";
 import { authRoutes } from "./auth.js";
 
 function fakeAuth(password = "correct-horse"): AuthService {
@@ -14,11 +15,104 @@ function fakeAuth(password = "correct-horse"): AuthService {
   } as unknown as AuthService;
 }
 
-async function loginApp() {
-  const app = Fastify();
+async function loginApp(options: { trustProxy?: string } = {}) {
+  const app = Fastify(options);
   await authRoutes(app, fakeAuth(), {} as ConfigManager);
   return app;
 }
+
+async function failUntilLocked(
+  app: Awaited<ReturnType<typeof loginApp>>,
+  request: { remoteAddress: string; headers?: Record<string, string> },
+) {
+  for (let attempt = 0; attempt < LOGIN_FAILURE_LIMIT; attempt += 1) {
+    await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      ...request,
+      payload: { password: "nope" },
+    });
+  }
+}
+
+describe("password login lockout behind the local gateway", () => {
+  it("gives each forwarded client its own bucket", async () => {
+    const app = await loginApp({ trustProxy: TRUSTED_PROXIES });
+
+    // Apache → gateway → Fastify: X-Forwarded-For carries the real client.
+    await failUntilLocked(app, {
+      remoteAddress: "127.0.0.1",
+      headers: { "x-forwarded-for": "203.0.113.5, 127.0.0.1" },
+    });
+
+    const attacker = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      remoteAddress: "127.0.0.1",
+      headers: { "x-forwarded-for": "203.0.113.5, 127.0.0.1" },
+      payload: { password: "correct-horse" },
+    });
+    expect(attacker.statusCode).toBe(429);
+
+    const householdMember = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      remoteAddress: "127.0.0.1",
+      headers: { "x-forwarded-for": "198.51.100.8, 127.0.0.1" },
+      payload: { password: "correct-horse" },
+    });
+    expect(householdMember.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  it("keeps the gateway-appended address when a client spoofs X-Forwarded-For", async () => {
+    const app = await loginApp({ trustProxy: TRUSTED_PROXIES });
+
+    // A direct client sends a fake header; the gateway appends its real address.
+    await failUntilLocked(app, {
+      remoteAddress: "127.0.0.1",
+      headers: { "x-forwarded-for": "198.51.100.8, 203.0.113.5" },
+    });
+
+    const spoofedVictim = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      remoteAddress: "127.0.0.1",
+      headers: { "x-forwarded-for": "198.51.100.8" },
+      payload: { password: "correct-horse" },
+    });
+    expect(spoofedVictim.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  it("ignores X-Forwarded-For from non-loopback sockets", async () => {
+    const app = await loginApp({ trustProxy: TRUSTED_PROXIES });
+
+    // Rotating the header from a remote socket must not escape the lockout.
+    for (let attempt = 0; attempt < LOGIN_FAILURE_LIMIT; attempt += 1) {
+      await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        remoteAddress: "203.0.113.5",
+        headers: { "x-forwarded-for": `198.51.100.${attempt}` },
+        payload: { password: "nope" },
+      });
+    }
+
+    const rotated = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      remoteAddress: "203.0.113.5",
+      headers: { "x-forwarded-for": "198.51.100.200" },
+      payload: { password: "correct-horse" },
+    });
+    expect(rotated.statusCode).toBe(429);
+
+    await app.close();
+  });
+});
 
 describe("password login lockout", () => {
   it("locks a client after 10 failures and still rejects the right password", async () => {

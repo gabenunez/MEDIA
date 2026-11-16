@@ -26,6 +26,7 @@ import {
   killOrphanFfmpegInCache,
   stopAllHlsSessions,
 } from "./utils/ffmpeg.js";
+import { TRUSTED_PROXIES, listenHost } from "./utils/network.js";
 import {
   pruneReadyOfflineJobs,
   recoverOrphanedOfflineJobs,
@@ -55,7 +56,7 @@ async function main() {
   const scanner = new ScannerService(db, configManager, metadata, subtitles, themes);
   const auth = new AuthService(configManager);
 
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: true, trustProxy: TRUSTED_PROXIES });
 
   // Chromecast's default receiver requires ACAO: * and must not see
   // Access-Control-Allow-Credentials. The web app is same-origin, so cookie'd
@@ -232,10 +233,11 @@ async function main() {
   process.once("SIGTERM", () => void shutdown("SIGTERM"));
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
-  const { port: configPort, host } = config.server;
+  const { port: configPort } = config.server;
   const port = apiOnly
     ? parseInt(process.env.MEDIA_INTERNAL_API_PORT ?? String(configPort + 1), 10)
     : configPort;
+  const host = listenHost(config.server.host, apiOnly);
   await app.listen({ port, host });
 
   if (apiOnly) {

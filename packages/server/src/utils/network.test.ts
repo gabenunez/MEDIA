@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { AppConfig } from "@media-app/shared";
 import type { FastifyRequest } from "fastify";
-import { getCastBaseUrl, toAbsoluteUrl, withPublicPrefix } from "./network.js";
+import { getCastBaseUrl, listenHost, toAbsoluteUrl, withPublicPrefix } from "./network.js";
+
+describe("listenHost", () => {
+  it("keeps the API-only process on loopback regardless of server.host", () => {
+    expect(listenHost("0.0.0.0", true)).toBe("127.0.0.1");
+    expect(listenHost(undefined, true)).toBe("127.0.0.1");
+  });
+
+  it("uses server.host for the single-process server", () => {
+    expect(listenHost("0.0.0.0", false)).toBe("0.0.0.0");
+    expect(listenHost("192.168.1.20", false)).toBe("192.168.1.20");
+    expect(listenHost(undefined, false)).toBe("0.0.0.0");
+  });
+});
 
 function configWithPrefix(prefix?: string): AppConfig {
   return {
