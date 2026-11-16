@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.327 — 2026-11-15
+
+### Changes
+
+- **Release** — Oscilloscope-style theme music waveform
+- The theme music visual on title pages (web and TV) is now a thin, continuous waveform trace instead of frequency bars: sharp crests, rounded troughs, and a vertical mark at each main crest, in the existing teal-to-lime gradient. The trace locks to the start of each cycle so it holds steady, eases between frames, and scales quiet themes up so their shape stays visible.
+
 ## 0.1.326 — 2026-11-15
 
 ### Fix

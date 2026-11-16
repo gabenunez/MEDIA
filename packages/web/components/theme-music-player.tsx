@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { ensureAudioUnlocked, getSharedAudioContext } from "@/lib/audio-unlock";
 import { useThemeMusicSettings } from "@/components/theme-music-settings";
 import { isTvClient } from "@/lib/tv-mode-detect";
+import { findWaveformPeaks, syntheticTrace, traceFromTimeDomain } from "@/lib/theme-waveform";
 
 const TARGET_VOLUME = 0.38;
 const FADE_MS = 1800;
@@ -82,7 +83,9 @@ function tryAttachAnalyser(element: HTMLAudioElement): AnalyserNode | null {
     const audioContext = getSharedAudioContext();
     const source = audioContext.createMediaElementSource(element);
     const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 128;
+    // Time-domain window for the oscilloscope trace; leaves room to find a
+    // rising zero crossing before the WAVEFORM_WINDOW samples we draw.
+    analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.82;
     source.connect(analyser);
     analyser.connect(audioContext.destination);
@@ -332,8 +335,11 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const buffer = new Uint8Array(64);
-    let barGradient: CanvasGradient | null = null;
+    let samples = new Uint8Array(0);
+    let shown = new Float32Array(0);
+    let gain = 1;
+    let lineStroke: CanvasGradient | string = "hsl(174 84% 52% / 0.7)";
+    let markStroke = "hsl(174 84% 52% / 0.45)";
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -345,10 +351,12 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
       const styles = getComputedStyle(document.documentElement);
       const primary = styles.getPropertyValue("--primary").trim() || "174 84% 52%";
       const accent = styles.getPropertyValue("--accent").trim() || "78 86% 60%";
-      barGradient = ctx.createLinearGradient(0, 0, rect.width, 0);
-      barGradient.addColorStop(0, `hsl(${primary} / 0.28)`);
-      barGradient.addColorStop(0.55, `hsl(${primary} / 0.5)`);
-      barGradient.addColorStop(1, `hsl(${accent} / 0.42)`);
+      const gradient = ctx.createLinearGradient(0, 0, rect.width, 0);
+      gradient.addColorStop(0, `hsl(${primary} / 0.45)`);
+      gradient.addColorStop(0.55, `hsl(${primary} / 0.8)`);
+      gradient.addColorStop(1, `hsl(${accent} / 0.7)`);
+      lineStroke = gradient;
+      markStroke = `hsl(${primary} / 0.55)`;
     };
 
     resize();
@@ -366,39 +374,64 @@ export function ThemeMusicWaveform({ className = "" }: { className?: string }) {
         return;
       }
 
+      // One point every ~2 CSS px keeps crests sharp without per-pixel work on TV.
+      const points = Math.max(24, Math.min(600, Math.round(width / 2)));
+      let trace: Float32Array;
       if (node) {
-        node.getByteFrequencyData(buffer.subarray(0, node.frequencyBinCount));
+        if (samples.length !== node.fftSize) samples = new Uint8Array(node.fftSize);
+        node.getByteTimeDomainData(samples);
+        trace = traceFromTimeDomain(samples, points);
+      } else {
+        trace = syntheticTrace(points, performance.now());
       }
 
-      const barCount = 48;
-      const gap = 3;
-      const barWidth = (width - gap * (barCount - 1)) / barCount;
-      if (barWidth < 1) {
-        frameRef.current = requestAnimationFrame(draw);
-        return;
+      // Auto-gain so quiet themes still show their shape; ease it to avoid pumping.
+      let peak = 0;
+      for (let i = 0; i < trace.length; i++) peak = Math.max(peak, Math.abs(trace[i]));
+      const targetGain = Math.min(6, 0.9 / Math.max(peak, 0.08));
+      gain += (targetGain - gain) * 0.08;
+
+      // Blend with the last frame so the trace drifts instead of flickering.
+      if (shown.length !== points) shown = new Float32Array(trace);
+      for (let i = 0; i < points; i++) {
+        const target = Math.max(-1, Math.min(1, trace[i] * gain));
+        shown[i] += (target - shown[i]) * 0.45;
       }
 
-      const midY = height * 0.68;
-      const radius = Math.min(barWidth / 2, height * 0.16);
+      const midY = height * 0.58;
+      const amplitude = height * 0.36;
+      const step = width / (points - 1);
+      const yAt = (i: number) => midY - shown[i] * amplitude;
 
-      for (let i = 0; i < barCount; i++) {
-        const sample =
-          node && buffer.length > 0
-            ? buffer[Math.floor((i / barCount) * buffer.length)] / 255
-            : 0.12 + Math.sin(performance.now() / 280 + i * 0.35) * 0.06;
+      // Peak marks: thin verticals from each main crest down to the floor.
+      const peaks = findWaveformPeaks(shown, {
+        minGap: Math.max(4, Math.round(points / 6)),
+        minValue: 0.25,
+        maxCount: 5,
+      });
+      ctx.strokeStyle = markStroke;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (const index of peaks) {
+        const x = index * step;
+        ctx.moveTo(x, yAt(index) + 2);
+        ctx.lineTo(x, height);
+      }
+      ctx.stroke();
 
-         const amplitude = Math.max(0.04, sample);
-         const barHeight = amplitude * height * 0.3;
-         const x = i * (barWidth + gap);
-
-         ctx.fillStyle = barGradient ?? "hsl(174 84% 52% / 0.35)";
-         ctx.globalAlpha = 0.35 + amplitude * 0.5;
-         ctx.beginPath();
-         ctx.roundRect(x, midY - barHeight, barWidth, barHeight * 2, radius);
-         ctx.fill();
-       }
-
-       ctx.globalAlpha = 1;
+      // Trace: quadratic curves through midpoints read as one continuous line.
+      ctx.strokeStyle = lineStroke;
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, yAt(0));
+      for (let i = 1; i < points - 1; i++) {
+        const x = i * step;
+        ctx.quadraticCurveTo(x, yAt(i), x + step / 2, (yAt(i) + yAt(i + 1)) / 2);
+      }
+      ctx.lineTo(width, yAt(points - 1));
+      ctx.stroke();
 
       frameRef.current = requestAnimationFrame(draw);
     };
