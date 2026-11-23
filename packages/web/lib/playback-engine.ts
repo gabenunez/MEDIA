@@ -48,6 +48,44 @@ export function destroyHlsInstance(hls: Hls | null): void {
   hls.destroy();
 }
 
+/** Bound the startup wait even if a playlist or the first fragment never arrives. */
+export function observeWebPlaybackStartup(options: {
+  video: HTMLVideoElement;
+  timeoutMs: number;
+  onReady: () => void;
+  onTimeout: () => void;
+}): () => void {
+  const { video, timeoutMs, onReady, onTimeout } = options;
+  let lastTime = video.currentTime;
+  const stop = () => {
+    clearTimeout(deadline);
+    video.removeEventListener("playing", ready);
+    video.removeEventListener("timeupdate", onTimeUpdate);
+  };
+  const ready = () => {
+    stop();
+    onReady();
+  };
+  const onTimeUpdate = () => {
+    const currentTime = video.currentTime;
+    const advanced = currentTime > lastTime;
+    lastTime = currentTime;
+    if (advanced && !video.paused && !video.seeking) ready();
+  };
+  const deadline = setTimeout(() => {
+    // A paused video that can play may be waiting for a user gesture.
+    if (video.paused && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      ready();
+      return;
+    }
+    stop();
+    onTimeout();
+  }, timeoutMs);
+  video.addEventListener("playing", ready);
+  video.addEventListener("timeupdate", onTimeUpdate);
+  return stop;
+}
+
 /** Poll until the incoming quality can take over the live playhead without a gap. */
 export function attachQualityHandoffPoller(options: {
   incoming: HTMLVideoElement;

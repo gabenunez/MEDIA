@@ -48,7 +48,15 @@ import {
   posterPathForWatchItem,
   type PlaybackMediaDetail,
 } from "@/lib/playback-utils";
-import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback, attachQualityHandoffPoller } from "@/lib/playback-engine";
+import {
+  attachQualityHandoffPoller,
+  catchUpHlsPlayback,
+  destroyHlsInstance,
+  loadHls,
+  observeWebPlaybackStartup,
+  recoverHlsPlaybackAtPlaylistEnd,
+  startWebPlayback,
+} from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
 import { useMediaSession } from "@/lib/use-media-session";
@@ -113,6 +121,9 @@ import {
 
 const VOLUME_STORAGE_KEY = "media:volume";
 const PROGRESS_SAVE_MS = 10_000;
+// The server allows up to 90 seconds for a cold transcode to produce its first segments.
+const HLS_STARTUP_TIMEOUT_MS = 105_000;
+const HLS_STARTUP_TIMEOUT_MESSAGE = "This stream took too long to start.";
 
 interface MediaDetail extends PlaybackMediaDetail {}
 
@@ -160,7 +171,6 @@ function WatchDesktopClient() {
   const playbackCompletedRef = useRef(false);
   const seekToAbsoluteRef = useRef<(seconds: number) => void>(() => {});
   const playbackStreamRef = useRef<ReturnType<typeof resolvePlaybackStream> | null>(null);
-  const playbackFatalHandledRef = useRef(-1);
   const spuriousRecoveryStateRef = useRef<SpuriousRecoveryState>({
     attempts: 0,
     lastEndedAtMs: 0,
@@ -874,19 +884,23 @@ function WatchDesktopClient() {
           stream.hlsQuality,
         );
 
-    const sessionGen = streamGeneration;
-    const onFatalError = () => {
-      if (playbackFatalHandledRef.current === sessionGen) return;
-      playbackFatalHandledRef.current = sessionGen;
-      qualityHandoffInFlightRef.current = false;
-      setOptimisticAbsoluteSeconds(null);
-      setBuffering(false);
-      setError("Playback failed. Try a lower quality or Original.");
-    };
-
     let cancelled = false;
+    let failed = false;
     let webPlayback: ReturnType<typeof startWebPlayback> | null = null;
     let stopHandoffPoll: (() => void) | null = null;
+    let stopStartupWatch: (() => void) | undefined;
+
+    const onFatalError = (message = "Playback failed. Try a lower quality or Original.") => {
+      if (cancelled || failed) return;
+      failed = true;
+      stopStartupWatch?.();
+      qualityHandoffInFlightRef.current = false;
+      setOptimisticAbsoluteSeconds(null);
+      playbackBufferingRef.current = false;
+      setBuffering(false);
+      setBufferingMidPlayback(false);
+      setError(message);
+    };
 
     const incomingVideo =
       activeVideoSlotRef.current === "a"
@@ -1010,10 +1024,40 @@ function WatchDesktopClient() {
     video.currentTime = 0;
     setCurrentTime(usingHls || startAt <= 0 ? 0 : startAt);
 
+    const releaseVideo = () => {
+      webPlayback?.cleanup();
+      webPlayback = null;
+      hlsRef.current = null;
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+
+    if (usingHls) {
+      stopStartupWatch = observeWebPlaybackStartup({
+        video,
+        timeoutMs: HLS_STARTUP_TIMEOUT_MS,
+        onReady: () => {
+          playbackBufferingRef.current = false;
+          setBuffering(false);
+          setBufferingMidPlayback(false);
+          setIsPlaying(!video.paused);
+          if (!video.paused) {
+            playbackHasBegunRef.current = true;
+            setPlaybackHasBegun(true);
+          }
+        },
+        onTimeout: () => {
+          onFatalError(HLS_STARTUP_TIMEOUT_MESSAGE);
+          releaseVideo();
+        },
+      });
+    }
+
     void (async () => {
       try {
         const HlsConstructor = usingHls ? await loadHls() : undefined;
-        if (cancelled) return;
+        if (cancelled || failed) return;
 
         webPlayback = startWebPlayback({
           HlsConstructor,
@@ -1043,14 +1087,11 @@ function WatchDesktopClient() {
 
     return () => {
       cancelled = true;
+      stopStartupWatch?.();
       if (progressInterval.current) clearInterval(progressInterval.current);
       saveProgressRef.current();
       if (qualityHandoffRef.current) return;
-      webPlayback?.cleanup();
-      hlsRef.current = null;
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
+      releaseVideo();
     };
   }, [fileId, type, quality, streamGeneration, initialResumeSeconds, streamInfo, offlineObjectUrl, offlineReady]);
 
@@ -1670,8 +1711,8 @@ function WatchDesktopClient() {
       )}
 
       {showInitialLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
-          <div className="watch-status-chip text-sm">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+          <div className="watch-status-chip text-sm" role="status">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             {loadingMessage}
           </div>
@@ -1697,6 +1738,13 @@ function WatchDesktopClient() {
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80">
           <div className="flex flex-col items-center gap-3 text-center">
             <p className="mb-1 text-red-400">{error}</p>
+            {error === HLS_STARTUP_TIMEOUT_MESSAGE && (
+              <Button
+                onClick={() => requestStreamRestartAt(lastStableAbsoluteSecondsRef.current)}
+              >
+                Retry
+              </Button>
+            )}
             {quality !== "original" && (
               <Button onClick={() => changeQuality("original")}>Try Original</Button>
             )}

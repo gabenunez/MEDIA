@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.328 — 2026-11-23
+
+### Fix
+
+- **Release** — Clear the stuck stream startup banner on desktop web
+- The startup banner clears when playback begins. If a stream takes too long to start, the player offers Retry at the same position or lets you switch quality.
+
 ## 0.1.327 — 2026-11-15
 
 ### Changes
