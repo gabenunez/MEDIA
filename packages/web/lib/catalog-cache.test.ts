@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   catalogCacheLife,
-  homeRefreshOptions,
   invalidateClientCatalogCache,
   libraryCountsSignature,
   mediaCacheLife,
@@ -28,6 +27,12 @@ describe("catalog cache", () => {
 });
 
 describe("libraryCountsSignature", () => {
+  it("ignores library ordering across status polls", () => {
+    const movies = { id: 1, itemCount: 10 };
+    const tv = { id: 2, itemCount: 4 };
+    expect(libraryCountsSignature([movies, tv])).toBe(libraryCountsSignature([tv, movies]));
+  });
+
   it("changes when a library gains a title", () => {
     expect(
       libraryCountsSignature([
@@ -53,23 +58,5 @@ describe("invalidateClientCatalogCache", () => {
     expect(peekApiCache("home")).toEqual({ recentlyAdded: [] });
     invalidateClientCatalogCache();
     expect(peekApiCache("home")).toBeUndefined();
-  });
-});
-
-describe("homeRefreshOptions", () => {
-  it("keeps cached home on the screen when remounting after watch", () => {
-    expect(homeRefreshOptions("mount")).toEqual({ bust: false, refreshRsc: false });
-    expect(homeRefreshOptions("visible")).toEqual({ bust: false, refreshRsc: false });
-  });
-
-  it("busts caches only when the catalog itself changed", () => {
-    expect(homeRefreshOptions("scan-complete")).toEqual({
-      bust: true,
-      refreshRsc: true,
-    });
-    expect(homeRefreshOptions("library-counts")).toEqual({
-      bust: true,
-      refreshRsc: true,
-    });
   });
 });

@@ -31,6 +31,7 @@ import { TILE_COLUMNS } from "../services/media-list.js";
 import {
   revalidateCatalog,
   revalidateMediaPage,
+  revalidateWatchProgress,
 } from "../services/page-revalidate.js";
 import { checkFfmpegAvailable } from "../utils/ffmpeg.js";
 import { errorMessage, parsePagination } from "./util.js";
@@ -44,16 +45,15 @@ import {
   libraryDecks,
 } from "../db/schema.js";
 
-/** Watch-progress heartbeats arrive every few seconds during playback; coalesce
- *  them into a single catalog revalidation instead of hammering the web layer. */
-let catalogRevalidateTimer: NodeJS.Timeout | null = null;
-function scheduleCatalogRevalidateDebounced(): void {
-  if (catalogRevalidateTimer) return;
-  catalogRevalidateTimer = setTimeout(() => {
-    catalogRevalidateTimer = null;
-    void revalidateCatalog();
+/** Coalesce nearby saves and expire only reads that show playback progress. */
+let watchProgressRevalidateTimer: NodeJS.Timeout | null = null;
+function scheduleWatchProgressRevalidation(): void {
+  if (watchProgressRevalidateTimer) return;
+  watchProgressRevalidateTimer = setTimeout(() => {
+    watchProgressRevalidateTimer = null;
+    void revalidateWatchProgress();
   }, 2000);
-  catalogRevalidateTimer.unref?.();
+  watchProgressRevalidateTimer.unref?.();
 }
 
 function parseGenreSet(genres: string | null | undefined): Set<string> {
@@ -593,7 +593,7 @@ export async function apiRoutes(
         .update(watchProgress)
         .set({ positionMs, durationMs, updatedAt: new Date() })
         .where(eq(watchProgress.id, existing.id));
-      scheduleCatalogRevalidateDebounced();
+      scheduleWatchProgressRevalidation();
       return { success: true, id: existing.id };
     }
 
@@ -602,7 +602,7 @@ export async function apiRoutes(
       .values({ itemType, itemId, positionMs, durationMs })
       .returning();
 
-    scheduleCatalogRevalidateDebounced();
+    scheduleWatchProgressRevalidation();
     return { success: true, id: row.id };
   });
 

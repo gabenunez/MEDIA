@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { cacheLife, cacheTag } from "next/cache";
-import { HOME_CATALOG_CACHE_TAG } from "@media-app/shared";
+import { HOME_CATALOG_CACHE_TAG, WATCH_PROGRESS_CACHE_TAG } from "@media-app/shared";
 import { catalogCacheLife, skipCatalogPrerender } from "@/lib/catalog-cache";
 import { HomeClient } from "./home-client";
 import { pageMetadataTitle } from "@/lib/document-title";
@@ -30,6 +30,7 @@ async function CachedHome() {
   "use cache";
   cacheLife(catalogCacheLife);
   cacheTag(HOME_CATALOG_CACHE_TAG);
+  cacheTag(WATCH_PROGRESS_CACHE_TAG);
   const { data } = await fetchHome();
   // Throw so a down API is not stored for the cache lifetime.
   if (!data) throw new Error("home unavailable");

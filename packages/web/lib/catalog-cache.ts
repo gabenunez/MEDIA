@@ -26,10 +26,9 @@ export function skipCatalogPrerender(): boolean {
 }
 
 export function libraryCountsSignature(
-  libraries: Array<{ id: number; itemCount?: number }> | undefined,
+  libraries: ReadonlyArray<{ id: number; itemCount?: number }>,
 ): string {
-  if (!libraries?.length) return "";
-  return libraries.map((lib) => `${lib.id}:${lib.itemCount ?? 0}`).join(",");
+  return libraries.map((lib) => `${lib.id}:${lib.itemCount ?? 0}`).sort().join(",");
 }
 
 export function invalidateClientCatalogCache() {
@@ -40,17 +39,4 @@ export function invalidateClientCatalogCache() {
   invalidateApiCache("deck");
   invalidateApiCache("favorites");
   invalidateApiCache("continue");
-}
-
-export type HomeRefreshReason = "mount" | "scan-complete" | "library-counts" | "visible";
-
-/** Mount/tab-focus keep painting current home data; only catalog changes bust caches. */
-export function homeRefreshOptions(reason: HomeRefreshReason): {
-  bust: boolean;
-  refreshRsc: boolean;
-} {
-  if (reason === "scan-complete" || reason === "library-counts") {
-    return { bust: true, refreshRsc: true };
-  }
-  return { bust: false, refreshRsc: false };
 }

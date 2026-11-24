@@ -206,7 +206,7 @@ export class ScannerService {
     this.revalidateTimer.unref?.();
   }
 
-  private flushCatalogRevalidate(): void {
+  private flushCatalogRevalidate(revalidateEvenIfEmpty = false): void {
     if (this.revalidateTimer) {
       clearTimeout(this.revalidateTimer);
       this.revalidateTimer = null;
@@ -216,7 +216,7 @@ export class ScannerService {
     for (const id of ids) {
       void revalidateMediaPage(id, { alsoHome: false });
     }
-    if (ids.length > 0) void revalidateCatalog();
+    if (ids.length > 0 || revalidateEvenIfEmpty) void revalidateCatalog();
   }
 
   private shouldSkipScanEntry(name: string, isDirectory: boolean): boolean {
@@ -374,8 +374,7 @@ export class ScannerService {
       }
 
       await this.themes.syncThemesForLibrary(libraryId);
-      this.flushCatalogRevalidate();
-      void revalidateCatalog();
+      this.flushCatalogRevalidate(true);
     } catch (err) {
       await this.db
         .update(scanJobs)

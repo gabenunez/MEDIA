@@ -15,6 +15,7 @@ export async function cachedFetch<T>(
   key: string,
   fetcher: () => Promise<T>,
   ttlMs = 30_000,
+  options?: { waitForFresh?: boolean },
 ): Promise<T> {
   const now = Date.now();
   const hit = cache.get(key) as CacheEntry<T> | undefined;
@@ -28,8 +29,8 @@ export async function cachedFetch<T>(
     return pending;
   }
 
-  if (hit) {
-    void revalidate(key, fetcher, ttlMs);
+  if (hit && !options?.waitForFresh) {
+    void revalidate(key, fetcher, ttlMs).catch(() => {});
     return hit.data;
   }
 
@@ -41,16 +42,16 @@ async function revalidate<T>(
   fetcher: () => Promise<T>,
   ttlMs: number,
 ): Promise<T> {
-  const promise = fetcher()
+  const promise: Promise<T> = fetcher()
     .then((data) => {
-      cache.set(key, { data, expiresAt: Date.now() + ttlMs });
-      clearSeedBlock(key);
-      inflight.delete(key);
+      if (inflight.get(key) === promise) {
+        cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+        clearSeedBlock(key);
+      }
       return data;
     })
-    .catch((err) => {
-      inflight.delete(key);
-      throw err;
+    .finally(() => {
+      if (inflight.get(key) === promise) inflight.delete(key);
     });
 
   inflight.set(key, promise);
@@ -90,6 +91,7 @@ export function seedApiCache<T>(key: string, data: T, ttlMs = 30_000): boolean {
 export function invalidateApiCache(prefix?: string) {
   if (!prefix) {
     cache.clear();
+    inflight.clear();
     seedBlockedUntil.clear();
     return;
   }
@@ -98,6 +100,9 @@ export function invalidateApiCache(prefix?: string) {
     if (key.startsWith(prefix)) {
       cache.delete(key);
     }
+  }
+  for (const key of inflight.keys()) {
+    if (key.startsWith(prefix)) inflight.delete(key);
   }
   seedBlockedUntil.set(prefix, Date.now() + SEED_BLOCK_MS);
 }

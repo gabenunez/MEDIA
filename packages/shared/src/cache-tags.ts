@@ -27,6 +27,7 @@ export function mediaInternalTokenMatches(
 }
 
 export const HOME_CATALOG_CACHE_TAG = "home-catalog";
+export const WATCH_PROGRESS_CACHE_TAG = "watch-progress";
 
 export const CATALOG_REVALIDATE_PATHS = [
   "/",

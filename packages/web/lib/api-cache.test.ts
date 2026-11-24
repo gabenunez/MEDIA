@@ -7,6 +7,42 @@ import {
 } from "./api-cache";
 import { api } from "./api";
 
+describe("cachedFetch", () => {
+  afterEach(() => {
+    invalidateApiCache();
+    vi.useRealTimers();
+  });
+
+  it("lets Home display the fresh response while sharing one expired-cache request", async () => {
+    vi.useFakeTimers();
+    seedApiCache("home", "cached", 30_000);
+    vi.advanceTimersByTime(30_000);
+    const fetcher = vi.fn(async () => "fresh");
+
+    const requests = [
+      cachedFetch("home", fetcher, 30_000, { waitForFresh: true }),
+      cachedFetch("home", fetcher, 30_000, { waitForFresh: true }),
+    ];
+
+    expect(peekApiCache("home", { allowStale: true })).toBe("cached");
+    await expect(Promise.all(requests)).resolves.toEqual(["fresh", "fresh"]);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it("does not reuse or cache a pre-scan response after invalidation", async () => {
+    let finishOld!: (value: string) => void;
+    const old = cachedFetch("home", () => new Promise<string>((resolve) => {
+      finishOld = resolve;
+    }));
+
+    invalidateApiCache("home");
+    await expect(cachedFetch("home", async () => "after scan")).resolves.toBe("after scan");
+    finishOld("before scan");
+    await old;
+    expect(peekApiCache("home")).toBe("after scan");
+  });
+});
+
 describe("peekApiCache", () => {
   afterEach(() => {
     invalidateApiCache();

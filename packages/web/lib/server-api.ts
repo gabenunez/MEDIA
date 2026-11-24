@@ -9,6 +9,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import {
   HOME_CATALOG_CACHE_TAG,
   MEDIA_INTERNAL_HEADER,
+  WATCH_PROGRESS_CACHE_TAG,
   mediaInternalToken,
   mediaPageCacheTag,
 } from "@media-app/shared";
@@ -72,10 +73,11 @@ async function readJson<T>(path: string): Promise<T> {
 }
 
 /** Failures throw so a down API is not stored for the cache lifetime. */
-async function cachedCatalog<T>(path: string): Promise<T> {
+async function cachedCatalog<T>(path: string, options?: { includesProgress?: boolean }): Promise<T> {
   "use cache";
   cacheLife(catalogCacheLife);
   cacheTag(HOME_CATALOG_CACHE_TAG);
+  if (options?.includesProgress) cacheTag(WATCH_PROGRESS_CACHE_TAG);
   return readJson<T>(path);
 }
 
@@ -141,7 +143,7 @@ async function cachedRelated(mediaId: number): Promise<{ items?: unknown }> {
 }
 
 export function fetchHome() {
-  return settled(cachedCatalog<HomeData>("/api/home"));
+  return settled(cachedCatalog<HomeData>("/api/home", { includesProgress: true }));
 }
 
 export function fetchLibraries() {
@@ -180,6 +182,7 @@ export function fetchContinueWatching(page = 1) {
   return settled(
     cachedCatalog<PaginatedPageData<ContinueWatchingItem>>(
       `/api/continue-watching?page=${page}`,
+      { includesProgress: true },
     ),
   );
 }

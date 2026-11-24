@@ -425,6 +425,7 @@ export const api = {
           recentPlay: HomePlayTarget | null;
         }>("/api/home"),
       30_000,
+      { waitForFresh: true },
     ),
   getDecks: () =>
     cachedFetch("decks", () => fetchApi<LibraryDeck[]>("/api/decks"), 60_000),

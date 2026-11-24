@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOME_CATALOG_CACHE_TAG } from "@media-app/shared";
-import { revalidateCatalog, revalidateMediaPage } from "./page-revalidate.js";
+import { HOME_CATALOG_CACHE_TAG, WATCH_PROGRESS_CACHE_TAG } from "@media-app/shared";
+import { revalidateCatalog, revalidateMediaPage, revalidateWatchProgress } from "./page-revalidate.js";
 
 describe("page revalidate", () => {
   const fetchMock = vi.fn();
@@ -16,6 +16,24 @@ describe("page revalidate", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a scanner's title-only write from expiring the shared catalog", async () => {
+    await revalidateMediaPage(42, { alsoHome: false });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tag: "media:42",
+      mediaId: 42,
+    });
+  });
+
+  it("expires only the progress tag for a playback save", async () => {
+    await revalidateWatchProgress();
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tag: WATCH_PROGRESS_CACHE_TAG,
+    });
   });
 
   it("posts movie/TV page busts through the public prefix and home catalog tag", async () => {

@@ -1,15 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { peekApiCache, seedApiCache } from "@/lib/api-cache";
 import { useScanStatus } from "@/components/scan-status-provider";
 import {
-  homeRefreshOptions,
   invalidateClientCatalogCache,
   libraryCountsSignature,
-  type HomeRefreshReason,
 } from "@/lib/catalog-cache";
 import type { HomeData } from "@/lib/server-api";
 
@@ -21,59 +18,45 @@ export function initialHomeData(seed: HomeData | null): HomeData | null {
 }
 
 export function useLiveHomeData(initialData: HomeData | null) {
-  const router = useRouter();
   const { status, activeScan, isScanning } = useScanStatus();
   const [data, setData] = useState<HomeData | null>(() => initialHomeData(initialData));
   const [loaded, setLoaded] = useState(() => initialHomeData(initialData) != null);
-  const wasScanningRef = useRef(false);
-  const countsKeyRef = useRef("");
+  const previousCatalog = useRef<{ counts: string; isScanning: boolean } | null>(null);
+  const latestRefresh = useRef(0);
 
-  const refresh = useCallback(
-    async (reason: HomeRefreshReason = "mount") => {
-      const { bust, refreshRsc } = homeRefreshOptions(reason);
-      if (bust) invalidateClientCatalogCache();
-      if (refreshRsc) router.refresh();
-      try {
-        const next = await api.getHome();
-        setData(next);
-      } catch (err) {
-        console.warn("Failed to load home data", err);
-      } finally {
-        setLoaded(true);
-      }
-    },
-    [router],
-  );
+  const refresh = useCallback(async () => {
+    const request = ++latestRefresh.current;
+    try {
+      const next = await api.getHome();
+      if (request === latestRefresh.current) setData(next);
+    } catch (err) {
+      if (request === latestRefresh.current) console.warn("Failed to load home data", err);
+    } finally {
+      if (request === latestRefresh.current) setLoaded(true);
+    }
+  }, []);
 
   useEffect(() => {
-    // Seed from SSR so the mount refresh is a client-cache hit unless
-    // saveProgress / catalog writes blocked seeding via invalidate.
-    // Depend only on refresh — remount picks up a new SSR seed; scan-complete
-    // already refreshes live and must not double-fetch when RSC props update.
+    // Keep the first server payload as a seed. Live data is refreshed in place
+    // through the API, including when a write has blocked seeding.
     if (initialData) {
       seedApiCache("home", initialData, HOME_CLIENT_TTL_MS);
     }
-    void refresh("mount");
+    void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [refresh]);
 
   useEffect(() => {
-    if (isScanning) {
-      wasScanningRef.current = true;
-      return;
+    if (!status) return;
+    const counts = libraryCountsSignature(status.libraries);
+    const previous = previousCatalog.current;
+    previousCatalog.current = { counts, isScanning };
+    // A scan can finish and change the counts in the same poll. Refresh once,
+    // including after scans that added episodes without adding a new title.
+    if (!isScanning && previous && (previous.isScanning || previous.counts !== counts)) {
+      invalidateClientCatalogCache();
+      void refresh();
     }
-
-    if (wasScanningRef.current) void refresh("scan-complete");
-    wasScanningRef.current = false;
-  }, [isScanning, refresh]);
-
-  useEffect(() => {
-    const key = libraryCountsSignature(status?.libraries);
-    if (!key) return;
-    const previous = countsKeyRef.current;
-    countsKeyRef.current = key;
-    if (isScanning) return;
-    if (previous && previous !== key) void refresh("library-counts");
   }, [status, isScanning, refresh]);
 
   useEffect(() => {
@@ -82,7 +65,7 @@ export function useLiveHomeData(initialData: HomeData | null) {
       // cache entry means we painted it moments ago and a network hit is wasted.
       if (document.visibilityState !== "visible") return;
       if (peekApiCache<HomeData>("home")) return;
-      void refresh("visible");
+      void refresh();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);

@@ -3,6 +3,7 @@ import {
   DEFAULT_PORT,
   HOME_CATALOG_CACHE_TAG,
   MEDIA_INTERNAL_HEADER,
+  WATCH_PROGRESS_CACHE_TAG,
   mediaInternalRevalidateUrl,
   mediaInternalToken,
   mediaPageCacheTag,
@@ -61,6 +62,10 @@ export async function revalidateCatalog(): Promise<void> {
   );
 }
 
+export async function revalidateWatchProgress(): Promise<void> {
+  await postRevalidate({ tag: WATCH_PROGRESS_CACHE_TAG }, WATCH_PROGRESS_CACHE_TAG);
+}
+
 export async function revalidateMediaPage(
   mediaId: number,
   options?: { alsoHome?: boolean },
@@ -73,8 +78,10 @@ export async function revalidateMediaPage(
     {
       tag,
       mediaId,
-      tags: [HOME_CATALOG_CACHE_TAG],
-      paths: options?.alsoHome === false ? undefined : [...CATALOG_REVALIDATE_PATHS],
+      ...(options?.alsoHome !== false && {
+        tags: [HOME_CATALOG_CACHE_TAG],
+        paths: [...CATALOG_REVALIDATE_PATHS],
+      }),
     },
     tag,
   );

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.330 — 2026-11-24
+
+### Fix
+
+- **Release** — Keep Home steady while the library updates
+- Home updates its rows in place after scans and library changes, with one data request and no route refresh. The current rows stay visible while the update loads.
+- Playback progress and individual title updates no longer expire unrelated catalog pages.
+
 ## 0.1.329 — 2026-11-23
 
 ### Changes
