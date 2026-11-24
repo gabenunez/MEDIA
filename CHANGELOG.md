@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.329 — 2026-11-23
+
+### Changes
+
+- **Release** — Clearer seek bar focus on TV
+- The TV seek bar is dimmer at rest and grows thicker and brighter when focused with the remote. The focus ring is gone.
+
 ## 0.1.328 — 2026-11-23
 
 ### Fix
