@@ -1,5 +1,6 @@
 import { stripBasePath } from "@/lib/base-path";
 import { routes } from "@/lib/routes";
+import { tvAppLocation } from "@/lib/tv-navigation";
 
 export function isTvHomePath(pathname: string): boolean {
   const path = stripBasePath(pathname).replace(/\/+$/, "") || "/";
@@ -28,21 +29,50 @@ export type TvRemoteBackOptions = {
   historyLength?: number;
   watchHandler?: (() => boolean) | undefined;
   searchHandler?: (() => boolean) | undefined;
-  goBack?: () => void;
+  goBack?: (steps: number) => void;
+  replace?: (href: string) => void;
+  backSteps?: number;
 };
+
+type TvNavigationHistory = {
+  currentEntry: { index: number } | null;
+  entries: () => ReadonlyArray<{ url: string | null; sameDocument: boolean }>;
+};
+
+/** Stay in the current MEDIA document and skip leftover players or duplicate pages. */
+export function tvBackSteps(navigation: TvNavigationHistory | undefined, current: string, basePath?: string) {
+  const index = navigation?.currentEntry?.index;
+  if (!navigation || index == null || index < 0) return undefined;
+  const active = tvAppLocation(current, current, basePath);
+  const entries = navigation.entries();
+  for (let previous = index - 1; previous >= 0; previous--) {
+    const entry = entries[previous];
+    if (!entry?.sameDocument || !entry.url) break;
+    const target = tvAppLocation(entry.url, current, basePath);
+    if (!target) break;
+    if (target.pathname.startsWith("/watch/")) continue;
+    if (target.pathname === active?.pathname && target.url.search === active.url.search && target.url.hash === active.url.hash) {
+      continue;
+    }
+    return index - previous;
+  }
+  return 0;
+}
 
 /**
  * Consume Android TV remote Back in the same JS turn as evaluateJavascript.
  * Watch peels one player layer first; catalog pages call history.back() here
  * so native WebView.goBack() is not a second hop after the JS result returns.
  *
- * Leftover `/watch` entries are skipped by {@link installTvWatchReentryGuard}.
+ * Older browsers use {@link installTvWatchReentryGuard} to skip leftover players.
  */
 export function consumeTvRemoteBack(options: TvRemoteBackOptions = {}): boolean {
+  const pathname = options.pathname ??
+    (typeof window !== "undefined" ? window.location.pathname : "/");
   const watch =
     options.watchHandler ??
     (typeof window !== "undefined" ? window.__mediaWatchHandleBack : undefined);
-  if (typeof watch === "function") {
+  if (isTvWatchPath(pathname) && typeof watch === "function") {
     try {
       if (watch()) return true;
     } catch {
@@ -50,9 +80,6 @@ export function consumeTvRemoteBack(options: TvRemoteBackOptions = {}): boolean 
     }
   }
 
-  const pathname =
-    options.pathname ??
-    (typeof window !== "undefined" ? window.location.pathname : "/");
   if (stripBasePath(pathname).replace(/\/+$/, "") === "/search") {
     const search = options.searchHandler ??
       (typeof window !== "undefined" ? window.__mediaSearchHandleBack : undefined);
@@ -63,16 +90,29 @@ export function consumeTvRemoteBack(options: TvRemoteBackOptions = {}): boolean 
   const historyLength =
     options.historyLength ??
     (typeof window !== "undefined" ? window.history.length : 1);
-  if (historyLength <= 1) return false;
+  const steps = options.backSteps ?? (historyLength > 1 ? 1 : 0);
+  if (steps === 0) {
+    if (!options.replace) return false;
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    options.replace(isTvWatchPath(pathname) ? tvWatchExitHref(pathname, search) : routes.home());
+    return true;
+  }
 
-  const goBack = options.goBack ?? (() => window.history.back());
-  goBack();
+  const goBack = options.goBack ?? ((steps) => {
+    if (steps === 1) window.history.back();
+    else window.history.go(-steps);
+  });
+  goBack(steps);
   return true;
 }
 
-export function installTvRemoteBackBridge(): () => void {
+export function installTvRemoteBackBridge(replace?: (href: string) => void): () => void {
   if (typeof window === "undefined") return () => {};
-  window.__mediaHandleBack = () => consumeTvRemoteBack();
+  const browser = window as Window & { navigation?: TvNavigationHistory };
+  window.__mediaHandleBack = () => consumeTvRemoteBack({
+    replace,
+    backSteps: tvBackSteps(browser.navigation, window.location.href),
+  });
   return () => {
     delete window.__mediaHandleBack;
   };

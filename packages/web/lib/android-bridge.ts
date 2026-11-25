@@ -282,6 +282,7 @@ declare global {
     __mediaSearchHandleBack?: () => boolean;
     /** Catalog + watch Back — consumes in JS so native goBack is not a second hop. */
     __mediaHandleBack?: () => boolean;
+    __mediaNavigate?: (url: string) => boolean;
   }
 }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.334 — 2026-11-24
+
+### Fix
+
+- **Release** — Make Back faster across TV pages
+- TV Back restores the previous page in place and skips old playback entries. Back from a title still restores the Search query and selected result.
+- Android TV APK 1.5.32 keeps voice search, Watch Next, and cast navigation in the current app session. The first Back press in the Search editor closes both the editor and keyboard.
+
 ## 0.1.333 — 2026-11-24
 
 ### Fix

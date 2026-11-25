@@ -5,6 +5,7 @@ import {
   installTvWatchReentryGuard,
   isTvHomePath,
   isTvWatchPath,
+  tvBackSteps,
   tvWatchExitHref,
 } from "./tv-back";
 
@@ -80,6 +81,22 @@ describe("consumeTvRemoteBack", () => {
     expect(goBack).toHaveBeenCalledOnce();
   });
 
+  it("uses the in-app Home route for a cold deep link with no prior app entry", () => {
+    const replace = vi.fn();
+    const goBack = vi.fn();
+    expect(consumeTvRemoteBack({ pathname: "/search/", historyLength: 3, backSteps: 0, replace, goBack })).toBe(true);
+    expect(replace).toHaveBeenCalledWith("/");
+    expect(goBack).not.toHaveBeenCalled();
+  });
+
+  it("does not let a hidden player handle Back from a catalog route", () => {
+    const watchHandler = vi.fn(() => true);
+    const goBack = vi.fn();
+    expect(consumeTvRemoteBack({ pathname: "/media/4/", watchHandler, backSteps: 2, goBack })).toBe(true);
+    expect(watchHandler).not.toHaveBeenCalled();
+    expect(goBack).toHaveBeenCalledWith(2);
+  });
+
   it("does not go back on home so the native app can exit", () => {
     const goBack = vi.fn();
     expect(
@@ -113,6 +130,37 @@ describe("consumeTvRemoteBack", () => {
       }),
     ).toBe(false);
     expect(goBack).not.toHaveBeenCalled();
+  });
+});
+
+describe("TV application history", () => {
+  const here = "https://media.test/reel/favorites/";
+  const steps = (urls: string[], oldDocumentIndex = -1) => tvBackSteps({
+    currentEntry: { index: urls.length - 1 },
+    entries: () => urls.map((url, index) => ({ url, sameDocument: index !== oldDocumentIndex })),
+  }, here, "/reel");
+
+  it("returns to Search in one traversal despite leftover players", () => {
+    expect(steps([
+      "https://media.test/reel/search/?q=Dune",
+      "https://media.test/reel/watch/movie/12/",
+      "https://media.test/reel/watch/episode/45/",
+      here,
+    ])).toBe(3);
+  });
+
+  it("does not traverse into login, a different app on the host, or a different origin", () => {
+    for (const other of ["https://media.test/reel/login/", "https://media.test/favorites/", "https://elsewhere.test/reel/"]) {
+      expect(steps([other, here])).toBe(0);
+    }
+  });
+
+  it("does not reload an older app document even when the URL is a valid app route", () => {
+    expect(steps(["https://media.test/reel/", here], 0)).toBe(0);
+  });
+
+  it("skips the duplicate page left when the player replaces itself on exit", () => {
+    expect(steps(["https://media.test/reel/", here, here])).toBe(2);
   });
 });
 

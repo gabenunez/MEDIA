@@ -19,6 +19,7 @@ import { prefetchCatalogHref } from "@/lib/prefetch-artwork";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { closeTvSideNav } from "@/lib/tv-side-nav";
+import { installTvNativeNavigation } from "@/lib/tv-navigation";
 import {
   installTvRemoteBackBridge,
   installTvWatchReentryGuard,
@@ -88,13 +89,15 @@ export function TvShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     closeTvSideNav();
-    const uninstallBack = installTvRemoteBackBridge();
+    const uninstallBack = installTvRemoteBackBridge((href) => router.replace(href));
+    const uninstallNativeNavigation = installTvNativeNavigation(router);
     // Catalog Back must never reopen a leftover /watch history entry.
     const uninstallWatchGuard = installTvWatchReentryGuard({
       replace: (href) => router.replace(href),
     });
     return () => {
       uninstallBack();
+      uninstallNativeNavigation();
       uninstallWatchGuard();
     };
   }, [router]);

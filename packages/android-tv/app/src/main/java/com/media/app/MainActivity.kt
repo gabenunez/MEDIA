@@ -39,7 +39,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
-    private lateinit var webView: WebView
+    private lateinit var webView: TvWebView
     private lateinit var nativePlayerView: PlayerView
     private lateinit var splashOverlay: View
     private lateinit var nativePlayer: NativePlayerManager
@@ -120,7 +120,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        (handleWatchNextIntent(intent) ?: searchIntentUrl(intent))?.let(webView::loadUrl)
+        (handleWatchNextIntent(intent) ?: searchIntentUrl(intent))?.let(::navigateWebView)
     }
 
     private fun handleWatchNextIntent(intent: Intent): String? {
@@ -566,7 +566,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateToSearch(query: String) {
-        webView.loadUrl(buildSearchUrl(query))
+        navigateWebView(buildSearchUrl(query))
+    }
+
+    private fun navigateWebView(url: String) {
+        // Keep the current document and its history alive for Back. Older
+        // servers and cold startup still need the normal WebView load.
+        webView.evaluateJavascript(
+            "window.__mediaNavigate?.(${JSONObject.quote(url)}) === true",
+        ) { handled ->
+            if (handled != "true" && !isFinishing && !isDestroyed) webView.loadUrl(url)
+        }
     }
 
     private fun buildSearchUrl(query: String): String {
@@ -622,7 +632,7 @@ class MainActivity : AppCompatActivity() {
             }
 
         stopNativeVideoPlayback()
-        webView.loadUrl("${serverUrl.trimEnd('/')}/watch/$type/$fileId/?$params")
+        navigateWebView("${serverUrl.trimEnd('/')}/watch/$type/$fileId/?$params")
     }
 
     private inner class MediaAndroidBridge {
@@ -634,6 +644,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun setSearchKeyboardVisible(visible: Boolean) {
             webView.post {
+                webView.searchEditing = visible
                 val keyboard = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
                     ?: return@post
                 if (visible) {
