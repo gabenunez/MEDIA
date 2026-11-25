@@ -25,6 +25,7 @@ interface TvPosterProps {
   priority?: boolean;
   /** Catalog grids use larger artwork than home rows. */
   layout?: "row" | "grid";
+  onOpen?: (mediaId: number) => void;
 }
 
 export const TvPoster = memo(function TvPoster({
@@ -36,6 +37,7 @@ export const TvPoster = memo(function TvPoster({
   subtitle,
   priority = false,
   layout = "row",
+  onOpen,
 }: TvPosterProps) {
   const router = useRouter();
   const imageUrl = tvImageUrl(item.posterPath);
@@ -74,6 +76,7 @@ export const TvPoster = memo(function TvPoster({
         prefetch={!onTv}
         data-tv-item=""
         data-tv-video-item=""
+        data-tv-media-id={item.id}
         tabIndex={0}
         className={cn(
           tvPosterLinkClassName,
@@ -83,6 +86,7 @@ export const TvPoster = memo(function TvPoster({
         aria-label={subtitle ? `${item.title}, ${subtitle}` : item.title}
         onMouseEnter={warmNavigation}
         onFocus={warmNavigation}
+        onNavigate={onOpen ? () => onOpen(item.id) : undefined}
       >
         <div className={cn(
           "tv-poster-art poster-shadow relative aspect-[2/3] overflow-hidden bg-muted",

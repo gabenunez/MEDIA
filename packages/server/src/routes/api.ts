@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import { eq, like, desc, sql, and, ne, notInArray } from "drizzle-orm";
+import { eq, desc, sql, and, ne } from "drizzle-orm";
 import type { AppConfig } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import type { ScannerService } from "../services/scanner.js";
@@ -28,6 +28,7 @@ import {
 import { listLibrariesWithCounts, getLibraryItemCounts } from "../services/library-stats.js";
 import { loadTvSeasonsWithEpisodes } from "../services/media-detail.js";
 import { TILE_COLUMNS } from "../services/media-list.js";
+import { searchCatalog } from "../services/catalog-search.js";
 import {
   revalidateCatalog,
   revalidateMediaPage,
@@ -411,30 +412,9 @@ export async function apiRoutes(
     return { items };
   });
 
-  app.get<{ Querystring: { q?: string } }>("/api/search", async (request) => {
-    const q = request.query.q?.trim();
-    if (!q) return { results: [] };
-
-    const pattern = `%${q}%`;
-    // Filters still match on title/overview server-side; the response only
-    // carries tile fields (overview etc. are never rendered in results).
-    const titleResults = await db.query.mediaItems.findMany({
-      columns: TILE_COLUMNS,
-      where: like(mediaItems.title, pattern),
-      limit: 24,
-    });
-    if (titleResults.length >= 24) return { results: titleResults };
-
-    const titleIds = titleResults.map((item) => item.id);
-    const overviewResults = await db.query.mediaItems.findMany({
-      columns: TILE_COLUMNS,
-      where: titleIds.length
-        ? and(like(mediaItems.overview, pattern), notInArray(mediaItems.id, titleIds))
-        : like(mediaItems.overview, pattern),
-      limit: 24 - titleResults.length,
-    });
-
-    return { results: [...titleResults, ...overviewResults] };
+  app.get<{ Querystring: { q?: string; mode?: string } }>("/api/search", async (request) => {
+    const { q, mode } = request.query;
+    return { results: await searchCatalog(db, q ?? "", mode === "tv" ? mode : undefined) };
   });
 
   app.get<{ Querystring: { page?: string; limit?: string } }>(

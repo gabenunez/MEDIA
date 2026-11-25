@@ -543,6 +543,9 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         return;
       }
 
+      // The TV search editor owns its keys while the system keyboard is open.
+      if (active?.hasAttribute("data-tv-search-input")) return;
+
       // Player D-pad is owned by watch-view. Catalog geometry used to steal
       // Left/Right from the transport bar into the hidden side nav.
       // Native injects onto window; stopImmediatePropagation so watch-view's

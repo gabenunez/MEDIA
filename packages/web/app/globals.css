@@ -682,12 +682,6 @@
     pointer-events: none;
   }
 
-  .tv-ui .tv-search-field {
-    min-height: 3rem;
-    font-size: 1.05rem;
-    border-width: 2px;
-  }
-
   .tv-ui .tv-login-card {
     width: min(28rem, 92vw);
     padding: 2rem;

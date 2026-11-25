@@ -1,104 +1,250 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Loader2, Search } from "lucide-react";
-import { tvFocusRingClassName } from "@/components/tv/tv-focus-link";
-import { cn } from "@/lib/utils";
-import {
-  TvEmptyState,
-  TvPageHeader,
-  TvPageShell,
-  tvPageMeta,
-} from "@/components/tv/tv-page-header";
+import { History, Loader2, Search, X } from "lucide-react";
+import { TvFocusButton } from "@/components/tv/tv-focus-link";
+import { TvEmptyState, TvPageHeader, TvPageShell } from "@/components/tv/tv-page-header";
 import { TvGrid } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
+import { setAndroidSearchKeyboardVisible } from "@/lib/android-bridge";
 import { useDocumentTitle } from "@/lib/use-document-title";
-import { focusFirstContentItem } from "@/lib/tv-focus";
-import { useMediaSearch } from "@/lib/use-media-search";
-import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
+import { markTvBootContentReady } from "@/lib/tv-boot-ready";
+import { focusTvItem } from "@/lib/tv-focus";
+import {
+  clearTvSearchRecents,
+  normalizeTvSearchQuery,
+  readTvSearchRecents,
+  readTvSearchResult,
+  rememberTvSearch,
+  rememberTvSearchResult,
+  setTvSearchQuery,
+  TV_SEARCH_QUERY_LIMIT,
+} from "@/lib/tv-search";
+import { useTvSearchResults } from "@/lib/use-tv-search-results";
 
 export function TvSearchView() {
   useDocumentTitle("Search");
-  const searchParams = useSearchParams();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState(() => searchParams.get("q")?.trim() ?? "");
-  const { results, loading, searched } = useMediaSearch(query);
-
-  useMarkTvBootReadyWhen(true);
+  const query = normalizeTvSearchQuery(useSearchParams().get("q"));
+  const { status, results, retry } = useTvSearchResults(query);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [recents, setRecents] = useState<string[]>([]);
+  const editing = draft !== null;
+  const searchButton = useRef<HTMLButtonElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const resultsArea = useRef<HTMLElement>(null);
+  const focusAfterSearch = useRef<{ resultId: number | null } | null>(null);
 
   useEffect(() => {
-    const fromUrl = searchParams.get("q")?.trim() ?? "";
-    if (fromUrl && fromUrl !== query) {
-      setQuery(fromUrl);
+    setRecents(query ? rememberTvSearch(query) : readTvSearchRecents());
+  }, [query]);
+
+  useLayoutEffect(() => {
+    // The auth gate has released this screen. Reveal it before focusing:
+    // Chromium won't focus a control in the hidden TV startup shell.
+    markTvBootContentReady();
+    // Only an explicit search or return through history can move focus when
+    // results arrive. A request finishing while browsing is never a focus cue.
+    focusAfterSearch.current = query ? { resultId: readTvSearchResult() } : null;
+  }, [query]);
+
+  useLayoutEffect(() => {
+    if (!editing) {
+      if (searchButton.current) focusTvItem(searchButton.current);
+      return;
     }
-  }, [searchParams, query]);
+    const field = input.current;
+    if (!field) return;
+    field.focus({ preventScroll: true });
+    field.setSelectionRange(field.value.length, field.value.length);
+    setAndroidSearchKeyboardVisible(true);
+    return () => setAndroidSearchKeyboardVisible(false);
+  }, [editing, query]);
+
+  useLayoutEffect(() => {
+    const intent = focusAfterSearch.current;
+    if (editing || status === "loading" || !intent) return;
+    focusAfterSearch.current = null;
+    if (status !== "ready") return;
+
+    const active = document.activeElement;
+    if (active && active !== searchButton.current && active !== document.body) return;
+
+    const restored = intent.resultId == null ? null : resultsArea.current?.querySelector<HTMLElement>(
+      `[data-tv-media-id="${intent.resultId}"]`,
+    );
+    const target = restored ?? resultsArea.current?.querySelector<HTMLElement>("[data-tv-media-id]");
+    if (target) focusTvItem(target);
+  }, [editing, query, results, status]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!editing) return;
+    const cancel = () => {
+      setDraft(null);
+      return true;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
+      if (event.key === "Escape" || event.key === "BrowserBack" || event.key === "GoBack") {
+        event.preventDefault();
+        cancel();
+      } else if (event.key === "Enter" && event.target === window) {
+        // Older Android shells inject the remote's OK on window. IME Done
+        // and physical keyboards use the normal form submit from the input.
+        event.preventDefault();
+        form.current?.requestSubmit();
+      }
+    };
+    window.__mediaSearchHandleBack = cancel;
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      delete window.__mediaSearchHandleBack;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editing]);
 
-  useEffect(() => {
-    if (!searched || loading || results.length === 0) return;
-    if (document.activeElement === inputRef.current) return;
-    focusFirstContentItem();
-  }, [searched, loading, results]);
+  function runSearch(value: string) {
+    const next = normalizeTvSearchQuery(value);
+    setDraft(null);
+    if (next !== query) {
+      setTvSearchQuery(next);
+    } else if (next) {
+      focusAfterSearch.current = { resultId: null };
+      if (status === "error") retry();
+    }
+  }
 
   return (
     <TvPageShell>
-      <TvPageHeader
-        title="Search"
-        subtitle={tvPageMeta([searched && results.length > 0 && `${results.length} results`])}
-      />
+      <TvPageHeader title="Search" />
 
-      <div data-tv-row="" data-tv-content-row="" className="mb-6">
-        <div className="relative max-w-2xl">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            ref={inputRef}
-            type="search"
-            value={query}
-            data-tv-item=""
-            tabIndex={0}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search movies and TV shows"
-            className={cn(
-              tvFocusRingClassName,
-              "tv-search-field w-full rounded-xl border-border bg-card pl-12 pr-4 outline-none",
+      <div className="mb-8 max-w-3xl">
+        {editing ? (
+          <form
+            ref={form}
+            data-tv-row=""
+            data-tv-content-row=""
+            className="flex items-center gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              runSearch(input.current?.value ?? "");
+            }}
+          >
+            <input
+              ref={input}
+              type="text"
+              inputMode="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              maxLength={TV_SEARCH_QUERY_LIMIT}
+              value={draft ?? ""}
+              data-tv-search-input=""
+              onChange={(event) => setDraft(event.target.value)}
+              aria-label="Movie or TV title"
+              placeholder="Movie or TV title"
+              className="min-h-14 min-w-0 flex-1 rounded-xl border-2 border-primary bg-card px-4 text-lg outline-none"
+            />
+            <TvFocusButton type="submit" className="min-h-14 bg-card px-5 text-lg">
+              Search
+            </TvFocusButton>
+            <TvFocusButton aria-label="Cancel editing" className="min-h-14 min-w-14 bg-card" onClick={() => setDraft(null)}>
+              <X className="mx-auto h-5 w-5" aria-hidden />
+            </TvFocusButton>
+          </form>
+        ) : (
+          <div data-tv-row="" data-tv-content-row="" className="flex gap-3">
+            <TvFocusButton
+              ref={searchButton}
+              onClick={() => setDraft(query)}
+              aria-label={query ? `Edit search: ${query}` : undefined}
+              className="flex min-h-14 min-w-0 flex-1 items-center gap-3 bg-card px-4 text-left text-lg"
+            >
+              <Search className="h-5 w-5 shrink-0" aria-hidden />
+              <span className="truncate">{query || "Search titles"}</span>
+              {query && <span className="ml-auto shrink-0 text-base opacity-75">Edit</span>}
+            </TvFocusButton>
+            {query && (
+              <TvFocusButton onClick={() => runSearch("")} className="min-h-14 bg-card px-5 text-lg">
+                Clear
+              </TvFocusButton>
             )}
-          />
-        </div>
+          </div>
+        )}
+        {!query && !editing && (
+          <p className="mt-3 text-base text-muted-foreground">Press OK to type, or use your remote’s mic if it supports voice search.</p>
+        )}
       </div>
 
-      {loading && (
-        <div className="flex min-h-[20vh] items-center justify-center">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        </div>
-      )}
-
-      {!loading && searched && results.length === 0 && (
-        <TvEmptyState>No results found.</TvEmptyState>
-      )}
-
-      {results.length > 0 && (
-        <TvGrid>
-          {results.map((item, index) => (
-            <TvPoster
-              key={item.id}
-              item={item}
-              layout="grid"
-              priority={index < 12}
-              linkClassName="w-full"
-              className="min-w-0 w-full"
-            />
+      {!query && !editing && recents.length > 0 && (
+        <section aria-labelledby="tv-search-recent-heading" className="max-w-3xl">
+          <h2 id="tv-search-recent-heading" className="mb-3 text-lg font-semibold">Recent searches</h2>
+          {recents.map((recent) => (
+            <div key={recent} data-tv-row="" data-tv-content-row="" className="mb-2">
+              <TvFocusButton onClick={() => runSearch(recent)} className="flex min-h-12 w-full items-center gap-3 bg-card px-4 text-left text-base">
+                <History className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="truncate">{recent}</span>
+              </TvFocusButton>
+            </div>
           ))}
-        </TvGrid>
+          <div data-tv-row="" data-tv-content-row="">
+            <TvFocusButton
+              className="mt-2 min-h-12 px-4 text-base"
+              onClick={() => {
+                clearTvSearchRecents();
+                setRecents([]);
+                if (searchButton.current) focusTvItem(searchButton.current);
+              }}
+            >
+              Clear recent searches
+            </TvFocusButton>
+          </div>
+        </section>
       )}
 
-      {!loading && !searched && (
-        <p className="py-16 text-center text-base text-muted-foreground">
-          Type at least 2 characters to search.
-        </p>
+      {query && (
+        <section ref={resultsArea} aria-label="Search results" aria-busy={status === "loading"}>
+          {status === "loading" && (
+            <div role="status" className="flex min-h-20 items-center gap-3 text-lg text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+              Searching for “{query}”…
+            </div>
+          )}
+          {status === "error" && (
+            <div data-tv-row="" data-tv-content-row="" className="flex items-center gap-4">
+              <p role="status" className="text-lg text-muted-foreground">Couldn’t load search results.</p>
+              <TvFocusButton className="min-h-12 bg-card px-4" onClick={() => {
+                focusAfterSearch.current = { resultId: null };
+                if (searchButton.current) focusTvItem(searchButton.current);
+                retry();
+              }}>
+                Try again
+              </TvFocusButton>
+            </div>
+          )}
+          {results?.length === 0 && (
+            <TvEmptyState>No titles found for “{query}”. Try a shorter title.</TvEmptyState>
+          )}
+          {results && results.length > 0 && (
+            <>
+              <h2 className="mb-4 break-words text-lg font-semibold">Results for “{query}”</h2>
+              <TvGrid>
+                {results.map((item, index) => (
+                  <TvPoster
+                    key={item.id}
+                    item={item}
+                    subtitle={[item.year, item.type === "movie" ? "Movie" : "TV"].filter(Boolean).join(" · ")}
+                    onOpen={rememberTvSearchResult}
+                    layout="grid"
+                    priority={index < 6}
+                    linkClassName="w-full"
+                    className="min-w-0 w-full"
+                  />
+                ))}
+              </TvGrid>
+            </>
+          )}
+        </section>
       )}
     </TvPageShell>
   );

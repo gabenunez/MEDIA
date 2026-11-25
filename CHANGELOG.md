@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.331 — 2026-11-24
+
+### Changes
+
+- **Release** — Search with the TV remote
+- Press OK to enter a title, use voice search on supported remotes, or pick a recent search. Back from a title restores the same query and poster.
+- Exact and title-prefix matches come first. Results show the year and whether each title is a movie or TV show.
+- Android TV APK 1.5.30 improves the system keyboard handoff and opens voice results when the app starts from a search.
+
 ## 0.1.330 — 2026-11-24
 
 ### Fix

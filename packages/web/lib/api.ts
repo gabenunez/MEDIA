@@ -464,11 +464,14 @@ export const api = {
     cachedFetch(`media:${id}:related`, () =>
       fetchApi<{ items: MediaItem[] }>(`/api/media/${id}/related`),
     ),
-  search: (q: string) =>
+  search: (q: string, options?: { mode?: "tv" }) =>
     cachedFetch(
-      `search:${q}`,
-      () => fetchApi<{ results: MediaItem[] }>(`/api/search?q=${encodeURIComponent(q)}`),
+      `search:${options?.mode ?? "default"}:${q}`,
+      () => fetchApi<{ results: MediaItem[] }>(
+        `/api/search?q=${encodeURIComponent(q)}${options?.mode === "tv" ? "&mode=tv" : ""}`,
+      ),
       10_000,
+      { waitForFresh: options?.mode === "tv" },
     ),
   scanLibrary: (id: number) =>
     fetchApi<{ success: boolean }>(`/api/libraries/${id}/scan`, {

@@ -68,6 +68,18 @@ describe("consumeTvRemoteBack", () => {
     expect(goBack).toHaveBeenCalledOnce();
   });
 
+  it("lets an open search editor consume Back without leaving the search", () => {
+    const goBack = vi.fn();
+    const searchHandler = vi.fn(() => true);
+    expect(consumeTvRemoteBack({ pathname: "/search/", historyLength: 2, goBack, searchHandler })).toBe(true);
+    expect(searchHandler).toHaveBeenCalledOnce();
+    expect(goBack).not.toHaveBeenCalled();
+
+    expect(consumeTvRemoteBack({ pathname: "/media/4/", historyLength: 2, goBack, searchHandler })).toBe(true);
+    expect(searchHandler).toHaveBeenCalledOnce();
+    expect(goBack).toHaveBeenCalledOnce();
+  });
+
   it("does not go back on home so the native app can exit", () => {
     const goBack = vi.fn();
     expect(

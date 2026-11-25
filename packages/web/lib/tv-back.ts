@@ -27,6 +27,7 @@ export type TvRemoteBackOptions = {
   pathname?: string;
   historyLength?: number;
   watchHandler?: (() => boolean) | undefined;
+  searchHandler?: (() => boolean) | undefined;
   goBack?: () => void;
 };
 
@@ -52,6 +53,11 @@ export function consumeTvRemoteBack(options: TvRemoteBackOptions = {}): boolean 
   const pathname =
     options.pathname ??
     (typeof window !== "undefined" ? window.location.pathname : "/");
+  if (stripBasePath(pathname).replace(/\/+$/, "") === "/search") {
+    const search = options.searchHandler ??
+      (typeof window !== "undefined" ? window.__mediaSearchHandleBack : undefined);
+    if (search?.()) return true;
+  }
   if (isTvHomePath(pathname)) return false;
 
   const historyLength =

@@ -68,6 +68,10 @@ export function androidTvShellSupportsLogout(): boolean {
   return typeof getAndroidBridge()?.logout === "function";
 }
 
+export function setAndroidSearchKeyboardVisible(visible: boolean): void {
+  getAndroidBridge()?.setSearchKeyboardVisible?.(visible);
+}
+
 /**
  * True when the native device's HEVC decoder delivers frames unevenly (visible
  * stutter on direct HEVC playback). Such devices should transcode HEVC to H.264.
@@ -266,6 +270,7 @@ declare global {
       setWebOverlayAlpha?: (alpha: number) => void;
       raiseWebOverlay?: () => void;
       notifyTvBootReady?: () => void;
+      setSearchKeyboardVisible?: (visible: boolean) => void;
     };
     /** Legacy Android TV shell before MEDIA! rebrand. */
     ReelAndroid?: Window["MediaAndroid"];
@@ -274,6 +279,7 @@ declare global {
     __mediaNativePlayer?: NativePlayerBridge;
     /** Watch view back handler for Android TV remote. Return true when consumed. */
     __mediaWatchHandleBack?: () => boolean;
+    __mediaSearchHandleBack?: () => boolean;
     /** Catalog + watch Back — consumes in JS so native goBack is not a second hop. */
     __mediaHandleBack?: () => boolean;
   }

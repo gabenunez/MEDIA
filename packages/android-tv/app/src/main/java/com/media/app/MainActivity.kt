@@ -14,6 +14,7 @@ import android.speech.RecognizerIntent
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -27,6 +28,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
 import java.net.URLEncoder
@@ -107,8 +110,7 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         configureBackNavigation()
         applySessionCookie()
-        val deepLink = handleWatchNextIntent(intent)
-        handleSearchIntent(intent)
+        val deepLink = handleWatchNextIntent(intent) ?: searchIntentUrl(intent)
         startTvCastPoller()
         webView.loadUrl(deepLink ?: buildLaunchUrl(serverUrl))
     }
@@ -116,8 +118,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleWatchNextIntent(intent)?.let(webView::loadUrl)
-        handleSearchIntent(intent)
+        (handleWatchNextIntent(intent) ?: searchIntentUrl(intent))?.let(webView::loadUrl)
     }
 
     private fun handleWatchNextIntent(intent: Intent): String? {
@@ -517,6 +518,9 @@ class MainActivity : AppCompatActivity() {
             // spatial nav and the player both see arrows.
             val watchKey = WatchRemoteKeys.webKeyName(event.keyCode)
             if (watchKey != null && WatchRemoteKeys.shouldInjectDpad()) {
+                if (ViewCompat.getRootWindowInsets(webView)?.isVisible(WindowInsetsCompat.Type.ime()) == true) {
+                    return super.dispatchKeyEvent(event)
+                }
                 dispatchWebKey(watchKey)
                 return true
             }
@@ -542,17 +546,19 @@ class MainActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun handleSearchIntent(intent: Intent?) {
-        val query = intent?.getStringExtra(SearchManager.QUERY)
-        if (!query.isNullOrBlank()) {
-            navigateToSearch(query)
-        }
+    private fun searchIntentUrl(intent: Intent?): String? {
+        val query = intent?.getStringExtra(SearchManager.QUERY)?.trim()
+        return query?.takeIf { it.isNotEmpty() }?.let(::buildSearchUrl)
     }
 
     private fun navigateToSearch(query: String) {
+        webView.loadUrl(buildSearchUrl(query))
+    }
+
+    private fun buildSearchUrl(query: String): String {
         val encoded = URLEncoder.encode(query.trim(), Charsets.UTF_8.name())
         val base = serverUrl.trimEnd('/')
-        webView.loadUrl("$base/search/?tv=1&q=$encoded")
+        return "$base/search/?tv=1&q=$encoded"
     }
 
     private fun startVoiceSearch() {
@@ -609,6 +615,20 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun notifyTvBootReady() {
             runOnUiThread { dismissSplash() }
+        }
+
+        @JavascriptInterface
+        fun setSearchKeyboardVisible(visible: Boolean) {
+            webView.post {
+                val keyboard = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                    ?: return@post
+                if (visible) {
+                    webView.requestFocus()
+                    keyboard.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                } else {
+                    keyboard.hideSoftInputFromWindow(webView.windowToken, 0)
+                }
+            }
         }
 
         /** False on devices whose HEVC decoder delivers frames unevenly, so the
