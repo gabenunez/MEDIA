@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq, and, or, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, isNull, inArray, sql } from "drizzle-orm";
 import chokidar, { type FSWatcher } from "chokidar";
 import PQueue from "p-queue";
 import {
@@ -34,6 +34,47 @@ import { probeFile } from "../utils/ffmpeg.js";
 /** One or two files at a time. A full series must not spawn an ffprobe per episode. */
 const LIBRARY_INGEST_CONCURRENCY = 2;
 const CATALOG_REVALIDATE_DELAY_MS = 1500;
+
+type VideoFileStats = { fileSize: number; fileMtimeMs: number };
+type VideoProbe = Awaited<ReturnType<typeof probeFile>>;
+
+function videoMetadata(probe: VideoProbe) {
+  return {
+    durationMs: probe?.durationMs ?? null,
+    videoCodec: probe?.videoCodec ?? null,
+    audioCodec: probe?.audioCodec ?? null,
+    width: probe?.width ?? null,
+    height: probe?.height ?? null,
+  };
+}
+
+function existingVideoUpdate(
+  existing: typeof movieFiles.$inferSelect | typeof tvEpisodes.$inferSelect,
+  stats: VideoFileStats,
+  probe: VideoProbe,
+) {
+  // Files imported before mtime tracking get a baseline without moving in
+  // Recently Added unless we can see that the stored size already changed.
+  const replaced =
+    (existing.fileSize != null && existing.fileSize !== stats.fileSize) ||
+    (existing.fileMtimeMs != null && existing.fileMtimeMs !== stats.fileMtimeMs);
+  const metadata = videoMetadata(probe);
+  const fields = replaced
+    ? metadata
+    : {
+        durationMs: existing.durationMs ?? metadata.durationMs,
+        videoCodec: existing.videoCodec ?? metadata.videoCodec,
+        audioCodec: existing.audioCodec ?? metadata.audioCodec,
+        width: existing.width ?? metadata.width,
+        height: existing.height ?? metadata.height,
+      };
+  const changed =
+    replaced || existing.fileSize == null || existing.fileMtimeMs == null ||
+    (Object.keys(fields) as Array<keyof typeof fields>).some(
+      (field) => fields[field] !== existing[field],
+    );
+  return { replaced, values: changed ? { ...stats, ...fields } : null };
+}
 
 export class ScannerService {
   private watchers = new Map<number, FSWatcher>();
@@ -165,7 +206,7 @@ export class ScannerService {
     return task;
   }
 
-  private async onLibraryFileAdded(libraryId: number, filePath: string): Promise<void> {
+  private async importWatchedFile(libraryId: number, filePath: string): Promise<void> {
     try {
       await this.enqueueIngest(filePath, async () => {
         if (!(await this.isMediaVideoFile(filePath))) return;
@@ -186,6 +227,8 @@ export class ScannerService {
     try {
       const pending = this.ingestingPaths.get(filePath);
       if (pending) await pending;
+      // An atomic replacement can emit an unlink for a path that exists again.
+      if (fs.existsSync(filePath)) return;
       await this.removeFile(filePath);
     } catch (err) {
       console.error(
@@ -281,9 +324,9 @@ export class ScannerService {
       );
     });
 
-    watcher.on("add", (filePath) => {
-      void this.onLibraryFileAdded(libraryId, filePath);
-    });
+    const importFile = (filePath: string) => { void this.importWatchedFile(libraryId, filePath); };
+    watcher.on("add", importFile);
+    watcher.on("change", importFile);
 
     watcher.on("unlink", (filePath) => {
       void this.onLibraryFileRemoved(filePath);
@@ -835,63 +878,102 @@ export class ScannerService {
   ): Promise<void> {
     const stats = fs.statSync(filePath);
     const probe = await probeFile(filePath);
+    const fileStats = { fileSize: stats.size, fileMtimeMs: Math.trunc(stats.mtimeMs) };
 
     if (lib.type === "movies") {
-      await this.processMovieFile(lib, filePath, stats.size, probe);
+      await this.processMovieFile(lib, filePath, fileStats, probe);
     } else {
-      await this.processTvFile(lib, filePath, stats.size, probe);
+      await this.processTvFile(lib, filePath, fileStats, probe);
     }
+  }
+
+  private async markRecentlyAdded(mediaItemId: number): Promise<void> {
+    await this.db.update(mediaItems)
+      .set({ recentlyAddedAt: new Date() })
+      .where(eq(mediaItems.id, mediaItemId));
   }
 
   private async processMovieFile(
     lib: typeof libraries.$inferSelect,
     filePath: string,
-    fileSize: number,
-    probe: Awaited<ReturnType<typeof probeFile>>,
+    stats: VideoFileStats,
+    probe: VideoProbe,
   ): Promise<void> {
     const existing = await this.db.query.movieFiles.findFirst({
       where: eq(movieFiles.filePath, filePath),
     });
     if (existing) {
-      if (
-        probe &&
-        (!existing.videoCodec ||
-          !existing.height ||
-          existing.durationMs == null ||
-          !existing.width)
-      ) {
-        await this.db
-          .update(movieFiles)
-          .set({
-            durationMs: existing.durationMs ?? probe.durationMs ?? null,
-            videoCodec: existing.videoCodec ?? probe.videoCodec ?? null,
-            audioCodec: existing.audioCodec ?? probe.audioCodec ?? null,
-            width: existing.width ?? probe.width ?? null,
-            height: existing.height ?? probe.height ?? null,
-          })
-          .where(eq(movieFiles.id, existing.id));
+      const { replaced, values } = existingVideoUpdate(existing, stats, probe);
+      if (values) {
+        await this.db.update(movieFiles).set(values).where(eq(movieFiles.id, existing.id));
+      }
+      if (replaced) {
+        await this.markRecentlyAdded(existing.mediaItemId);
+        this.scheduleCatalogRevalidate(existing.mediaItemId);
+        await this.subtitles.discoverForMovieFile(existing.id, filePath, probe);
       }
       return;
     }
 
-    const filename = path.basename(filePath);
-    const parsed = parseMovieFilename(filename);
+    const parsed = parseMovieFilename(path.basename(filePath));
+    const mediaItemId = await this.ensureMovieMediaItem(lib.id, parsed);
 
-    let mediaItemId: number;
-    const existingMedia = await this.db.query.mediaItems.findFirst({
-      where: and(
-        eq(mediaItems.libraryId, lib.id),
-        eq(mediaItems.title, parsed.title),
-      ),
+    const files = await this.db.query.movieFiles.findMany({
+      where: eq(movieFiles.mediaItemId, mediaItemId),
+      columns: { id: true, filePath: true },
     });
+    // A scan can discover the new filename before an unlink was observed (for
+    // example after an offline upgrade). Replace the missing entry instead of
+    // leaving the title's Play button pointed at the former path.
+    const missing = files.filter((file) => {
+      try {
+        return !fs.statSync(file.filePath, { throwIfNoEntry: false });
+      } catch {
+        return false;
+      }
+    });
+    const values = { filePath, ...stats, ...videoMetadata(probe) };
+    const [file] = missing.length === 1
+      ? await this.db.update(movieFiles).set(values)
+        .where(and(eq(movieFiles.id, missing[0].id), eq(movieFiles.filePath, missing[0].filePath)))
+        .returning({ id: movieFiles.id })
+      : [];
+    const fileId = file?.id ?? (await this.db.insert(movieFiles)
+      .values({ mediaItemId, ...values }).returning({ id: movieFiles.id }))[0].id;
 
-    if (existingMedia) {
-      mediaItemId = existingMedia.id;
-    } else {
+    await this.markRecentlyAdded(mediaItemId);
+    this.scheduleCatalogRevalidate(mediaItemId);
+    await this.subtitles.discoverForMovieFile(fileId, filePath, probe);
+  }
+
+  private async ensureMovieMediaItem(
+    libraryId: number,
+    parsed: ReturnType<typeof parseMovieFilename>,
+  ): Promise<number> {
+    return this.withChainLock(this.mediaCreateChain, `${libraryId}:movie:${parsed.title.toLowerCase()}`, async () => {
+      const inLibrary = and(eq(mediaItems.libraryId, libraryId), eq(mediaItems.type, "movie"));
+      const candidates = await this.db.query.mediaItems.findMany({
+        where: and(inLibrary, sql`lower(${mediaItems.title}) = lower(${parsed.title})`),
+        columns: { id: true, year: true },
+      });
+      const exactYear = parsed.year == null
+        ? undefined
+        : candidates.find((item) => item.year === parsed.year);
+      const onlyCandidate = candidates.length === 1 ? candidates[0] : undefined;
+      const existing = exactYear ?? (parsed.year == null || onlyCandidate?.year == null ? onlyCandidate : undefined);
+      if (existing) return existing.id;
+
       const { match, confidence } = await this.metadata.searchMovie(
         parsed.title,
         parsed.year,
       );
+      if (match) {
+        const byTmdb = await this.db.query.mediaItems.findFirst({
+          where: and(inLibrary, eq(mediaItems.tmdbId, match.id)),
+          columns: { id: true },
+        });
+        if (byTmdb) return byTmdb.id;
+      }
 
       const posterPath = match
         ? await this.metadata.cachePoster(match.poster_path)
@@ -903,7 +985,7 @@ export class ScannerService {
       const [item] = await this.db
         .insert(mediaItems)
         .values({
-          libraryId: lib.id,
+          libraryId,
           tmdbId: match?.id ?? null,
           imdbId: match?.imdb_id?.toLowerCase() ?? null,
           title: match?.title ?? parsed.title,
@@ -922,25 +1004,8 @@ export class ScannerService {
         })
         .returning();
 
-      mediaItemId = item.id;
-    }
-
-    const [file] = await this.db
-      .insert(movieFiles)
-      .values({
-        mediaItemId,
-        filePath,
-        durationMs: probe?.durationMs ?? null,
-        fileSize,
-        videoCodec: probe?.videoCodec ?? null,
-        audioCodec: probe?.audioCodec ?? null,
-        width: probe?.width ?? null,
-        height: probe?.height ?? null,
-      })
-      .returning();
-
-    await this.subtitles.discoverForMovieFile(file.id, filePath, probe);
-    this.scheduleCatalogRevalidate(mediaItemId);
+      return item.id;
+    });
   }
 
   /** Find a TV show by folder name or TMDB id (stored title may differ after metadata match). */
@@ -1183,30 +1248,27 @@ export class ScannerService {
   private async processTvFile(
     lib: typeof libraries.$inferSelect,
     filePath: string,
-    fileSize: number,
-    probe: Awaited<ReturnType<typeof probeFile>>,
+    stats: VideoFileStats,
+    probe: VideoProbe,
   ): Promise<void> {
     const existing = await this.db.query.tvEpisodes.findFirst({
       where: eq(tvEpisodes.filePath, filePath),
     });
     if (existing) {
-      if (
-        probe &&
-        (!existing.videoCodec ||
-          !existing.height ||
-          existing.durationMs == null ||
-          !existing.width)
-      ) {
-        await this.db
-          .update(tvEpisodes)
-          .set({
-            durationMs: existing.durationMs ?? probe.durationMs ?? null,
-            videoCodec: existing.videoCodec ?? probe.videoCodec ?? null,
-            audioCodec: existing.audioCodec ?? probe.audioCodec ?? null,
-            width: existing.width ?? probe.width ?? null,
-            height: existing.height ?? probe.height ?? null,
-          })
-          .where(eq(tvEpisodes.id, existing.id));
+      const { replaced, values } = existingVideoUpdate(existing, stats, probe);
+      if (values) {
+        await this.db.update(tvEpisodes).set(values).where(eq(tvEpisodes.id, existing.id));
+      }
+      if (replaced) {
+        const season = await this.db.query.tvSeasons.findFirst({
+          where: eq(tvSeasons.id, existing.seasonId),
+          columns: { mediaItemId: true },
+        });
+        if (season) {
+          await this.markRecentlyAdded(season.mediaItemId);
+          this.scheduleCatalogRevalidate(season.mediaItemId);
+        }
+        await this.subtitles.discoverForEpisode(existing.id, filePath, probe);
       }
       return;
     }
@@ -1242,19 +1304,16 @@ export class ScannerService {
         title: episodeMeta?.name ?? `Episode ${parsed.episode}`,
         overview: episodeMeta?.overview ?? null,
         filePath,
-        durationMs: probe?.durationMs ?? null,
-        fileSize,
-        videoCodec: probe?.videoCodec ?? null,
-        audioCodec: probe?.audioCodec ?? null,
-        width: probe?.width ?? null,
-        height: probe?.height ?? null,
+        ...stats,
+        ...videoMetadata(probe),
         stillPath,
         airDate: episodeMeta?.air_date ?? null,
       })
       .returning();
 
-    await this.subtitles.discoverForEpisode(episode.id, filePath, probe);
+    await this.markRecentlyAdded(mediaItem.id);
     this.scheduleCatalogRevalidate(mediaItem.id);
+    await this.subtitles.discoverForEpisode(episode.id, filePath, probe);
   }
 
   private async removeFile(filePath: string): Promise<void> {
@@ -1265,7 +1324,8 @@ export class ScannerService {
       // Clean up subtitle rows + cached files before the FK cascade drops the
       // rows and orphans their .vtt files on disk.
       await this.subtitles.removeForOwner({ movieFileId: movieFile.id });
-      await this.db.delete(movieFiles).where(eq(movieFiles.id, movieFile.id));
+      await this.db.delete(movieFiles)
+        .where(and(eq(movieFiles.id, movieFile.id), eq(movieFiles.filePath, filePath)));
       void revalidateCatalog();
       return;
     }

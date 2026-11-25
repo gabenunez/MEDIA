@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.335 — 2026-11-24
+
+### Fix
+
+- **Release** — Bring replaced videos back to Recently Added
+- When you replace a movie with a different quality version, the same title moves to the top of Recently Added on Home and on the full list. This works whether you keep the filename or change it.
+- Replacing an episode moves its show up too. Rescanning unchanged files keeps the existing order.
+
 ## 0.1.334 — 2026-11-24
 
 ### Fix

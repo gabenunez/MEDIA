@@ -6,6 +6,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 export const libraries = sqliteTable("libraries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -47,6 +48,7 @@ export const mediaItems = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .$defaultFn(() => new Date()),
+    recentlyAddedAt: integer("recently_added_at", { mode: "timestamp_ms" }),
     updatedAt: integer("updated_at", { mode: "timestamp" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -54,6 +56,10 @@ export const mediaItems = sqliteTable(
   (table) => ({
     libraryIdIdx: index("media_items_library_id_idx").on(table.libraryId),
     createdAtIdx: index("media_items_created_at_idx").on(table.createdAt),
+    recentlyAddedAtIdx: index("media_items_recently_added_at_idx").on(
+      sql`coalesce(${table.recentlyAddedAt}, ${table.createdAt} * 1000)`,
+      table.id,
+    ),
     updatedAtIdx: index("media_items_updated_at_idx").on(table.updatedAt),
     libraryUpdatedIdx: index("media_items_library_updated_idx").on(
       table.libraryId,
@@ -108,6 +114,7 @@ export const tvEpisodes = sqliteTable(
     filePath: text("file_path").notNull().unique(),
     durationMs: integer("duration_ms"),
     fileSize: integer("file_size"),
+    fileMtimeMs: integer("file_mtime_ms"),
     videoCodec: text("video_codec"),
     audioCodec: text("audio_codec"),
     width: integer("width"),
@@ -137,6 +144,7 @@ export const movieFiles = sqliteTable(
     filePath: text("file_path").notNull().unique(),
     durationMs: integer("duration_ms"),
     fileSize: integer("file_size"),
+    fileMtimeMs: integer("file_mtime_ms"),
     videoCodec: text("video_codec"),
     audioCodec: text("audio_codec"),
     width: integer("width"),

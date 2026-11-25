@@ -371,7 +371,10 @@ export async function listRecentlyAdded(
 
   const itemsQuery = db.query.mediaItems.findMany({
     columns: TILE_COLUMNS,
-    orderBy: [desc(mediaItems.createdAt)],
+    orderBy: [
+      desc(sql`coalesce(${mediaItems.recentlyAddedAt}, ${mediaItems.createdAt} * 1000)`),
+      desc(mediaItems.id),
+    ],
     limit,
     offset,
   });

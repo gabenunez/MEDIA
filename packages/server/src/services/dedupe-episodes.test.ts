@@ -30,6 +30,7 @@ function createEpisodeTables(sqlite: Database.Database): DatabaseInstance {
       needs_match integer DEFAULT 0,
       watched_at integer,
       created_at integer NOT NULL DEFAULT 0,
+      recently_added_at integer,
       updated_at integer NOT NULL DEFAULT 0
     );
     CREATE TABLE tv_seasons (
@@ -50,6 +51,7 @@ function createEpisodeTables(sqlite: Database.Database): DatabaseInstance {
       file_path text NOT NULL UNIQUE,
       duration_ms integer,
       file_size integer,
+      file_mtime_ms integer,
       video_codec text,
       audio_codec text,
       width integer,

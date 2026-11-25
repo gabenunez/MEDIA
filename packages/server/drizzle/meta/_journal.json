@@ -78,6 +78,13 @@
       "when": 1730000000010,
       "tag": "0010_media_theme_checked",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1730000000011,
+      "tag": "0011_recently_added_replacements",
+      "breakpoints": true
     }
   ]
 }
