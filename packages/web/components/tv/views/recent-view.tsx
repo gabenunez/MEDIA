@@ -89,8 +89,6 @@ export function TvRecentView({
                 item={item}
                 layout="grid"
                 priority={index < 12}
-                linkClassName="w-full"
-                className="min-w-0 w-full"
               />
             ))}
           </TvGrid>

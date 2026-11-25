@@ -96,8 +96,6 @@ export function TvContinueView({
                 }
                 progress={item.percent}
                 subtitle={item.subtitle}
-                linkClassName="w-full"
-                className="min-w-0 w-full"
               />
             ))}
           </TvGrid>

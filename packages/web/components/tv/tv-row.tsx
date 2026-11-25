@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type PointerEvent, type ReactNode, type Ref } from "react";
 import type { MediaItem } from "@/lib/api";
 import { prefetchCarouselPosters } from "@/lib/prefetch-artwork";
 import { cn } from "@/lib/utils";
@@ -98,11 +98,13 @@ export function TvRow({
 interface TvGridProps {
   children: ReactNode;
   className?: string;
+  ref?: Ref<HTMLDivElement>;
 }
 
-export function TvGrid({ children, className }: TvGridProps) {
+export function TvGrid({ children, className, ref }: TvGridProps) {
   return (
     <div
+      ref={ref}
       data-tv-row=""
       data-tv-content-row=""
       data-tv-grid=""

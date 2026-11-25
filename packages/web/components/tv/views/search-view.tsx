@@ -233,12 +233,9 @@ export function TvSearchView() {
                   <TvPoster
                     key={item.id}
                     item={item}
-                    subtitle={[item.year, item.type === "movie" ? "Movie" : "TV"].filter(Boolean).join(" · ")}
                     onOpen={rememberTvSearchResult}
                     layout="grid"
                     priority={index < 6}
-                    linkClassName="w-full"
-                    className="min-w-0 w-full"
                   />
                 ))}
               </TvGrid>

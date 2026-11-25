@@ -60,14 +60,16 @@ export function TvBrowseCard({
       variant="card"
       className={cn(
         "rounded-xl bg-card p-4",
-        layout === "grid" ? "flex min-h-[7rem] w-full flex-col justify-between" : "w-[14.5rem] shrink-0",
+        layout === "grid" ? "flex min-h-[7rem] min-w-0 w-full flex-col justify-end" : "w-[14.5rem] shrink-0",
         className,
       )}
     >
-      {icon ? <div className="mb-2">{icon}</div> : null}
-      <p className="truncate text-base font-semibold leading-snug">{title}</p>
+      {icon ? <div className={cn("mb-2", layout === "grid" && "mr-auto")}>{icon}</div> : null}
+      <p className={cn("text-base font-semibold", layout === "grid" ? "tv-catalog-title min-h-[2.6em]" : "truncate leading-snug")}>
+        {title}
+      </p>
       {detail ? (
-        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+        <p className="tv-catalog-meta mt-1 text-muted-foreground">{detail}</p>
       ) : null}
     </TvFocusLink>
   );

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.332 — 2026-11-24
+
+### Fix
+
+- **Release** — Keep TV collection pages readable
+- TV poster grids keep their shape on older WebViews. Long titles wrap to two lines, captions line up, and text scales on 4K layouts.
+- Favorites waits for the selected filter’s results before showing its grid, so Movies and TV Shows stay separate when switching filters after paging.
+- D-pad navigation follows the current grid columns after the display size changes.
+
 ## 0.1.331 — 2026-11-24
 
 ### Changes

@@ -18,7 +18,6 @@ interface TvPosterProps {
   item: MediaItem;
   href?: string;
   className?: string;
-  linkClassName?: string;
   progress?: number;
   subtitle?: string;
   /** Next.js priority decode — use for the first visible tiles only. */
@@ -32,7 +31,6 @@ export const TvPoster = memo(function TvPoster({
   item,
   href,
   className,
-  linkClassName,
   progress,
   subtitle,
   priority = false,
@@ -43,6 +41,10 @@ export const TvPoster = memo(function TvPoster({
   const imageUrl = tvImageUrl(item.posterPath);
   const linkHref = href ?? routes.media(item.id);
   const onTv = isTvClient();
+  const inGrid = layout === "grid";
+  const detail = subtitle ?? (inGrid
+    ? [item.year, item.type === "movie" ? "Movie" : "TV"].filter(Boolean).join(" · ")
+    : undefined);
   // Android TV WebView often never loads lazy images inside horizontal rows/grids.
   // Keep eager decode on TV, but only mark the first few tiles as priority.
   const loading = onTv || priority ? ("eager" as const) : ("lazy" as const);
@@ -66,11 +68,11 @@ export const TvPoster = memo(function TvPoster({
 
   const warmNavigation = useCallback(() => {
     prefetchPosterFocus(item, router, linkHref);
-    measureSubtitleMarquee();
-  }, [item, linkHref, measureSubtitleMarquee, router]);
+    if (!inGrid && subtitle) measureSubtitleMarquee();
+  }, [inGrid, item, linkHref, measureSubtitleMarquee, router, subtitle]);
 
   return (
-    <div className={cn("tv-poster-tile shrink-0", className)}>
+    <div data-tv-poster-layout={layout} className={cn("tv-poster-tile shrink-0", className)}>
       <Link
         href={linkHref}
         prefetch={!onTv}
@@ -80,17 +82,16 @@ export const TvPoster = memo(function TvPoster({
         tabIndex={0}
         className={cn(
           tvPosterLinkClassName,
-          "group w-[var(--tv-poster-width,7rem)]",
-          linkClassName,
+          inGrid ? "min-w-0 w-full" : "w-[var(--tv-poster-width,7rem)]",
         )}
-        aria-label={subtitle ? `${item.title}, ${subtitle}` : item.title}
+        aria-label={detail ? `${item.title}, ${detail}` : item.title}
         onMouseEnter={warmNavigation}
         onFocus={warmNavigation}
         onNavigate={onOpen ? () => onOpen(item.id) : undefined}
       >
         <div className={cn(
-          "tv-poster-art poster-shadow relative aspect-[2/3] overflow-hidden bg-muted",
-          layout === "grid" ? "rounded-xl" : "rounded-lg",
+          "tv-poster-art poster-shadow relative overflow-hidden bg-muted",
+          inGrid ? "rounded-xl" : "rounded-lg",
         )}>
           {imageUrl ? (
             <MediaImage
@@ -101,18 +102,18 @@ export const TvPoster = memo(function TvPoster({
               loading={loading}
               quality={TV_LIST_IMAGE_QUALITY}
               sizes={
-                layout === "grid"
+                inGrid
                   ? "(min-width: 1920px) 11rem, 9rem"
                   : "(min-width: 1920px) 7.5rem, 7rem"
               }
               className="object-cover"
             />
           ) : (
-            <div className="signal-grid flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-sm text-muted-foreground">
+            <div className="signal-grid absolute inset-0 flex items-center justify-center text-primary/70" aria-hidden="true">
               {item.type === "movie" ? (
-                <Clapperboard className="h-8 w-8 text-primary" />
+                <Clapperboard className="h-8 w-8" />
               ) : (
-                <Tv className="h-8 w-8 text-primary" />
+                <Tv className="h-8 w-8" />
               )}
             </div>
           )}
@@ -120,7 +121,7 @@ export const TvPoster = memo(function TvPoster({
           {progress !== undefined && progress > 0 && (
             <div className={cn(
               "absolute inset-x-0 bottom-0 z-10 bg-white/25",
-              layout === "grid" ? "h-1.5" : "h-1",
+              inGrid ? "h-1.5" : "h-1",
             )}>
               <div
                 className={cn(
@@ -132,16 +133,15 @@ export const TvPoster = memo(function TvPoster({
             </div>
           )}
         </div>
-        <p className="tv-poster-title line-clamp-2 leading-snug text-muted-foreground">
+        <p className={cn("tv-poster-title text-muted-foreground", inGrid ? "tv-catalog-title" : "line-clamp-2 leading-snug")}>
           {item.title}
         </p>
-        {subtitle && (
+        {inGrid && detail ? (
+          <p className="tv-catalog-meta text-muted-foreground">{detail}</p>
+        ) : subtitle ? (
           <p
             ref={subtitleRef}
-            className={cn(
-              "tv-poster-subtitle text-muted-foreground",
-              layout === "grid" ? "text-base" : "text-sm",
-            )}
+            className="tv-poster-subtitle text-sm text-muted-foreground"
             data-tv-marquee={marqueeShiftPx < 0 ? "" : undefined}
             style={
               marqueeShiftPx < 0
@@ -151,7 +151,7 @@ export const TvPoster = memo(function TvPoster({
           >
             <span className="tv-poster-subtitle-text">{subtitle}</span>
           </p>
-        )}
+        ) : null}
       </Link>
     </div>
   );

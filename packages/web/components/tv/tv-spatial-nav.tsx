@@ -125,17 +125,6 @@ function estimateGridColumns(items: HTMLElement[]): number {
   return cols || 1;
 }
 
-function getGridColumns(row: Element, items: HTMLElement[]): number {
-  const cached = row.getAttribute("data-tv-cols");
-  if (cached) {
-    const parsed = Number.parseInt(cached, 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  const cols = estimateGridColumns(items);
-  row.setAttribute("data-tv-cols", String(cols));
-  return cols;
-}
-
 function moveInGridRow(
   active: HTMLElement,
   direction: "left" | "right" | "up" | "down",
@@ -147,8 +136,6 @@ function moveInGridRow(
   const index = items.indexOf(active);
   if (index === -1) return false;
 
-  const cols = getGridColumns(row, items);
-
   if (direction === "right" && index < items.length - 1) {
     focusItem(items[index + 1]);
     return true;
@@ -159,18 +146,12 @@ function moveInGridRow(
     return true;
   }
 
-  if (direction === "down") {
-    const next = index + cols;
-    if (next < items.length) {
+  if (direction === "up" || direction === "down") {
+    // Column count can change when the grid resizes or a new page is loaded.
+    const columns = estimateGridColumns(items);
+    const next = index + (direction === "down" ? columns : -columns);
+    if (next >= 0 && next < items.length) {
       focusItem(items[next]);
-      return true;
-    }
-  }
-
-  if (direction === "up") {
-    const prev = index - cols;
-    if (prev >= 0) {
-      focusItem(items[prev]);
       return true;
     }
   }

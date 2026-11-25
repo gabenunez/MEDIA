@@ -219,10 +219,17 @@
   }
 
   .tv-ui [data-tv-grid] {
+    --tv-grid-fluid-min: 8vw;
+    --tv-grid-title-size: clamp(1rem, 0.833vw, 2rem);
+    --tv-grid-meta-size: clamp(0.875rem, 0.729vw, 1.75rem);
     display: grid;
     grid-template-columns: repeat(
       auto-fill,
       minmax(var(--tv-grid-poster-min), 1fr)
+    );
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(100%, max(var(--tv-grid-poster-min), var(--tv-grid-fluid-min))), 1fr)
     );
     column-gap: var(--tv-row-gap);
     row-gap: 1.75rem;
@@ -231,23 +238,54 @@
   }
 
   .tv-ui [data-tv-grid] .tv-poster-tile {
+    min-width: 0;
     padding-top: 0.25rem;
     padding-bottom: 0.125rem;
   }
 
   .tv-ui [data-tv-grid] .tv-poster-title {
     margin-top: 0.5rem;
-    font-size: 0.9rem;
+    min-height: 2.6em;
+    font-size: 1rem;
+    font-size: var(--tv-grid-title-size);
     font-weight: 600;
-    line-height: 1.3;
     color: hsl(var(--foreground) / 0.9);
+  }
+
+  .tv-ui .tv-catalog-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    max-height: 2.6em;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+
+  .tv-ui .tv-catalog-meta {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.875rem;
+    font-size: var(--tv-grid-meta-size, 0.875rem);
+    line-height: 1.35;
   }
 
   .tv-ui [data-tv-browse-grid] {
     --tv-grid-poster-min: var(--tv-browse-card-min);
+    --tv-grid-fluid-min: 11.5vw;
     row-gap: 1rem;
     column-gap: 1rem;
     padding-top: 0.25rem;
+  }
+
+  .tv-ui [data-tv-browse-grid] .tv-catalog-title {
+    font-size: var(--tv-grid-title-size);
   }
 
   .tv-ui [data-tv-content-row] {
@@ -468,8 +506,17 @@
     border: var(--tv-focus-border-width) solid transparent;
   }
 
-  .tv-ui [data-tv-grid] .tv-poster-art {
+  .tv-ui [data-tv-poster-layout="grid"] .tv-poster-art {
     height: auto;
+    aspect-ratio: auto;
+  }
+
+  /* Reserve a 2:3 frame in flow. The image and placeholder both fill it,
+     including on WebViews that don't size positioned images via aspect-ratio. */
+  .tv-ui [data-tv-poster-layout="grid"] .tv-poster-art::before {
+    content: "";
+    display: block;
+    padding-top: 150%;
   }
 
   .tv-ui a.tv-poster-link[data-tv-focused] .tv-poster-art,

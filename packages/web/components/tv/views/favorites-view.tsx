@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FavoriteFilter } from "@media-app/shared";
 import { useFavoritesRouteFilter } from "@/lib/use-route-params";
 import { api, type MediaItem } from "@/lib/api";
 import type { PaginatedPageData } from "@/lib/server-api";
@@ -17,8 +18,7 @@ import {
 import { TvGrid } from "@/components/tv/tv-row";
 import { TvPoster } from "@/components/tv/tv-poster";
 import { useDocumentTitle } from "@/lib/use-document-title";
-import { focusFirstContentItem } from "@/lib/tv-focus";
-import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
+import { focusTvItem } from "@/lib/tv-focus";
 
 export function TvFavoritesView({
   initialPage = null,
@@ -26,52 +26,38 @@ export function TvFavoritesView({
   initialPage?: PaginatedPageData<MediaItem> | null;
 }) {
   const filter = useFavoritesRouteFilter();
-
-  const [items, setItems] = useState<MediaItem[]>(initialPage?.items ?? []);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(initialPage?.totalPages ?? 1);
-  const [totalItems, setTotalItems] = useState(
-    initialPage?.total ?? initialPage?.items.length ?? 0,
-  );
-  const [loading, setLoading] = useState(!initialPage);
-
-  useMarkTvBootReadyWhen(true);
+  const [cursor, setCursor] = useState({ filter, page: 1 });
+  const [result, setResult] = useState<{
+    filter: FavoriteFilter;
+    page: number;
+    data: PaginatedPageData<MediaItem> | null;
+  } | null>(null);
+  const grid = useRef<HTMLDivElement>(null);
+  const page = cursor.filter === filter ? cursor.page : 1;
+  const seed = page === 1 ? initialPage : null;
+  const current = result?.filter === filter && result.page === page ? result : null;
+  const data = seed ?? current?.data;
+  const totalItems = data?.total ?? data?.items.length ?? 0;
+  const loading = !seed && !current;
 
   useDocumentTitle("Favorites");
 
   useEffect(() => {
-    setPage(1);
-  }, [filter]);
-
-  useEffect(() => {
-    if (page === 1 && initialPage) {
-      setItems(initialPage.items);
-      setTotalPages(initialPage.totalPages);
-      setTotalItems(initialPage.total ?? initialPage.items.length);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    api
-      .getFavorites(page, filter === "all" ? undefined : filter)
-      .then((data) => {
-        setItems(data.items);
-        setTotalPages(data.totalPages);
-        setTotalItems(data.total ?? data.items.length);
-      })
-      .catch(console.warn)
-      .finally(() => setLoading(false));
-  }, [filter, page, initialPage]);
+    if (seed) return;
+    let active = true;
+    void api.getFavorites(page, filter === "all" ? undefined : filter).then(
+      (data) => { if (active) setResult({ filter, page, data }); },
+      () => { if (active) setResult({ filter, page, data: null }); },
+    );
+    return () => { active = false; };
+  }, [filter, page, seed]);
 
   useEffect(() => {
     if (loading) return;
-    focusFirstContentItem();
+    // Other history entries can still have hidden grids in the document.
+    const firstItem = grid.current?.querySelector<HTMLElement>("[data-tv-item]");
+    if (firstItem) focusTvItem(firstItem);
   }, [loading, filter, page]);
-
-  if (loading && items.length === 0) {
-    return <TvPageLoading />;
-  }
 
   return (
     <TvPageShell>
@@ -84,7 +70,7 @@ export function TvFavoritesView({
         data-tv-row=""
         data-tv-content-row=""
         data-tv-scroll-row=""
-        className="mb-8 flex gap-4 overflow-x-auto py-1"
+        className="mb-5 flex gap-2 overflow-x-auto py-1"
       >
         {(
           [
@@ -98,30 +84,39 @@ export function TvFavoritesView({
             href={routes.favorites(option.id === "all" ? undefined : option.id)}
             variant="chip"
             selected={filter === option.id}
-            className="px-5 py-2.5 text-base font-semibold"
+            aria-current={filter === option.id ? "page" : undefined}
+            className="whitespace-nowrap px-5 py-2.5 text-base font-semibold"
           >
             {option.label}
           </TvFocusLink>
         ))}
       </div>
 
-      {items.length === 0 ? (
-        <TvEmptyState>No favorites yet.</TvEmptyState>
+      {loading ? (
+        <TvPageLoading />
+      ) : !data ? (
+        <TvEmptyState>Couldn’t load favorites.</TvEmptyState>
+      ) : data.items.length === 0 ? (
+        <TvEmptyState>
+          {filter === "tv" ? "No favorite TV shows yet." : filter === "movie" ? "No favorite movies yet." : "No favorites yet."}
+        </TvEmptyState>
       ) : (
         <>
-          <TvGrid>
-            {items.map((item, index) => (
+          <TvGrid ref={grid}>
+            {data.items.map((item, index) => (
               <TvPoster
                 key={item.id}
                 item={item}
                 layout="grid"
                 priority={index < 12}
-                linkClassName="w-full"
-                className="min-w-0 w-full"
               />
             ))}
           </TvGrid>
-          <TvPagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          <TvPagination
+            page={page}
+            totalPages={data.totalPages}
+            onPageChange={(page) => setCursor({ filter, page })}
+          />
         </>
       )}
     </TvPageShell>

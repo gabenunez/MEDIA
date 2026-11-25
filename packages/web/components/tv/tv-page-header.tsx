@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
+import { markTvBootContentReady } from "@/lib/tv-boot-ready";
 import { cn } from "@/lib/utils";
 
 /** Shared page frame — gutters match home rows. */
@@ -13,6 +14,10 @@ export function TvPageShell({
   children: ReactNode;
   className?: string;
 }) {
+  // Collection content mounts after auth. Make it visible before a page
+  // tries to focus the first tile on a cold launch or deep link.
+  useLayoutEffect(() => markTvBootContentReady(), []);
+
   return <div className={cn("tv-page", className)}>{children}</div>;
 }
 
@@ -65,11 +70,11 @@ export function TvPageHeader({
 }: TvPageHeaderProps) {
   return (
     <header className={cn("mb-6", className)}>
-      <h1 className="max-w-[22ch] truncate text-2xl font-bold leading-tight tracking-tight">
+      <h1 className="tv-catalog-title text-2xl font-bold tracking-tight">
         {title}
       </h1>
       {subtitle ? (
-        <p className="mt-2 text-base text-muted-foreground">{subtitle}</p>
+        <p className="mt-2 break-words text-base text-muted-foreground">{subtitle}</p>
       ) : null}
     </header>
   );
