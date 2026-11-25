@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq, and, or, isNull, inArray, sql } from "drizzle-orm";
+import { eq, and, or, isNull, inArray, notExists, sql } from "drizzle-orm";
 import chokidar, { type FSWatcher } from "chokidar";
 import PQueue from "p-queue";
 import {
@@ -21,6 +21,7 @@ import {
   tvSeasons,
   tvEpisodes,
   scanJobs,
+  watchProgress,
 } from "../db/schema.js";
 import { dedupeDuplicateSeasons } from "./dedupe-seasons.js";
 import { dedupeDuplicateEpisodes } from "./dedupe-episodes.js";
@@ -34,6 +35,36 @@ import { probeFile } from "../utils/ffmpeg.js";
 /** One or two files at a time. A full series must not spawn an ffprobe per episode. */
 const LIBRARY_INGEST_CONCURRENCY = 2;
 const CATALOG_REVALIDATE_DELAY_MS = 1500;
+// A new quality version can arrive just after the old filename is removed.
+const WATCH_REMOVAL_DELAY_MS = 10_000;
+
+type LibraryRoot = { path: string; device: number; inode: number };
+type ScanOptions = { reconcileEmpty?: boolean };
+
+function readLibraryRoot(libraryPath: string): LibraryRoot | null {
+  try {
+    const stat = fs.statSync(libraryPath);
+    if (!stat.isDirectory()) return null;
+    fs.accessSync(libraryPath, fs.constants.R_OK | fs.constants.X_OK);
+    return { path: libraryPath, device: stat.dev, inode: stat.ino };
+  } catch {
+    return null;
+  }
+}
+
+function isSameLibraryRoot(root: LibraryRoot): boolean {
+  const current = readLibraryRoot(root.path);
+  return current?.device === root.device && current.inode === root.inode;
+}
+
+function isMissingFile(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath, { throwIfNoEntry: false }) === undefined;
+  } catch {
+    // Permission and network errors do not confirm a deletion.
+    return false;
+  }
+}
 
 type VideoFileStats = { fileSize: number; fileMtimeMs: number };
 type VideoProbe = Awaited<ReturnType<typeof probeFile>>;
@@ -78,6 +109,8 @@ function existingVideoUpdate(
 
 export class ScannerService {
   private watchers = new Map<number, FSWatcher>();
+  private pendingRemovals = new Map<number, { paths: Set<string>; timer: ReturnType<typeof setTimeout> }>();
+  private scanningLibraries = new Set<number>();
   private activeScan: { libraryId: number; jobId: number } | null = null;
   private seasonCreateChain = new Map<string, Promise<void>>();
   private mediaCreateChain = new Map<string, Promise<void>>();
@@ -155,8 +188,8 @@ export class ScannerService {
   }
 
   /** Run a library scan in the background without blocking the caller. */
-  scheduleScan(libraryId: number): void {
-    void this.scanLibrary(libraryId).catch((err) => {
+  scheduleScan(libraryId: number, options?: ScanOptions): void {
+    void this.scanLibrary(libraryId, options).catch((err) => {
       console.error(
         `Background scan failed for library ${libraryId}:`,
         err instanceof Error ? err.message : err,
@@ -223,19 +256,24 @@ export class ScannerService {
     }
   }
 
-  private async onLibraryFileRemoved(filePath: string): Promise<void> {
-    try {
-      const pending = this.ingestingPaths.get(filePath);
-      if (pending) await pending;
-      // An atomic replacement can emit an unlink for a path that exists again.
-      if (fs.existsSync(filePath)) return;
-      await this.removeFile(filePath);
-    } catch (err) {
-      console.error(
-        `Failed to remove ${filePath}:`,
-        err instanceof Error ? err.message : err,
-      );
-    }
+  private queueWatchedRemoval(libraryId: number, filePaths: Iterable<string>, canReconcile: () => boolean): void {
+    const pending = this.pendingRemovals.get(libraryId);
+    if (pending) clearTimeout(pending.timer);
+    const paths = pending?.paths ?? new Set<string>();
+    for (const filePath of filePaths) paths.add(filePath);
+    const timer = setTimeout(() => {
+      this.pendingRemovals.delete(libraryId);
+      if (!canReconcile()) return;
+      if (this.scanningLibraries.has(libraryId)) {
+        this.queueWatchedRemoval(libraryId, paths, canReconcile);
+        return;
+      }
+      void this.reconcileRemovals(libraryId, paths, canReconcile).catch((err) => {
+        console.error(`Failed to reconcile deleted files in library ${libraryId}:`, err);
+      });
+    }, WATCH_REMOVAL_DELAY_MS);
+    timer.unref?.();
+    this.pendingRemovals.set(libraryId, { paths, timer });
   }
 
   /** Coalesce per-episode page rebuilds into one catalog refresh. */
@@ -299,8 +337,9 @@ export class ScannerService {
   startWatcher(libraryId: number, libraryPath: string): void {
     if (this.watchers.has(libraryId)) return;
 
-    if (!fs.existsSync(libraryPath)) {
-      console.warn(`Library path does not exist: ${libraryPath}`);
+    const root = readLibraryRoot(libraryPath);
+    if (!root) {
+      console.warn(`Library path is unavailable: ${libraryPath}`);
       return;
     }
 
@@ -328,22 +367,32 @@ export class ScannerService {
     watcher.on("add", importFile);
     watcher.on("change", importFile);
 
+    const canReconcile = () => this.watchers.get(libraryId) === watcher && isSameLibraryRoot(root);
     watcher.on("unlink", (filePath) => {
-      void this.onLibraryFileRemoved(filePath);
+      this.queueWatchedRemoval(libraryId, [filePath], canReconcile);
     });
 
     this.watchers.set(libraryId, watcher);
   }
 
-  async scanLibrary(libraryId: number): Promise<void> {
-    if (this.activeScan?.libraryId === libraryId) return;
+  async scanLibrary(libraryId: number, options: ScanOptions = {}): Promise<void> {
+    if (this.scanningLibraries.has(libraryId)) return;
+    this.scanningLibraries.add(libraryId);
+    try {
+      await this.runLibraryScan(libraryId, options);
+    } finally {
+      this.scanningLibraries.delete(libraryId);
+    }
+  }
 
+  private async runLibraryScan(libraryId: number, options: ScanOptions): Promise<void> {
     const lib = await this.db.query.libraries.findFirst({
       where: eq(libraries.id, libraryId),
     });
     if (!lib) throw new Error(`Library ${libraryId} not found`);
-    if (!fs.existsSync(lib.path)) {
-      throw new Error(`Library path does not exist: ${lib.path}`);
+    const root = readLibraryRoot(lib.path);
+    if (!root) {
+      throw new Error(`Library path is unavailable: ${lib.path}`);
     }
 
     const [job] = await this.db
@@ -393,6 +442,13 @@ export class ScannerService {
             `Removed ${removedEpisodes} duplicate TV episode(s) in ${lib.name}`,
           );
         }
+      }
+
+      // An unmounted volume can expose an empty directory during a startup
+      // scan. A manual scan or a watcher on the original directory can clear it.
+      if ((files.length > 0 || options.reconcileEmpty) && isSameLibraryRoot(root)) {
+        await this.reconcileRemovals(libraryId, this.unseenFiles(libraryId, new Set(files)),
+          () => isSameLibraryRoot(root), true);
       }
 
       const removedSubtitles = await this.subtitles.pruneOrphanedSubtitles();
@@ -723,6 +779,9 @@ export class ScannerService {
   }
 
   stopWatcher(libraryId: number): void {
+    const pending = this.pendingRemovals.get(libraryId);
+    if (pending) clearTimeout(pending.timer);
+    this.pendingRemovals.delete(libraryId);
     const watcher = this.watchers.get(libraryId);
     if (watcher) {
       watcher.close();
@@ -925,13 +984,7 @@ export class ScannerService {
     // A scan can discover the new filename before an unlink was observed (for
     // example after an offline upgrade). Replace the missing entry instead of
     // leaving the title's Play button pointed at the former path.
-    const missing = files.filter((file) => {
-      try {
-        return !fs.statSync(file.filePath, { throwIfNoEntry: false });
-      } catch {
-        return false;
-      }
-    });
+    const missing = files.filter((file) => isMissingFile(file.filePath));
     const values = { filePath, ...stats, ...videoMetadata(probe) };
     const [file] = missing.length === 1
       ? await this.db.update(movieFiles).set(values)
@@ -1316,27 +1369,90 @@ export class ScannerService {
     await this.subtitles.discoverForEpisode(episode.id, filePath, probe);
   }
 
-  private async removeFile(filePath: string): Promise<void> {
-    const movieFile = await this.db.query.movieFiles.findFirst({
-      where: eq(movieFiles.filePath, filePath),
+  private unseenFiles(libraryId: number, pathsSeen: Set<string>): string[] {
+    const movies = this.db.select({ filePath: movieFiles.filePath }).from(movieFiles)
+      .innerJoin(mediaItems, eq(mediaItems.id, movieFiles.mediaItemId))
+      .where(eq(mediaItems.libraryId, libraryId)).all();
+    const episodes = this.db.select({ filePath: tvEpisodes.filePath }).from(tvEpisodes)
+      .innerJoin(tvSeasons, eq(tvSeasons.id, tvEpisodes.seasonId))
+      .innerJoin(mediaItems, eq(mediaItems.id, tvSeasons.mediaItemId))
+      .where(eq(mediaItems.libraryId, libraryId)).all();
+    return [...movies, ...episodes].map(({ filePath }) => filePath).filter((filePath) => !pathsSeen.has(filePath));
+  }
+
+  private async reconcileRemovals(
+    libraryId: number,
+    paths: Iterable<string>,
+    canReconcile: () => boolean,
+    sweepEmpty = false,
+  ): Promise<void> {
+    await this.ingestQueue.onIdle();
+    if (!canReconcile()) return;
+
+    let removedFile = false;
+    for (const filePath of paths) {
+      const missing = () => !this.ingestingPaths.has(filePath) && canReconcile() && isMissingFile(filePath);
+      if (!missing()) continue;
+      const mediaItemId = await this.removeFile(libraryId, filePath, missing);
+      if (mediaItemId == null) continue;
+      removedFile = true;
+      this.scheduleCatalogRevalidate(mediaItemId);
+    }
+
+    if (!removedFile && !sweepEmpty) return;
+    // Ingest may create a title before its file is attached. Only prune after
+    // the queue settles, and recheck ownership atomically in the DELETEs.
+    await this.ingestQueue.onIdle();
+    if (canReconcile()) this.removeEmptyTitles(libraryId);
+  }
+
+  private removeEmptyTitles(libraryId: number): void {
+    const libraryTitles = this.db.select({ id: mediaItems.id }).from(mediaItems)
+      .where(eq(mediaItems.libraryId, libraryId));
+    const emptySeason = notExists(this.db.select({ id: tvEpisodes.id }).from(tvEpisodes)
+      .where(eq(tvEpisodes.seasonId, tvSeasons.id)));
+    const noMovieFiles = notExists(this.db.select({ id: movieFiles.id }).from(movieFiles)
+      .where(eq(movieFiles.mediaItemId, mediaItems.id)));
+    const noSeasons = notExists(this.db.select({ id: tvSeasons.id }).from(tvSeasons)
+      .where(eq(tvSeasons.mediaItemId, mediaItems.id)));
+
+    const removed = this.db.transaction((tx) => {
+      tx.delete(tvSeasons).where(and(inArray(tvSeasons.mediaItemId, libraryTitles), emptySeason)).run();
+      return tx.delete(mediaItems).where(and(eq(mediaItems.libraryId, libraryId), noMovieFiles, noSeasons))
+        .returning({ id: mediaItems.id }).all();
     });
+    for (const { id } of removed) this.scheduleCatalogRevalidate(id);
+  }
+
+  private async removeFile(libraryId: number, filePath: string, stillMissing: () => boolean): Promise<number | null> {
+    const movieFile = this.db.select({ id: movieFiles.id, mediaItemId: movieFiles.mediaItemId })
+      .from(movieFiles).innerJoin(mediaItems, eq(mediaItems.id, movieFiles.mediaItemId))
+      .where(and(eq(movieFiles.filePath, filePath), eq(mediaItems.libraryId, libraryId))).get();
     if (movieFile) {
       // Clean up subtitle rows + cached files before the FK cascade drops the
       // rows and orphans their .vtt files on disk.
       await this.subtitles.removeForOwner({ movieFileId: movieFile.id });
-      await this.db.delete(movieFiles)
-        .where(and(eq(movieFiles.id, movieFile.id), eq(movieFiles.filePath, filePath)));
-      void revalidateCatalog();
-      return;
+      if (!stillMissing()) return null;
+      const result = this.db.delete(movieFiles)
+        .where(and(eq(movieFiles.id, movieFile.id), eq(movieFiles.filePath, filePath))).run();
+      if (result.changes === 0) return null;
+      this.db.delete(watchProgress)
+        .where(and(eq(watchProgress.itemType, "movie"), eq(watchProgress.itemId, movieFile.id))).run();
+      return movieFile.mediaItemId;
     }
 
-    const episode = await this.db.query.tvEpisodes.findFirst({
-      where: eq(tvEpisodes.filePath, filePath),
-    });
-    if (episode) {
-      await this.subtitles.removeForOwner({ episodeId: episode.id });
-      await this.db.delete(tvEpisodes).where(eq(tvEpisodes.id, episode.id));
-      void revalidateCatalog();
-    }
+    const episode = this.db.select({ id: tvEpisodes.id, mediaItemId: tvSeasons.mediaItemId })
+      .from(tvEpisodes).innerJoin(tvSeasons, eq(tvSeasons.id, tvEpisodes.seasonId))
+      .innerJoin(mediaItems, eq(mediaItems.id, tvSeasons.mediaItemId))
+      .where(and(eq(tvEpisodes.filePath, filePath), eq(mediaItems.libraryId, libraryId))).get();
+    if (!episode) return null;
+    await this.subtitles.removeForOwner({ episodeId: episode.id });
+    if (!stillMissing()) return null;
+    const result = this.db.delete(tvEpisodes)
+      .where(and(eq(tvEpisodes.id, episode.id), eq(tvEpisodes.filePath, filePath))).run();
+    if (result.changes === 0) return null;
+    this.db.delete(watchProgress)
+      .where(and(eq(watchProgress.itemType, "episode"), eq(watchProgress.itemId, episode.id))).run();
+    return episode.mediaItemId;
   }
 }

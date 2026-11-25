@@ -479,7 +479,7 @@ export async function apiRoutes(
       if (!lib) {
         return reply.status(404).send({ error: "Library not found" });
       }
-      scanner.scheduleScan(libraryId);
+      scanner.scheduleScan(libraryId, { reconcileEmpty: true });
       return { success: true, message: "Scan started" };
     },
   );

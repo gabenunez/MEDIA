@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.336 — 2026-11-24
+
+### Fix
+
+- **Release** — Remove deleted videos from the catalog
+- When the last video file for a movie or show is deleted, MEDIA removes its catalog entry, so it no longer appears in Search, Favorites, or Recently Added. Titles stay listed while another version or episode is available.
+- A short cleanup delay lets a replacement file keep the existing title and favorite during a quality upgrade.
+
 ## 0.1.335 — 2026-11-24
 
 ### Fix

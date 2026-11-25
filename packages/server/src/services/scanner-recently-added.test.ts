@@ -1,13 +1,15 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
 import type { AppConfig } from "@media-app/shared";
+import chokidar, { type FSWatcher } from "chokidar";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConfigManager } from "../config.js";
 import { runMigrations, type DatabaseInstance } from "../db/index.js";
-import { favorites, libraries, mediaItems, movieFiles, tvEpisodes } from "../db/schema.js";
+import { favorites, libraries, mediaItems, movieFiles, subtitles, tvEpisodes, tvSeasons, watchProgress } from "../db/schema.js";
 import { probeFile } from "../utils/ffmpeg.js";
 import { listRecentlyAdded } from "./home-rows.js";
 import { MetadataService } from "./metadata.js";
@@ -28,7 +30,7 @@ const migrations = fileURLToPath(new URL("../../drizzle", import.meta.url));
 const firstDay = new Date("2024-11-01T00:00:00Z");
 const secondDay = new Date("2024-11-02T00:00:00Z");
 
-describe("Recently Added after a video is replaced", () => {
+describe("Catalog changes when videos are replaced or removed", () => {
   let dir: string;
   let db: DatabaseInstance;
   let closeDb: () => void;
@@ -54,6 +56,10 @@ describe("Recently Added after a video is replaced", () => {
   });
 
   afterEach(() => {
+    scanner.stopWatcher(1);
+    scanner.stopWatcher(2);
+    vi.restoreAllMocks();
+    vi.useRealTimers();
     closeDb();
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -71,6 +77,8 @@ describe("Recently Added after a video is replaced", () => {
       { id: 2, libraryId: 1, title: "Arrival", year: 2016, type: "movie", createdAt: secondDay },
     ]).run();
     db.insert(movieFiles).values({ id: 7, mediaItemId: 1, filePath, fileSize, videoCodec: "h264", height: 1080 }).run();
+    const arrival = writeMovie("Arrival (2016).mkv", "original");
+    db.insert(movieFiles).values({ id: 8, mediaItemId: 2, filePath: arrival, fileSize: 8 }).run();
     db.insert(favorites).values({ mediaItemId: 1 }).run();
   }
 
@@ -105,12 +113,15 @@ describe("Recently Added after a video is replaced", () => {
     db.insert(mediaItems).values({
       id: 3, libraryId: 1, title: "Dune", year: 1984, type: "movie", createdAt: firstDay,
     }).run();
+    const remake = writeMovie("Dune (1984).mkv", "original");
+    db.insert(movieFiles).values({ mediaItemId: 3, filePath: remake, fileSize: 8 }).run();
     const upgraded = writeMovie("dune.2021.2160p.BluRay.mkv", "higher quality file");
 
     await scanner.scanLibrary(1);
 
     expect((await listRecentlyAdded(db)).items.map((item) => item.id)).toEqual([1, 2, 3]);
-    expect(await db.query.movieFiles.findMany()).toMatchObject([{ id: 7, mediaItemId: 1, filePath: upgraded }]);
+    expect(await db.query.movieFiles.findMany({ where: eq(movieFiles.mediaItemId, 1) }))
+      .toMatchObject([{ id: 7, mediaItemId: 1, filePath: upgraded }]);
     expect(await db.query.favorites.findFirst()).toMatchObject({ mediaItemId: 1 });
   });
 
@@ -130,5 +141,94 @@ describe("Recently Added after a video is replaced", () => {
 
     expect((await listRecentlyAdded(db)).items[0]?.id).toBe(show.id);
     expect(await db.query.tvEpisodes.findMany()).toMatchObject([{ filePath, fileSize: 16 }]);
+  });
+
+  it("removes a movie and its metadata on rescan once its last file is deleted", async () => {
+    const original = writeMovie("Dune (2021).mkv", "original");
+    seedMovies(original, 8);
+    db.insert(watchProgress).values({ itemType: "movie", itemId: 7, positionMs: 3000 }).run();
+    db.insert(subtitles).values({ movieFileId: 7, source: "external", pathOrIndex: path.join(dir, "Dune.srt") }).run();
+    const alternate = writeMovie("Dune (2021) 2160p.mkv", "higher quality");
+    await scanner.scanLibrary(1);
+
+    fs.unlinkSync(original);
+    await scanner.scanLibrary(1);
+    expect(await db.query.mediaItems.findFirst({ where: eq(mediaItems.id, 1) })).toMatchObject({ title: "Dune" });
+    expect(await db.query.movieFiles.findMany({ where: eq(movieFiles.mediaItemId, 1) }))
+      .toMatchObject([{ filePath: alternate }]);
+
+    fs.unlinkSync(alternate);
+    await scanner.scanLibrary(1);
+    expect((await listRecentlyAdded(db)).items.map(item => item.title)).toEqual(["Arrival"]);
+    expect(await db.query.mediaItems.findFirst({ where: eq(mediaItems.id, 1) })).toBeUndefined();
+    expect(await db.query.favorites.findMany()).toEqual([]);
+    expect(await db.query.subtitles.findMany()).toEqual([]);
+    expect(await db.query.watchProgress.findMany()).toEqual([]);
+  });
+
+  function watchLibrary(libraryId: number, root: string) {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const watcher = Object.assign(new EventEmitter(), { close: vi.fn() });
+    vi.spyOn(chokidar, "watch").mockReturnValue(watcher as unknown as FSWatcher);
+    scanner.startWatcher(libraryId, root);
+    return watcher;
+  }
+
+  it("removes an empty season, then removes the show only when its final episode is deleted", async () => {
+    const tvDir = path.join(dir, "TV");
+    fs.mkdirSync(path.join(tvDir, "Example Show"), { recursive: true });
+    db.insert(libraries).values({ id: 2, name: "TV", type: "tv", path: tvDir }).run();
+    const first = writeMovie("TV/Example Show/Example.Show.S01E01.mkv", "season one");
+    const last = writeMovie("TV/Example Show/Example.Show.S02E01.mkv", "season two");
+    await scanner.scanLibrary(2);
+    const watcher = watchLibrary(2, tvDir);
+
+    fs.unlinkSync(first);
+    watcher.emit("unlink", first);
+    await vi.advanceTimersByTimeAsync(12_000);
+    expect(await db.query.tvSeasons.findMany()).toMatchObject([{ seasonNumber: 2 }]);
+    expect((await listRecentlyAdded(db)).items[0]?.title).toBe("Example Show");
+
+    fs.unlinkSync(last);
+    watcher.emit("unlink", last);
+    await vi.advanceTimersByTimeAsync(12_000);
+    expect(await db.query.tvSeasons.findMany()).toEqual([]);
+    expect((await listRecentlyAdded(db)).items).toEqual([]);
+  });
+
+  it("keeps the title and favorite when a differently named replacement arrives during cleanup delay", async () => {
+    const original = writeMovie("Dune (2021).mkv", "original");
+    seedMovies(original, 8);
+    const watcher = watchLibrary(1, dir);
+    fs.unlinkSync(original);
+    watcher.emit("unlink", original);
+    await vi.advanceTimersByTimeAsync(1000);
+    const replacement = writeMovie("Dune.2021.2160p.mkv", "higher quality");
+    watcher.emit("add", replacement);
+    await vi.advanceTimersByTimeAsync(12_000);
+    expect(await db.query.movieFiles.findMany({ where: eq(movieFiles.mediaItemId, 1) }))
+      .toMatchObject([{ id: 7, filePath: replacement }]);
+    expect(await db.query.favorites.findFirst()).toMatchObject({ mediaItemId: 1 });
+    expect((await listRecentlyAdded(db)).items[0]?.id).toBe(1);
+  });
+
+  it("preserves metadata when the watched library root changes, and only clears an empty scan on request", async () => {
+    const original = writeMovie("Dune (2021).mkv", "original");
+    seedMovies(original, 8);
+    const watcher = watchLibrary(1, dir);
+    const formerRoot = dir + "-unmounted";
+    fs.renameSync(dir, formerRoot);
+    fs.mkdirSync(dir);
+    try {
+      watcher.emit("unlink", original);
+      await vi.advanceTimersByTimeAsync(12_000);
+      await scanner.scanLibrary(1);
+      expect((await listRecentlyAdded(db)).items).toHaveLength(2);
+
+      await scanner.scanLibrary(1, { reconcileEmpty: true });
+      expect((await listRecentlyAdded(db)).items).toEqual([]);
+    } finally {
+      fs.rmSync(formerRoot, { recursive: true, force: true });
+    }
   });
 });
