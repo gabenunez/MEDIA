@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.342 — 2026-11-25
+
+### Fix
+
+- **Release** — Keep same-title movies and shows separate by year
+- Movies and TV shows with the same title appear as separate results when their filename or folder includes the release or premiere year. Exact title matches appear first in Search.
+- Rescan libraries to recover previously combined titles when the files identify the different years.
+
 ## 0.1.341 — 2026-11-25
 
 ### Added

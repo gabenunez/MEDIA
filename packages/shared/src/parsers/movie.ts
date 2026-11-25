@@ -5,7 +5,7 @@ import {
   NON_VIDEO_EXTENSIONS,
 } from "../constants.js";
 
-const YEAR_REGEX = /\b(19|20)\d{2}\b/;
+const YEAR_REGEX = /\b(?:19|20)\d{2}\b/g;
 const QUALITY_TAGS =
   /\b(720p|1080p|2160p|4k|8k|bluray|blu-ray|bdrip|brrip|webrip|web-dl|hdtv|dvdrip|x264|x265|hevc|aac|dts|remux)\b/gi;
 const GROUP_TAGS = /[\[\(][^\]\)]+[\]\)]/g;
@@ -28,7 +28,13 @@ export function getFileExtension(filename: string): string {
 
 export function parseMovieFilename(filename: string): ParsedMovie {
   const base = filename.replace(/\.[^.]+$/, "");
-  const yearMatch = base.match(YEAR_REGEX);
+  const years = [...base.matchAll(YEAR_REGEX)]
+    .filter((match) => /[\p{L}\p{N}]/u.test(base.slice(0, match.index)))
+    .reverse();
+  const yearMatch = years.find(({ index = 0 }) =>
+    (base[index - 1] === "(" && base[index + 4] === ")") ||
+    (base[index - 1] === "[" && base[index + 4] === "]"),
+  ) ?? years[0];
   const year = yearMatch ? parseInt(yearMatch[0], 10) : undefined;
 
   let titlePart = base;

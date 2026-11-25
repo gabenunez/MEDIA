@@ -61,6 +61,8 @@ Dev with hot reload: `./scripts/dev.sh`
 2. Add a [TMDB API key](https://www.themoviedb.org/settings/api) (posters & metadata)
 3. Scan libraries, then browse
 
+If two movies or shows share a title, include the release or premiere year so they appear separately. For example, use `Little Women (1994).mkv` and `Little Women (2019).mkv` for the movies, and `Little Women (2017)/Season 01/` for the TV adaptation.
+
 ## Integrations
 
 MEDIA! connects to a few external services. All API keys are optional except TMDB if you want posters and metadata.

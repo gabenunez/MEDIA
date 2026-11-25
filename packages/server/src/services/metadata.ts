@@ -150,27 +150,30 @@ export class MetadataService {
         { query: title, ...(year ? { year: String(year) } : {}) },
       );
 
-      if (!data.results?.length) return { match: null, confidence: 0 };
-
-      const best = data.results[0];
-      let confidence = 0.7;
-
       const titleLower = title.toLowerCase();
+      const candidates = (data.results ?? []).filter(
+        (item) => year == null || yearFromDate(item.release_date) === year,
+      );
+      const best = candidates.find((item) =>
+        item.title.toLowerCase() === titleLower || item.original_title?.toLowerCase() === titleLower,
+      ) ?? candidates[0];
+      if (!best) return { match: null, confidence: 0 };
+
+      let confidence = 0.7;
       if (best.title.toLowerCase() === titleLower) confidence += 0.2;
       else if (best.title.toLowerCase().includes(titleLower)) confidence += 0.1;
-
-      if (year && best.release_date) {
-        const matchYear = parseInt(best.release_date.slice(0, 4), 10);
-        if (matchYear === year) confidence += 0.1;
-        else if (Math.abs(matchYear - year) <= 1) confidence += 0.05;
-      }
+      if (year != null) confidence += 0.1;
 
       const details = await this.fetchTmdb<TmdbMovieDetails>(`/movie/${best.id}`);
+      const detailsYear = yearFromDate(details.release_date);
+      if (year != null && detailsYear != null && detailsYear !== year) {
+        return { match: null, confidence: 0 };
+      }
       return { match: details, confidence: Math.min(confidence, 1) };
     }) as Promise<{ match: TmdbMovieDetails | null; confidence: number }>;
   }
 
-  async searchTv(showName: string): Promise<{
+  async searchTv(showName: string, year?: number): Promise<{
     match: TmdbTvDetails | null;
     confidence: number;
   }> {
@@ -181,19 +184,28 @@ export class MetadataService {
     return this.queue.add(async () => {
       const data = await this.fetchTmdb<{ results: TmdbSearchTv[] }>(
         "/search/tv",
-        { query: showName },
+        { query: showName, ...(year != null ? { first_air_date_year: String(year) } : {}) },
       );
 
-      if (!data.results?.length) return { match: null, confidence: 0 };
-
-      const best = data.results[0];
-      let confidence = 0.7;
-
       const nameLower = showName.toLowerCase();
+      const candidates = (data.results ?? []).filter(
+        (item) => year == null || yearFromDate(item.first_air_date) === year,
+      );
+      const best = candidates.find((item) =>
+        item.name.toLowerCase() === nameLower || item.original_name?.toLowerCase() === nameLower,
+      ) ?? candidates[0];
+      if (!best) return { match: null, confidence: 0 };
+
+      let confidence = 0.7;
       if (best.name.toLowerCase() === nameLower) confidence += 0.25;
       else if (best.name.toLowerCase().includes(nameLower)) confidence += 0.1;
+      if (year != null) confidence += 0.1;
 
       const details = await this.fetchTmdb<TmdbTvDetails>(`/tv/${best.id}`);
+      const detailsYear = yearFromDate(details.first_air_date);
+      if (year != null && detailsYear != null && detailsYear !== year) {
+        return { match: null, confidence: 0 };
+      }
       return { match: details, confidence: Math.min(confidence, 1) };
     }) as Promise<{ match: TmdbTvDetails | null; confidence: number }>;
   }

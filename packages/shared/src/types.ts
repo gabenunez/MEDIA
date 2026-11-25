@@ -65,6 +65,7 @@ export interface ParsedMovie {
 
 export interface ParsedEpisode {
   showName: string;
+  showYear?: number;
   season: number;
   episode: number;
   rawFilename: string;

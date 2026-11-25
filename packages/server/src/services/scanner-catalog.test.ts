@@ -12,7 +12,7 @@ describe("scanner catalog revalidation", () => {
   it("revalidates home after inserting a movie file", () => {
     const movieFn = scannerSrc.slice(
       scannerSrc.indexOf("processMovieFile"),
-      scannerSrc.indexOf("findTvMediaItem"),
+      scannerSrc.indexOf("private async findMediaItemByTitle"),
     );
     expect(movieFn).toContain("insert(movieFiles)");
     expect(movieFn).toContain("scheduleCatalogRevalidate(mediaItemId)");
@@ -33,7 +33,7 @@ describe("scanner duplicate-show prevention", () => {
       scannerSrc.indexOf("private async processTvFile"),
       scannerSrc.indexOf("private async removeFile"),
     );
-    expect(processTvFn).toContain("ensureTvMediaItem(lib.id, parsed.showName)");
+    expect(processTvFn).toContain("ensureTvMediaItem(lib.id, parsed.showName, parsed.showYear)");
     expect(processTvFn).not.toContain("insert(mediaItems)");
 
     const ensureFn = scannerSrc.slice(
@@ -44,7 +44,7 @@ describe("scanner duplicate-show prevention", () => {
     // inserts — mirroring ensureTvSeason.
     expect(ensureFn).toContain("withChainLock");
     expect(ensureFn).toContain("this.mediaCreateChain");
-    expect(ensureFn).toContain("findTvMediaItem(libraryId, showName)");
+    expect(ensureFn).toContain('findMediaItemByTitle(libraryId, "tv", showName, year)');
     expect(ensureFn).toContain("insert(mediaItems)");
   });
 

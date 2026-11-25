@@ -4,7 +4,7 @@ import { runMigrations } from "../db/index.js";
 import { libraries, mediaItems } from "../db/schema.js";
 import { searchCatalog } from "./catalog-search.js";
 
-function testCatalog(items: Array<{ title: string; overview?: string }>) {
+function testCatalog(items: Array<{ title: string; overview?: string; year?: number }>) {
   const migrations = fileURLToPath(new URL("../../drizzle", import.meta.url));
   const { db, sqlite } = runMigrations(":memory:", migrations);
   db.insert(libraries).values({ id: 1, name: "Movies", path: "/movies", type: "movies" }).run();
@@ -13,6 +13,21 @@ function testCatalog(items: Array<{ title: string; overview?: string }>) {
     .run();
   return { db, sqlite };
 }
+
+it.each([undefined, "tv"] as const)("keeps all exact-title remakes ahead of partial matches (mode: %s)", async (mode) => {
+  const { db, sqlite } = testCatalog([
+    ...Array.from({ length: 26 }, (_, index) => ({ title: `Beyond Little Women ${index}` })),
+    { title: "Little Women", year: 1994 },
+    { title: "Little Women", year: 2019 },
+  ]);
+  try {
+    const results = await searchCatalog(db, "Little Women", mode);
+    expect(results.slice(0, 2).map(({ year }) => year)).toEqual([1994, 2019]);
+    expect(results[0].id).not.toBe(results[1].id);
+  } finally {
+    sqlite.close();
+  }
+});
 
 describe("TV catalog search", () => {
   it("ranks exact and prefix matches ahead of substring matches before cutting off at 24", async () => {

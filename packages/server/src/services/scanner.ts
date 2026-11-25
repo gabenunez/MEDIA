@@ -68,6 +68,16 @@ function isMissingFile(filePath: string): boolean {
 
 type VideoFileStats = { fileSize: number; fileMtimeMs: number };
 type VideoProbe = Awaited<ReturnType<typeof probeFile>>;
+type MediaType = typeof mediaItems.$inferSelect["type"];
+
+function parseMoviePath(filePath: string) {
+  const parsed = parseMovieFilename(path.basename(filePath));
+  if (parsed.year != null) return parsed;
+  const folder = parseMovieFilename(`${path.basename(path.dirname(filePath))}.mkv`);
+  return folder.title.toLowerCase() === parsed.title.toLowerCase()
+    ? { ...parsed, year: folder.year }
+    : parsed;
+}
 
 function videoMetadata(probe: VideoProbe) {
   return {
@@ -410,6 +420,9 @@ export class ScannerService {
 
     try {
       const files = await this.collectVideoFiles(lib.path);
+      const pathsSeen = new Set(files);
+      const checkDatesAfterImport = pathsSeen.size > 0 && isSameLibraryRoot(root) &&
+        await this.reconcileDatedTitles(lib, pathsSeen);
       let processed = 0;
 
       for (const filePath of files) {
@@ -420,6 +433,12 @@ export class ScannerService {
           .update(scanJobs)
           .set({ progress, message: `Processed ${processed}/${files.length} files` })
           .where(eq(scanJobs.id, job.id));
+      }
+
+      // Import can rediscover an episode dropped by an older dedupe and give
+      // us the second source year needed to identify a previously merged row.
+      if (checkDatesAfterImport && isSameLibraryRoot(root)) {
+        await this.reconcileDatedTitles(lib, pathsSeen);
       }
 
       await this.db
@@ -447,7 +466,7 @@ export class ScannerService {
       // An unmounted volume can expose an empty directory during a startup
       // scan. A manual scan or a watcher on the original directory can clear it.
       if ((files.length > 0 || options.reconcileEmpty) && isSameLibraryRoot(root)) {
-        await this.reconcileRemovals(libraryId, this.unseenFiles(libraryId, new Set(files)),
+        await this.reconcileRemovals(libraryId, this.unseenFiles(libraryId, pathsSeen),
           () => isSameLibraryRoot(root), true);
       }
 
@@ -618,7 +637,7 @@ export class ScannerService {
     });
 
     const parsed = file
-      ? parseMovieFilename(path.basename(file.filePath))
+      ? parseMoviePath(file.filePath)
       : { title: item.title, year: item.year ?? undefined, rawFilename: "" };
 
     const { match, confidence } = await this.metadata.searchMovie(
@@ -639,9 +658,9 @@ export class ScannerService {
         title: match.title,
         originalTitle: match.original_title ?? null,
         overview: match.overview ?? null,
-        year: match.release_date
+        year: parsed.year ?? (match.release_date
           ? parseInt(match.release_date.slice(0, 4), 10)
-          : parsed.year ?? item.year ?? null,
+          : item.year ?? null),
         posterPath,
         backdropPath,
         genres: match.genres?.map((g) => g.name).join(", ") ?? null,
@@ -659,6 +678,7 @@ export class ScannerService {
     item: typeof mediaItems.$inferSelect,
   ): Promise<boolean> {
     let showName = item.title;
+    let showYear = item.year ?? undefined;
     const lib = await this.db.query.libraries.findFirst({
       where: eq(libraries.id, item.libraryId),
     });
@@ -677,12 +697,13 @@ export class ScannerService {
         const parsed = parseEpisodeFromPath(episode.filePath, lib.path);
         if (parsed?.showName) {
           showName = parsed.showName;
+          showYear = parsed.showYear ?? showYear;
           break;
         }
       }
     }
 
-    const { match, confidence } = await this.metadata.searchTv(showName);
+    const { match, confidence } = await this.metadata.searchTv(showName, showYear);
     if (!match) return false;
 
     const posterPath = await this.metadata.cachePoster(match.poster_path);
@@ -695,9 +716,9 @@ export class ScannerService {
         title: match.name,
         originalTitle: match.original_name ?? null,
         overview: match.overview ?? null,
-        year: match.first_air_date
+        year: showYear ?? (match.first_air_date
           ? parseInt(match.first_air_date.slice(0, 4), 10)
-          : item.year ?? null,
+          : null),
         posterPath,
         backdropPath,
         genres: match.genres?.map((g) => g.name).join(", ") ?? null,
@@ -974,7 +995,7 @@ export class ScannerService {
       return;
     }
 
-    const parsed = parseMovieFilename(path.basename(filePath));
+    const parsed = parseMoviePath(filePath);
     const mediaItemId = await this.ensureMovieMediaItem(lib.id, parsed);
 
     const files = await this.db.query.movieFiles.findMany({
@@ -1001,19 +1022,10 @@ export class ScannerService {
 
   private async ensureMovieMediaItem(
     libraryId: number,
-    parsed: ReturnType<typeof parseMovieFilename>,
+    parsed: Pick<ReturnType<typeof parseMovieFilename>, "title" | "year">,
   ): Promise<number> {
     return this.withChainLock(this.mediaCreateChain, `${libraryId}:movie:${parsed.title.toLowerCase()}`, async () => {
-      const inLibrary = and(eq(mediaItems.libraryId, libraryId), eq(mediaItems.type, "movie"));
-      const candidates = await this.db.query.mediaItems.findMany({
-        where: and(inLibrary, sql`lower(${mediaItems.title}) = lower(${parsed.title})`),
-        columns: { id: true, year: true },
-      });
-      const exactYear = parsed.year == null
-        ? undefined
-        : candidates.find((item) => item.year === parsed.year);
-      const onlyCandidate = candidates.length === 1 ? candidates[0] : undefined;
-      const existing = exactYear ?? (parsed.year == null || onlyCandidate?.year == null ? onlyCandidate : undefined);
+      const existing = await this.findMediaItemByTitle(libraryId, "movie", parsed.title, parsed.year);
       if (existing) return existing.id;
 
       const { match, confidence } = await this.metadata.searchMovie(
@@ -1021,10 +1033,7 @@ export class ScannerService {
         parsed.year,
       );
       if (match) {
-        const byTmdb = await this.db.query.mediaItems.findFirst({
-          where: and(inLibrary, eq(mediaItems.tmdbId, match.id)),
-          columns: { id: true },
-        });
+        const byTmdb = await this.findMediaItemByTmdb(libraryId, "movie", match.id, parsed.year);
         if (byTmdb) return byTmdb.id;
       }
 
@@ -1044,9 +1053,9 @@ export class ScannerService {
           title: match?.title ?? parsed.title,
           originalTitle: match?.original_title ?? null,
           overview: match?.overview ?? null,
-          year: match?.release_date
+          year: parsed.year ?? (match?.release_date
             ? parseInt(match.release_date.slice(0, 4), 10)
-            : parsed.year ?? null,
+            : null),
           posterPath,
           backdropPath,
           type: "movie",
@@ -1061,32 +1070,33 @@ export class ScannerService {
     });
   }
 
-  /** Find a TV show by folder name or TMDB id (stored title may differ after metadata match). */
-  private async findTvMediaItem(
+  private async findMediaItemByTitle(
     libraryId: number,
-    showName: string,
-    tmdbId?: number | null,
+    type: MediaType,
+    title: string,
+    year?: number,
   ) {
-    const byFolderName = await this.db.query.mediaItems.findFirst({
+    const candidates = await this.db.query.mediaItems.findMany({
       where: and(
         eq(mediaItems.libraryId, libraryId),
-        eq(mediaItems.type, "tv"),
-        eq(mediaItems.title, showName),
+        eq(mediaItems.type, type),
+        sql`lower(${mediaItems.title}) = lower(${title})`,
+        year == null ? undefined : eq(mediaItems.year, year),
       ),
     });
-    if (byFolderName) return byFolderName;
+    if (year != null || candidates.length === 1) return candidates[0];
+    return candidates.find((item) => item.year == null);
+  }
 
-    if (tmdbId) {
-      return this.db.query.mediaItems.findFirst({
-        where: and(
-          eq(mediaItems.libraryId, libraryId),
-          eq(mediaItems.type, "tv"),
-          eq(mediaItems.tmdbId, tmdbId),
-        ),
-      });
-    }
-
-    return undefined;
+  private async findMediaItemByTmdb(libraryId: number, type: MediaType, tmdbId: number, year?: number) {
+    return this.db.query.mediaItems.findFirst({
+      where: and(
+        eq(mediaItems.libraryId, libraryId),
+        eq(mediaItems.type, type),
+        eq(mediaItems.tmdbId, tmdbId),
+        year == null ? undefined : eq(mediaItems.year, year),
+      ),
+    });
   }
 
   /**
@@ -1097,22 +1107,19 @@ export class ScannerService {
   private async ensureTvMediaItem(
     libraryId: number,
     showName: string,
+    year?: number,
   ): Promise<typeof mediaItems.$inferSelect> {
     return this.withChainLock(
       this.mediaCreateChain,
       `${libraryId}:${showName.toLowerCase()}`,
       async () => {
-        const byFolderName = await this.findTvMediaItem(libraryId, showName);
+        const byFolderName = await this.findMediaItemByTitle(libraryId, "tv", showName, year);
         if (byFolderName) return byFolderName;
 
-        const { match, confidence } = await this.metadata.searchTv(showName);
+        const { match, confidence } = await this.metadata.searchTv(showName, year);
 
         if (match) {
-          const byTmdb = await this.findTvMediaItem(
-            libraryId,
-            showName,
-            match.id,
-          );
+          const byTmdb = await this.findMediaItemByTmdb(libraryId, "tv", match.id, year);
           if (byTmdb) return byTmdb;
         }
 
@@ -1131,9 +1138,9 @@ export class ScannerService {
             title: match?.name ?? showName,
             originalTitle: match?.original_name ?? null,
             overview: match?.overview ?? null,
-            year: match?.first_air_date
+            year: year ?? (match?.first_air_date
               ? parseInt(match.first_air_date.slice(0, 4), 10)
-              : null,
+              : null),
             posterPath,
             backdropPath,
             type: "tv",
@@ -1162,9 +1169,8 @@ export class ScannerService {
 
     const groups = new Map<string, (typeof items)[number][]>();
     for (const item of items) {
-      const key = item.tmdbId
-        ? `${item.libraryId}:tmdb:${item.tmdbId}`
-        : `${item.libraryId}:title:${item.title.toLowerCase()}`;
+      const identity = item.tmdbId ? `tmdb:${item.tmdbId}` : `title:${item.title.toLowerCase()}`;
+      const key = `${item.libraryId}:${identity}:${item.year ?? ""}`;
       const group = groups.get(key) ?? [];
       group.push(item);
       groups.set(key, group);
@@ -1329,7 +1335,7 @@ export class ScannerService {
       return;
     }
 
-    const mediaItem = await this.ensureTvMediaItem(lib.id, parsed.showName);
+    const mediaItem = await this.ensureTvMediaItem(lib.id, parsed.showName, parsed.showYear);
 
     const season = await this.ensureTvSeason(
       mediaItem.id,
@@ -1337,33 +1343,109 @@ export class ScannerService {
       mediaItem.tmdbId,
     );
 
-    const episodeMeta = mediaItem.tmdbId
-      ? (await this.metadata.getTvSeason(mediaItem.tmdbId, parsed.season))
-          ?.episodes?.find((e) => e.episode_number === parsed.episode)
-      : null;
-
-    const stillPath = episodeMeta?.still_path
-      ? await this.metadata.cachePoster(episodeMeta.still_path)
-      : null;
-
     const [episode] = await this.db
       .insert(tvEpisodes)
       .values({
         seasonId: season.id,
         episodeNumber: parsed.episode,
-        title: episodeMeta?.name ?? `Episode ${parsed.episode}`,
-        overview: episodeMeta?.overview ?? null,
         filePath,
         ...stats,
         ...videoMetadata(probe),
-        stillPath,
-        airDate: episodeMeta?.air_date ?? null,
+        ...await this.getEpisodeMetadata(mediaItem.tmdbId, parsed.season, parsed.episode),
       })
       .returning();
 
     // Recently Added ranks the show by its original import, not by episode scans.
     this.scheduleCatalogRevalidate(mediaItem.id);
     await this.subtitles.discoverForEpisode(episode.id, filePath, probe);
+  }
+
+  private async getEpisodeMetadata(tmdbId: number | null, season: number, episode: number) {
+    const metadata = tmdbId
+      ? (await this.metadata.getTvSeason(tmdbId, season))?.episodes?.find((e) => e.episode_number === episode)
+      : undefined;
+    return {
+      title: metadata?.name ?? `Episode ${episode}`,
+      overview: metadata?.overview ?? null,
+      stillPath: metadata?.still_path ? await this.metadata.cachePoster(metadata.still_path) : null,
+      airDate: metadata?.air_date ?? null,
+    };
+  }
+
+  /** Repair older scans that grouped clearly dated releases under one title. */
+  private async reconcileDatedTitles(lib: typeof libraries.$inferSelect, pathsSeen: Set<string>): Promise<boolean> {
+    type CatalogFile = {
+      id: number;
+      filePath: string;
+      mediaId: number;
+      year: number | null;
+      tmdbId: number | null;
+    } & ({ seasonId?: undefined } | { seasonId: number; season: number; episode: number });
+    const owner = { mediaId: mediaItems.id, year: mediaItems.year, tmdbId: mediaItems.tmdbId };
+    const files: CatalogFile[] = lib.type === "movies"
+      ? this.db.select({ ...owner, id: movieFiles.id, filePath: movieFiles.filePath }).from(movieFiles)
+        .innerJoin(mediaItems, eq(mediaItems.id, movieFiles.mediaItemId))
+        .where(eq(mediaItems.libraryId, lib.id)).orderBy(movieFiles.id).all()
+      : this.db.select({
+          ...owner, id: tvEpisodes.id, filePath: tvEpisodes.filePath,
+          seasonId: tvSeasons.id, season: tvSeasons.seasonNumber, episode: tvEpisodes.episodeNumber,
+        }).from(tvEpisodes)
+        .innerJoin(tvSeasons, eq(tvSeasons.id, tvEpisodes.seasonId))
+        .innerJoin(mediaItems, eq(mediaItems.id, tvSeasons.mediaItemId))
+        .where(eq(mediaItems.libraryId, lib.id)).orderBy(tvEpisodes.id).all();
+
+    type DatedSource = { file: CatalogFile; title: string; year: number };
+    const sourcesByOwner = new Map<number, DatedSource[]>();
+    for (const file of files) {
+      if (!pathsSeen.has(file.filePath)) continue;
+      const parsed = file.seasonId != null ? parseEpisodeFromPath(file.filePath, lib.path) : parseMoviePath(file.filePath);
+      if (!parsed) continue;
+      const { title, year } = "showName" in parsed ? { title: parsed.showName, year: parsed.showYear } : parsed;
+      if (year == null) continue;
+      const sources = sourcesByOwner.get(file.mediaId) ?? [];
+      sources.push({ file, title, year });
+      sourcesByOwner.set(file.mediaId, sources);
+    }
+
+    let checkDatesAfterImport = false;
+    for (const [mediaId, sources] of sourcesByOwner) {
+      const [first] = sources;
+      const keeperYear = first.file.year ?? (first.file.tmdbId == null ? first.year : null);
+      // Keep the original entry and its state when a source confirms its year.
+      // A single contradictory year could be a deliberate manual match.
+      if (sources.some(({ title }) => title.toLowerCase() !== first.title.toLowerCase())) continue;
+      if (!sources.some(({ year }) => year === keeperYear)) {
+        checkDatesAfterImport = true;
+        continue;
+      }
+
+      if (first.file.year == null) {
+        this.db.update(mediaItems).set({ year: keeperYear })
+          .where(and(eq(mediaItems.id, mediaId), isNull(mediaItems.year), isNull(mediaItems.tmdbId))).run();
+        this.scheduleCatalogRevalidate(mediaId);
+      }
+
+      for (const { file, title, year } of sources) {
+        if (year === keeperYear) continue;
+        let destinationId: number;
+        if (file.seasonId != null) {
+          const show = await this.ensureTvMediaItem(lib.id, title, year);
+          const season = await this.ensureTvSeason(show.id, file.season, show.tmdbId);
+          this.db.update(tvEpisodes).set({
+            seasonId: season.id,
+            ...await this.getEpisodeMetadata(show.tmdbId, file.season, file.episode),
+          }).where(and(eq(tvEpisodes.id, file.id), eq(tvEpisodes.seasonId, file.seasonId))).run();
+          destinationId = show.id;
+        } else {
+          destinationId = await this.ensureMovieMediaItem(lib.id, { title, year });
+          this.db.update(movieFiles).set({ mediaItemId: destinationId })
+            .where(and(eq(movieFiles.id, file.id), eq(movieFiles.mediaItemId, mediaId))).run();
+        }
+        this.scheduleCatalogRevalidate(mediaId);
+        this.scheduleCatalogRevalidate(destinationId);
+      }
+    }
+    return checkDatesAfterImport;
   }
 
   private unseenFiles(libraryId: number, pathsSeen: Set<string>): string[] {

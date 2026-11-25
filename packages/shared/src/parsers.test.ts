@@ -29,6 +29,12 @@ describe("parseMovieFilename", () => {
       rawFilename: "Dune.2021.2160p.BluRay.x265.mkv",
     });
   });
+
+  it("keeps years that are part of the title when a release year follows", () => {
+    expect(parseMovieFilename("Blade Runner 2049 (2017).mkv")).toMatchObject({
+      title: "Blade Runner 2049", year: 2017,
+    });
+  });
 });
 
 describe("file type helpers", () => {
@@ -67,6 +73,17 @@ describe("parseEpisodeFromPath", () => {
     expect(
       parseEpisodeFromPath("/media/tv/Breaking Bad/Season 01/pilot.mkv", libraryRoot),
     ).toBeNull();
+  });
+
+  it.each([
+    "Little Women (2017)/Season 01/Little.Women.S01E02.mkv",
+    "Little Women [2017]/Little.Women.S01E02.mkv",
+    "Little Women/Little.Women.2017.S01E02.mkv",
+    "Little.Women.2017.S01E02.mkv",
+  ])("preserves the premiere year in %s", (relativePath) => {
+    expect(parseEpisodeFromPath(`${libraryRoot}/${relativePath}`, libraryRoot)).toMatchObject({
+      showName: "Little Women", showYear: 2017, season: 1, episode: 2,
+    });
   });
 });
 

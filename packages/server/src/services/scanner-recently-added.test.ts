@@ -11,6 +11,7 @@ import type { ConfigManager } from "../config.js";
 import { runMigrations, type DatabaseInstance } from "../db/index.js";
 import { favorites, libraries, mediaItems, movieFiles, subtitles, tvEpisodes, tvSeasons, watchProgress } from "../db/schema.js";
 import { probeFile } from "../utils/ffmpeg.js";
+import { searchCatalog } from "./catalog-search.js";
 import { listRecentlyAdded } from "./home-rows.js";
 import { MetadataService } from "./metadata.js";
 import { ScannerService } from "./scanner.js";
@@ -123,6 +124,61 @@ describe("Catalog changes when videos are replaced or removed", () => {
     expect(await db.query.movieFiles.findMany({ where: eq(movieFiles.mediaItemId, 1) }))
       .toMatchObject([{ id: 7, mediaItemId: 1, filePath: upgraded }]);
     expect(await db.query.favorites.findFirst()).toMatchObject({ mediaItemId: 1 });
+  });
+
+  it("shows each movie remake once, including old imports and year-labeled movie folders", async () => {
+    db.insert(mediaItems).values({ id: 1, libraryId: 1, title: "Little Women", year: 2019, type: "movie" }).run();
+    db.insert(movieFiles).values([
+      { id: 7, mediaItemId: 1, filePath: writeMovie("Little Women (2019).mkv", "2019") },
+      { id: 8, mediaItemId: 1, filePath: writeMovie("Little Women (1994).mkv", "1994") },
+    ]).run();
+    db.insert(watchProgress).values({ itemType: "movie", itemId: 8, positionMs: 3000 }).run();
+    writeMovie("Little.Women.1994.1080p.mkv", "another copy");
+    fs.mkdirSync(path.join(dir, "Little Women (1933)"));
+    writeMovie("Little Women (1933)/Little Women.mkv", "1933");
+
+    await scanner.scanLibrary(1);
+
+    const items = await searchCatalog(db, "Little Women");
+    expect(items.map(({ year }) => year).sort()).toEqual([1933, 1994, 2019]);
+    const remake = items.find(({ year }) => year === 1994)!;
+    const copies = await db.query.movieFiles.findMany({ where: eq(movieFiles.mediaItemId, remake.id) });
+    expect(copies).toHaveLength(2);
+    expect(copies).toContainEqual(expect.objectContaining({ id: 8 }));
+    expect(await db.query.watchProgress.findFirst()).toMatchObject({ itemId: 8, positionMs: 3000 });
+  });
+
+  it.each([null, 2017])("recovers both TV adaptations on rescan from a legacy entry with year %s", async (legacyYear) => {
+    writeMovie("Little Women (2019).mkv", "the movie");
+    await scanner.scanLibrary(1);
+
+    const tvDir = path.join(dir, "TV");
+    for (const year of [1978, 2017]) {
+      fs.mkdirSync(path.join(tvDir, `Little Women (${year})`), { recursive: true });
+    }
+    db.insert(libraries).values({ id: 2, name: "TV", type: "tv", path: tvDir }).run();
+    db.insert(mediaItems).values({ id: 2, libraryId: 2, title: "Little Women", year: legacyYear, type: "tv" }).run();
+    db.insert(tvSeasons).values({ id: 1, mediaItemId: 2, seasonNumber: 1 }).run();
+    const firstEpisode = (year: number) => writeMovie(`TV/Little Women (${year})/Little.Women.S01E01.mkv`, `${year}`);
+    db.insert(tvEpisodes).values({ id: 7, seasonId: 1, episodeNumber: 1, filePath: firstEpisode(1978) }).run();
+    const otherPath = firstEpisode(2017);
+    if (legacyYear == null) {
+      db.insert(tvEpisodes).values({ id: 8, seasonId: 1, episodeNumber: 1, filePath: otherPath }).run();
+    }
+    writeMovie("TV/Little Women (2017)/Little.Women.S01E02.mkv", "2017 episode 2");
+
+    await scanner.scanLibrary(2);
+
+    const results = await searchCatalog(db, "Little Women", "tv");
+    expect(results.map(({ type, year }) => `${type}:${year}`).sort()).toEqual(["movie:2019", "tv:1978", "tv:2017"]);
+    const episodes = db.select({ id: tvEpisodes.id, year: mediaItems.year, number: tvEpisodes.episodeNumber })
+      .from(tvEpisodes).innerJoin(tvSeasons, eq(tvEpisodes.seasonId, tvSeasons.id))
+      .innerJoin(mediaItems, eq(tvSeasons.mediaItemId, mediaItems.id)).orderBy(tvEpisodes.id).all();
+    expect(episodes).toMatchObject([
+      { id: 7, year: 1978, number: 1 },
+      { id: 8, year: 2017, number: 1 },
+      { year: 2017, number: 2 },
+    ]);
   });
 
   it("keeps a show's original date when an episode is replaced or newly discovered", async () => {

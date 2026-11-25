@@ -18,6 +18,15 @@ function cleanShowName(name: string): string {
     .trim();
 }
 
+function parseShowIdentity(name: string): Pick<ParsedEpisode, "showName" | "showYear"> {
+  const year = name.match(/(?:\(((?:19|20)\d{2})\)|\[((?:19|20)\d{2})\]|[\s._-]+((?:19|20)\d{2}))\s*$/);
+  if (year?.index !== undefined) {
+    const showName = cleanShowName(name.slice(0, year.index));
+    if (showName) return { showName, showYear: Number(year[1] ?? year[2] ?? year[3]) };
+  }
+  return { showName: cleanShowName(name) };
+}
+
 export function parseEpisodeFromPath(
   filePath: string,
   libraryRoot: string,
@@ -34,6 +43,7 @@ export function parseEpisodeFromPath(
 
   let season: number | undefined;
   let episode: number | undefined;
+  let episodeTitle = "";
 
   for (const part of parts) {
     const seasonMatch = part.match(SEASON_FOLDER_PATTERN);
@@ -46,6 +56,7 @@ export function parseEpisodeFromPath(
   for (const pattern of EPISODE_PATTERNS) {
     const match = filename.match(pattern);
     if (match) {
+      episodeTitle = filename.slice(0, match.index).replace(/[\s._-]+$/, "");
       if (match.length >= 3 && match[1] && match[2]) {
         season = season ?? parseInt(match[1], 10);
         episode = parseInt(match[2], 10);
@@ -58,15 +69,17 @@ export function parseEpisodeFromPath(
 
   if (episode === undefined) return null;
 
-  const showName =
-    parts.length >= 2
-      ? cleanShowName(parts[0])
-      : cleanShowName(filename.replace(/\.[^.]+$/, ""));
+  const fromFilename = parseShowIdentity(episodeTitle);
+  const show = parts.length >= 2 ? parseShowIdentity(parts[0]) : fromFilename;
+  if (show.showYear == null && fromFilename.showYear != null &&
+      show.showName.toLowerCase() === fromFilename.showName.toLowerCase()) {
+    show.showYear = fromFilename.showYear;
+  }
 
-  if (!showName) return null;
+  if (!show.showName) return null;
 
   return {
-    showName,
+    ...show,
     season: season ?? 1,
     episode,
     rawFilename: filename,
