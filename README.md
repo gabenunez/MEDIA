@@ -81,7 +81,7 @@ MEDIA! connects to a few external services. All API keys are optional except TMD
 
 **Also built in:** FFmpeg transcoding (HLS remux/transcode), embedded subtitle tracks, local `theme.mp3` files in media folders, and TV-mode web UI for browsers and the Android TV shell.
 
-The server fills in missing timeline and chapter previews for movies and episodes while playback is idle. It processes one file at a time and caches compact sprites (WebP when available, JPEG otherwise). A title may not have previews on its first play while the library is still being processed.
+The server fills in missing timeline and chapter previews while playback is idle, starting with the most recently added movies and episodes. It processes one file at a time and caches compact sprites (WebP when available, JPEG otherwise). A title may not have previews on its first play while the library is still being processed.
 
 ## Android TV app
 

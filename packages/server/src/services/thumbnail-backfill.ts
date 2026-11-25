@@ -1,7 +1,7 @@
 import fs from "node:fs";
-import { gt } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import type { DatabaseInstance } from "../db/index.js";
-import { movieFiles, tvEpisodes } from "../db/schema.js";
+import { mediaItems, movieFiles, tvEpisodes } from "../db/schema.js";
 import { probeFile } from "../utils/ffmpeg.js";
 import {
   ensureThumbnailSprite,
@@ -17,6 +17,7 @@ type Source = {
   durationMs?: number | null;
 };
 type Candidate = Source & { type: FileType };
+type SweepCursor = Pick<Candidate, "type" | "id"> & { addedAt: number };
 
 const TICK_MS = 3_000;
 const PLAYBACK_LEASE_MS = 90_000;
@@ -41,8 +42,8 @@ export class ThumbnailBackfill {
   private openStreams = 0;
   private streamActiveUntil = 0;
   private nextSweepAt = 0;
-  private cursors: Record<FileType, number | null> = { movie: 0, episode: 0 };
-  private nextType: FileType = "movie";
+  private sweepCursor: SweepCursor | null = null;
+  private sweepPage: Candidate[] = [];
 
   constructor(
     private readonly db: DatabaseInstance,
@@ -98,6 +99,12 @@ export class ThumbnailBackfill {
     }
   }
 
+  refreshLibraryQueue(): void {
+    this.sweepPage = [];
+    this.sweepCursor = null;
+    this.nextSweepAt = 0;
+  }
+
   isGenerating(type: FileType, id: number): boolean {
     return this.current?.file.id === id &&
       this.current.file.type === type &&
@@ -120,6 +127,35 @@ export class ThumbnailBackfill {
       !getCachedThumbnailPaths(this.paths(file), file.fileMtimeMs);
   }
 
+  private readSweepPage() {
+    const movies = this.db.select({
+      type: sql<FileType>`'movie'`.as("type"),
+      id: movieFiles.id,
+      filePath: movieFiles.filePath,
+      fileMtimeMs: movieFiles.fileMtimeMs,
+      durationMs: movieFiles.durationMs,
+      // Match Recently Added, including upgrades that keep the original file ID.
+      addedAt: sql<number>`coalesce(${mediaItems.recentlyAddedAt}, ${mediaItems.createdAt} * 1000)`.as("added_at"),
+    }).from(movieFiles).innerJoin(mediaItems, eq(movieFiles.mediaItemId, mediaItems.id));
+
+    const episodes = this.db.select({
+      type: sql<FileType>`'episode'`.as("type"),
+      id: tvEpisodes.id,
+      filePath: tvEpisodes.filePath,
+      fileMtimeMs: tvEpisodes.fileMtimeMs,
+      durationMs: tvEpisodes.durationMs,
+      // New episodes of older shows should get previews before the backlog too.
+      addedAt: sql<number>`${tvEpisodes.createdAt} * 1000`.as("added_at"),
+    }).from(tvEpisodes);
+
+    const files = movies.unionAll(episodes).as("preview_sources");
+    const cursor = this.sweepCursor;
+    return this.db.select().from(files)
+      .where(cursor ? sql`(${files.addedAt}, ${files.type}, ${files.id}) < (${cursor.addedAt}, ${cursor.type}, ${cursor.id})` : undefined)
+      .orderBy(desc(files.addedAt), desc(files.type), desc(files.id))
+      .limit(PAGE_SIZE).all();
+  }
+
   private nextCandidate(now: number): Candidate | null {
     if (this.interrupted) {
       const file = this.interrupted;
@@ -133,30 +169,18 @@ export class ThumbnailBackfill {
     }
 
     if (now < this.nextSweepAt) return null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const type = this.nextType;
-      this.nextType = type === "movie" ? "episode" : "movie";
-      const cursor = this.cursors[type];
-      if (cursor === null) continue;
-
-      const table = type === "movie" ? movieFiles : tvEpisodes;
-      const rows = this.db.select({
-        id: table.id,
-        filePath: table.filePath,
-        fileMtimeMs: table.fileMtimeMs,
-        durationMs: table.durationMs,
-      }).from(table).where(gt(table.id, cursor)).orderBy(table.id).limit(PAGE_SIZE).all();
-
-      for (const row of rows) {
-        this.cursors[type] = row.id;
-        const file = { type, ...row };
-        if (this.needsPreview(file, now)) return file;
+    if (this.sweepPage.length === 0) {
+      const rows = this.readSweepPage();
+      this.sweepCursor = rows.at(-1) ?? null;
+      if (this.sweepCursor === null) {
+        this.nextSweepAt = now + RETRY_MS;
+        return null;
       }
-      if (rows.length < PAGE_SIZE) this.cursors[type] = null;
+      this.sweepPage = rows.reverse();
     }
-    if (this.cursors.movie === null && this.cursors.episode === null) {
-      this.cursors = { movie: 0, episode: 0 };
-      this.nextSweepAt = now + RETRY_MS;
+    while (this.sweepPage.length > 0) {
+      const file = this.sweepPage.pop()!;
+      if (this.needsPreview(file, now)) return file;
     }
     return null;
   }

@@ -54,13 +54,14 @@ async function main() {
   const metadata = new MetadataService(configManager);
   const subtitles = new SubtitleService(db, config);
   const themes = new ThemeService(db, configManager, metadata);
-  const scanner = new ScannerService(db, configManager, metadata, subtitles, themes);
   const auth = new AuthService(configManager);
 
   const app = Fastify({ logger: true, trustProxy: TRUSTED_PROXIES });
   const thumbnailBackfill = new ThumbnailBackfill(db, config.transcoding.cache_dir, {
     onError: (err) => app.log.error(err, "Thumbnail backfill failed"),
   });
+  const scanner = new ScannerService(db, configManager, metadata, subtitles, themes,
+    () => thumbnailBackfill.refreshLibraryQueue());
 
   // Chromecast's default receiver requires ACAO: * and must not see
   // Access-Control-Allow-Credentials. The web app is same-origin, so cookie'd

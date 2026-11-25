@@ -24,11 +24,11 @@ export function SeekPreviewTooltip({
   variant = "floating",
   maxThumbWidth = 224,
 }: SeekPreviewTooltipProps) {
+  const scale = cue ? Math.min(1, maxThumbWidth / cue.width) : 1;
+  const displayWidth = cue ? Math.round(cue.width * scale) : 0;
   const previewBody =
     cue && spriteUrl ? (
       (() => {
-        const scale = Math.min(1, maxThumbWidth / cue.width);
-        const displayWidth = Math.round(cue.width * scale);
         const displayHeight = Math.round(cue.height * scale);
 
         return (
@@ -77,10 +77,23 @@ export function SeekPreviewTooltip({
     );
   }
 
+  const position = Math.max(0, Math.min(100, percent));
+  const floatingStyle = cue && spriteUrl
+    ? {
+        // Center on the seek point until the complete image hits a timeline edge.
+        left: `clamp(0px, calc(${position}% - ${displayWidth / 2}px), calc(100% - ${displayWidth}px))`,
+        width: displayWidth,
+      }
+    : {
+        // Keep the variable-width timestamp and chapter label inside the track too.
+        left: `${position}%`,
+        transform: `translateX(-${position}%)`,
+        width: "max-content",
+      };
   return (
     <div
-      className="pointer-events-none absolute bottom-full z-20 mb-2 -translate-x-1/2"
-      style={{ left: `${percent}%` }}
+      className="pointer-events-none absolute bottom-full z-20 mb-2 max-w-full"
+      style={floatingStyle}
     >
       {previewBody}
     </div>

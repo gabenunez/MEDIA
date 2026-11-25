@@ -136,6 +136,7 @@ export class ScannerService {
     private metadata: MetadataService,
     private subtitles: SubtitleService,
     private themes: ThemeService,
+    private readonly onVideoSourceChanged?: () => void,
   ) {}
 
   private get config() {
@@ -971,6 +972,7 @@ export class ScannerService {
     await this.db.update(mediaItems)
       .set({ recentlyAddedAt: new Date() })
       .where(eq(mediaItems.id, mediaItemId));
+    this.onVideoSourceChanged?.();
   }
 
   private async processMovieFile(
@@ -1319,6 +1321,7 @@ export class ScannerService {
         await this.db.update(tvEpisodes).set(values).where(eq(tvEpisodes.id, existing.id));
       }
       if (replaced) {
+        this.onVideoSourceChanged?.();
         const season = await this.db.query.tvSeasons.findFirst({
           where: eq(tvSeasons.id, existing.seasonId),
           columns: { mediaItemId: true },
@@ -1355,6 +1358,7 @@ export class ScannerService {
       })
       .returning();
 
+    this.onVideoSourceChanged?.();
     // Recently Added ranks the show by its original import, not by episode scans.
     this.scheduleCatalogRevalidate(mediaItem.id);
     await this.subtitles.discoverForEpisode(episode.id, filePath, probe);

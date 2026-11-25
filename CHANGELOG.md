@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.344 — 2026-11-25
+
+### Fix
+
+- **Release** — Keep seek previews on screen and prioritize new imports
+- Seek thumbnails stay fully visible when scrubbing near the start or end of a video on TV and web.
+- While playback is idle, the server generates missing previews for the newest movies and episodes first. New imports move ahead of the backlog.
+
 ## 0.1.343 — 2026-11-25
 
 ### Changes
