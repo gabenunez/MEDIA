@@ -9,6 +9,7 @@ import type Hls from "hls.js";
 import {
   ArrowLeft,
   Info,
+  ListVideo,
   Loader2,
   Maximize,
   Minimize,
@@ -64,6 +65,8 @@ import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { WatchControlHint } from "@/components/watch-control-hint";
+import { WatchChapterMarkers, WatchChaptersPanel } from "@/components/watch-chapters";
+import { activeWatchChapterIndex } from "@/lib/watch-chapters";
 import { prefetchWatchExitTarget, warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
@@ -159,6 +162,7 @@ function WatchDesktopClient() {
   const usingHlsRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const chaptersButtonRef = useRef<HTMLButtonElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const hlsStartOffsetRef = useRef(0);
   const lastStableAbsoluteSecondsRef = useRef(0);
@@ -208,6 +212,7 @@ function WatchDesktopClient() {
   const [sourceWidth, setSourceWidth] = useState<number | null>(null);
   const [transcodingEnabled, setTranscodingEnabled] = useState(true);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const [chapterMenuOpen, setChapterMenuOpen] = useState(false);
   const [buffering, setBuffering] = useState(false);
   const [bufferingMidPlayback, setBufferingMidPlayback] = useState(false);
   const [bufferedRanges, setBufferedRanges] = useState<Array<{ start: number; end: number }>>(
@@ -282,6 +287,7 @@ function WatchDesktopClient() {
     // while the next item's stream info is still loading.
     setBoundWatchItemKey(watchItemKey);
     setStreamInfo(null);
+    setChapterMenuOpen(false);
     setInitialResumeSeconds(null);
     setPlaybackHasBegun(false);
     playbackCompletedRef.current = false;
@@ -374,7 +380,7 @@ function WatchDesktopClient() {
 
   useDocumentTitle(title || null);
 
-  const desktopWatchPanelOpen = watchMenuOpen({
+  const desktopWatchPanelOpen = chapterMenuOpen || watchMenuOpen({
     subtitleMenuOpen,
     qualityMenuOpen,
     volumeMenuOpen,
@@ -1393,6 +1399,14 @@ function WatchDesktopClient() {
   });
   const totalDurationSeconds =
     absoluteDurationMs > 0 ? absoluteDurationMs / 1000 : 0;
+  const chapters = streamInfo?.chapters ?? [];
+  const currentChapterIndex = activeWatchChapterIndex(chapters,
+    Math.round((optimisticAbsoluteSeconds ?? absoluteCurrentTime) * 1000));
+  const currentChapter = chapters[currentChapterIndex];
+  const canOpenChapters = chapters.length > 0 && totalDurationSeconds > 0 && !error && !countdown;
+  useEffect(() => {
+    if (!canOpenChapters) setChapterMenuOpen(false);
+  }, [canOpenChapters]);
   const progress =
     absoluteDurationMs > 0 ? (absoluteCurrentTime * 1000) / absoluteDurationMs * 100 : 0;
   const optimisticProgressPercent =
@@ -1497,6 +1511,7 @@ function WatchDesktopClient() {
   const showBufferingBar =
     bufferingMidPlayback && playbackHasBegun && !error && !showInitialLoading;
   const hidePlaybackSubtitles =
+    chapterMenuOpen ||
     qualityMenuOpen ||
     volumeMenuOpen ||
     subtitleSearchOpen ||
@@ -1551,6 +1566,7 @@ function WatchDesktopClient() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (chapterMenuOpen || e.defaultPrevented) return;
       const target = e.target as HTMLElement;
       if (
         target.tagName === "INPUT" ||
@@ -1585,7 +1601,7 @@ function WatchDesktopClient() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay, absoluteCurrentTime, optimisticAbsoluteSeconds]);
+  }, [togglePlay, absoluteCurrentTime, optimisticAbsoluteSeconds, chapterMenuOpen]);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -1868,6 +1884,27 @@ function WatchDesktopClient() {
 
         <div className="watch-chrome-bottom pointer-events-auto px-4 pb-4 pt-16 sm:px-6 sm:pb-5">
           <div className="mx-auto max-w-7xl">
+            {canOpenChapters && (
+              <button
+                ref={chaptersButtonRef}
+                type="button"
+                className="watch-chapters-trigger"
+                aria-label="Chapters"
+                aria-haspopup="dialog"
+                aria-expanded={chapterMenuOpen}
+                onClick={() => {
+                  setSubtitleMenuOpen(false);
+                  setSubtitleAppearanceOpen(false);
+                  setQualityMenuOpen(false);
+                  setVolumeMenuOpen(false);
+                  setChapterMenuOpen(true);
+                }}
+              >
+                <ListVideo className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>Chapters</span>
+                {currentChapter && <span className="watch-chapters-trigger-title">{currentChapter.title}</span>}
+              </button>
+            )}
             <div className="group/watch-scrub relative mb-3.5 flex items-center gap-3.5 overflow-visible sm:mb-4">
               <div
                 ref={timelineRef}
@@ -1879,6 +1916,7 @@ function WatchDesktopClient() {
                   <SeekPreviewTooltip
                     percent={timelinePreviewPercent ?? 0}
                     timeMs={timelinePreviewMs}
+                    chapterTitle={chapters[activeWatchChapterIndex(chapters, timelinePreviewMs)]?.title}
                     cue={lookupCue(timelinePreviewMs)}
                     spriteUrl={thumbnails?.spriteUrl ?? null}
                   />
@@ -1909,6 +1947,7 @@ function WatchDesktopClient() {
                     )}
                     style={{ width: `${displayedProgress}%` }}
                   />
+                  <WatchChapterMarkers chapters={chapters} durationMs={absoluteDurationMs} activeIndex={currentChapterIndex} />
                   <div
                     className="watch-scrub-playhead"
                     style={{ left: `${Math.min(100, Math.max(0, displayedProgress))}%` }}
@@ -2274,6 +2313,22 @@ function WatchDesktopClient() {
           </div>
         </div>
       </div>
+
+      {chapterMenuOpen && canOpenChapters && (
+        <WatchChaptersPanel
+          chapters={chapters}
+          activeIndex={currentChapterIndex}
+          onClose={() => setChapterMenuOpen(false)}
+          restoreFocus={() => chaptersButtonRef.current?.focus({ preventScroll: true })}
+          onSelect={(chapter) => {
+            setScrubPreview(null);
+            seekToAbsolute(chapter.startMs / 1000);
+            setChapterMenuOpen(false);
+          }}
+          lookupCue={lookupCue}
+          spriteUrl={thumbnails?.spriteUrl ?? null}
+        />
+      )}
 
       <FileDetailsDialog
         open={detailsOpen}

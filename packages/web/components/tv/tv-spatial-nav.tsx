@@ -574,7 +574,7 @@ export function TvSpatialNav({ children }: { children: ReactNode }) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        dispatchWatchRemoteKey(e.key);
+        dispatchWatchRemoteKey(e.key, e);
         return;
       }
 

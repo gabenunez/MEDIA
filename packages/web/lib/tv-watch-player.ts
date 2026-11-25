@@ -25,8 +25,10 @@ export type WatchSkipFeedback = {
   seconds: number;
 };
 
+export type WatchSkipArrowKey = "ArrowLeft" | "ArrowRight";
+
 /** D-pad left/right — the only remote keys that flash skip feedback. */
-export function isWatchRemoteSkipArrowKey(key: string): boolean {
+export function isWatchRemoteSkipArrowKey(key: string): key is WatchSkipArrowKey {
   return key === "ArrowLeft" || key === "ArrowRight";
 }
 

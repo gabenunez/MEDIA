@@ -343,7 +343,7 @@ export async function streamRoutes(
 
       // Probe once — metadata + dynamic range come from the same ffprobe.
       // Avoid double ffprobe (metadata then probe) which magnifies load on seek storms.
-      const probe = await probeFile(file.filePath);
+      const probe = await probeFile(file.filePath, { includeChapters: true });
       const metadata = await resolveStreamMetadata(file, probe);
 
       const [artwork, progress] = await Promise.all([
@@ -403,6 +403,7 @@ export async function streamRoutes(
           dolbyVision: probe?.dynamicRange?.dolbyVision ?? false,
         }),
         dynamicRange: probe?.dynamicRange ?? null,
+        chapters: probe?.chapters ?? [],
         thumbnailsReady: Boolean(thumbCached),
         posterPath: artwork.posterPath,
         mediaId: artwork.mediaId,

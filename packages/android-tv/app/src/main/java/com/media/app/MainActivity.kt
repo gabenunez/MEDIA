@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private val splashHandler = Handler(Looper.getMainLooper())
     private var splashPollRunnable: Runnable? = null
     private val pendingSearchConfirmKeys = mutableSetOf<Int>()
+    private val pendingHorizontalKeys = mutableMapOf<Int, String>()
 
     // System speech recognizer (Google) runs in its own process, so the app needs no
     // RECORD_AUDIO permission — unlike an in-process SpeechRecognizer.
@@ -460,8 +461,17 @@ class MainActivity : AppCompatActivity() {
         dispatchWebKey(key)
     }
 
-    private fun dispatchWebKey(key: String) {
-        webView.evaluateJavascript(WatchRemoteKeys.dispatchScript(key), null)
+    private fun dispatchWebKey(
+        key: String,
+        phase: WatchRemoteKeys.Phase = WatchRemoteKeys.Phase.DOWN,
+        repeat: Boolean = false,
+    ) {
+        webView.evaluateJavascript(WatchRemoteKeys.dispatchScript(key, phase, repeat), null)
+    }
+
+    private fun cancelPendingHorizontalKeys() {
+        pendingHorizontalKeys.values.forEach { dispatchWebKey(it, WatchRemoteKeys.Phase.CANCELED) }
+        pendingHorizontalKeys.clear()
     }
 
     private fun updateKeepScreenOn() {
@@ -487,9 +497,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         pendingSearchConfirmKeys.clear()
+        cancelPendingHorizontalKeys()
         pauseAllPlayback()
         webView.onPause()
         super.onPause()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) cancelPendingHorizontalKeys()
     }
 
     override fun onDestroy() {
@@ -502,9 +518,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_UP && pendingSearchConfirmKeys.remove(event.keyCode)) {
-            if (!event.isCanceled) dispatchWebKey("Enter")
-            return true
+        if (event.action == KeyEvent.ACTION_UP) {
+            if (pendingSearchConfirmKeys.remove(event.keyCode)) {
+                if (!event.isCanceled) dispatchWebKey("Enter")
+                return true
+            }
+            pendingHorizontalKeys.remove(event.keyCode)?.let { key ->
+                val phase = if (event.isCanceled) WatchRemoteKeys.Phase.CANCELED else WatchRemoteKeys.Phase.UP
+                dispatchWebKey(key, phase)
+                return true
+            }
         }
         if (event.action == KeyEvent.ACTION_DOWN) {
             if (event.keyCode in pendingSearchConfirmKeys) return true
@@ -535,7 +558,10 @@ class MainActivity : AppCompatActivity() {
                     if (event.repeatCount == 0) pendingSearchConfirmKeys.add(event.keyCode)
                     return true
                 }
-                dispatchWebKey(watchKey)
+                if (WatchRemoteKeys.isHorizontal(watchKey)) {
+                    pendingHorizontalKeys[event.keyCode] = watchKey
+                }
+                dispatchWebKey(watchKey, repeat = event.repeatCount > 0)
                 return true
             }
         }

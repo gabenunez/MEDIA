@@ -1247,6 +1247,233 @@
     40% { transform: translateX(var(--watch-skip-slide)); }
   }
 
+  .watch-chapters-trigger {
+    display: inline-flex;
+    max-width: min(25rem, 100%);
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid rgb(255 255 255 / 0.18);
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.55rem;
+    background: rgb(10 16 17 / 0.88);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 650;
+  }
+
+  .watch-chapters-trigger:hover { background: rgb(29 43 45 / 0.96); }
+  .watch-chapters-trigger:focus-visible { outline: 2px solid hsl(var(--primary)); }
+
+  .watch-chapters-trigger-title {
+    overflow: hidden;
+    border-left: 1px solid rgb(255 255 255 / 0.22);
+    padding-left: 0.45rem;
+    color: rgb(255 255 255 / 0.72);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .watch-chapter-marker {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    width: 2px;
+    height: calc(100% + 0.25rem);
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.68);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4);
+    pointer-events: none;
+  }
+
+  .watch-chapter-marker--current {
+    width: 3px;
+    background: hsl(var(--primary));
+  }
+
+  .watch-chapters-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(0 0 0 / 0.52);
+  }
+
+  .watch-chapters-panel {
+    position: absolute;
+    inset: auto 0 0;
+    display: flex;
+    max-height: min(80vh, 40rem);
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 0.14);
+    border-radius: 1.25rem 1.25rem 0 0;
+    background: linear-gradient(150deg, #142124, #080e10 50%);
+    color: white;
+    box-shadow: 0 0 3rem rgb(0 0 0 / 0.6);
+    outline: none;
+  }
+
+  @media (min-width: 640px) {
+    .watch-chapters-panel {
+      inset: 0 0 0 auto;
+      width: min(29rem, 100vw);
+      max-height: none;
+      border-radius: 0;
+    }
+  }
+
+  .watch-chapters-panel--tv {
+    inset: 0 0 0 auto;
+    width: min(32rem, 54vw);
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .watch-chapters-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.4rem 1.35rem 1rem;
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+  }
+
+  .watch-chapters-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: 1.35rem;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+  }
+
+  .watch-chapters-header p {
+    margin-top: 0.45rem;
+    color: rgb(255 255 255 / 0.68);
+    font-size: 0.8125rem;
+  }
+
+  .watch-chapters-close {
+    display: grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 0.16);
+    border-radius: 0.625rem;
+    background: rgb(255 255 255 / 0.06);
+  }
+
+  .watch-chapters-close:hover { background: rgb(255 255 255 / 0.14); }
+
+  .watch-chapters-back {
+    padding-top: 0.3rem;
+    color: rgb(255 255 255 / 0.68);
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .watch-chapters-scroll {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.24) transparent;
+    scroll-padding-block: 0.75rem;
+    padding: 0.75rem 1rem 1rem;
+  }
+
+  .watch-chapters-scroll::-webkit-scrollbar { width: 6px; }
+
+  .watch-chapters-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.24);
+  }
+
+  .watch-chapters-list {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .watch-chapter-row {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 0.875rem;
+    border: 2px solid transparent;
+    border-radius: 0.65rem;
+    padding: 0.45rem;
+    text-align: left;
+    outline: none;
+  }
+
+  .watch-chapter-row:hover { background: rgb(255 255 255 / 0.08); }
+
+  .watch-chapter-row[aria-current="step"] {
+    border-color: hsl(var(--primary) / 0.35);
+    background: hsl(var(--primary) / 0.1);
+  }
+
+  .watch-chapter-row:focus-visible,
+  .watch-chapters-close:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: -2px;
+  }
+
+  .watch-chapter-thumb {
+    position: relative;
+    flex-shrink: 0;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    border-radius: 0.4rem;
+    background: linear-gradient(145deg, #294143, #101b1e);
+  }
+
+  .watch-chapter-number {
+    position: absolute;
+    left: 0.3rem;
+    bottom: 0.3rem;
+    border-radius: 0.25rem;
+    padding: 0.12rem 0.3rem;
+    background: rgb(0 0 0 / 0.78);
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .watch-chapter-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.3rem;
+  }
+
+  .watch-chapter-title {
+    overflow: hidden;
+    color: white;
+    font-weight: 620;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .watch-chapter-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.65rem;
+    color: rgb(255 255 255 / 0.68);
+    font-size: 0.75rem;
+  }
+
+  .watch-chapter-current {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: hsl(var(--primary));
+    font-weight: 650;
+  }
+
   .watch-scrub-time {
     font-size: 0.75rem;
     letter-spacing: 0.02em;

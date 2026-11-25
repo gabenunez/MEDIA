@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useWatchRouteParams } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import type Hls from "hls.js";
-import { Loader2, Pause, Play, RotateCcw, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
+import { ListVideo, Loader2, Pause, Play, RotateCcw, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
+import type { MediaChapter } from "@media-app/shared";
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import {
@@ -72,7 +73,10 @@ import { TvSubtitleAppearancePanel } from "@/components/subtitle-style-settings"
 import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown";
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { WatchSkipFeedbackBadge } from "@/components/watch-skip-feedback";
+import { TvWatchHoldScrub } from "@/components/tv/tv-watch-hold-scrub";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
+import { WatchChapterMarkers, WatchChaptersPanel } from "@/components/watch-chapters";
+import { activeWatchChapterIndex } from "@/lib/watch-chapters";
 import { TvFocusButton } from "@/components/tv/tv-focus-link";
 import {
   TvSubtitleTrackRow,
@@ -121,7 +125,10 @@ import {
   getWatchTransportFocusItems,
   isWatchTextInputKeyTarget,
   watchHiddenChromeArrowIntent,
+  watchKeyTracksRelease,
   watchVisibleTransportArrowIntent,
+  type WatchRemoteKeyboardEvent,
+  type WatchRemoteKeyDetail,
 } from "@/lib/tv-watch-remote";
 import {
   isWatchBackKey,
@@ -147,6 +154,7 @@ import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { prefetchWatchExitTarget, warmNextEpisodeArtwork } from "@/lib/prefetch-artwork";
 import { useNextEpisodeCountdown } from "@/lib/use-next-episode-countdown";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
+import { useWatchHoldScrub } from "@/lib/use-watch-hold-scrub";
 import { VideoDisplayModeButton } from "@/components/video-display-mode-button";
 import {
   cycleVideoDisplayMode,
@@ -164,6 +172,8 @@ function TvWatchScrubTrack({
   toTimelinePercent,
   durationSeconds,
   optimisticSeek,
+  chapters = [],
+  activeChapterIndex = -1,
 }: {
   bufferedRanges: Array<{ start: number; end: number }>;
   progress: number;
@@ -172,6 +182,8 @@ function TvWatchScrubTrack({
   toTimelinePercent: (seconds: number) => number;
   durationSeconds: number;
   optimisticSeek: boolean;
+  chapters?: readonly MediaChapter[];
+  activeChapterIndex?: number;
 }) {
   const progressClamped = Math.min(100, Math.max(0, progress));
   const previewClamped =
@@ -231,6 +243,7 @@ function TvWatchScrubTrack({
         )}
         style={{ width: `${progressClamped}%` }}
       />
+      <WatchChapterMarkers chapters={chapters} durationMs={durationSeconds * 1000} activeIndex={activeChapterIndex} />
       <div
         className={cn(
           "watch-scrub-playhead",
@@ -366,6 +379,8 @@ export function TvWatchView() {
   const [showControls, setShowControls] = useState(true);
   const skipFeedbackRef = useRef<(WatchSkipFeedback & { nonce: number }) | null>(null);
   const [skipFeedback, setSkipFeedback] = useState<typeof skipFeedbackRef.current>(null);
+  const { holdScrubPreview, holdScrubPreviewRef, beginHoldScrub, cancelHoldScrub, releaseHoldScrub } =
+    useWatchHoldScrub();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [optimisticAbsoluteSeconds, setOptimisticAbsoluteSeconds] = useState<number | null>(
@@ -401,6 +416,7 @@ export function TvWatchView() {
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
   const [subtitleAppearanceOpen, setSubtitleAppearanceOpen] = useState(false);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const [chapterMenuOpen, setChapterMenuOpen] = useState(false);
   const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [playbackHasBegun, setPlaybackHasBegun] = useState(false);
@@ -562,6 +578,7 @@ export function TvWatchView() {
   }, [router, backHref, mediaId]);
 
   const exitWatch = useCallback(() => {
+    cancelHoldScrub();
     clearPendingSkip();
     if (progressInterval.current) {
       clearInterval(progressInterval.current);
@@ -584,7 +601,7 @@ export function TvWatchView() {
     if (usingHlsRef.current && !Number.isNaN(fileId)) {
       void api.stopStream(fileId, type).catch(() => {});
     }
-  }, [router, backHref, usesNativePlayer, fileId, type, clearPendingSkip]);
+  }, [router, backHref, usesNativePlayer, fileId, type, clearPendingSkip, cancelHoldScrub]);
 
   const handlePlaybackFinished = useCallback(() => {
     exitWatch();
@@ -750,6 +767,7 @@ export function TvWatchView() {
     setSubtitleMenuOpen(false);
     setSubtitleAppearanceOpen(false);
     setQualityMenuOpen(false);
+    setChapterMenuOpen(false);
     setPanelOpen(false);
 
     requestAnimationFrame(() => {
@@ -835,6 +853,7 @@ export function TvWatchView() {
   const revealControls = useCallback(
     (_autoHide = true, focusPlay = false) => {
       if (blockingOverlayVisible) return;
+      cancelHoldScrub();
       if (skipFeedbackRef.current) clearSkipFeedback();
       controlsRevealedAtRef.current = Date.now();
       showControlsRef.current = true;
@@ -852,7 +871,7 @@ export function TvWatchView() {
       }
       scheduleWatchChromeHide();
     },
-    [blockingOverlayVisible, usesNativePlayer, scheduleWatchChromeHide, clearSkipFeedback],
+    [blockingOverlayVisible, usesNativePlayer, scheduleWatchChromeHide, clearSkipFeedback, cancelHoldScrub],
   );
 
   const applyNativePlaybackOverlayAlpha = useCallback(() => {
@@ -861,6 +880,7 @@ export function TvWatchView() {
       blockingOverlayVisible: false,
       showMidPlaybackBuffering: false,
       skipFeedbackVisible: Boolean(skipFeedbackRef.current),
+      holdScrubVisible: holdScrubPreviewRef.current !== null,
       nativePlaybackBegun: playbackHasBegunRef.current,
     });
     if (next === 1) {
@@ -868,7 +888,7 @@ export function TvWatchView() {
       return;
     }
     setNativeWebOverlayAlpha(0, true);
-  }, []);
+  }, [holdScrubPreviewRef]);
 
   const updateBufferedPosition = useCallback(() => {
     const video = videoRef.current;
@@ -1406,6 +1426,7 @@ export function TvWatchView() {
     lastNativeUserSeekAtRef.current = null;
     clearPendingSkip();
     updateOptimisticSeek(null);
+    cancelHoldScrub();
     nativePausedAtRef.current = null;
     nativeIsPlayingRef.current = false;
     nativePlaySessionRef.current = 0;
@@ -1417,6 +1438,7 @@ export function TvWatchView() {
     setSubtitleAppearanceOpen(false);
     setQualityMenuOpen(false);
     setSubtitleSearchOpen(false);
+    setChapterMenuOpen(false);
     setPanelOpen(false);
     panelOpenRef.current = false;
     clearSkipFeedback();
@@ -1441,7 +1463,7 @@ export function TvWatchView() {
       raiseNativeWebOverlay();
     }
     return clearPendingSkip;
-  }, [fileId, type, usesNativePlayer, clearHideControlsTimer, clearPendingSkip, clearSkipFeedback, updateOptimisticSeek]);
+  }, [fileId, type, usesNativePlayer, clearHideControlsTimer, clearPendingSkip, clearSkipFeedback, updateOptimisticSeek, cancelHoldScrub]);
 
   useEffect(() => {
     const isPreparingPlayback = initialResumeSeconds === null || !streamInfo;
@@ -1470,12 +1492,13 @@ export function TvWatchView() {
     if (
       !isPlaying && !buffering && !bufferingMidPlayback &&
       nativeMidBufferStartedAtRef.current === null &&
-      !skipFeedbackRef.current && optimisticAbsoluteSecondsRef.current === null
+      !skipFeedbackRef.current && !holdScrubPreviewRef.current &&
+      optimisticAbsoluteSecondsRef.current === null
     ) {
       setShowControls(true);
       showControlsRef.current = true;
     }
-  }, [blockingOverlayVisible, isPlaying, buffering, bufferingMidPlayback, usesNativePlayer, clearHideControlsTimer]);
+  }, [blockingOverlayVisible, isPlaying, buffering, bufferingMidPlayback, usesNativePlayer, clearHideControlsTimer, holdScrubPreviewRef]);
 
   useEffect(() => {
     if (!shouldCloseWatchMenusOnRebuffer()) return;
@@ -2017,6 +2040,9 @@ export function TvWatchView() {
   });
   const totalDurationSeconds =
     absoluteDurationMs > 0 ? absoluteDurationMs / 1000 : 0;
+  const chapters = streamInfo?.chapters ?? [];
+  const currentChapterIndex = activeWatchChapterIndex(chapters,
+    Math.round((optimisticAbsoluteSeconds ?? absoluteCurrentTime) * 1000));
   const progress =
     absoluteDurationMs > 0 ? (absoluteCurrentTime * 1000) / absoluteDurationMs * 100 : 0;
   const displayedAbsoluteTime =
@@ -2122,22 +2148,21 @@ export function TvWatchView() {
 
   seekToAbsoluteRef.current = seekToAbsolute;
 
+  const readSkipPosition = useCallback(() => resolveSkipTargetAbsoluteSeconds({
+    optimisticAbsoluteSeconds: pendingSkipTargetRef.current ?? optimisticAbsoluteSecondsRef.current,
+    usingHls: usingHlsRef.current,
+    hlsStartOffset: hlsStartOffsetRef.current,
+    liveRelativeSeconds: usesNativePlayer ? currentTimeRef.current : (videoRef.current?.currentTime ?? 0),
+    deltaSeconds: 0,
+  }), [usesNativePlayer]);
+
   const skipRelative = useCallback((
     deltaSeconds: number,
     options?: { revealControls?: boolean },
   ) => {
     const video = videoRef.current;
     if (!(totalDurationSeconds > 0) || (!usesNativePlayer && !video)) return;
-    const from = clampAbsoluteSeekSeconds(
-      resolveSkipTargetAbsoluteSeconds({
-        optimisticAbsoluteSeconds: pendingSkipTargetRef.current ?? optimisticAbsoluteSecondsRef.current,
-        usingHls: usingHlsRef.current,
-        hlsStartOffset: hlsStartOffsetRef.current,
-        liveRelativeSeconds: usesNativePlayer ? currentTimeRef.current : (video?.currentTime ?? 0),
-        deltaSeconds: 0,
-      }),
-      totalDurationSeconds,
-    );
+    const from = clampAbsoluteSeekSeconds(readSkipPosition(), totalDurationSeconds);
     const target = clampAbsoluteSeekSeconds(from + deltaSeconds, totalDurationSeconds);
     if (target === from) return;
 
@@ -2164,7 +2189,7 @@ export function TvWatchView() {
       const pendingTarget = pendingSkipTargetRef.current;
       if (pendingTarget !== null) seekToAbsoluteRef.current(pendingTarget, options);
     }, WATCH_SKIP_COALESCE_MS);
-  }, [totalDurationSeconds, usesNativePlayer]);
+  }, [totalDurationSeconds, usesNativePlayer, readSkipPosition]);
 
   const handleScrubCommit = useCallback(
     (value: number) => {
@@ -2258,9 +2283,10 @@ export function TvWatchView() {
       subtitleMenuOpen ||
         subtitleAppearanceOpen ||
         qualityMenuOpen ||
+        chapterMenuOpen ||
         subtitleSearchOpen,
     );
-  }, [subtitleMenuOpen, subtitleAppearanceOpen, qualityMenuOpen, subtitleSearchOpen]);
+  }, [subtitleMenuOpen, subtitleAppearanceOpen, qualityMenuOpen, chapterMenuOpen, subtitleSearchOpen]);
 
   useEffect(() => {
     if (panelOpen) {
@@ -2331,7 +2357,8 @@ export function TvWatchView() {
           return;
         }
         setIsPlaying(false);
-        if (!skipFeedbackRef.current && optimisticAbsoluteSecondsRef.current === null) {
+        if (!skipFeedbackRef.current && !holdScrubPreviewRef.current &&
+          optimisticAbsoluteSecondsRef.current === null) {
           revealControls(false);
         }
       },
@@ -2502,14 +2529,19 @@ export function TvWatchView() {
   const showTransportControls = Boolean(
     streamInfo && initialResumeSeconds !== null && !error && !countdown,
   );
+  const canOpenChapters = showTransportControls && chapters.length > 0 && totalDurationSeconds > 0;
+  const showHoldScrub = holdScrubPreview !== null &&
+    !controlsVisible && showTransportControls && totalDurationSeconds > 0;
 
   useEffect(() => {
     if (!blockingOverlayVisible) return;
     setShowControls(false);
+    setChapterMenuOpen(false);
+    cancelHoldScrub();
     clearPendingSkip();
     clearSkipFeedback();
     releaseWatchFocus();
-  }, [blockingOverlayVisible, releaseWatchFocus, clearPendingSkip, clearSkipFeedback]);
+  }, [blockingOverlayVisible, releaseWatchFocus, clearPendingSkip, clearSkipFeedback, cancelHoldScrub]);
 
   useEffect(() => {
     if (!skipFeedback) return;
@@ -2536,6 +2568,7 @@ export function TvWatchView() {
     blockingOverlayVisible,
     showMidPlaybackBuffering: usesNativePlayer && showMidPlaybackBuffering,
     skipFeedbackVisible: Boolean(skipFeedback),
+    holdScrubVisible: showHoldScrub,
     nativePlaybackBegun: !usesNativePlayer || playbackHasBegun,
   });
   const hidePlaybackSubtitles = hideWebSubtitleOverlay({
@@ -2550,7 +2583,7 @@ export function TvWatchView() {
 
   useLayoutEffect(() => {
     if (!usesNativePlayer) return;
-    // Raise the WebView for playback UI, including the badge on its own.
+    // Skip feedback and seek previews can be visible with the controls hidden.
     // Debounce hide so brief focus blips don't thrash WebView compositing.
     if (nativeWebOverlayRaised) {
       raiseNativeWebOverlay();
@@ -2579,6 +2612,7 @@ export function TvWatchView() {
   const controlLabelButtonClassName = "watch-control-btn watch-control-btn--label shrink-0";
 
   const handleWatchBack = useCallback((): boolean => {
+    if (cancelHoldScrub()) return true;
     const action = resolveWatchBackAction({
       countdown: Boolean(countdown),
       subtitleSearchOpen,
@@ -2625,12 +2659,13 @@ export function TvWatchView() {
     revealControls,
     hideWatchChrome,
     controlsVisible,
+    cancelHoldScrub,
   ]);
 
   useEffect(() => registerWatchBackHandler(handleWatchBack), [handleWatchBack]);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent, tracksRelease = watchKeyTracksRelease(e)) => {
       if (isWatchTextInputKeyTarget(e.target)) {
         return;
       }
@@ -2707,6 +2742,16 @@ export function TvWatchView() {
         if (hiddenArrow === "skip-back" || hiddenArrow === "skip-forward") {
           e.preventDefault();
           if (isWatchRemoteSkipArrowKey(e.key)) {
+            if (tracksRelease) {
+              beginHoldScrub({
+                key: e.key,
+                repeat: e.repeat,
+                durationSeconds: totalDurationSeconds,
+                readPlayhead: readSkipPosition,
+                onPreviewStart: clearSkipFeedback,
+              });
+              return;
+            }
             skipRelative(watchSkipDeltaSeconds(hiddenArrow), { revealControls: false });
             return;
           }
@@ -2844,17 +2889,34 @@ export function TvWatchView() {
     };
 
     const onRemoteKey = (event: Event) => {
-      const key = (event as CustomEvent<{ key?: string }>).detail?.key;
-      if (!key) return;
+      const detail = (event as CustomEvent<WatchRemoteKeyDetail>).detail;
+      if (!detail?.key) return;
       onKeyDown(
-        new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+        new KeyboardEvent("keydown", { key: detail.key, repeat: detail.repeat, bubbles: true, cancelable: true }),
+        detail.tracksRelease,
       );
     };
 
+    const onKeyUp = (e: WatchRemoteKeyboardEvent) => {
+      if (!isWatchRemoteSkipArrowKey(e.key) || !watchKeyTracksRelease(e)) return;
+      const result = releaseHoldScrub(e.key, e.mediaRemoteCanceled === true);
+      if (!result || blockingOverlayVisible || controlsVisible || !showTransportControls) return;
+      e.preventDefault();
+      if (result.kind === "tap") {
+        skipRelative(watchSkipDeltaSeconds(e.key === "ArrowLeft" ? "skip-back" : "skip-forward"), {
+          revealControls: false,
+        });
+      } else {
+        seekToAbsoluteRef.current(result.targetSeconds, { revealControls: false });
+      }
+    };
+
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
     window.addEventListener(TV_WATCH_REMOTE_KEY_EVENT, onRemoteKey);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener(TV_WATCH_REMOTE_KEY_EVENT, onRemoteKey);
     };
   }, [
@@ -2862,6 +2924,10 @@ export function TvWatchView() {
     playPlayback,
     pausePlayback,
     skipRelative,
+    beginHoldScrub,
+    releaseHoldScrub,
+    readSkipPosition,
+    clearSkipFeedback,
     commitScrubPreview,
     handleWatchBack,
     panelOpen,
@@ -3025,7 +3091,7 @@ export function TvWatchView() {
 
         {showBufferingBar && <div className="watch-buffering-bar" aria-hidden="true" />}
 
-        {showMidPlaybackBuffering && !controlsVisible && !panelOpen && (
+        {showMidPlaybackBuffering && !controlsVisible && !panelOpen && !showHoldScrub && (
           <div
             className="pointer-events-none absolute inset-0 z-[15] flex flex-col justify-end"
             aria-live="polite"
@@ -3052,7 +3118,17 @@ export function TvWatchView() {
           </div>
         )}
 
-        {skipFeedback && !controlsVisible && !blockingOverlayVisible ? (
+        {showHoldScrub && holdScrubPreview && (
+          <TvWatchHoldScrub
+            preview={holdScrubPreview}
+            durationSeconds={totalDurationSeconds}
+            cue={lookupCue(holdScrubPreview.targetSeconds * 1000)}
+            spriteUrl={thumbnails?.spriteUrl ?? null}
+            maxThumbWidth={seekPreviewMaxWidth}
+          />
+        )}
+
+        {skipFeedback && !showHoldScrub && !controlsVisible && !blockingOverlayVisible ? (
           <WatchSkipFeedbackBadge
             direction={skipFeedback.direction}
             seconds={skipFeedback.seconds}
@@ -3186,6 +3262,7 @@ export function TvWatchView() {
                       maxThumbWidth={seekPreviewMaxWidth}
                       percent={timelinePreviewPercent}
                       timeMs={timelinePreviewMs}
+                      chapterTitle={chapters[activeWatchChapterIndex(chapters, timelinePreviewMs)]?.title}
                       cue={lookupCue(timelinePreviewMs)}
                       spriteUrl={thumbnails?.spriteUrl ?? null}
                     />
@@ -3201,6 +3278,8 @@ export function TvWatchView() {
                       optimisticSeek={
                         scrubPreview !== null || optimisticAbsoluteSeconds !== null
                       }
+                      chapters={chapters}
+                      activeChapterIndex={currentChapterIndex}
                     />
                     <TvFocusButton
                       ref={scrubButtonRef}
@@ -3292,6 +3371,28 @@ export function TvWatchView() {
                       <SkipForward size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
                     </span>
                   </TvFocusButton>
+                  {canOpenChapters && (
+                    <TvFocusButton
+                      variant="watch"
+                      aria-haspopup="dialog"
+                      aria-expanded={chapterMenuOpen}
+                      className={controlLabelButtonClassName}
+                      onClick={(event) => {
+                        menuReturnFocusRef.current = event.currentTarget;
+                        setSubtitleMenuOpen(false);
+                        setSubtitleAppearanceOpen(false);
+                        setQualityMenuOpen(false);
+                        setPanelOpen(true);
+                        setChapterMenuOpen(true);
+                        revealControls(false);
+                      }}
+                    >
+                      <span className="watch-control-icon">
+                        <ListVideo size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden="true" />
+                      </span>
+                      <span className="watch-control-label">Chapters</span>
+                    </TvFocusButton>
+                  )}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-3">
@@ -3460,6 +3561,22 @@ export function TvWatchView() {
           </div>
         )}
       </div>
+
+      {chapterMenuOpen && canOpenChapters && (
+        <WatchChaptersPanel
+          tv
+          chapters={chapters}
+          activeIndex={currentChapterIndex}
+          onClose={closeMenus}
+          onSelect={(chapter) => {
+            discardScrubPreview();
+            seekToAbsolute(chapter.startMs / 1000);
+            closeMenus();
+          }}
+          lookupCue={lookupCue}
+          spriteUrl={thumbnails?.spriteUrl ?? null}
+        />
+      )}
 
       <SubtitleSearchDialog
         tv

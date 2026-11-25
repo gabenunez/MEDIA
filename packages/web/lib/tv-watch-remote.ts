@@ -3,9 +3,31 @@
 /** Spatial nav redispatches here after consuming native WebView D-pad. */
 export const TV_WATCH_REMOTE_KEY_EVENT = "tv-watch-remote-key";
 
-export function dispatchWatchRemoteKey(key: string): void {
+export type WatchRemoteKeyboardEvent = KeyboardEvent & {
+  mediaRemoteTracksRelease?: boolean;
+  mediaRemoteCanceled?: boolean;
+};
+
+export type WatchRemoteKeyDetail = {
+  key: string;
+  repeat: boolean;
+  tracksRelease: boolean;
+};
+
+/** Real keyboard events and current APK injections both have a matching keyup. */
+export function watchKeyTracksRelease(event: WatchRemoteKeyboardEvent): boolean {
+  return event.isTrusted || event.mediaRemoteTracksRelease === true;
+}
+
+export function dispatchWatchRemoteKey(key: string, event?: KeyboardEvent): void {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(TV_WATCH_REMOTE_KEY_EVENT, { detail: { key } }));
+  window.dispatchEvent(new CustomEvent<WatchRemoteKeyDetail>(TV_WATCH_REMOTE_KEY_EVENT, {
+    detail: {
+      key,
+      repeat: event?.repeat ?? false,
+      tracksRelease: event ? watchKeyTracksRelease(event) : false,
+    },
+  }));
 }
 
 export const WATCH_CHROME_FOCUS_SELECTOR =
@@ -196,6 +218,7 @@ export type NativeWebOverlayState = {
   blockingOverlayVisible: boolean;
   showMidPlaybackBuffering: boolean;
   skipFeedbackVisible?: boolean;
+  holdScrubVisible?: boolean;
   /**
    * When false, keep the WebView in front. Dropping alpha before ExoPlayer
    * paints a frame is a black screen, and Up/Down then only move invisible
@@ -218,7 +241,8 @@ export function nativeWebOverlayShouldRaise(state: NativeWebOverlayState): boole
     state.controlsVisible ||
     state.blockingOverlayVisible ||
     state.showMidPlaybackBuffering ||
-    Boolean(state.skipFeedbackVisible)
+    Boolean(state.skipFeedbackVisible) ||
+    Boolean(state.holdScrubVisible)
   );
 }
 

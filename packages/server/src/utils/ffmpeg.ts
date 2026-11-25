@@ -2,7 +2,7 @@ import { execFile, execSync, spawn, type ChildProcess } from "node:child_process
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { HlsQuality, TranscodeQuality } from "@media-app/shared";
+import type { HlsQuality, MediaChapter, TranscodeQuality } from "@media-app/shared";
 import {
   TRANSCODE_PRESETS,
   effectiveTranscodeHeight,
@@ -46,6 +46,7 @@ export interface ProbeResult {
   bitrate?: number;
   fps?: number;
   dynamicRange: VideoDynamicRange;
+  chapters?: MediaChapter[];
   subtitleStreams: Array<{
     index: number;
     language?: string;
@@ -73,6 +74,31 @@ type FfprobeStream = {
     dv_profile?: number;
   }>;
 };
+
+type FfprobeChapter = {
+  start_time?: string;
+  tags?: Record<string, string>;
+};
+
+export function normalizeEmbeddedChapters(
+  chapters: FfprobeChapter[] | undefined,
+  durationMs: number,
+): MediaChapter[] {
+  const titles = new Map<number, string>();
+  for (const chapter of chapters ?? []) {
+    if (typeof chapter.start_time !== "string" || !chapter.start_time.trim()) continue;
+    const seconds = Number(chapter.start_time);
+    if (!Number.isFinite(seconds) || seconds < 0) continue;
+    const startMs = Math.round(seconds * 1000);
+    if (!Number.isSafeInteger(startMs) || (durationMs > 0 && startMs >= durationMs)) continue;
+    const rawTitle = Object.entries(chapter.tags ?? {})
+      .find(([key]) => key.toLowerCase() === "title")?.[1];
+    const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+    if (!titles.has(startMs) || (title && !titles.get(startMs))) titles.set(startMs, title);
+  }
+  return [...titles.entries()].sort(([a], [b]) => a - b)
+    .map(([startMs, title], index) => ({ startMs, title: title || `Chapter ${index + 1}` }));
+}
 
 function parseSampleAspectRatio(value?: string): number | null {
   if (!value || value === "0:1" || value === "N/A") return null;
@@ -181,7 +207,10 @@ export async function checkFfmpegAvailable(): Promise<boolean> {
   }
 }
 
-export async function probeFile(filePath: string): Promise<ProbeResult | null> {
+export async function probeFile(
+  filePath: string,
+  { includeChapters = false }: { includeChapters?: boolean } = {},
+): Promise<ProbeResult | null> {
   try {
     const { stdout } = await execFileAsync("ffprobe", [
       "-v",
@@ -190,12 +219,14 @@ export async function probeFile(filePath: string): Promise<ProbeResult | null> {
       "json",
       "-show_format",
       "-show_streams",
+      ...(includeChapters ? ["-show_chapters"] : []),
       filePath,
     ]);
 
     const data = JSON.parse(stdout) as {
       format?: { duration?: string; bit_rate?: string };
       streams?: FfprobeStream[];
+      chapters?: FfprobeChapter[];
     };
 
     const videoStream = data.streams?.find((s) => s.codec_type === "video");
@@ -212,10 +243,10 @@ export async function probeFile(filePath: string): Promise<ProbeResult | null> {
           codec: s.codec_name,
         })) ?? [];
 
-    const durationSec = parseFloat(data.format?.duration ?? "0");
+    const durationMs = Math.round(parseFloat(data.format?.duration ?? "0") * 1000);
 
     return {
-      durationMs: Math.round(durationSec * 1000),
+      durationMs,
       videoCodec: videoStream?.codec_name,
       audioCodec: audioStream?.codec_name,
       audioStreamIndex: audioStream?.index,
@@ -226,6 +257,7 @@ export async function probeFile(filePath: string): Promise<ProbeResult | null> {
         : undefined,
       fps: resolveVideoFrameRate(videoStream) ?? undefined,
       dynamicRange: parseVideoDynamicRangeFromStream(videoStream),
+      ...(includeChapters ? { chapters: normalizeEmbeddedChapters(data.chapters, durationMs) } : {}),
       subtitleStreams,
     };
   } catch {

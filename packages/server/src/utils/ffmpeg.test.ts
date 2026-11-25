@@ -5,11 +5,33 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   generateHlsPlaylist,
   isTranscodeComplete,
+  normalizeEmbeddedChapters,
   parseFfmpegPlaylist,
   prepareHlsResume,
   pruneOldHlsSegments,
   waitForFirstSegment,
 } from "./ffmpeg.js";
+
+describe("embedded chapters", () => {
+  it("sorts and names chapter starts while rejecting duplicates and unusable times", () => {
+    expect(normalizeEmbeddedChapters([
+      { start_time: "10.725", tags: { TITLE: "  The heist  " } },
+      { start_time: "0" },
+      { start_time: "3.5" },
+      { start_time: "10.725000" },
+      { start_time: "30" },
+      { start_time: "-1" },
+      { start_time: "N/A" },
+      { start_time: "" },
+      {},
+    ], 30_000)).toEqual([
+      { startMs: 0, title: "Chapter 1" },
+      { startMs: 3500, title: "Chapter 2" },
+      { startMs: 10725, title: "The heist" },
+    ]);
+    expect(normalizeEmbeddedChapters(undefined, 30_000)).toEqual([]);
+  });
+});
 
 const tempDirs: string[] = [];
 

@@ -12,6 +12,12 @@ import android.view.KeyEvent
  * dispatch on `window` so spatial nav / watch-view see it.
  */
 object WatchRemoteKeys {
+    enum class Phase(val eventName: String) {
+        DOWN("keydown"),
+        UP("keyup"),
+        CANCELED("keyup"),
+    }
+
     fun webKeyName(keyCode: Int): String? =
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP,
@@ -38,19 +44,29 @@ object WatchRemoteKeys {
     /** Remote D-pad never reaches JS on this TV — inject even when idle. */
     fun shouldInjectDpad(): Boolean = true
 
-    fun dispatchScript(key: String): String {
+    fun isHorizontal(key: String): Boolean = key == "ArrowLeft" || key == "ArrowRight"
+
+    fun dispatchScript(key: String, phase: Phase = Phase.DOWN, repeat: Boolean = false): String {
         val escaped = key.replace("\\", "\\\\").replace("'", "\\'")
         val keyCode = jsKeyCode(key)
+        val releaseMetadata = if (isHorizontal(key)) {
+            "event.mediaRemoteTracksRelease = true; event.mediaRemoteCanceled = ${phase == Phase.CANCELED};"
+        } else {
+            ""
+        }
         return """
             (function(){
-              window.dispatchEvent(new KeyboardEvent('keydown', {
+              var event = new KeyboardEvent('${phase.eventName}', {
                 key: '$escaped',
                 code: '$escaped',
                 keyCode: $keyCode,
                 which: $keyCode,
+                repeat: $repeat,
                 bubbles: true,
                 cancelable: true
-              }));
+              });
+              $releaseMetadata
+              window.dispatchEvent(event);
             })();
             """.trimIndent()
     }

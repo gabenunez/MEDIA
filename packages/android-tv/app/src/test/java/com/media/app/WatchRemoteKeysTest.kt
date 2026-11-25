@@ -43,4 +43,19 @@ class WatchRemoteKeysTest {
         assertEquals(true, script.contains("key: 'ArrowLeft'"))
         assertEquals(false, script.contains("document.activeElement"))
     }
+
+    @Test
+    fun horizontalKeysForwardRepeatReleaseAndCancellation() {
+        val down = WatchRemoteKeys.dispatchScript("ArrowRight", repeat = true)
+        val up = WatchRemoteKeys.dispatchScript("ArrowRight", WatchRemoteKeys.Phase.UP)
+        val canceled = WatchRemoteKeys.dispatchScript("ArrowLeft", WatchRemoteKeys.Phase.CANCELED)
+        assertEquals(true, down.contains("KeyboardEvent('keydown'"))
+        assertEquals(true, down.contains("repeat: true"))
+        assertEquals(true, down.contains("mediaRemoteTracksRelease = true"))
+        assertEquals(true, up.contains("KeyboardEvent('keyup'"))
+        assertEquals(true, up.contains("mediaRemoteCanceled = false"))
+        assertEquals(true, canceled.contains("KeyboardEvent('keyup'"))
+        assertEquals(true, canceled.contains("mediaRemoteCanceled = true"))
+        assertEquals(false, WatchRemoteKeys.dispatchScript("ArrowUp").contains("mediaRemoteTracksRelease"))
+    }
 }

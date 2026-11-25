@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.339 — 2026-11-24
+
+### Added
+
+- **Release** — Chapters on web and TV, plus hold-to-scrub
+- Open **Chapters** in the player to jump to any chapter embedded in the video. The picker opens on the current chapter and shows titles, timestamps, and thumbnails when available. Chapter marks and titles also appear as you scrub the timeline.
+- On TV, hold Left or Right with the controls hidden to preview farther into the video. Hold longer to move faster, release to seek once, or press Back to cancel. Quick taps still skip 10 seconds back or 30 seconds forward.
+- Chapters only need the server update. Hold-to-scrub on Android TV also requires APK 1.5.34.
+
 ## 0.1.338 — 2026-11-24
 
 ### Fix

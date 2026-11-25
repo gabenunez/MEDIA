@@ -1,5 +1,6 @@
 import { cachedFetch, invalidateApiCache } from "./api-cache";
 import { withBasePath } from "./base-path";
+import type { MediaChapter } from "@media-app/shared";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -357,6 +358,7 @@ export interface StreamInfo {
     hlg: boolean;
   } | null;
   thumbnailsReady?: boolean;
+  chapters?: MediaChapter[];
   posterPath?: string | null;
   mediaId?: number | null;
   watchProgress?: {

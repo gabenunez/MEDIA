@@ -111,3 +111,9 @@ export interface ServerStatus {
     message?: string;
   } | null;
 }
+
+/** An embedded chapter on the original media timeline. */
+export interface MediaChapter {
+  startMs: number;
+  title: string;
+}

@@ -6,6 +6,7 @@ import { formatDuration } from "@/lib/utils";
 interface SeekPreviewTooltipProps {
   percent: number;
   timeMs: number;
+  chapterTitle?: string;
   cue: SeekThumbnailCue | null;
   spriteUrl: string | null;
   /** inline = centered in a dock slot; floating = above a timeline (default) */
@@ -17,6 +18,7 @@ interface SeekPreviewTooltipProps {
 export function SeekPreviewTooltip({
   percent,
   timeMs,
+  chapterTitle,
   cue,
   spriteUrl,
   variant = "floating",
@@ -51,7 +53,8 @@ export function SeekPreviewTooltip({
               />
             </div>
             {/* Gradient scrim keeps the timestamp legible over bright frames. */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-1 pt-5">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-1 pt-5">
+              {chapterTitle && <span className="max-w-full truncate text-xs font-semibold text-white">{chapterTitle}</span>}
               <span className="font-mono text-xs font-medium tabular-nums text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 {formatDuration(timeMs)}
               </span>
@@ -60,8 +63,9 @@ export function SeekPreviewTooltip({
         );
       })()
     ) : (
-      <div className="rounded-xl ring-1 ring-white/15 bg-black/90 px-2.5 py-1.5 font-mono text-xs font-medium tabular-nums text-white shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
-        {formatDuration(timeMs)}
+      <div className="max-w-48 rounded-xl ring-1 ring-white/15 bg-black/90 px-2.5 py-1.5 text-center text-xs font-medium text-white shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
+        {chapterTitle && <span className="block truncate font-semibold">{chapterTitle}</span>}
+        <span className="font-mono tabular-nums">{formatDuration(timeMs)}</span>
       </div>
     );
 
