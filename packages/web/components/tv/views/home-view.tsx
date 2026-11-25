@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Heart, History, Layers, Loader2, Play, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/auth-gate";
 import { routes } from "@/lib/routes";
@@ -13,6 +13,7 @@ import { useMarkTvBootReadyWhen } from "@/components/tv/tv-boot-ready";
 import { LibraryIcon } from "@/components/navbar";
 import { preloadPosterList } from "@/lib/prefetch-artwork";
 import { useLiveHomeData } from "@/lib/use-live-home-data";
+import { markTvBootContentReady } from "@/lib/tv-boot-ready";
 import type { HomeData } from "@/lib/server-api";
 
 export function TvHomeView({ initialData = null }: { initialData?: HomeData | null }) {
@@ -27,9 +28,12 @@ export function TvHomeView({ initialData = null }: { initialData?: HomeData | nu
   const libraries = data?.libraries ?? [];
   const decks = data?.decks ?? [];
 
-  // Show the spinner as soon as the shell mounts. Waiting for catalog data
-  // left the TV body hidden until the 15s boot cap.
+  // Once auth unlocks, the Home rows or spinner can paint immediately even
+  // on a full reload. Don't wait for the TV startup shell's fallback timer.
   useMarkTvBootReadyWhen(unlocked);
+  useLayoutEffect(() => {
+    if (unlocked) markTvBootContentReady();
+  }, [unlocked]);
 
   useEffect(() => {
     if (!loaded) return;

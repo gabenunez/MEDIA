@@ -48,7 +48,9 @@ export function initTvMode(): boolean {
       url.pathname +
       (url.searchParams.toString() ? `?${url.searchParams.toString()}` : "") +
       url.hash;
-    window.history.replaceState({}, "", next);
+    // This can run before Next has patched replaceState. Keep its history
+    // entry intact so Back can restore this page instead of reloading it.
+    window.history.replaceState(window.history.state, "", next);
   }
 
   return readStoredTvMode();

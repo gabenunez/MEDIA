@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.333 — 2026-11-24
+
+### Fix
+
+- **Release** — Restore Home quickly when pressing Back on TV
+- TV startup preserves browser history so Back from another page can restore Home without reloading it.
+- When Home does reload, it becomes visible as soon as authentication is ready.
+
 ## 0.1.332 — 2026-11-24
 
 ### Fix
