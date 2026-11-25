@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.341 — 2026-11-25
+
+### Added
+
+- **Release** — Generate timeline and chapter previews while playback is idle
+- The server fills in missing previews for movies and TV episodes one file at a time. When playback starts, the worker stops and retries the interrupted file when the server is idle again.
+- New previews use compact WebP sprites when supported, with an optimized JPEG fallback. Existing previews are reused and survive routine transcode cleanup.
+
 ## 0.1.340 — 2026-11-25
 
 ### Changes

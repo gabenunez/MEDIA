@@ -60,6 +60,7 @@ import {
 } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
+import { usePlaybackActivity } from "@/lib/use-playback-activity";
 import { useMediaSession } from "@/lib/use-media-session";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSeekThumbnails } from "@/lib/use-seek-thumbnails";
@@ -1476,6 +1477,8 @@ function WatchDesktopClient() {
   );
 
   seekToAbsoluteRef.current = seekToAbsolute;
+
+  usePlaybackActivity(Boolean(streamInfo && !offlineObjectUrl && !error && isPlaying));
 
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),

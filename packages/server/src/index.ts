@@ -11,6 +11,7 @@ import { MetadataService } from "./services/metadata.js";
 import { SubtitleService } from "./services/subtitles.js";
 import { ThemeService } from "./services/themes.js";
 import { ScannerService } from "./services/scanner.js";
+import { ThumbnailBackfill } from "./services/thumbnail-backfill.js";
 import { apiRoutes } from "./routes/api.js";
 import { offlineRoutes } from "./routes/offline.js";
 import { streamRoutes, subtitleRoutes } from "./routes/stream.js";
@@ -57,6 +58,9 @@ async function main() {
   const auth = new AuthService(configManager);
 
   const app = Fastify({ logger: true, trustProxy: TRUSTED_PROXIES });
+  const thumbnailBackfill = new ThumbnailBackfill(db, config.transcoding.cache_dir, {
+    onError: (err) => app.log.error(err, "Thumbnail backfill failed"),
+  });
 
   // Chromecast's default receiver requires ACAO: * and must not see
   // Access-Control-Allow-Credentials. The web app is same-origin, so cookie'd
@@ -78,6 +82,7 @@ async function main() {
       "Date",
       "Accept-Ranges",
       "Content-Type",
+      "Retry-After",
     ],
   });
 
@@ -140,7 +145,7 @@ async function main() {
   await settingsRoutes(app, db, configManager, scanner, metadata, themes);
   await updateRoutes(app);
   await castRoutes(app, db, config, auth);
-  await streamRoutes(app, db, config);
+  await streamRoutes(app, db, config, thumbnailBackfill);
   await offlineRoutes(app, db, config);
   await subtitleSearchRoutes(app, db, configManager, subtitles);
   await subtitleRoutes(app, db, subtitles);
@@ -222,6 +227,7 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     app.log.info({ signal }, "Shutting down MEDIA! server");
+    thumbnailBackfill.stop();
     stopAllHlsSessions();
     stopAllOfflineEncodes();
     try {
@@ -239,6 +245,9 @@ async function main() {
     : configPort;
   const host = listenHost(config.server.host, apiOnly);
   await app.listen({ port, host });
+  if (process.env.MEDIA_PRERENDER_BUILD !== "1") {
+    thumbnailBackfill.start();
+  }
 
   if (apiOnly) {
     console.log(`\n🎬 MEDIA! API running at http://${host}:${port}\n`);

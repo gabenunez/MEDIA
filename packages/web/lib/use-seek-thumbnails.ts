@@ -87,12 +87,12 @@ export function useSeekThumbnails(
     const retryDelayMs = 3_000;
     let timer: number | null = null;
 
-    const scheduleRetry = () => {
+    const scheduleRetry = (delay = retryDelayMs) => {
       if (cancelled || attempts >= maxAttempts) return;
       attempts += 1;
       timer = window.setTimeout(() => {
         void load();
-      }, retryDelayMs);
+      }, delay);
     };
 
     const load = async () => {
@@ -100,8 +100,14 @@ export function useSeekThumbnails(
         const vttUrl = api.thumbnailVttUrl(fileId, type);
         const res = await fetch(vttUrl, { credentials: "include" });
 
-        // 202 = generation in progress; keep polling without treating as failure.
-        if (res.status === 202 || res.status === 503) {
+        // An idle-only job may stay queued for the whole viewing session.
+        if (res.status === 202) {
+          const retryAfterMs = Number(res.headers.get("Retry-After")) * 1000;
+          attempts = 0;
+          scheduleRetry(Math.max(retryDelayMs, retryAfterMs || 0));
+          return;
+        }
+        if (res.status === 503) {
           scheduleRetry();
           return;
         }
@@ -120,7 +126,8 @@ export function useSeekThumbnails(
         const cues = parseVttSpriteCues(vtt);
         if (!cues.length || cancelled) return;
 
-        const spriteUrl = api.thumbnailSpriteUrl(fileId, type);
+        const sprite = /^sprite\.webp#xywh=/m.test(vtt) ? "sprite.webp" : "sprite.jpg";
+        const spriteUrl = api.thumbnailSpriteUrl(fileId, type, sprite);
         await new Promise<void>((resolve) => {
           const img = new Image();
           img.onload = () => resolve();

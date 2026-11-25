@@ -29,6 +29,7 @@ if [[ "$LIVE" -eq 1 ]]; then
   for dir in "$TRANSCODE_DIR"/*; do
     [[ -d "$dir" ]] || continue
     name="$(basename "$dir")"
+    [[ "$name" == "thumbnails" ]] && continue
     for active in "${ACTIVE[@]:-}"; do
       [[ "$name" == "$active" ]] && continue 2
     done

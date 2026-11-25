@@ -6,6 +6,7 @@ import type { AppConfig } from "@media-app/shared";
 import { getAvailableQualities, isBrowserDirectPlayAudioSupported, isBrowserDirectPlayVideoSupported, isHlsVideoCopySupported, parseHlsQuality, parseTranscodeQuality, resolveNativeTvPlaybackMode, resolveOriginalPlaybackMode } from "@media-app/shared";
 import type { DatabaseInstance } from "../db/index.js";
 import type { SubtitleService } from "../services/subtitles.js";
+import type { ThumbnailBackfill } from "../services/thumbnail-backfill.js";
 import { subtitleHasContent } from "../utils/subtitle-content.js";
 import { shiftVttByOffset, shiftVttTimestamps } from "@media-app/shared";
 import {
@@ -34,12 +35,7 @@ import {
   probeFile,
   stopHlsSession,
 } from "../utils/ffmpeg.js";
-import {
-  ensureThumbnailSprite,
-  getCachedThumbnailPaths,
-  isThumbnailGenerationPending,
-  thumbnailCacheDir,
-} from "../utils/thumbnails.js";
+import { getCachedThumbnailPaths, thumbnailCacheDir } from "../utils/thumbnails.js";
 import { createStreamSessionId } from "../utils/stream-session.js";
 import { createReadaheadStream } from "../utils/readahead-stream.js";
 import { getCastBaseUrl, toAbsoluteUrl } from "../utils/network.js";
@@ -72,6 +68,7 @@ type StreamFile = {
   filePath: string;
   id: number;
   durationMs?: number | null;
+  fileMtimeMs?: number | null;
   width?: number | null;
   height?: number | null;
   videoCodec?: string | null;
@@ -164,7 +161,28 @@ export async function streamRoutes(
   app: FastifyInstance,
   db: DatabaseInstance,
   config: AppConfig,
+  thumbnailBackfill: ThumbnailBackfill,
 ) {
+  function trackStream(request: FastifyRequest, reply: FastifyReply): void {
+    if (request.method === "HEAD") return;
+    const finish = thumbnailBackfill.beginStream();
+    reply.raw.once("finish", finish);
+    reply.raw.once("close", finish);
+  }
+
+  app.post<{ Body: { sessionId?: string; active?: boolean } }>(
+    "/api/stream/activity",
+    async (request, reply) => {
+      const { sessionId, active } = request.body ?? {};
+      if (typeof sessionId !== "string" || !/^[a-f0-9]{32}$/.test(sessionId) ||
+          typeof active !== "boolean") {
+        return reply.status(400).send({ error: "Invalid playback activity" });
+      }
+      thumbnailBackfill.setPlaybackActive(sessionId, active);
+      return reply.status(204).send();
+    },
+  );
+
   async function resolveFile(
     fileId: number,
     type: "movie" | "episode",
@@ -178,6 +196,7 @@ export async function streamRoutes(
             filePath: file.filePath,
             id: file.id,
             durationMs: file.durationMs,
+            fileMtimeMs: file.fileMtimeMs,
             width: file.width,
             height: file.height,
             videoCodec: file.videoCodec,
@@ -194,6 +213,7 @@ export async function streamRoutes(
           filePath: episode.filePath,
           id: episode.id,
           durationMs: episode.durationMs,
+          fileMtimeMs: episode.fileMtimeMs,
           width: episode.width,
           height: episode.height,
           videoCodec: episode.videoCodec,
@@ -357,15 +377,7 @@ export async function streamRoutes(
       ]);
 
       const thumbDir = thumbnailCacheDir(config.transcoding.cache_dir, type, fileId);
-      const thumbCached = getCachedThumbnailPaths(thumbDir);
-      if (
-        !thumbCached &&
-        !isThumbnailGenerationPending(thumbDir) &&
-        metadata.durationMs &&
-        metadata.durationMs > 0
-      ) {
-        void ensureThumbnailSprite(file.filePath, thumbDir, metadata.durationMs);
-      }
+      const thumbCached = getCachedThumbnailPaths(thumbDir, file.fileMtimeMs);
 
       return {
         id: file.id,
@@ -439,7 +451,7 @@ export async function streamRoutes(
       }
 
       const thumbDir = thumbnailCacheDir(config.transcoding.cache_dir, type, fileId);
-      const cached = getCachedThumbnailPaths(thumbDir);
+      const cached = getCachedThumbnailPaths(thumbDir, file.fileMtimeMs);
 
       if (cached) {
         reply.header("Content-Type", "text/vtt");
@@ -447,31 +459,23 @@ export async function streamRoutes(
         return reply.send(fs.readFileSync(cached.vttPath, "utf-8"));
       }
 
-      if (isThumbnailGenerationPending(thumbDir)) {
-        return reply
-          .status(202)
-          .header("Retry-After", "3")
-          .send({ status: "generating" });
-      }
-
-      const metadata = await resolveStreamMetadata(file);
-      if (!metadata.durationMs) {
-        return reply.status(404).send({ error: "Thumbnails unavailable" });
-      }
-
-      // Generate in the background — awaiting ffmpeg here times out proxies and
-      // caused clients to spam 404s while a sibling request held the lock.
-      void ensureThumbnailSprite(file.filePath, thumbDir, metadata.durationMs);
+      thumbnailBackfill.request({ ...file, type });
+      const generating = thumbnailBackfill.isGenerating(type, fileId);
       return reply
         .status(202)
-        .header("Retry-After", "3")
-        .send({ status: "generating" });
+        .header("Cache-Control", "no-store")
+        .header("Retry-After", generating ? "3" : "30")
+        .send({ status: generating ? "generating" : "queued" });
     },
   );
 
-  app.get<{ Params: StreamParams; Querystring: StreamQuery }>(
-    "/api/stream/:fileId/thumbnails/sprite.jpg",
+  app.get<{ Params: StreamParams & { sprite: string }; Querystring: StreamQuery }>(
+    "/api/stream/:fileId/thumbnails/:sprite",
     async (request, reply) => {
+      // The legacy .jpg URL also serves WebP for older clients that hardcode it.
+      if (request.params.sprite !== "sprite.jpg" && request.params.sprite !== "sprite.webp") {
+        return reply.status(404).send({ error: "Unknown thumbnail sprite" });
+      }
       const fileId = parseInt(request.params.fileId, 10);
       const type = request.query.type ?? "movie";
       const file = await resolveFile(fileId, type);
@@ -481,13 +485,13 @@ export async function streamRoutes(
       }
 
       const thumbDir = thumbnailCacheDir(config.transcoding.cache_dir, type, fileId);
-      const cached = getCachedThumbnailPaths(thumbDir);
+      const cached = getCachedThumbnailPaths(thumbDir, file.fileMtimeMs);
 
       if (!cached) {
         return reply.status(404).send({ error: "Thumbnails not ready" });
       }
 
-      reply.header("Content-Type", "image/jpeg");
+      reply.header("Content-Type", cached.spritePath.endsWith(".webp") ? "image/webp" : "image/jpeg");
       reply.header("Cache-Control", "public, max-age=86400");
       return reply.send(fs.createReadStream(cached.spritePath));
     },
@@ -515,6 +519,7 @@ export async function streamRoutes(
         return reply.status(404).send({ error: "File not found" });
       }
       const etag = strongEtagForSize(stats.size, stats.mtimeMs);
+      trackStream(request, reply);
       setStrongEtag(reply, etag);
       if (matchConditionalGet(request, reply, etag)) return;
 
@@ -585,6 +590,7 @@ export async function streamRoutes(
         return reply.status(404).send({ error: "File not found" });
       }
 
+      trackStream(request, reply);
       const probe = await probeFile(file.filePath);
       const metadata = await resolveStreamMetadata(file, probe);
       const sourceHeight = file.height ?? probe?.height ?? null;
@@ -782,6 +788,7 @@ export async function streamRoutes(
         return reply.status(404).send({ error: "HLS session not found" });
       }
 
+      trackStream(request, reply);
       session.lastServedSegmentIndex = Math.max(
         session.lastServedSegmentIndex,
         parseHlsSegmentIndex(segmentName),

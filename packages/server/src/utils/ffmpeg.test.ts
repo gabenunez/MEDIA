@@ -9,6 +9,7 @@ import {
   parseFfmpegPlaylist,
   prepareHlsResume,
   pruneOldHlsSegments,
+  pruneStaleTranscodeCache,
   waitForFirstSegment,
 } from "./ffmpeg.js";
 
@@ -55,6 +56,19 @@ function writeSegments(dir: string, count: number): void {
     );
   }
 }
+
+it("preserves completed preview sprites when pruning stale transcodes", () => {
+  const root = createTempHlsDir();
+  const thumbnails = path.join(root, "thumbnails");
+  const transcode = path.join(root, "movie-1-720p-0");
+  for (const dir of [thumbnails, transcode]) {
+    fs.mkdirSync(dir);
+    fs.utimesSync(dir, new Date(0), new Date(0));
+  }
+  expect(pruneStaleTranscodeCache(root)).toBe(1);
+  expect(fs.existsSync(thumbnails)).toBe(true);
+  expect(fs.existsSync(transcode)).toBe(false);
+});
 
 /**
  * Write an ffmpeg-style master.m3u8 alongside the segment files, mirroring

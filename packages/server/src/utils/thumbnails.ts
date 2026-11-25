@@ -12,18 +12,11 @@ const THUMB_COLS = 10;
 const THUMB_INTERVAL_SEC = 15;
 const MAX_THUMBS = 240;
 
-// How many single-frame extractions to run at once. Each is a near-instant
-// input-seek that decodes ~1 frame, so a small pool keeps the box responsive
-// (scans, playback) while still finishing a full movie in seconds.
-const EXTRACT_CONCURRENCY = 4;
-
-// Lower CPU/IO priority so sprite generation can never starve library scans
-// or playback on a busy host. Falls back to a plain ffmpeg call where the
-// wrappers aren't available.
+// Lower CPU and IO priority while competing with library scans.
 const HAS_NICE = process.platform === "linux" || process.platform === "darwin";
 const HAS_IONICE = process.platform === "linux";
 
-const pendingGenerations = new Set<string>();
+type ThumbnailPaths = { vttPath: string; spritePath: string };
 
 function formatVttTimestamp(seconds: number): string {
   const totalMs = Math.max(0, Math.round(seconds * 1000));
@@ -69,64 +62,49 @@ export function thumbnailCacheDir(cacheRoot: string, type: string, fileId: numbe
   return path.join(cacheRoot, "thumbnails", `${type}-${fileId}`);
 }
 
-export function getCachedThumbnailPaths(outputDir: string): {
-  vttPath: string;
-  spritePath: string;
-} | null {
+export function getCachedThumbnailPaths(
+  outputDir: string,
+  fileMtimeMs?: number | null,
+): ThumbnailPaths | null {
   const vttPath = path.join(outputDir, "thumbs.vtt");
-  const spritePath = path.join(outputDir, "sprite.jpg");
-  if (!fs.existsSync(vttPath) || !fs.existsSync(spritePath)) return null;
-  return { vttPath, spritePath };
-}
-
-export function isThumbnailGenerationPending(outputDir: string): boolean {
-  return pendingGenerations.has(outputDir);
+  const vtt = fs.statSync(vttPath, { throwIfNoEntry: false });
+  if (!vtt?.size || (fileMtimeMs != null && vtt.mtimeMs < fileMtimeMs)) return null;
+  for (const name of ["sprite.webp", "sprite.jpg"]) {
+    const spritePath = path.join(outputDir, name);
+    if (fs.statSync(spritePath, { throwIfNoEntry: false })?.size) {
+      return { vttPath, spritePath };
+    }
+  }
+  return null;
 }
 
 /**
  * Run ffmpeg at a lowered scheduling priority when the OS supports it, so
  * sprite generation yields to scans and playback instead of pinning a core.
  */
-async function runFfmpegLowPriority(args: string[]): Promise<void> {
+async function runFfmpegLowPriority(args: string[], signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted();
+  const options = { signal, timeout: 30_000, killSignal: "SIGKILL" as const };
   if (HAS_IONICE) {
-    // Best-effort IO class, lowest niceness; wraps `nice -n 19 ffmpeg ...`.
-    await execFileAsync("ionice", [
-      "-c",
-      "2",
-      "-n",
-      "7",
-      "nice",
-      "-n",
-      "19",
-      "ffmpeg",
-      ...args,
-    ]);
-    return;
+    try {
+      // `-t` still runs the command if the host won't set IO priority.
+      await execFileAsync("ionice", [
+        "-t", "-c", "2", "-n", "7", "nice", "-n", "19", "ffmpeg", ...args,
+      ], options);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
   if (HAS_NICE) {
-    await execFileAsync("nice", ["-n", "19", "ffmpeg", ...args]);
-    return;
-  }
-  await execFileAsync("ffmpeg", args);
-}
-
-/** Bounded-concurrency map so we never fan out more than the pool size. */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (true) {
-      const index = cursor++;
-      if (index >= items.length) return;
-      results[index] = await worker(items[index], index);
+    try {
+      await execFileAsync("nice", ["-n", "19", "ffmpeg", ...args], options);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-  });
-  await Promise.all(runners);
-  return results;
+  }
+  await execFileAsync("ffmpeg", args, options);
 }
 
 /**
@@ -139,6 +117,7 @@ async function extractFrame(
   filePath: string,
   timeSec: number,
   framePath: string,
+  signal: AbortSignal,
 ): Promise<string | null> {
   try {
     await runFfmpegLowPriority([
@@ -146,46 +125,51 @@ async function extractFrame(
       "-loglevel",
       "error",
       "-ss",
-      timeSec.toFixed(3),
+      Math.max(0, timeSec).toFixed(3),
+      "-threads", "1",
       "-i",
       filePath,
-      "-an",
-      "-sn",
+      "-map", "0:V:0",
       "-frames:v",
       "1",
+      "-filter_threads", "1",
       "-vf",
       `scale=${THUMB_WIDTH}:${THUMB_HEIGHT}`,
+      "-threads", "1",
       "-q:v",
       "5",
       "-y",
       framePath,
-    ]);
+    ], signal);
   } catch {
+    signal.throwIfAborted();
     return null;
   }
-  return fs.existsSync(framePath) ? framePath : null;
+  return fs.statSync(framePath, { throwIfNoEntry: false })?.size ? framePath : null;
 }
 
 export async function ensureThumbnailSprite(
   filePath: string,
   outputDir: string,
   durationMs: number,
-): Promise<{ vttPath: string; spritePath: string } | null> {
-  const cached = getCachedThumbnailPaths(outputDir);
+  signal: AbortSignal,
+  fileMtimeMs?: number | null,
+): Promise<ThumbnailPaths | null> {
+  const cached = getCachedThumbnailPaths(outputDir, fileMtimeMs);
   if (cached) return cached;
 
-  if (pendingGenerations.has(outputDir)) return null;
-  pendingGenerations.add(outputDir);
-
   let framesDir: string | null = null;
+  let outputTemp: string | null = null;
   try {
+    signal.throwIfAborted();
     fs.mkdirSync(outputDir, { recursive: true });
 
-    const durationSec = Math.max(1, durationMs / 1000);
+    const durationSec = durationMs / 1000;
+    if (!Number.isFinite(durationSec) || durationSec <= 0) return null;
     const intervalSec = computeThumbInterval(durationSec);
     const count = Math.max(1, Math.ceil(durationSec / intervalSec));
-    const rows = Math.ceil(count / THUMB_COLS);
-    const spritePath = path.join(outputDir, "sprite.jpg");
+    const columns = Math.min(count, THUMB_COLS);
+    const rows = Math.ceil(count / columns);
     const vttPath = path.join(outputDir, "thumbs.vtt");
 
     // Timestamps to sample, centered within each interval so a thumbnail is
@@ -199,22 +183,20 @@ export async function ensureThumbnailSprite(
     );
 
     const frameName = (index: number) => `f-${String(index).padStart(4, "0")}.jpg`;
-    const framePaths = await mapWithConcurrency(
-      timestamps,
-      EXTRACT_CONCURRENCY,
-      (timeSec, index) =>
-        extractFrame(filePath, timeSec, path.join(framesDir!, frameName(index))),
-    );
+    const missing: number[] = [];
+    for (const [index, timeSec] of timestamps.entries()) {
+      if (!await extractFrame(filePath, timeSec, path.join(framesDir, frameName(index)), signal)) {
+        missing.push(index);
+      }
+    }
 
     // Bail only if we got nothing at all; a few missing frames (e.g. a seek
     // past the last keyframe) still yield a usable sprite.
-    const haveAny = framePaths.some((p) => p !== null);
-    if (!haveAny) return null;
+    if (missing.length === count) return null;
 
     // The tile pass reads a contiguous `f-%04d.jpg` sequence and stops at the
     // first gap. Backfill any failed extraction with a black placeholder so
     // the grid stays aligned with the VTT cue -> cell mapping.
-    const missing = framePaths.flatMap((p, index) => (p === null ? [index] : []));
     if (missing.length > 0) {
       await runFfmpegLowPriority([
         "-hide_banner",
@@ -228,23 +210,20 @@ export async function ensureThumbnailSprite(
         "1",
         "-q:v",
         "5",
+        "-threads", "1",
         "-y",
         path.join(framesDir, "blank.jpg"),
-      ]);
+      ], signal);
       const blankPath = path.join(framesDir, "blank.jpg");
       for (const index of missing) {
-        try {
-          fs.copyFileSync(blankPath, path.join(framesDir, frameName(index)));
-        } catch {
-          // If even the placeholder is unavailable, drop to a single-frame
-          // sprite rather than failing the whole generation.
-        }
+        fs.copyFileSync(blankPath, path.join(framesDir, frameName(index)));
       }
     }
 
-    // Tile the already-decoded, already-scaled frames into one sprite. This
-    // pass only reads tiny JPEGs, so it's effectively free.
-    await runFfmpegLowPriority([
+    // Stage the sprite beside its destination for an atomic rename. Cache
+    // readers should never see an unfinished sprite or a partial VTT.
+    outputTemp = fs.mkdtempSync(path.join(outputDir, ".build-"));
+    const tileArgs = [
       "-hide_banner",
       "-loglevel",
       "error",
@@ -252,32 +231,46 @@ export async function ensureThumbnailSprite(
       "1",
       "-i",
       path.join(framesDir, "f-%04d.jpg"),
+      "-filter_threads", "1",
       "-vf",
-      `tile=${THUMB_COLS}x${rows}:padding=0:margin=0`,
+      `tile=${columns}x${rows}:padding=0:margin=0`,
       "-frames:v",
       "1",
-      "-q:v",
-      "5",
+      "-threads", "1",
       "-y",
-      spritePath,
-    ]);
-
-    if (!fs.existsSync(spritePath)) return null;
-
-    fs.writeFileSync(
-      vttPath,
-      buildVtt("sprite.jpg", durationSec, intervalSec),
-      "utf-8",
-    );
-
+    ];
+    let spriteName = "sprite.webp";
+    try {
+      await runFfmpegLowPriority([
+        ...tileArgs, "-c:v", "libwebp", "-quality", "65", "-compression_level", "4",
+        path.join(outputTemp, spriteName),
+      ], signal);
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!(error instanceof Error) || !/unknown encoder|encoder .* not found/i.test(error.message)) {
+        throw error;
+      }
+      spriteName = "sprite.jpg";
+      await runFfmpegLowPriority([
+        ...tileArgs, "-q:v", "7", path.join(outputTemp, spriteName),
+      ], signal);
+    }
+    signal.throwIfAborted();
+    const spriteTemp = path.join(outputTemp, spriteName);
+    if (!fs.statSync(spriteTemp, { throwIfNoEntry: false })?.size) return null;
+    const vttTemp = path.join(outputTemp, "thumbs.vtt");
+    const spritePath = path.join(outputDir, spriteName);
+    fs.writeFileSync(vttTemp, buildVtt(spriteName, durationSec, intervalSec), "utf-8");
+    fs.renameSync(spriteTemp, spritePath);
+    fs.rmSync(path.join(outputDir, spriteName === "sprite.webp" ? "sprite.jpg" : "sprite.webp"), { force: true });
+    fs.renameSync(vttTemp, vttPath);
     return { vttPath, spritePath };
   } catch (err) {
-    console.warn(`Thumbnail generation failed for ${filePath}:`, err);
+    if (!signal.aborted) console.warn(`Thumbnail generation failed for ${filePath}:`, err);
     return null;
   } finally {
-    if (framesDir) {
-      fs.rm(framesDir, { recursive: true, force: true }, () => {});
-    }
-    pendingGenerations.delete(outputDir);
+    await Promise.all([framesDir, outputTemp].map((dir) =>
+      dir ? fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {}) : undefined,
+    ));
   }
 }

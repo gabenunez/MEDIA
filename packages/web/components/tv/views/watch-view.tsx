@@ -51,6 +51,7 @@ import {
 import { destroyHlsInstance, loadHls, catchUpHlsPlayback, recoverHlsPlaybackAtPlaylistEnd, startWebPlayback, attachQualityHandoffPoller } from "@/lib/playback-engine";
 import { notifyWebPlaybackSourceReady, peekPreparedSubtitleVtt, prepareWebSubtitleVtt } from "@/lib/web-subtitle-attach";
 import { usePlaybackVisibility } from "@/lib/use-playback-visibility";
+import { usePlaybackActivity } from "@/lib/use-playback-activity";
 import { useVideoPlaybackEvents } from "@/lib/use-video-playback-events";
 import { useSubtitleTracks } from "@/lib/use-subtitle-tracks";
 import { resolveWebSubtitlePlaybackSeconds } from "@/lib/subtitle-timeline";
@@ -2327,6 +2328,8 @@ export function TvWatchView() {
       updateOptimisticSeek(null);
     }
   }, [absoluteCurrentTime, optimisticAbsoluteSeconds, usesNativePlayer, currentTime, updateOptimisticSeek]);
+
+  usePlaybackActivity(Boolean(streamInfo && !error && isPlaying));
 
   usePlaybackVisibility({
     enabled: Boolean(fileId && !Number.isNaN(fileId)),

@@ -832,10 +832,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ type }),
     }),
+  setPlaybackActive: (sessionId: string, active: boolean) =>
+    fetchApi<void>("/api/stream/activity", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, active }),
+      keepalive: true,
+    }),
   thumbnailVttUrl: (fileId: number, type: "movie" | "episode") =>
     apiUrl(`/api/stream/${fileId}/thumbnails/thumbs.vtt?type=${type}`),
-  thumbnailSpriteUrl: (fileId: number, type: "movie" | "episode") =>
-    apiUrl(`/api/stream/${fileId}/thumbnails/sprite.jpg?type=${type}`),
+  thumbnailSpriteUrl: (fileId: number, type: "movie" | "episode", sprite: "sprite.jpg" | "sprite.webp" = "sprite.jpg") =>
+    apiUrl(`/api/stream/${fileId}/thumbnails/${sprite}?type=${type}`),
   streamUrl: (
     fileId: number,
     type: "movie" | "episode",

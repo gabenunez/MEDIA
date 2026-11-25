@@ -209,7 +209,7 @@ export async function checkFfmpegAvailable(): Promise<boolean> {
 
 export async function probeFile(
   filePath: string,
-  { includeChapters = false }: { includeChapters?: boolean } = {},
+  { includeChapters = false, signal }: { includeChapters?: boolean; signal?: AbortSignal } = {},
 ): Promise<ProbeResult | null> {
   try {
     const { stdout } = await execFileAsync("ffprobe", [
@@ -221,7 +221,7 @@ export async function probeFile(
       "-show_streams",
       ...(includeChapters ? ["-show_chapters"] : []),
       filePath,
-    ]);
+    ], signal ? { signal, timeout: 30_000, killSignal: "SIGKILL" } : {});
 
     const data = JSON.parse(stdout) as {
       format?: { duration?: string; bit_rate?: string };
@@ -1338,6 +1338,8 @@ export function pruneStaleTranscodeCache(
   let removed = 0;
 
   for (const entry of fs.readdirSync(cacheDir)) {
+    // Timeline sprites are persistent, separate from disposable HLS output.
+    if (entry === "thumbnails") continue;
     const outputDir = path.join(cacheDir, entry);
     let stat: fs.Stats;
     try {
