@@ -9,6 +9,7 @@ import {
   getContiguousBufferedAhead,
   getScrubberBufferedRanges,
   scrubberBufferDisplayWidthPercent,
+  readAbsoluteScrubberBufferedRanges,
   resolveAbsoluteScrubberBufferedRanges,
   resolveScrubberDurationMs,
   qualityHandoffSeekSeconds,
@@ -818,6 +819,38 @@ describe("scrubberBufferDisplayWidthPercent", () => {
         durationSeconds: 7200,
       }),
     ).toBe(0);
+  });
+});
+
+describe("readAbsoluteScrubberBufferedRanges after a seek", () => {
+  it("waits for the browser to finish seeking and for media at the new playhead", () => {
+    const timeRanges = (...ranges: Array<[number, number]>): TimeRanges => ({
+      length: ranges.length,
+      start: (index) => ranges[index][0],
+      end: (index) => ranges[index][1],
+    });
+    const video = {
+      currentTime: 12,
+      duration: 90,
+      readyState: HTMLMediaElement.HAVE_FUTURE_DATA,
+      seeking: false,
+      buffered: timeRanges([0, 18]),
+      seekable: timeRanges([0, 90]),
+    };
+    const read = () => readAbsoluteScrubberBufferedRanges(video as HTMLVideoElement, {
+      hlsStartOffset: 1412, usingHls: true, seekTargetSeconds: 1462,
+    });
+
+    expect(read()).toEqual([]);
+    video.currentTime = 50;
+    video.seeking = true;
+    video.buffered = timeRanges([0, 18], [49, 56]);
+    expect(read()).toEqual([]);
+    video.seeking = false;
+    video.buffered = timeRanges([0, 18]);
+    expect(read()).toEqual([]);
+    video.buffered = timeRanges([0, 18], [49, 56]);
+    expect(read()).toEqual([{ start: 1462, end: 1468 }]);
   });
 });
 

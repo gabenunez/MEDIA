@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.338 — 2026-11-24
+
+### Fix
+
+- **Release** — Make TV remote skips immediate and easier to see
+- One press starts a skip immediately: Left goes back 10 seconds and Right goes forward 30 seconds. Quick follow-up taps stack, with an on-screen arrow and the running total.
+- The TV and web scrubbers clear the buffered bar as soon as a seek is committed and redraw it when data arrives for the new position.
+- Update to Android TV APK 1.5.33 alongside the server to remove the native seek delay.
+
 ## 0.1.337 — 2026-11-24
 
 ### Fix

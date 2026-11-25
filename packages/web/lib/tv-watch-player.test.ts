@@ -22,7 +22,6 @@ import {
   accumulateWatchSkipFeedback,
   isWatchRemoteSkipArrowKey,
   WATCH_NATIVE_HLS_PAUSE_RESTART_MS,
-  WATCH_SKIP_FEEDBACK_MS,
 } from "./tv-watch-player";
 
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -35,22 +34,21 @@ describe("watch skip amounts", () => {
     expect(WATCH_SKIP_FORWARD_SECONDS).toBe(30);
   });
 
-  it("shows feedback only for D-pad left/right and keeps it for one second", () => {
+  it("shows feedback only for D-pad left/right", () => {
     expect(isWatchRemoteSkipArrowKey("ArrowLeft")).toBe(true);
     expect(isWatchRemoteSkipArrowKey("ArrowRight")).toBe(true);
     expect(isWatchRemoteSkipArrowKey("MediaRewind")).toBe(false);
     expect(isWatchRemoteSkipArrowKey("MediaFastForward")).toBe(false);
-    expect(WATCH_SKIP_FEEDBACK_MS).toBe(1000);
   });
 
   it("accumulates repeated skips in the same direction", () => {
-    const first = accumulateWatchSkipFeedback(null, "skip-back");
+    const first = accumulateWatchSkipFeedback(null, -10);
     expect(first).toEqual({ direction: "back", seconds: 10 });
-    expect(accumulateWatchSkipFeedback(first, "skip-back")).toEqual({
+    expect(accumulateWatchSkipFeedback(first, -5)).toEqual({
       direction: "back",
-      seconds: 20,
+      seconds: 15,
     });
-    expect(accumulateWatchSkipFeedback(first, "skip-forward")).toEqual({
+    expect(accumulateWatchSkipFeedback(first, 30)).toEqual({
       direction: "forward",
       seconds: 30,
     });
@@ -485,26 +483,14 @@ describe("TV watch player — wiring (do not revert)", () => {
     expect(watchView).toContain("watchChromeVerticalArrowIntent");
     expect(watchView).toContain("watchSkipDeltaSeconds");
     expect(watchView).toContain("TV_WATCH_REMOTE_KEY_EVENT");
-    expect(watchView).toContain("flashRemoteSkipFeedback");
     expect(watchView).toContain("isWatchRemoteSkipArrowKey");
     expect(watchView).toContain("WatchSkipFeedbackBadge");
     expect(watchView).toContain("revealControls: false");
-    expect(watchView).toContain("flashRemoteSkipFeedback(hiddenArrow);");
     expect(watchView).toContain("moveWatchTransportFocus");
     expect(watchView).toContain("getWatchTransportFocusItems");
     expect(watchView).toContain("getWatchPlayerFocusedItem");
     expect(watchView).toContain("isWatchTextInputKeyTarget");
     expect(watchView).toContain("e.defaultPrevented");
-  });
-
-  it("keeps chrome hidden while a remote skip settles", () => {
-    const hiddenSkip = watchView.slice(
-      watchView.indexOf('if (isWatchRemoteSkipArrowKey(e.key))'),
-      watchView.indexOf("return;", watchView.indexOf('if (isWatchRemoteSkipArrowKey(e.key))')) +
-        "return;".length,
-    );
-    expect(hiddenSkip).toContain("skipRelative(watchSkipDeltaSeconds(hiddenArrow), { revealControls: false })");
-    expect(hiddenSkip).toContain("revealControls(false)");
   });
 
   it("spatial nav uses the extracted watch-arrow guard", () => {

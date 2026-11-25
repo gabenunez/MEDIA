@@ -16,7 +16,9 @@ export function watchSkipDeltaSeconds(intent: "skip-back" | "skip-forward"): num
   return intent === "skip-back" ? -WATCH_SKIP_BACK_SECONDS : WATCH_SKIP_FORWARD_SECONDS;
 }
 
-export const WATCH_SKIP_FEEDBACK_MS = 1000;
+export const WATCH_SKIP_FEEDBACK_MS = 1200;
+/** After the first skip, give quick follow-up taps time to share one seek. */
+export const WATCH_SKIP_COALESCE_MS = 180;
 
 export type WatchSkipFeedback = {
   direction: "back" | "forward";
@@ -28,13 +30,13 @@ export function isWatchRemoteSkipArrowKey(key: string): boolean {
   return key === "ArrowLeft" || key === "ArrowRight";
 }
 
-/** Stack repeated L/R skips into one fading badge (10, 20, … / 30, 60, …). */
+/** Stack consecutive movement in one direction, using the actual clamped delta. */
 export function accumulateWatchSkipFeedback(
   current: WatchSkipFeedback | null,
-  intent: "skip-back" | "skip-forward",
+  deltaSeconds: number,
 ): WatchSkipFeedback {
-  const direction = intent === "skip-back" ? "back" : "forward";
-  const step = Math.abs(watchSkipDeltaSeconds(intent));
+  const direction = deltaSeconds < 0 ? "back" : "forward";
+  const step = Math.abs(deltaSeconds);
   if (current?.direction === direction) {
     return { direction, seconds: current.seconds + step };
   }

@@ -573,7 +573,7 @@ describe("TV watch remote — wiring (do not revert)", () => {
 
   it("clears optimistic seeks from the live native playhead", () => {
     expect(watchView).toContain("shouldClearOptimisticSeek");
-    expect(watchView).toContain("optimisticAbsoluteSecondsRef.current = null");
+    expect(watchView).toContain("updateOptimisticSeek(null)");
   });
 
   it("syncs native overlay alpha from chrome visibility instead of forcing 0 at start", () => {

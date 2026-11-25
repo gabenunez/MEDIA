@@ -78,6 +78,7 @@ export function useVideoPlaybackEvents(options: UseVideoPlaybackEventsOptions): 
       handlersRef.current.onBufferUpdate();
     };
     const onSeeked = () => {
+      handlersRef.current.onBufferUpdate();
       if (optimisticRef.current === null) return;
       const actual = usingHlsPlayback
         ? hlsStartOffset + video.currentTime

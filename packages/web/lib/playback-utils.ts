@@ -981,18 +981,35 @@ export function resolveAbsoluteScrubberBufferedRanges(options: {
 
 export function readAbsoluteScrubberBufferedRanges(
   video: HTMLVideoElement,
-  options: { hlsStartOffset?: number; usingHls?: boolean } = {},
+  options: {
+    hlsStartOffset?: number;
+    usingHls?: boolean;
+    seekTargetSeconds?: number | null;
+  } = {},
 ): Array<{ start: number; end: number }> {
+  if (video.seeking) return [];
   const offset = Math.max(0, options.hlsStartOffset ?? 0);
   const usingHls = options.usingHls ?? offset > 0;
-  const seekableEnd = getVideoSeekableEnd(video);
-  const duration = Number.isFinite(video.duration) ? video.duration : 0;
-  return resolveAbsoluteScrubberBufferedRanges({
+  const position = {
     ranges: getVideoBufferedRanges(video),
     elementCurrentTime: video.currentTime,
     hlsStartOffset: offset,
     usingHls,
-    availableEndRelative: usingHls ? Math.max(seekableEnd, duration) : undefined,
+  };
+  if (options.seekTargetSeconds != null) {
+    // A seekable HLS playlist can still describe the outgoing window. Wait
+    // for playable data at the new playhead before showing the buffer again.
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return [];
+    const ranges = resolveAbsoluteScrubberBufferedRanges({ ...position, maxGapSeconds: 0 });
+    return ranges[0] && shouldClearOptimisticSeek(ranges[0].start, options.seekTargetSeconds)
+      ? ranges
+      : [];
+  }
+
+  const duration = Number.isFinite(video.duration) ? video.duration : 0;
+  return resolveAbsoluteScrubberBufferedRanges({
+    ...position,
+    availableEndRelative: usingHls ? Math.max(getVideoSeekableEnd(video), duration) : undefined,
   });
 }
 
@@ -1237,8 +1254,6 @@ export const NATIVE_MID_BUFFER_WATCHDOG_MS = 20_000;
  * cancels that refill and is the main cause of post-seek lag on Android TV.
  */
 export const NATIVE_SEEK_STALL_SUPPRESS_MS = 12_000;
-/** Coalesce rapid skip taps (-10 / +30) into one seek. */
-export const NATIVE_SEEK_COALESCE_MS = 180;
 
 export type NativeSeekStallWatchdogAction =
   | "suppress"

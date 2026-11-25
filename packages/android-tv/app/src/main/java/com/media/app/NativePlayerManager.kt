@@ -59,8 +59,6 @@ class NativePlayerManager(
     /** One local seek+prepare before failing through mid-play. */
     private var didAttemptSoftStallRecovery = false
     private var stallRecoveryRunnable: Runnable? = null
-    private var seekCoalesceRunnable: Runnable? = null
-    private var pendingSeekMs: Long? = null
     /** Wall clock of the last user scrub/skip — suppresses stall recovery while refilling. */
     private var lastUserSeekAtMs = 0L
     /** Latch so we only enable the GPU upscale graph once per play session. */
@@ -147,7 +145,6 @@ class NativePlayerManager(
         playbackFailureReported = false
         hasReachedReady = false
         didAttemptSoftStallRecovery = false
-        pendingSeekMs = null
         lastUserSeekAtMs = 0L
         sdUpscaleApplied = false
         wasBuffering = false
@@ -155,7 +152,6 @@ class NativePlayerManager(
         lastBandwidthEstimate = 0L
         lastEmittedPlaybackState = Player.STATE_IDLE
         transferStallSinceMs = 0L
-        cancelSeekCoalesce()
         cancelStallRecovery()
 
         releasePlayer()
@@ -468,7 +464,6 @@ class NativePlayerManager(
         playbackFailureReported = false
         hasReachedReady = true
         didAttemptSoftStallRecovery = false
-        pendingSeekMs = null
         sdUpscaleApplied = false
         wasBuffering = false
         midRebufferAtMs.clear()
@@ -720,22 +715,10 @@ class NativePlayerManager(
     }
 
     fun seekTo(positionMs: Long) {
-        // Coalesce rapid skip taps (-10 / +30) so each tap does not cancel the
-        // previous Range/segment refill — that is what felt "laggy" after skipping.
-        pendingSeekMs = positionMs.coerceAtLeast(0L)
-        cancelSeekCoalesce()
-        val runnable = Runnable {
-            seekCoalesceRunnable = null
-            val target = pendingSeekMs ?: return@Runnable
-            pendingSeekMs = null
-            dispatchUserSeek(target)
-        }
-        seekCoalesceRunnable = runnable
-        handler.postDelayed(runnable, SEEK_COALESCE_MS)
-    }
-
-    private fun dispatchUserSeek(targetMs: Long) {
+        // The watch UI groups repeated taps. Dispatch the first seek as soon
+        // as it reaches the player, without adding another delay here.
         val exoPlayer = player ?: return
+        val targetMs = positionMs.coerceAtLeast(0L)
         // Cancel any in-flight soft recovery — a delayed seek+prepare after a
         // user scrub destroys the new buffer window and leaves playback choppy.
         cancelStallRecovery()
@@ -750,11 +733,6 @@ class NativePlayerManager(
         exoPlayer.seekTo(targetMs)
         exoPlayer.playWhenReady = true
         emitState()
-    }
-
-    private fun cancelSeekCoalesce() {
-        seekCoalesceRunnable?.let { handler.removeCallbacks(it) }
-        seekCoalesceRunnable = null
     }
 
     fun updateSubtitles(subtitleUrl: String?): Boolean {
@@ -820,10 +798,8 @@ class NativePlayerManager(
     fun stop() {
         handler.removeCallbacks(progressRunnable)
         handler.removeCallbacks(cueRunnable)
-        cancelSeekCoalesce()
         cancelStallRecovery()
         cancelQualityHandoff()
-        pendingSeekMs = null
         if (!playbackEnded) {
             saveProgress(player?.currentPosition ?: 0L, ended = false)
         }
@@ -1513,9 +1489,8 @@ class NativePlayerManager(
         /** Remux/HLS restart mid-title — shorter than cold open. */
         private const val MID_PLAY_START_GRACE_MS = 35_000L
         private const val RECOVERY_DELAY_MS = 500L
-        /** Match NATIVE_SEEK_STALL_SUPPRESS_MS / NATIVE_SEEK_COALESCE_MS in playback-utils.ts */
+        /** Match NATIVE_SEEK_STALL_SUPPRESS_MS in playback-utils.ts. */
         private const val SEEK_STALL_SUPPRESS_MS = 12_000L
-        private const val SEEK_COALESCE_MS = 180L
         /** Transient network errors only — buffering watchdog fails through instead. */
         private const val MAX_STALL_RECOVERY_ATTEMPTS = 1
         /** Mid-play underruns that recover: escalate after this many in the window. */

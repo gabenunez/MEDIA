@@ -1159,83 +1159,92 @@
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
   }
 
-  /* Remote L/R skip — a light, readable surface that does not compete with the video. */
+  .watch-skip-overlay--back {
+    left: clamp(1.5rem, 8vw, 10rem);
+    --watch-skip-slide: -0.5rem;
+  }
+
+  .watch-skip-overlay--forward {
+    right: clamp(1.5rem, 8vw, 10rem);
+    --watch-skip-slide: 0.5rem;
+  }
+
   .watch-skip-feedback {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    min-width: 9.5rem;
-    height: 4.5rem;
-    padding: 0 1rem;
-    border: 1px solid rgb(255 255 255 / 0.88);
-    border-radius: 9999px;
-    background: rgb(255 255 255 / 0.88);
-    color: hsl(var(--primary-foreground));
-    box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.2);
-    animation: none;
+    gap: 0.875rem;
+    min-width: 10.75rem;
+    padding: 0.875rem 1.125rem;
+    border: 1px solid rgb(255 255 255 / 0.2);
+    border-radius: 1.125rem;
+    background: linear-gradient(155deg, rgb(29 39 41 / 0.97), rgb(9 14 16 / 0.96));
+    color: white;
+    box-shadow: 0 0.5rem 1.75rem rgb(0 0 0 / 0.42);
   }
 
   .watch-skip-feedback-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
-    flex: 0 0 2.75rem;
-    border: 1px solid hsl(var(--primary) / 0.7);
-    border-radius: 9999px;
-    background: hsl(var(--primary) / 0.28);
-    color: hsl(var(--primary-foreground));
+    display: grid;
+    place-items: center;
+    width: 2.875rem;
+    height: 2.875rem;
+    flex: 0 0 2.875rem;
+    border: 1px solid hsl(var(--primary) / 0.25);
+    border-radius: 0.75rem;
+    background: hsl(var(--primary) / 0.13);
+    color: hsl(var(--primary));
+  }
+
+  .watch-skip-feedback-icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
   }
 
   .watch-skip-feedback-copy {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.3rem;
-    line-height: 1;
+    display: grid;
+    gap: 0.25rem;
   }
 
-  .watch-skip-feedback-value {
-    font-size: 1.5rem;
+  .watch-skip-feedback-label {
+    color: rgb(255 255 255 / 0.74);
+    font-size: 0.6875rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-
-  .watch-skip-feedback-unit {
-    color: hsl(var(--primary-foreground) / 0.64);
-    font-size: 0.875rem;
-    font-weight: 600;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
     text-transform: uppercase;
   }
 
-  .watch-skip-feedback--back {
-    flex-direction: row;
+  .watch-skip-feedback-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    white-space: nowrap;
   }
 
-  .watch-skip-feedback--forward {
-    flex-direction: row-reverse;
+  .watch-skip-feedback-unit {
+    margin-left: 0.1875rem;
+    color: rgb(255 255 255 / 0.74);
+    font-size: 1.0625rem;
+    font-weight: 600;
   }
 
-  @media (max-width: 640px) {
+  @media (prefers-reduced-motion: no-preference) {
     .watch-skip-feedback {
-      min-width: 8.25rem;
-      height: 4rem;
+      animation: watch-skip-enter 150ms ease-out both;
     }
 
-    .watch-skip-feedback-icon {
-      width: 2.5rem;
-      height: 2.5rem;
-      flex-basis: 2.5rem;
+    .watch-skip-feedback-glyph {
+      animation: watch-skip-nudge 200ms ease-out both;
     }
   }
 
-  /*
-   * The timeout in watch-view starts again for every remote press. Do not
-   * animate opacity here: a CSS fade would hide feedback before that timeout.
-   */
-  .watch-skip-feedback[data-tv-watch-skip-feedback] {
-    opacity: 1;
+  @keyframes watch-skip-enter {
+    from { opacity: 0; transform: translateX(var(--watch-skip-slide)); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes watch-skip-nudge {
+    40% { transform: translateX(var(--watch-skip-slide)); }
   }
 
   .watch-scrub-time {

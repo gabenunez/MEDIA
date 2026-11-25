@@ -163,6 +163,7 @@ function WatchDesktopClient() {
   const hlsStartOffsetRef = useRef(0);
   const lastStableAbsoluteSecondsRef = useRef(0);
   const playbackBufferingRef = useRef(false);
+  const scrubberBufferSeekTargetRef = useRef<number | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveProgressRef = useRef<(completed?: boolean) => Promise<void>>(
@@ -455,12 +456,13 @@ function WatchDesktopClient() {
     const video = videoRef.current;
     if (!video) return;
 
-    setBufferedRanges(
-      readAbsoluteScrubberBufferedRanges(video, {
-        hlsStartOffset: usingHlsRef.current ? hlsStartOffsetRef.current : 0,
-        usingHls: usingHlsRef.current,
-      }),
-    );
+    const ranges = readAbsoluteScrubberBufferedRanges(video, {
+      hlsStartOffset: usingHlsRef.current ? hlsStartOffsetRef.current : 0,
+      usingHls: usingHlsRef.current,
+      seekTargetSeconds: scrubberBufferSeekTargetRef.current,
+    });
+    if (ranges.length > 0) scrubberBufferSeekTargetRef.current = null;
+    setBufferedRanges(ranges);
   }, []);
   const updateBufferedPositionRef = useRef(updateBufferedPosition);
   updateBufferedPositionRef.current = updateBufferedPosition;
@@ -630,6 +632,8 @@ function WatchDesktopClient() {
 
   useEffect(() => {
     setStreamGeneration(0);
+    scrubberBufferSeekTargetRef.current = null;
+    setBufferedRanges([]);
     pendingStreamStartRef.current = null;
     streamRestartTargetsRef.current.clear();
     setPlaybackHasBegun(false);
@@ -1423,6 +1427,8 @@ function WatchDesktopClient() {
       if (!video || !totalDurationSeconds) return;
 
       const clamped = Math.max(0, Math.min(targetSeconds, totalDurationSeconds));
+      scrubberBufferSeekTargetRef.current = clamped;
+      setBufferedRanges([]);
       setOptimisticAbsoluteSeconds(clamped);
       lastStableAbsoluteSecondsRef.current = clamped;
       lastUserSeekAtRef.current = Date.now();
@@ -1532,6 +1538,7 @@ function WatchDesktopClient() {
 
   useEffect(() => {
     if (!error) return;
+    scrubberBufferSeekTargetRef.current = null;
     setOptimisticAbsoluteSeconds(null);
   }, [error]);
 
