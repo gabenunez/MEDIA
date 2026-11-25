@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.343 — 2026-11-25
+
+### Changes
+
+- **Release** — Restore the grid background on TV browse screens
+- A subtle teal grid returns to the TV catalog. It scales cleanly at 1080p and 4K and stays out of loading screens and playback.
+
 ## 0.1.342 — 2026-11-25
 
 ### Fix

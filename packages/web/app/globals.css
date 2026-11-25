@@ -103,6 +103,17 @@
   }
 }
 
+/* One small vector tile on the catalog scroll container. Keep the body and
+   route loaders solid so the pattern cannot flash during TV navigation. The
+   TV class is added at runtime, so keep this rule outside Tailwind's layers. */
+html.tv-mode:not([data-native-video="true"]):not([data-tv-watch-active]) [data-tv-catalog-backdrop] {
+  --tv-backdrop-cell: clamp(48px, 3.75vw, 144px);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72' shape-rendering='crispEdges'%3E%3Cpath d='M.5 0v72' stroke='%232fffe5' stroke-opacity='.075'/%3E%3Cpath d='M0 .5h72' stroke='%23dcff60' stroke-opacity='.045'/%3E%3C/svg%3E");
+  background-size: 72px 72px;
+  background-size: var(--tv-backdrop-cell) var(--tv-backdrop-cell);
+  background-position: center top;
+}
+
 @layer utilities {
   .poster-shadow {
     box-shadow:

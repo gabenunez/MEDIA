@@ -85,6 +85,8 @@ export function TvShell({ children }: { children: React.ReactNode }) {
   const homeActive = pathname === "/" || pathname === "";
   const favoritesActive = pathname.startsWith("/favorites");
   const searchActive = pathname.startsWith("/search");
+  const catalogBackdrop = homeActive ||
+    /^\/(?:browse|continue|deck|favorites|library|recent|search)(?:\/|$)/.test(pathname);
   const showLogout = required && authenticated;
 
   useEffect(() => {
@@ -194,7 +196,12 @@ export function TvShell({ children }: { children: React.ReactNode }) {
             </nav>
         </aside>
 
-        <main className="relative min-w-0 flex-1 overflow-y-auto bg-background">{children}</main>
+        <main
+          className="relative min-w-0 flex-1 overflow-y-auto bg-background"
+          data-tv-catalog-backdrop={catalogBackdrop ? "" : undefined}
+        >
+          {children}
+        </main>
       </div>
     </TvSpatialNav>
   );
