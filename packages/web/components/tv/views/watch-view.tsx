@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWatchRouteParams } from "@/lib/use-route-params";
 import { useIsClient } from "@/lib/use-browser-pathname";
 import type Hls from "hls.js";
-import { ListVideo, Loader2, Pause, Play, RotateCcw, Settings2, SkipBack, SkipForward, Subtitles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { MediaChapter } from "@media-app/shared";
 import { api, type StreamInfo, type StreamQuality } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -74,6 +74,7 @@ import { NextEpisodeCountdownOverlay } from "@/components/next-episode-countdown
 import { PlaybackPosterBackdrop } from "@/components/playback-poster-backdrop";
 import { WatchSkipFeedbackBadge } from "@/components/watch-skip-feedback";
 import { TvWatchHoldScrub } from "@/components/tv/tv-watch-hold-scrub";
+import { TvWatchIcon } from "@/components/tv/tv-watch-icon";
 import { SeekPreviewTooltip } from "@/components/seek-preview-tooltip";
 import { WatchChapterMarkers, WatchChaptersPanel } from "@/components/watch-chapters";
 import { activeWatchChapterIndex } from "@/lib/watch-chapters";
@@ -2610,6 +2611,8 @@ export function TvWatchView() {
   const controlIconButtonClassName = "watch-control-btn shrink-0";
   const playControlButtonClassName = "watch-control-btn watch-control-btn--play shrink-0";
   const controlLabelButtonClassName = "watch-control-btn watch-control-btn--label shrink-0";
+  const skipBackSeconds = -watchSkipDeltaSeconds("skip-back");
+  const skipForwardSeconds = watchSkipDeltaSeconds("skip-forward");
 
   const handleWatchBack = useCallback((): boolean => {
     if (cancelHoldScrub()) return true;
@@ -3247,7 +3250,7 @@ export function TvWatchView() {
             data-tv-watch-bottom-chrome=""
             className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
           >
-            <div className="watch-chrome-bottom pointer-events-auto px-5 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-8">
+            <div className="watch-chrome-bottom pointer-events-auto">
               <div className="group/watch-scrub relative mb-3.5 flex items-center gap-4 overflow-visible">
                 <div
                   data-tv-row=""
@@ -3267,7 +3270,7 @@ export function TvWatchView() {
                       spriteUrl={thumbnails?.spriteUrl ?? null}
                     />
                   )}
-                  <div className="relative h-6">
+                  <div className="tv-watch-scrub-slot relative">
                     <TvWatchScrubTrack
                       bufferedRanges={bufferedRanges}
                       progress={displayedProgress}
@@ -3292,7 +3295,7 @@ export function TvWatchView() {
                       onBlur={() => {
                         discardScrubPreview();
                       }}
-                      className="absolute inset-x-0 top-1/2 z-[3] h-6 w-full -translate-y-1/2 border-2 border-transparent bg-transparent p-0"
+                      className="absolute inset-0 z-[3] border-2 border-transparent bg-transparent p-0"
                     />
                   </div>
                 </div>
@@ -3301,7 +3304,7 @@ export function TvWatchView() {
                   {formatDuration(displayedAbsoluteTime * 1000)}
                   {totalDurationSeconds > 0 && (
                     <>
-                      <span className="text-white/40"> / </span>
+                      <span className="text-white/60"> / </span>
                       {formatDuration(totalDurationSeconds * 1000)}
                     </>
                   )}
@@ -3313,29 +3316,25 @@ export function TvWatchView() {
                 data-tv-content-row=""
                 data-tv-watch-controls=""
                 data-tv-watch-transport-row=""
-                className="flex items-center justify-between gap-3"
+                className="flex items-center justify-between"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center">
                   <TvFocusButton
                     variant="watch"
                     onClick={restartFromBeginning}
                     aria-label={START_FROM_BEGINNING_LABEL}
                     className={controlIconButtonClassName}
                   >
-                    <span className="watch-control-icon">
-                      <RotateCcw size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-                    </span>
+                    <TvWatchIcon icon="restart" />
                   </TvFocusButton>
 
                   <TvFocusButton
                     variant="watch"
-                    onClick={() => skipRelative(watchSkipDeltaSeconds("skip-back"))}
-                    aria-label="Back 10 seconds"
+                    onClick={() => skipRelative(-skipBackSeconds)}
+                    aria-label={`Back ${skipBackSeconds} seconds`}
                     className={controlIconButtonClassName}
                   >
-                    <span className="watch-control-icon">
-                      <SkipBack size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-                    </span>
+                    <TvWatchIcon icon="back" seconds={skipBackSeconds} />
                   </TvFocusButton>
 
                   <TvFocusButton
@@ -3345,35 +3344,21 @@ export function TvWatchView() {
                     className={playControlButtonClassName}
                     aria-label={bufferingMidPlayback ? "Buffering" : isPlaying ? "Pause" : "Play"}
                   >
-                    <span
-                      className={cn(
-                        "watch-control-icon",
-                        !bufferingMidPlayback && !isPlaying && "watch-control-icon--play",
-                      )}
-                    >
-                      {bufferingMidPlayback ? (
-                        <Loader2 size={24} strokeWidth={2} absoluteStrokeWidth className="animate-spin" aria-hidden />
-                      ) : isPlaying ? (
-                        <Pause size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-                      ) : (
-                        <Play size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-                      )}
-                    </span>
+                    <TvWatchIcon icon={bufferingMidPlayback ? "buffering" : isPlaying ? "pause" : "play"} />
                   </TvFocusButton>
 
                   <TvFocusButton
                     variant="watch"
-                    onClick={() => skipRelative(watchSkipDeltaSeconds("skip-forward"))}
-                    aria-label="Forward 30 seconds"
+                    onClick={() => skipRelative(skipForwardSeconds)}
+                    aria-label={`Forward ${skipForwardSeconds} seconds`}
                     className={controlIconButtonClassName}
                   >
-                    <span className="watch-control-icon">
-                      <SkipForward size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-                    </span>
+                    <TvWatchIcon icon="forward" seconds={skipForwardSeconds} />
                   </TvFocusButton>
                   {canOpenChapters && (
                     <TvFocusButton
                       variant="watch"
+                      aria-label="Chapters"
                       aria-haspopup="dialog"
                       aria-expanded={chapterMenuOpen}
                       className={controlLabelButtonClassName}
@@ -3387,15 +3372,13 @@ export function TvWatchView() {
                         revealControls(false);
                       }}
                     >
-                      <span className="watch-control-icon">
-                        <ListVideo size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden="true" />
-                      </span>
+                      <TvWatchIcon icon="chapters" />
                       <span className="watch-control-label">Chapters</span>
                     </TvFocusButton>
                   )}
                 </div>
 
-                <div className="flex shrink-0 items-center gap-3">
+                <div className="flex shrink-0 items-center">
                   <VideoDisplayModeButton
                     variant="tv"
                     mode={videoDisplayMode}
@@ -3419,9 +3402,7 @@ export function TvWatchView() {
                       }}
                       className={controlIconButtonClassName}
                     >
-                      <span className="watch-control-icon">
-                        <Subtitles size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-                      </span>
+                      <TvWatchIcon icon="subtitles" />
                     </TvFocusButton>
                     {subtitleMenuOpen && (
                       <TvWatchPopover className="w-[min(32rem,calc(100vw-2rem))]">
@@ -3521,9 +3502,7 @@ export function TvWatchView() {
                       disabled={!transcodingEnabled && quality === "original"}
                       className={controlLabelButtonClassName}
                     >
-                      <span className="watch-control-icon">
-                        <Settings2 size={24} strokeWidth={2} absoluteStrokeWidth aria-hidden />
-                      </span>
+                      <TvWatchIcon icon="quality" />
                       <span className="watch-control-label">
                         {qualityLabel(quality, sourceHeight, sourceWidth)}
                       </span>

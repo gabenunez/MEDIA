@@ -547,10 +547,9 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(watchView).toContain("resolveScrubCommitDecision");
     expect(watchView).toContain("progressRef.current = optimisticProgressPercent ?? progress");
     expect(watchView).not.toContain("progressRef.current = displayedProgress");
-    const scrubButton = watchView.slice(
-      watchView.indexOf("data-tv-watch-scrub="),
-      watchView.indexOf("className=\"absolute inset-x-0 top-1/2"),
-    );
+    const scrubButtonStart = watchView.indexOf("data-tv-watch-scrub=");
+    expect(scrubButtonStart).toBeGreaterThan(-1);
+    const scrubButton = watchView.slice(scrubButtonStart, watchView.indexOf("/>", scrubButtonStart));
     expect(scrubButton).toContain("onClick={() => {");
     expect(scrubButton).toContain("commitScrubPreview()");
     expect(scrubButton).not.toContain("revealControls(false)");
@@ -651,8 +650,8 @@ describe("TV watch remote — wiring (do not revert)", () => {
     expect(playbackOptions).not.toContain("MoreOptionsIcon");
     expect(playbackOptions).not.toContain('role="menu"');
     expect(watchView).toContain("resolveWatchInitialResumeSeconds");
-    expect(watchView).toContain("restartFromBeginning");
+    expect(watchView).toContain("onClick={restartFromBeginning}");
+    expect(watchView).toContain("aria-label={START_FROM_BEGINNING_LABEL}");
     expect(watchView).toContain("fromStart");
-    expect(watchView).toContain("RotateCcw");
   });
 });

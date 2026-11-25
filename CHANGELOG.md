@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.340 — 2026-11-25
+
+### Changes
+
+- **Release** — Sharper playback controls on 4K TVs
+- TV playback now uses solid play and pause icons, numbered 10-second rewind and 30-second forward arrows, and a higher-contrast timeline with a larger playhead.
+- The toolbar scales for full-resolution 4K browsers while keeping its usual proportions on Android TV. No new TV APK is required.
+
 ## 0.1.339 — 2026-11-24
 
 ### Added

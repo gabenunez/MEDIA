@@ -1818,24 +1818,61 @@
     line-height: 1.4;
   }
 
-  /*
-   * Watch transport controls — self-contained 10-foot UI.
-   * Icon shell is a fixed square so Lucide glyphs stay geometrically centered.
-   */
+  .tv-ui [data-tv-watch-bottom-chrome] {
+    --tv-watch-button-size: 56px;
+    --tv-watch-play-size: 64px;
+    --tv-watch-icon-size: 32px;
+    --tv-watch-label-size: 16px;
+    --tv-watch-gap: 12px;
+    --tv-watch-inset: 24px;
+    --tv-watch-scrub-size: 24px;
+    --tv-watch-track-size: 6px;
+    --tv-watch-playhead-size: 18px;
+  }
+
+  /* A full UHD CSS viewport needs larger controls. A 1920px WebView at DPR 2
+     already rasterizes these vectors at double density with the normal layout. */
+  @media (min-width: 3200px) and (min-height: 1600px) {
+    .tv-ui [data-tv-watch-bottom-chrome] {
+      --tv-watch-button-size: 112px;
+      --tv-watch-play-size: 128px;
+      --tv-watch-icon-size: 64px;
+      --tv-watch-label-size: 32px;
+      --tv-watch-gap: 24px;
+      --tv-watch-inset: 48px;
+      --tv-watch-scrub-size: 48px;
+      --tv-watch-track-size: 12px;
+      --tv-watch-playhead-size: 36px;
+      --tv-focus-border-width: 4px;
+      --tv-focus-border: var(--tv-focus-border-width) solid hsl(var(--primary));
+      --tv-selected-border: var(--tv-focus-border-width) solid hsl(var(--primary) / 0.5);
+    }
+  }
+
+  @media (max-width: 660px) {
+    .tv-ui [data-tv-watch-bottom-chrome] {
+      --tv-watch-button-size: 44px;
+      --tv-watch-play-size: 52px;
+      --tv-watch-icon-size: 28px;
+      --tv-watch-label-size: 14px;
+      --tv-watch-gap: 8px;
+      --tv-watch-inset: 12px;
+    }
+  }
+
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     box-sizing: border-box !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    width: 52px !important;
-    min-width: 52px !important;
+    height: var(--tv-watch-button-size) !important;
+    width: var(--tv-watch-button-size) !important;
+    min-width: var(--tv-watch-button-size) !important;
     margin: 0 !important;
     padding: 0 !important;
-    border: var(--tv-focus-border-width) solid rgb(255 255 255 / 0.18) !important;
+    border: var(--tv-focus-border-width) solid rgb(255 255 255 / 0.24) !important;
     border-radius: 9999px !important;
-    background-color: rgb(0 0 0 / 0.48) !important;
+    background-color: rgb(0 0 0 / 0.68) !important;
     color: #fff !important;
     line-height: 0 !important;
     font-size: 0 !important;
@@ -1848,61 +1885,35 @@
 
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label {
     width: max-content !important;
-    min-width: 52px !important;
     max-width: none !important;
-    gap: 10px !important;
-    padding-inline: 16px !important;
-    border-radius: 9999px !important;
-    font-size: 14px !important;
-    line-height: 1 !important;
+    gap: var(--tv-watch-gap) !important;
+    padding-inline: var(--tv-watch-label-size) !important;
   }
 
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn .watch-control-icon {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 24px !important;
-    height: 24px !important;
-    flex: 0 0 24px !important;
-    line-height: 0 !important;
-    pointer-events: none !important;
-  }
-
-  /* Play triangle is optically left-heavy in the 24 viewBox — nudge for true center */
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn .watch-control-icon--play {
-    transform: translateX(1px);
+  .tv-ui .tv-watch-icon {
+    display: block;
+    width: var(--tv-watch-icon-size);
+    height: var(--tv-watch-icon-size);
+    flex-shrink: 0;
+    pointer-events: none;
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label .watch-control-label {
-    display: inline-block !important;
-    flex: 0 0 auto !important;
-    width: max-content !important;
-    max-width: none !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
-    white-space: nowrap !important;
-    font-size: 14px !important;
-    line-height: 1 !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.01em !important;
-    color: #fff !important;
+    white-space: nowrap;
+    font-size: var(--tv-watch-label-size);
+    line-height: 1.25;
+    font-weight: 600;
   }
 
-  /* Size only the root SVG — never path children (that breaks Lucide geometry) */
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn svg {
-    display: block !important;
-    width: 24px !important;
-    height: 24px !important;
-    flex-shrink: 0 !important;
-    color: #fff !important;
-    stroke: currentColor !important;
-    fill: none !important;
-    overflow: visible !important;
-  }
+  @media (max-width: 560px) {
+    .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label {
+      width: var(--tv-watch-button-size) !important;
+      padding-inline: 0 !important;
+    }
 
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn svg[data-watch-icon-fill="true"],
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn .watch-control-icon--play svg {
-    fill: currentColor !important;
+    .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--label .watch-control-label {
+      display: none;
+    }
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn[data-tv-focused] {
@@ -1927,10 +1938,9 @@
 
   /* Play/pause — primary CTA, same language as the scrubber playhead */
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--play {
-    height: 58px !important;
-    min-height: 58px !important;
-    width: 58px !important;
-    min-width: 58px !important;
+    height: var(--tv-watch-play-size) !important;
+    width: var(--tv-watch-play-size) !important;
+    min-width: var(--tv-watch-play-size) !important;
     border-color: hsl(var(--primary) / 0.55) !important;
     background-color: var(--tv-selected-bg) !important;
   }
@@ -1941,17 +1951,17 @@
     color: hsl(var(--primary-foreground)) !important;
   }
 
-  .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn.watch-control-btn--play[data-tv-focused] svg {
-    color: hsl(var(--primary-foreground)) !important;
-  }
-
   .tv-ui [data-tv-watch-controls] [data-tv-item].watch-control-btn:disabled {
     opacity: 0.4 !important;
   }
 
-  .tv-ui [data-tv-watch-transport-row] {
-    align-items: center !important;
-    gap: 0.75rem !important;
+  .tv-ui [data-tv-watch-transport-row],
+  .tv-ui [data-tv-watch-transport-row] > div {
+    gap: var(--tv-watch-gap);
+  }
+
+  .tv-ui .tv-watch-scrub-slot {
+    height: var(--tv-watch-scrub-size);
   }
 
   .tv-ui [data-tv-watch-controls] [data-tv-watch-scrub],
@@ -1967,39 +1977,33 @@
     transform: none !important;
     width: 100% !important;
     min-width: 0 !important;
-    height: 1.5rem !important;
+    height: 100% !important;
     min-height: 0 !important;
     padding: 0 !important;
   }
 
-  .tv-ui .watch-scrub-track {
-    height: 0.375rem;
+  .tv-ui [data-tv-watch-scrub-row] .watch-scrub-track {
+    height: var(--tv-watch-track-size);
+    background-color: rgb(255 255 255 / 0.25);
     /* Solid rail only — inset shadows composite poorly in Android TV WebView. */
     box-shadow: none;
   }
 
-  .tv-ui [data-tv-watch-scrub-row] .watch-scrub-track {
-    opacity: 0.65;
-    transition:
-      height 150ms ease-out,
-      background-color 150ms ease-out,
-      opacity 150ms ease-out;
-  }
-
   .tv-ui [data-tv-watch-scrub-row]:focus-within .watch-scrub-track {
-    height: 0.625rem;
-    background-color: rgb(255 255 255 / 0.28);
-    opacity: 1;
+    height: calc(var(--tv-watch-track-size) * 1.5);
+    background-color: rgb(255 255 255 / 0.35);
   }
 
-  .tv-ui .watch-scrub-playhead {
-    height: 1rem;
-    width: 1rem;
+  .tv-ui [data-tv-watch-scrub-row] .watch-scrub-playhead {
+    height: var(--tv-watch-playhead-size);
+    width: var(--tv-watch-playhead-size);
+    border-width: var(--tv-focus-border-width);
+    box-shadow: none;
   }
 
   .tv-ui .watch-scrub-hover-playhead {
     box-shadow: none;
-    border: 2px solid hsl(var(--primary));
+    border-color: hsl(var(--primary));
     background: rgb(255 255 255);
   }
 
@@ -2007,16 +2011,16 @@
     height: 4px;
   }
 
-  .tv-ui .watch-scrub-track--buffering {
-    height: 0.5rem;
+  .tv-ui [data-tv-watch-scrub-row] .watch-scrub-track--buffering {
+    background-color: rgb(255 255 255 / 0.18);
   }
 
   .tv-ui .watch-scrub-time {
     min-width: 7.5rem;
     text-align: right;
-    font-size: 0.8125rem;
-    letter-spacing: 0.02em;
-    color: rgb(255 255 255 / 0.9);
+    font-size: var(--tv-watch-label-size);
+    font-weight: 600;
+    color: #fff;
     text-shadow: 0 1px 2px rgb(0 0 0 / 0.85);
   }
 
@@ -2245,6 +2249,8 @@
 
   /* TV watch — compact overlay chrome; video stays full-screen behind controls */
   .tv-ui [data-tv-watch-bottom-chrome] .watch-chrome-bottom {
+    padding: calc(var(--tv-watch-gap) * 3) var(--tv-watch-inset)
+      max(var(--tv-watch-gap), env(safe-area-inset-bottom, 0px));
     background: linear-gradient(
       to top,
       rgb(0 0 0 / 0.92) 0%,
@@ -2262,7 +2268,7 @@
     );
   }
 
-  /* 4K TV — sharper imagery only. Catalog layout stays living-room scale so a
+  /* 4K TV — sharper imagery. Catalog layout stays living-room scale so a
      1920 CSS-pixel WebView (typical 4K Android TV) is not inflated. */
   html.tv-mode.tv-4k {
     -webkit-font-smoothing: antialiased;
