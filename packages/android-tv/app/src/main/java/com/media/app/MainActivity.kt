@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var splashDismissed = false
     private val splashHandler = Handler(Looper.getMainLooper())
     private var splashPollRunnable: Runnable? = null
+    private val pendingSearchConfirmKeys = mutableSetOf<Int>()
 
     // System speech recognizer (Google) runs in its own process, so the app needs no
     // RECORD_AUDIO permission — unlike an in-process SpeechRecognizer.
@@ -484,6 +486,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        pendingSearchConfirmKeys.clear()
         pauseAllPlayback()
         webView.onPause()
         super.onPause()
@@ -499,7 +502,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_UP && pendingSearchConfirmKeys.remove(event.keyCode)) {
+            if (!event.isCanceled) dispatchWebKey("Enter")
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN) {
+            if (event.keyCode in pendingSearchConfirmKeys) return true
             when (event.keyCode) {
                 KeyEvent.KEYCODE_MEDIA_PLAY,
                 KeyEvent.KEYCODE_MEDIA_PAUSE,
@@ -514,12 +522,18 @@ class MainActivity : AppCompatActivity() {
             }
             // Play/Pause is injected above because WebView never sees those keys.
             // Real TV remotes are the same for D-pad (emulator keyboards are not).
-            // Always inject onto window and consume the native event so catalog
-            // spatial nav and the player both see arrows.
+            // Inject onto window and consume the native event so catalog spatial
+            // nav and the player both see arrows.
             val watchKey = WatchRemoteKeys.webKeyName(event.keyCode)
             if (watchKey != null && WatchRemoteKeys.shouldInjectDpad()) {
                 if (ViewCompat.getRootWindowInsets(webView)?.isVisible(WindowInsetsCompat.Type.ime()) == true) {
                     return super.dispatchKeyEvent(event)
+                }
+                if (watchKey == "Enter" && webView.url?.let { Uri.parse(it).lastPathSegment } == "search") {
+                    // Open the editor after OK is released, so repeats or key-up
+                    // from the opening press can't reach a newly shown keyboard.
+                    if (event.repeatCount == 0) pendingSearchConfirmKeys.add(event.keyCode)
+                    return true
                 }
                 dispatchWebKey(watchKey)
                 return true
@@ -623,7 +637,7 @@ class MainActivity : AppCompatActivity() {
                 val keyboard = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
                     ?: return@post
                 if (visible) {
-                    webView.requestFocus()
+                    if (!webView.hasFocus()) webView.requestFocus()
                     keyboard.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
                 } else {
                     keyboard.hideSoftInputFromWindow(webView.windowToken, 0)

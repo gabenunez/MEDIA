@@ -32,7 +32,6 @@ export function TvSearchView() {
   const editing = draft !== null;
   const searchButton = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const form = useRef<HTMLFormElement>(null);
   const resultsArea = useRef<HTMLElement>(null);
   const focusAfterSearch = useRef<{ resultId: number | null } | null>(null);
 
@@ -50,17 +49,18 @@ export function TvSearchView() {
   }, [query]);
 
   useLayoutEffect(() => {
-    if (!editing) {
-      if (searchButton.current) focusTvItem(searchButton.current);
-      return;
-    }
+    if (!editing && searchButton.current) focusTvItem(searchButton.current);
+  }, [editing, query]);
+
+  useLayoutEffect(() => {
+    if (!editing) return;
     const field = input.current;
     if (!field) return;
     field.focus({ preventScroll: true });
     field.setSelectionRange(field.value.length, field.value.length);
     setAndroidSearchKeyboardVisible(true);
     return () => setAndroidSearchKeyboardVisible(false);
-  }, [editing, query]);
+  }, [editing]);
 
   useLayoutEffect(() => {
     const intent = focusAfterSearch.current;
@@ -89,11 +89,6 @@ export function TvSearchView() {
       if (event.key === "Escape" || event.key === "BrowserBack" || event.key === "GoBack") {
         event.preventDefault();
         cancel();
-      } else if (event.key === "Enter" && event.target === window) {
-        // Older Android shells inject the remote's OK on window. IME Done
-        // and physical keyboards use the normal form submit from the input.
-        event.preventDefault();
-        form.current?.requestSubmit();
       }
     };
     window.__mediaSearchHandleBack = cancel;
@@ -122,13 +117,15 @@ export function TvSearchView() {
       <div className="mb-8 max-w-3xl">
         {editing ? (
           <form
-            ref={form}
             data-tv-row=""
             data-tv-content-row=""
             className="flex items-center gap-3"
             onSubmit={(event) => {
               event.preventDefault();
-              runSearch(input.current?.value ?? "");
+              // Only the editor or its Search button can submit. A repeated
+              // remote OK dispatched on window must not close the keyboard.
+              const value = normalizeTvSearchQuery(input.current?.value);
+              if (value) runSearch(value);
             }}
           >
             <input

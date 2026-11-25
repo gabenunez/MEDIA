@@ -4,9 +4,10 @@
 
 ### Fix
 
-- **Release** — Restore Home quickly when pressing Back on TV
+- **Release** — Fix TV Back navigation and the search keyboard
 - TV startup preserves browser history so Back from another page can restore Home without reloading it.
 - When Home does reload, it becomes visible as soon as authentication is ready.
+- The Android TV search keyboard stays open when the remote’s OK button is held. APK 1.5.31 opens the editor after OK is released.
 
 ## 0.1.332 — 2026-11-24
 
