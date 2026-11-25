@@ -125,22 +125,30 @@ describe("Catalog changes when videos are replaced or removed", () => {
     expect(await db.query.favorites.findFirst()).toMatchObject({ mediaItemId: 1 });
   });
 
-  it("moves a show up when one of its episodes is replaced", async () => {
+  it("keeps a show's original date when an episode is replaced or newly discovered", async () => {
     const tvDir = path.join(dir, "TV");
     fs.mkdirSync(path.join(tvDir, "Example Show"), { recursive: true });
     db.insert(libraries).values({ id: 2, name: "TV", type: "tv", path: tvDir }).run();
     const filePath = writeMovie("TV/Example Show/Example.Show.S01E01.mkv", "original");
     await scanner.scanLibrary(2);
     const [show] = await db.query.mediaItems.findMany();
-    db.update(mediaItems).set({ recentlyAddedAt: firstDay }).where(eq(mediaItems.id, show.id)).run();
+    expect(show.recentlyAddedAt).toBeNull();
+    db.update(mediaItems).set({ createdAt: firstDay }).where(eq(mediaItems.id, show.id)).run();
     db.insert(mediaItems).values({ libraryId: 1, title: "Arrival", type: "movie", createdAt: secondDay }).run();
     expect((await listRecentlyAdded(db)).items[0]?.title).toBe("Arrival");
 
     fs.appendFileSync(filePath, " upgrade");
     await scanner.scanLibrary(2);
 
-    expect((await listRecentlyAdded(db)).items[0]?.id).toBe(show.id);
     expect(await db.query.tvEpisodes.findMany()).toMatchObject([{ filePath, fileSize: 16 }]);
+    expect((await listRecentlyAdded(db)).items.map(item => item.title)).toEqual(["Arrival", "Example Show"]);
+
+    writeMovie("TV/Example Show/Example.Show.S01E02.mkv", "existing file discovered now");
+    await scanner.scanLibrary(2);
+    expect(await db.query.tvEpisodes.findMany()).toHaveLength(2);
+    expect((await listRecentlyAdded(db)).items.map(item => item.title)).toEqual(["Arrival", "Example Show"]);
+    expect(await db.query.mediaItems.findFirst({ where: eq(mediaItems.id, show.id) }))
+      .toMatchObject({ createdAt: firstDay, recentlyAddedAt: null });
   });
 
   it("removes a movie and its metadata on rescan once its last file is deleted", async () => {

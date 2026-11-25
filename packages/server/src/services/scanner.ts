@@ -946,7 +946,7 @@ export class ScannerService {
     }
   }
 
-  private async markRecentlyAdded(mediaItemId: number): Promise<void> {
+  private async markMovieRecentlyAdded(mediaItemId: number): Promise<void> {
     await this.db.update(mediaItems)
       .set({ recentlyAddedAt: new Date() })
       .where(eq(mediaItems.id, mediaItemId));
@@ -967,7 +967,7 @@ export class ScannerService {
         await this.db.update(movieFiles).set(values).where(eq(movieFiles.id, existing.id));
       }
       if (replaced) {
-        await this.markRecentlyAdded(existing.mediaItemId);
+        await this.markMovieRecentlyAdded(existing.mediaItemId);
         this.scheduleCatalogRevalidate(existing.mediaItemId);
         await this.subtitles.discoverForMovieFile(existing.id, filePath, probe);
       }
@@ -994,7 +994,7 @@ export class ScannerService {
     const fileId = file?.id ?? (await this.db.insert(movieFiles)
       .values({ mediaItemId, ...values }).returning({ id: movieFiles.id }))[0].id;
 
-    await this.markRecentlyAdded(mediaItemId);
+    await this.markMovieRecentlyAdded(mediaItemId);
     this.scheduleCatalogRevalidate(mediaItemId);
     await this.subtitles.discoverForMovieFile(fileId, filePath, probe);
   }
@@ -1317,10 +1317,7 @@ export class ScannerService {
           where: eq(tvSeasons.id, existing.seasonId),
           columns: { mediaItemId: true },
         });
-        if (season) {
-          await this.markRecentlyAdded(season.mediaItemId);
-          this.scheduleCatalogRevalidate(season.mediaItemId);
-        }
+        if (season) this.scheduleCatalogRevalidate(season.mediaItemId);
         await this.subtitles.discoverForEpisode(existing.id, filePath, probe);
       }
       return;
@@ -1364,7 +1361,7 @@ export class ScannerService {
       })
       .returning();
 
-    await this.markRecentlyAdded(mediaItem.id);
+    // Recently Added ranks the show by its original import, not by episode scans.
     this.scheduleCatalogRevalidate(mediaItem.id);
     await this.subtitles.discoverForEpisode(episode.id, filePath, probe);
   }

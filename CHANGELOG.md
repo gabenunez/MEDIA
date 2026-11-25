@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.337 — 2026-11-24
+
+### Fix
+
+- **Release** — Keep TV shows ordered by their original import date
+- Scanning, adding, or replacing episodes no longer moves an existing show to the top of Recently Added. The update restores the original order for shows that were bumped.
+- Movie quality upgrades still move to the top of Recently Added.
+
 ## 0.1.336 — 2026-11-24
 
 ### Fix
