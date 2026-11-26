@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.345 — 2026-11-25
+
+### Fix
+
+- **Release** — Bring the page header back into view on TV
+- Press Up to return to the first row and reveal the header while keeping the current button focused.
+
 ## 0.1.344 — 2026-11-25
 
 ### Fix

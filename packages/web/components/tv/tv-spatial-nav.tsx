@@ -402,6 +402,23 @@ function moveHorizontal(active: HTMLElement, direction: "left" | "right") {
   return false;
 }
 
+function revealContentTop(item: HTMLElement): boolean {
+  const main = item.closest("main");
+  if (!main) return false;
+  const currentTop = main.scrollTop;
+  if (currentTop <= 0) return false;
+
+  // Reveal the header above the first row, keeping the focused item onscreen
+  // if that header is taller than the available space.
+  const top = Math.max(
+    0,
+    currentTop + item.getBoundingClientRect().bottom - main.getBoundingClientRect().bottom,
+  );
+  if (top >= currentTop) return false;
+  main.scrollTop = top;
+  return true;
+}
+
 function moveVertical(active: HTMLElement, direction: "up" | "down") {
   const watchMenu = active.closest("[data-tv-watch-menu]");
   if (watchMenu && moveInWatchMenu(active, direction)) return true;
@@ -449,16 +466,18 @@ function moveVertical(active: HTMLElement, direction: "up" | "down") {
     return false;
   }
 
-  if (direction === "up" && contentIndex > 0) {
-    const items = getRowItems(activeRow);
-    const itemIndex = items.indexOf(active);
+  if (direction === "up" && contentIndex >= 0) {
+    const revealHeader = !watchMenu && !isWatchPlayerActive();
+    if (contentIndex === 0) return revealHeader && revealContentTop(active);
+
     const prevItems = getRowItems(contentRows[contentIndex - 1]);
+    const itemIndex = getRowItems(activeRow).indexOf(active);
     const prev = prevItems[Math.min(itemIndex, prevItems.length - 1)];
     if (prev) {
       focusItem(prev);
+      if (revealHeader && contentIndex === 1) revealContentTop(prev);
       return true;
     }
-    return false;
   }
 
   return false;
